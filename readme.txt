@@ -18,3 +18,7 @@ password: 1234
 
 ีupdate lib
 pip freeze > requirements.txt
+
+create Database
+sqlacodegen postgresql://postgres:1234@localhost:5432/mydb --outfile models.py
+

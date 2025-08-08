@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Topnotch – MFG (Demo)</title>
+<style>
+  :root{
+    --bg:#f4f6f8; --panel:#fff; --text:#222; --muted:#6b7280;
+    --brand:#2c7be5; --ok:#22c55e; --warn:#f59e0b; --bad:#ef4444; --side:#2f3136; --sideText:#e5e7eb;
+    --line:#e5e7eb;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Helvetica,Arial,sans-serif;color:var(--text);background:var(--bg);}
+  .layout{display:grid;grid-template-columns:260px 1fr;min-height:100vh}
+  /* sidebar */
+  .side{background:var(--side);color:var(--sideText);padding:18px 14px;display:flex;flex-direction:column;gap:14px}
+  .logo{font-weight:800;letter-spacing:.5px}
+  .menu a{display:block;padding:10px 10px;border-radius:8px;color:var(--sideText);text-decoration:none;cursor:pointer}
+  .menu a:hover,.menu a.active{background:#3b3e45}
+  /* topbar */
+  .top{background:#3b3e45;color:#fff;display:flex;align-items:center;gap:12px;padding:10px 16px;position:sticky;top:0;z-index:10}
+  .search{flex:1;display:flex;align-items:center;gap:8px;background:#4a4d55;border-radius:8px;padding:8px 10px}
+  .search input{all:unset;color:#fff;width:100%}
+  .btn{background:var(--brand);border:none;color:#fff;padding:8px 12px;border-radius:8px;cursor:pointer}
+  .btn:active{transform:translateY(1px)}
+  .btn.ghost{background:#eef0f2;color:#111}
+  /* content */
+  .content{padding:18px}
+  h1{margin:.2rem 0 .8rem 0}
+  h2{margin:0 0 .6rem 0;font-size:16px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .card .hd{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid #eef0f2;font-weight:600}
+  .card .bd{padding:12px 14px}
+  .row{display:flex;gap:12px;flex-wrap:wrap}
+  .col{flex:1 1 320px}
+  table{width:100%;border-collapse:collapse}
+  th,td{padding:8px 10px;border-bottom:1px solid #eef0f2;text-align:left}
+  th{font-size:13px;color:var(--muted)}
+  input,select,textarea{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:#fff}
+  label{display:block;font-size:12px;color:var(--muted);margin:8px 0 4px}
+  .status{display:inline-flex;align-items:center;gap:6px;padding:2px 8px;border-radius:999px;font-size:12px}
+  .s-open{background:#e0ecff;color:#1d4ed8}
+  .s-closed{background:#e5e7eb;color:#374151}
+  .s-progress{background:#fff7ed;color:#9a3412}
+  .tag{display:inline-block;padding:2px 8px;border-radius:999px;background:#eef0f2;font-size:12px}
+  .bar{height:10px;background:#eef0f2;border-radius:6px;overflow:hidden}
+  .bar > span{display:block;height:100%}
+  .b-ok{background:var(--ok)} .b-warn{background:var(--warn)} .b-bad{background:var(--bad)}
+  .tabs{display:flex;border-bottom:1px solid var(--line);gap:8px;margin-bottom:10px}
+  .tabs button{border:none;background:#eef0f2;padding:8px 12px;border-radius:8px 8px 0 0;cursor:pointer}
+  .tabs button.active{background:#fff;border:1px solid var(--line);border-bottom-color:#fff}
+  .muted{color:var(--muted)}
+  @media (max-width: 980px){
+    .layout{grid-template-columns:1fr}
+    .side{position:sticky;top:0;z-index:20;border-bottom:1px solid #444}
+    .grid{grid-template-columns:1fr}
+  }
+  /* hide views by default */
+  .view{display:none}
+  .view.active{display:block}
+</style>
+</head>
+<body>
+<div class="layout">
+  <!-- Sidebar -->
+  <aside class="side">
+    <div class="logo">Topnotch – MFG</div>
+    <nav class="menu" id="menu">
+      <a data-view="dashboard" class="active">Dashboard</a>
+      <a data-view="customers">Customers &amp; Parts</a>
+      <a data-view="po">Purchase Orders</a>
+      <a data-view="lots">Lots / Production</a>
+      <a data-view="templates">Shop Traveler Templates</a>
+      <a data-view="qa">QA &amp; Inspection</a>
+      <a data-view="shipments">Shipments</a>
+      <a data-view="reports">Reports</a>
+      <a data-view="settings">Settings</a>
+    </nav>
+  </aside>
+
+  <!-- Main -->
+  <main>
+    <div class="top">
+      <div class="search">
+        <span>🔎</span>
+        <input placeholder="Search PO / Lot / Tracking..." id="searchBox"/>
+      </div>
+      <button class="btn" onclick="alert('Demo: global quick action')">+ Quick Action</button>
+    </div>
+
+    <div class="content">
+
+      <!-- DASHBOARD -->
+      <section id="view-dashboard" class="view active">
+        <h1>Dashboard Overview</h1>
+        <div class="grid">
+          <section class="card">
+            <div class="hd"><span>PO Status</span><button class="btn ghost" onclick="goto('po')">View all</button></div>
+            <div class="bd">
+              <table>
+                <thead><tr><th>PO</th><th>Customer</th><th>Part</th><th>Due</th><th>Status</th></tr></thead>
+                <tbody id="dash-po">
+                  <!-- filled by JS -->
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="hd"><span>Lots in Progress</span><button class="btn ghost" onclick="goto('lots')">View all</button></div>
+            <div class="bd">
+              <table>
+                <thead><tr><th>Lot</th><th>PO</th><th>Qty</th><th>Progress</th></tr></thead>
+                <tbody id="dash-lots"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="hd"><span>QA Summary (Last 30 days)</span><span class="muted">AQL 1.0%</span></div>
+            <div class="bd row">
+              <div class="col">
+                <table>
+                  <thead><tr><th>Lot</th><th>Step</th><th>Result</th><th>Inspector</th></tr></thead>
+                  <tbody id="dash-qa"></tbody>
+                </table>
+              </div>
+              <div class="col">
+                <h2>Quick Notes</h2>
+                <ul class="muted" id="dash-notes"></ul>
+              </div>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="hd"><span>Shipments</span><button class="btn ghost" onclick="goto('shipments')">View all</button></div>
+            <div class="bd">
+              <table>
+                <thead><tr><th>Lot</th><th>Tracking</th><th>Shipped</th><th>Status</th></tr></thead>
+                <tbody id="dash-ship"></tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <!-- CUSTOMERS & PARTS -->
+      <section id="view-customers" class="view">
+        <h1>Customers & Parts</h1>
+        <div class="grid">
+          <section class="card">
+            <div class="hd"><span>Customers</span><button class="btn" onclick="alert('Demo: create customer')">+ New Customer</button></div>
+            <div class="bd">
+              <table>
+                <thead><tr><th>Code</th><th>Name</th><th>Action</th></tr></thead>
+                <tbody id="tbl-customers"></tbody>
+              </table>
+            </div>
+          </section>
+          <section class="card">
+            <div class="hd"><span>Parts</span><button class="btn" onclick="alert('Demo: create part')">+ New Part</button></div>
+            <div class="bd">
+              <table>
+                <thead><tr><th>Part Number</th><th>Description</th><th>FAIR No.</th><th>Action</th></tr></thead>
+                <tbody id="tbl-parts"></tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <!-- PURCHASE ORDERS -->
+      <section id="view-po" class="view">
+        <h1>Purchase Orders</h1>
+        <div class="card">
+          <div class="hd"><span>PO List</span>
+            <div>
+              <button class="btn ghost" onclick="filterPO('all')">All</button>
+              <button class="btn ghost" onclick="filterPO('open')">Open</button>
+              <button class="btn ghost" onclick="filterPO('closed')">Closed</button>
+              <button class="btn" onclick="alert('Demo: create PO')">+ New PO</button>
+            </div>
+          </div>
+          <div class="bd">
+            <table>
+              <thead><tr><th>PO</th><th>Customer</th><th>Part</th><th>Ordered Qty</th><th>Due</th><th>Status</th><th>Action</th></tr></thead>
+              <tbody id="tbl-po"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- LOTS / PRODUCTION -->
+      <section id="view-lots" class="view">
+        <h1>Lots / Production</h1>
+        <div class="card">
+          <div class="hd"><span>Lots</span>
+            <div>
+              <button class="btn ghost" onclick="alert('Demo: create lot from PO line')">+ New Lot</button>
+            </div>
+          </div>
+          <div class="bd">
+            <table>
+              <thead><tr><th>Lot</th><th>PO</th><th>Part</th><th>Prod Qty</th><th>Shipped</th><th>Progress</th><th>Status</th><th>Action</th></tr></thead>
+              <tbody id="tbl-lots"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:12px">
+          <div class="hd"><span>Lot Detail / Steps (Preview)</span>
+            <div class="tabs">
+              <button class="active" onclick="showLotTab('steps',this)">Steps</button>
+              <button onclick="showLotTab('qa',this)">QA</button>
+              <button onclick="showLotTab('files',this)">Files</button>
+            </div>
+          </div>
+          <div class="bd" id="lot-tabs">
+            <div data-tab="steps">
+              <table>
+                <thead><tr><th>#</th><th>Step</th><th>Station</th><th>Status</th><th>Start</th><th>End</th><th>QA</th></tr></thead>
+                <tbody id="tbl-lot-steps"></tbody>
+              </table>
+            </div>
+            <div data-tab="qa" style="display:none">
+              <table>
+                <thead><tr><th>Lot</th><th>Step</th><th>Inspector</th><th>Result</th><th>Remarks</th></tr></thead>
+                <tbody id="tbl-lot-qa"></tbody>
+              </table>
+            </div>
+            <div data-tab="files" style="display:none">
+              <table>
+                <thead><tr><th>File</th><th>Type</th><th>Uploaded</th></tr></thead>
+                <tbody id="tbl-lot-files"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SHOP TRAVELER TEMPLATES -->
+      <section id="view-templates" class="view">
+        <h1>Shop Traveler Templates</h1>
+        <div class="grid">
+          <section class="card">
+            <div class="hd"><span>Templates</span><button class="btn" onclick="alert('Demo: create template')">+ New Template</button></div>
+            <div class="bd">
+              <table>
+                <thead><tr><th>Name</th><th>Customer</th><th>Part</th><th>Version</th><th>Effective</th><th>Action</th></tr></thead>
+                <tbody id="tbl-tpl"></tbody>
+              </table>
+            </div>
+          </section>
+          <section class="card">
+            <div class="hd"><span>Template Steps (Preview)</span></div>
+            <div class="bd">
+              <table>
+                <thead><tr><th>#</th><th>Code</th><th>Step Name</th><th>Station</th><th>QA Req.</th><th>Expected (min)</th></tr></thead>
+                <tbody id="tbl-tpl-steps"></tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <!-- QA & INSPECTION -->
+      <section id="view-qa" class="view">
+        <h1>QA & Inspection</h1>
+        <div class="grid">
+          <section class="card">
+            <div class="hd"><span>QA Tasks</span><button class="btn" onclick="alert('Demo: assign QA')">Assign</button></div>
+            <div class="bd">
+              <table>
+                <thead><tr><th>Lot</th><th>Step</th><th>Inspector</th><th>Result</th><th>Date</th><th>Action</th></tr></thead>
+                <tbody id="tbl-qa"></tbody>
+              </table>
+            </div>
+          </section>
+          <section class="card">
+            <div class="hd"><span>QA Templates (AQL)</span><button class="btn" onclick="alert('Demo: new QA template')">+ New</button></div>
+            <div class="bd">
+              <table>
+                <thead><tr><th>Name</th><th>AQL</th><th>Params</th></tr></thead>
+                <tbody>
+                  <tr><td>AQL 1.0% General-II</td><td>1.0%</td><td>{ sample_size: 80 }</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <!-- SHIPMENTS -->
+      <section id="view-shipments" class="view">
+        <h1>Shipments</h1>
+        <div class="card">
+          <div class="hd"><span>Shipment List</span><button class="btn" onclick="alert('Demo: create shipment')">+ New Shipment</button></div>
+          <div class="bd">
+            <table>
+              <thead><tr><th>Lot</th><th>PO</th><th>Tracking</th><th>Shipped</th><th>Status</th><th>Action</th></tr></thead>
+              <tbody id="tbl-ship"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- REPORTS -->
+      <section id="view-reports" class="view">
+        <h1>Reports</h1>
+        <div class="grid">
+          <section class="card">
+            <div class="hd"><span>Open PO</span><button class="btn ghost" onclick="alert('Demo: export CSV')">Export CSV</button></div>
+            <div class="bd">
+              <table>
+                <thead><tr><th>PO</th><th>Customer</th><th>Due</th><th>Status</th></tr></thead>
+                <tbody id="rpt-openpo"></tbody>
+              </table>
+            </div>
+          </section>
+          <section class="card">
+            <div class="hd"><span>Lots Pending</span><button class="btn ghost" onclick="alert('Demo: export CSV')">Export CSV</button></div>
+            <div class="bd">
+              <table>
+                <thead><tr><th>Lot</th><th>PO</th><th>Part</th><th>Progress</th></tr></thead>
+                <tbody id="rpt-pendinglots"></tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <!-- SETTINGS -->
+      <section id="view-settings" class="view">
+        <h1>Settings</h1>
+        <div class="card">
+          <div class="hd"><span>System Settings</span></div>
+          <div class="bd row">
+            <div class="col">
+              <label>Company Name</label>
+              <input value="Topnotch Quality Works" />
+              <label>Timezone</label>
+              <select><option>America/Los_Angeles</option><option>UTC</option></select>
+              <label>Default AQL</label>
+              <select><option>1.0% General-II</option></select>
+              <div style="margin-top:10px"><button class="btn">Save</button></div>
+            </div>
+            <div class="col">
+              <h2>Lookups</h2>
+              <p class="muted">สถานะ / ประเภทต่าง ๆ เพิ่ม/ลดได้ภายหลังเมื่อเชื่อม DB</p>
+              <ul>
+                <li>PO Status: open, in_progress, closed</li>
+                <li>Lot Status: in_process, hold, shipped</li>
+                <li>Step Status: pending, running, passed, failed</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+</div>
+
+<script>
+/* -------- Mock data (เหมือนที่เราเตรียมใน Excel) -------- */
+const demo = {
+  customers: [
+    {code:'AF6182', name:'Topnotch AF6182'},
+    {code:'CUST0002', name:'Customer 2'},
+    {code:'CUST0003', name:'Customer 3'}
+  ],
+  parts: [
+    {part:'PN-001', desc:'Sample Part Description', fair:'11296'},
+    {part:'PN-002', desc:'Part description 2', fair:'11297'},
+    {part:'PN-003', desc:'Part description 3', fair:'11298'}
+  ],
+  pos: [
+    {po:'PO12345', customer:'AF6182', part:'PN-001', qty:500, due:'2025-08-20', status:'open'},
+    {po:'PO12346', customer:'CUST0002', part:'PN-002', qty:300, due:'2025-08-21', status:'closed'},
+    {po:'PO12347', customer:'CUST0003', part:'PN-003', qty:400, due:'2025-08-22', status:'in_progress'},
+    {po:'PO12348', customer:'CUST0004', part:'PN-004', qty:250, due:'2025-08-23', status:'open'}
+  ],
+  lots: [
+    {lot:'L16899-1', po:'PO12345', part:'PN-001', prod:500, shipped:250, progress:70, status:'in_process'},
+    {lot:'L16899-2', po:'PO12347', part:'PN-003', prod:300, shipped:0, progress:40, status:'in_process'},
+    {lot:'L16899-3', po:'PO12348', part:'PN-004', prod:250, shipped:250, progress:90, status:'shipped'}
+  ],
+  steps: [
+    {no:1, code:'CUT',   name:'Cutting',     station:'CNC-1', status:'passed', start:'2025-08-10 09:00', end:'10:00', qa:'n.a.'},
+    {no:2, code:'WELD',  name:'Welding',     station:'WELD-2', status:'passed', start:'10:15', end:'12:00', qa:'pass'},
+    {no:3, code:'FINAL', name:'Final QA',    station:'QA-1',   status:'pending', start:'-', end:'-', qa:'-'}
+  ],
+  qa: [
+    {lot:'L16899-1', step:'WELD',  result:'Pass', inspector:'John', date:'2025-08-10'},
+    {lot:'L16899-2', step:'FINAL', result:'Fail', inspector:'Amy',  date:'2025-08-11'},
+    {lot:'L16899-3', step:'FINAL', result:'Pass', inspector:'Ken',  date:'2025-08-12'}
+  ],
+  shipments: [
+    {lot:'L16899-1', po:'PO12345', tracking:'TRK123456789', date:'2025-08-26', status:'Sent'},
+    {lot:'L16899-2', po:'PO12347', tracking:'—',            date:'—',          status:'Pending'},
+    {lot:'L16899-3', po:'PO12348', tracking:'TRK123456990', date:'2025-08-27', status:'Sent'}
+  ],
+  templates: [
+    {name:'AF6182 - PN-001', customer:'AF6182', part:'PN-001', version:1, effective:'2025-08-10'},
+    {name:'CUST0002 - PN-002', customer:'CUST0002', part:'PN-002', version:1, effective:'2025-08-12'}
+  ],
+  tplSteps: [
+    {no:1, code:'CUT', name:'Cutting', station:'CNC-1', qa:false, exp:60},
+    {no:2, code:'WELD', name:'Welding', station:'WELD-2', qa:true, exp:90},
+    {no:3, code:'QA-FINAL', name:'Final QA', station:'QA-1', qa:true, exp:30}
+  ]
+};
+
+/* -------- Render helpers -------- */
+const byId = id => document.getElementById(id);
+function statusBadge(s){
+  if(s==='open') return '<span class="status s-open">● Open</span>';
+  if(s==='closed') return '<span class="status s-closed">● Closed</span>';
+  if(s==='in_progress') return '<span class="status s-progress">● In Progress</span>';
+  if(s==='in_process') return '<span class="status s-progress">● In Process</span>';
+  if(s==='shipped') return '<span class="tag">Shipped</span>';
+  return `<span class="tag">${s}</span>`;
+}
+function progressBar(p){
+  const cls = p>=80?'b-ok':(p>=50?'b-warn':'b-bad');
+  return `<div class="bar"><span class="${cls}" style="width:${p}%"></span></div><small>${p}%</small>`;
+}
+
+/* -------- Initial rendering -------- */
+function renderDashboard(){
+  byId('dash-po').innerHTML = demo.pos.slice(0,4).map(r =>
+    `<tr><td>${r.po}</td><td>${r.customer}</td><td>${r.part}</td><td>${r.due}</td><td>${statusBadge(r.status)}</td></tr>`
+  ).join('');
+  byId('dash-lots').innerHTML = demo.lots.map(r =>
+    `<tr><td>${r.lot}</td><td>${r.po}</td><td>${r.prod}</td><td>${progressBar(r.progress)}</td></tr>`
+  ).join('');
+  byId('dash-qa').innerHTML = demo.qa.map(r =>
+    `<tr><td>${r.lot}</td><td>${r.step}</td><td>${r.result}</td><td>${r.inspector}</td></tr>`
+  ).join('');
+  byId('dash-ship').innerHTML = demo.shipments.map(r =>
+    `<tr><td>${r.lot}</td><td>${r.tracking}</td><td>${r.date}</td><td><span class="tag">${r.status}</span></td></tr>`
+  ).join('');
+  byId('dash-notes').innerHTML = `
+    <li>Urgent PO: PO12345 (Due 2025-08-20)</li>
+    <li>Lot L16899-2 QA failed at FINAL – recheck</li>
+    <li>Two shipments scheduled this week</li>`;
+}
+function renderCustomersParts(){
+  byId('tbl-customers').innerHTML = demo.customers.map(c =>
+    `<tr><td>${c.code}</td><td>${c.name}</td><td><button class="btn ghost" onclick="alert('Demo: edit ${c.code}')">Edit</button></td></tr>`
+  ).join('');
+  byId('tbl-parts').innerHTML = demo.parts.map(p =>
+    `<tr><td>${p.part}</td><td>${p.desc}</td><td>${p.fair}</td><td><button class="btn ghost" onclick="alert('Demo: edit ${p.part}')">Edit</button></td></tr>`
+  ).join('');
+}
+function renderPO(filter='all'){
+  let rows = demo.pos;
+  if(filter==='open') rows = rows.filter(r=>r.status==='open' || r.status==='in_progress');
+  if(filter==='closed') rows = rows.filter(r=>r.status==='closed');
+  byId('tbl-po').innerHTML = rows.map(r =>
+    `<tr><td>${r.po}</td><td>${r.customer}</td><td>${r.part}</td><td>${r.qty}</td><td>${r.due}</td>
+      <td>${statusBadge(r.status)}</td>
+      <td><button class="btn ghost" onclick="alert('Demo: open ${r.po}')">Open</button></td></tr>`
+  ).join('');
+}
+function renderLots(){
+  byId('tbl-lots').innerHTML = demo.lots.map(r =>
+    `<tr><td>${r.lot}</td><td>${r.po}</td><td>${r.part}</td><td>${r.prod}</td><td>${r.shipped}</td>
+      <td>${progressBar(r.progress)}</td><td>${statusBadge(r.status)}</td>
+      <td><button class="btn ghost" onclick="previewLot('${r.lot}')">Preview</button></td></tr>`
+  ).join('');
+  // default preview first lot
+  previewLot(demo.lots[0].lot);
+}
+function previewLot(lot){
+  const steps = demo.steps;
+  byId('tbl-lot-steps').innerHTML = steps.map(s =>
+    `<tr><td>${s.no}</td><td>${s.code}</td><td>${s.station}</td><td>${s.status}</td><td>${s.start}</td><td>${s.end}</td><td>${s.qa}</td></tr>`
+  ).join('');
+  byId('tbl-lot-qa').innerHTML = demo.qa.filter(q=>q.lot===lot || true).map(q =>
+    `<tr><td>${q.lot}</td><td>${q.step}</td><td>${q.inspector}</td><td>${q.result}</td><td>${q.result==='Pass'?'': 'Recheck'}</td></tr>`
+  ).join('');
+  byId('tbl-lot-files').innerHTML = `
+    <tr><td>shop_traveler_${lot}.pdf</td><td>Traveler</td><td>2025-08-10</td></tr>
+    <tr><td>first_article_${lot}.jpg</td><td>Photo</td><td>2025-08-10</td></tr>`;
+}
+function renderTemplates(){
+  byId('tbl-tpl').innerHTML = demo.templates.map(t =>
+    `<tr><td>${t.name}</td><td>${t.customer}</td><td>${t.part}</td><td>${t.version}</td><td>${t.effective}</td>
+      <td><button class="btn ghost" onclick="previewTpl('${t.name}')">Preview</button></td></tr>`
+  ).join('');
+  previewTpl(demo.templates[0].name);
+}
+function previewTpl(name){
+  byId('tbl-tpl-steps').innerHTML = demo.tplSteps.map(s =>
+    `<tr><td>${s.no}</td><td>${s.code}</td><td>${s.name}</td><td>${s.station}</td><td>${s.qa?'Yes':'No'}</td><td>${s.exp}</td></tr>`
+  ).join('');
+}
+function renderQA(){
+  byId('tbl-qa').innerHTML = demo.qa.map(q =>
+    `<tr><td>${q.lot}</td><td>${q.step}</td><td>${q.inspector}</td><td>${q.result}</td><td>${q.date}</td>
+      <td><button class="btn ghost" onclick="alert('Demo: view QA ${q.lot}/${q.step}')">Open</button></td></tr>`
+  ).join('');
+}
+function renderShipments(){
+  byId('tbl-ship').innerHTML = demo.shipments.map(s =>
+    `<tr><td>${s.lot}</td><td>${s.po}</td><td>${s.tracking}</td><td>${s.date}</td><td><span class="tag">${s.status}</span></td>
+      <td><button class="btn ghost" onclick="alert('Demo: print label for ${s.tracking}')">Print</button></td></tr>`
+  ).join('');
+}
+function renderReports(){
+  byId('rpt-openpo').innerHTML = demo.pos.filter(p=>p.status!=='closed').map(r =>
+    `<tr><td>${r.po}</td><td>${r.customer}</td><td>${r.due}</td><td>${statusBadge(r.status)}</td></tr>`
+  ).join('');
+  byId('rpt-pendinglots').innerHTML = demo.lots.filter(l=>l.progress<100).map(r =>
+    `<tr><td>${r.lot}</td><td>${r.po}</td><td>${r.part}</td><td>${progressBar(r.progress)}</td></tr>`
+  ).join('');
+}
+
+/* -------- Routing -------- */
+function goto(view){
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById('view-'+view).classList.add('active');
+  document.querySelectorAll('#menu a').forEach(a=>a.classList.remove('active'));
+  document.querySelector(`#menu a[data-view="${view}"]`).classList.add('active');
+
+  // render on demand
+  if(view==='dashboard') renderDashboard();
+  if(view==='customers') renderCustomersParts();
+  if(view==='po') renderPO('all');
+  if(view==='lots') renderLots();
+  if(view==='templates') renderTemplates();
+  if(view==='qa') renderQA();
+  if(view==='shipments') renderShipments();
+  if(view==='reports') renderReports();
+}
+document.getElementById('menu').addEventListener('click', e=>{
+  const v = e.target?.dataset?.view;
+  if(v){ e.preventDefault(); goto(v); }
+});
+
+/* Tabs in Lot detail */
+function showLotTab(name, btn){
+  const wrap = document.getElementById('lot-tabs');
+  wrap.querySelectorAll('[data-tab]').forEach(el => el.style.display = (el.dataset.tab===name)?'block':'none');
+  btn.parentElement.querySelectorAll('button').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+}
+window.showLotTab = showLotTab;
+window.goto = goto;
+window.previewLot = previewLot;
+window.filterPO = (f)=>renderPO(f);
+
+/* search demo */
+document.getElementById('searchBox').addEventListener('keypress', e=>{
+  if(e.key==='Enter'){
+    alert('Search: '+e.target.value+' (demo only)');
+  }
+});
+
+/* initial */
+renderDashboard();
+</script>
+</body>
+</html>

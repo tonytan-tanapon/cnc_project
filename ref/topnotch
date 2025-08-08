@@ -1,0 +1,38 @@
+
+Topnotch Quailty Works (Record Data)
+Current Data List:
+Customer#	-	AF6182 - Text
+Part Number	-	PN-001 - Text
+Description	-	Sample Part Description - Text
+In Process#	-	10 - Number
+Last Update	-	08/07/2025 10:00 AM - Date/Time
+
+Detail before Ship to Customers. DO NOT MERGE CELL	-	Need 100 pcs, part in stock - Text
+Ship Date	-	08/15/2025 - Date/Time
+FAIR/LONG FORM/NOTE	-	Note A - Text
+Date Due#	-	08/20/2025 - Date/Time
+Start MFG Date	-	08/10/2025 - Date/Time
+Shop Traveler - 08/10/2025 - Date/Time
+Stage Timeline (ST)	-	ST-01 - Text
+Status	- Need 18 pcs, Part in stock, PO close
+FAIR N	-	11296 - Text
+Urgent Job	-	Yes - Type
+
+Produc Control Table:   
+No.	-	1
+Lot Number	-	L16899-1
+PO Number	-	PO12345
+Prod Qty	-	500
+PO Date	-	08/01/2025
+Due Date	-	08/25/2025
+Qty Shipped	-	250
+First article no.	-	FA-01
+*Remark Product Control	-	Material received
+Tracking no.	-	TRK123456789
+Real Shipped Date	-	08/26/2025
+
+QA Inspection before Ship to Customers:
+Incoming Stock	-	100
+QA Inspection/AQL
+Name Inspection
+*Remark (QA Inspection)	-	Passed inspection
