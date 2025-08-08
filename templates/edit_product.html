@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <title>แก้ไขสินค้า</title>
+</head>
+<body>
+  <h1>✏️ แก้ไขสินค้า: {{ product.product_name }}</h1>
+  <form method="post">
+    <label>ชื่อสินค้า:</label><br>
+    <input type="text" name="product_name" value="{{ product.product_name }}"><br><br>
+
+    <label>ประเภท:</label><br>
+    <input type="text" name="product_type" value="{{ product.product_type }}"><br><br>
+
+    <label>ราคา:</label><br>
+    <input type="number" name="price" value="{{ product.price }}"><br><br>
+
+    <label>จำนวน:</label><br>
+    <input type="number" name="quantity" value="{{ product.quantity }}"><br><br>
+
+    <button type="submit">💾 บันทึก</button>
+  </form>
+  <br>
+  <a href="/product/{{ product.product_id }}">🔙 กลับไปหน้ารายละเอียด</a>
+</body>
+</html>

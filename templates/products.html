@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <title>รายการสินค้า - CNC Tracking</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 40px;
+      background-color: #f9f9f9;
+    }
+
+    h1 {
+      color: #333;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+
+    th, td {
+      padding: 12px;
+      border: 1px solid #ddd;
+      text-align: center;
+    }
+
+    th {
+      background-color: #007bff;
+      color: white;
+    }
+
+    td[contenteditable="true"] {
+      background-color: #fff5e6;
+    }
+
+    img.qr-small {
+      width: 50px;
+      height: 50px;
+      cursor: pointer;
+    }
+
+    button {
+      padding: 6px 10px;
+      margin: 2px;
+      font-size: 13px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .edit-btn { background-color: #ffc107; color: white; }
+    .save-btn { background-color: #28a745; color: white; }
+    .cancel-btn { background-color: #6c757d; color: white; }
+    .delete-btn { background-color: #dc3545; color: white; }
+
+    .back-btn {
+      margin-top: 20px;
+      padding: 10px 20px;
+      background-color: #6c757d;
+      color: white;
+      border-radius: 5px;
+      text-decoration: none;
+      display: inline-block;
+    }
+
+    /* Modal for QR */
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      padding-top: 100px;
+      left: 0; top: 0;
+      width: 100%; height: 100%;
+      background-color: rgba(0,0,0,0.8);
+    }
+
+    .modal-content {
+      margin: auto;
+      display: block;
+      max-width: 400px;
+      border: 3px solid white;
+      border-radius: 8px;
+    }
+
+    .modal:hover {
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>🏭 รายการสินค้า</h1>
+
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>ชื่อสินค้า</th>
+        <th>ประเภท</th>
+        <th>ราคา</th>
+        <th>จำนวน</th>
+        <th>สถานะ</th>
+        <th>QR</th>
+        <th>จัดการ</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for product in products %}
+      <tr data-id="{{ product.product_id }}">
+        <td>{{ product.product_id }}</td>
+        <td contenteditable="false">{{ product.product_name }}</td>
+        <td contenteditable="false">{{ product.product_type }}</td>
+        <td contenteditable="false">{{ product.price }}</td>
+        <td contenteditable="false">{{ product.quantity }}</td>
+        <td>{{ "✅" if product.in_stock else "❌" }}</td>
+        <td>
+          <img class="qr-small" src="/generate_qr/{{ product.product_id }}" onclick="showQR(this.src)">
+        </td>
+        <td>
+          <button class="edit-btn" onclick="enableEdit(this)">✏️ Edit</button>
+          <button class="save-btn" style="display:none;" onclick="saveProduct(this)">💾 Save</button>
+          <button class="cancel-btn" style="display:none;" onclick="cancelEdit(this)">❌ Cancel</button>
+          <button class="delete-btn" onclick="deleteProduct('{{ product.product_id }}')">🗑 Delete</button>
+          
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <a href="/" class="back-btn">⬅️ กลับหน้าหลัก</a>
+
+  <!-- Modal สำหรับ QR -->
+  <div id="qrModal" class="modal" onclick="closeQR()">
+    <img class="modal-content" id="qrModalImg">
+  </div>
+
+  <script>
+    function enableEdit(btn) {
+      const row = btn.closest("tr");
+      const cells = row.querySelectorAll("td");
+      for (let i = 1; i <= 4; i++) {
+        cells[i].setAttribute("contenteditable", "true");
+        cells[i].dataset.original = cells[i].innerText;
+      }
+      btn.style.display = "none";
+      row.querySelector(".save-btn").style.display = "inline-block";
+      row.querySelector(".cancel-btn").style.display = "inline-block";
+    }
+
+    function cancelEdit(btn) {
+      const row = btn.closest("tr");
+      const cells = row.querySelectorAll("td");
+      for (let i = 1; i <= 4; i++) {
+        cells[i].innerText = cells[i].dataset.original;
+        cells[i].setAttribute("contenteditable", "false");
+      }
+      row.querySelector(".edit-btn").style.display = "inline-block";
+      row.querySelector(".save-btn").style.display = "none";
+      row.querySelector(".cancel-btn").style.display = "none";
+    }
+
+    function saveProduct(btn) {
+      const row = btn.closest("tr");
+      const id = row.dataset.id;
+      const cells = row.querySelectorAll("td");
+
+      const data = {
+        product_name: cells[1].innerText.trim(),
+        product_type: cells[2].innerText.trim(),
+        price: parseFloat(cells[3].innerText.trim()),
+        quantity: parseInt(cells[4].innerText.trim())
+      };
+
+      fetch(`/products/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data)
+      })
+      .then(res => {
+        if (!res.ok) throw new Error();
+        alert("✅ บันทึกสำเร็จ");
+        for (let i = 1; i <= 4; i++) {
+          cells[i].setAttribute("contenteditable", "false");
+        }
+        row.querySelector(".edit-btn").style.display = "inline-block";
+        row.querySelector(".save-btn").style.display = "none";
+        row.querySelector(".cancel-btn").style.display = "none";
+      })
+      .catch(err => alert("❌ เกิดข้อผิดพลาด"));
+    }
+
+    function deleteProduct(id) {
+      if (!confirm("คุณแน่ใจหรือไม่ว่าจะลบสินค้านี้?")) return;
+
+      fetch(`/products/${id}`, {
+        method: "DELETE"
+      })
+      .then(res => {
+        if (res.ok) {
+          alert("✅ ลบเรียบร้อย");
+          location.reload();
+        } else {
+          alert("❌ ลบไม่สำเร็จ");
+        }
+      });
+    }
+
+    function showQR(src) {
+      const modal = document.getElementById("qrModal");
+      const modalImg = document.getElementById("qrModalImg");
+      modal.style.display = "block";
+      modalImg.src = src;
+    }
+
+    function closeQR() {
+      document.getElementById("qrModal").style.display = "none";
+    }
+  </script>
+
+</body>
+</html>

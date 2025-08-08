@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>QR Code Scanner</title>
+  <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+  <style>
+    #reader {
+      width: 300px;
+      margin: auto;
+      padding-top: 50px;
+    }
+    #result {
+      margin-top: 20px;
+      text-align: center;
+      font-size: 18px;
+      color: green;
+    }
+  </style>
+</head>
+<body>
+
+  <h2 style="text-align: center;">📷 สแกน QR Code</h2>
+
+  <div id="reader"></div>
+  <div id="result"></div>
+
+  <script>
+    function onScanSuccess(decodedText, decodedResult) {
+      document.getElementById("result").innerText = "✅ อ่านได้: " + decodedText;
+
+      // ส่งข้อมูลไปยัง FastAPI backend
+      fetch("http://localhost:8000/scan", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ data: decodedText })
+      })
+      .then(res => res.json())
+      .then(response => {
+        alert("📦 FastAPI ตอบกลับ: " + response.message);
+      })
+      .catch(err => {
+        alert("❌ ส่งข้อมูลไม่สำเร็จ: " + err);
+      });
+    }
+
+    let html5QrcodeScanner = new Html5QrcodeScanner(
+      "reader", { fps: 10, qrbox: 250 });
+    html5QrcodeScanner.render(onScanSuccess);
+  </script>
+
+</body>
+</html>

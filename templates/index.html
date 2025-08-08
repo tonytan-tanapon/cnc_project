@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <title>CNC Tracking System</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      background: #f9f9f9;
+    }
+
+    h1 {
+      margin-bottom: 40px;
+      font-size: 28px;
+      color: #333;
+    }
+
+    .button-container {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+      width: 90%;
+      max-width: 300px;
+    }
+
+    a.menu-button {
+      display: block;
+      text-align: center;
+      padding: 15px;
+      font-size: 18px;
+      border-radius: 8px;
+      background-color: #007bff;
+      color: white;
+      text-decoration: none;
+      transition: background-color 0.2s;
+    }
+
+    a.menu-button:hover {
+      background-color: #0056b3;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>🚀 CNC Tracking System</h1>
+
+  <div class="button-container">
+    <a href="/products" class="menu-button">🏭 ดูสินค้า (Products)</a>
+    <a href="/scan_qr" class="menu-button">🔍 สแกนสินค้า (Scan)</a>
+    <a href="/track_all" class="menu-button">🕒 ขั้นตอนการผลิต (Track)</a>
+    <a href="/add-product" class="menu-button">➕ เพิ่มสินค้า (Add Product)</a>
+  </div>
+
+</body>
+</html>

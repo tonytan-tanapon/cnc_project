@@ -1,0 +1,22 @@
+'1. เปิดไฟล์ Access (.accdb)
+'2. กด Alt + F11 เพื่อเปิด VBA Editor
+'3. ไปที่ Insert → Module
+'4. วางโค้ดนี้ลงไป:
+
+Public Sub ExportAllTablesAsCSV()
+    Dim tdf As DAO.TableDef
+    Dim folderPath As String
+    folderPath = "C:\db_exports\" 
+
+    If Dir(folderPath, vbDirectory) = "" Then
+        MkDir folderPath
+    End If
+
+    For Each tdf In CurrentDb.TableDefs
+        If Left(tdf.Name, 4) <> "MSys" Then ' ข้าม system table
+            DoCmd.TransferText acExportDelim, , tdf.Name, folderPath & tdf.Name & ".csv", True
+        End If
+    Next tdf
+
+    MsgBox "✅ Export Complete!", vbInformation
+End Sub

@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <title>รายละเอียดสินค้า</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 40px;
+    }
+    h1 {
+      color: #333;
+    }
+    .info {
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+  <h1>รายละเอียดสินค้า: {{ product.product_name }}</h1>
+  <div class="info">
+    <p><strong>รหัสสินค้า:</strong> {{ product.product_id }}</p>
+    <p><strong>ประเภท:</strong> {{ product.product_type or '-' }}</p>
+    <p><strong>ราคา:</strong> {{ product.price or 0 }} บาท</p>
+    <p><strong>จำนวนคงเหลือ:</strong> {{ product.quantity }}</p>
+    <p><strong>วันที่เพิ่ม:</strong> {{ product.created_at.strftime("%Y-%m-%d %H:%M") }}</p>
+  </div>
+  <!-- ต่อจากรายละเอียด -->
+<br>
+<a href="/product/{{ product.product_id }}/edit">✏️ แก้ไขสินค้า</a> |
+<form method="post" action="/product/{{ product.product_id }}/delete" style="display:inline;" onsubmit="return confirm('ยืนยันการลบสินค้า?');">
+  <button type="submit" style="background:none;border:none;color:red;cursor:pointer;">🗑️ ลบสินค้า</button>
+</form>
+<br><br>
+<a href="/products">🔙 กลับไปหน้ารายการสินค้า</a>
+
+</body>
+</html>

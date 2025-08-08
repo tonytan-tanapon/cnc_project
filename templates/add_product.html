@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>เพิ่มสินค้า</title>
+</head>
+<body>
+  <h2>🆕 เพิ่มสินค้าใหม่</h2>
+  <form action="/add-product" method="post">
+    <label>ชื่อสินค้า:</label><br>
+    <input type="text" name="product_name" required><br><br>
+
+    <label>ประเภทสินค้า:</label><br>
+    <input type="text" name="product_type"><br><br>
+
+    <label>ราคา:</label><br>
+    <input type="number" name="price" step="0.01"><br><br>
+
+    <label>จำนวน:</label><br>
+    <input type="number" name="quantity"><br><br>
+
+    <input type="submit" value="➕ เพิ่มสินค้า">
+  </form>
+
+  <br><a href="/">🔙 กลับหน้าหลัก</a>
+</body>
+</html>

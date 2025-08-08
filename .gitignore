@@ -1,0 +1,42 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+*.log
+
+# Virtual environment
+venv/
+env/
+.venv/
+
+# Environment variables
+.env
+*.env
+
+# Database files (ถ้ามี)
+*.db
+*.sqlite3
+
+# Generated QR codes
+static/qrcodes/*.png
+*.png
+
+# IDE / Editor settings
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Testing / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Node / frontend build (ถ้ามี)
+frontend/node_modules/
+dist/
+build/

@@ -1,0 +1,20 @@
+mkdir cnc
+cd cnc
+python -m venv venv
+venv\Scripts\activate 
+
+pip install fastapi uvicorn sqlalchemy psycopg2-binary
+pip install qrcode[pil]
+
+uvicorn main:app --reload
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+download & install 
+Database postgreSQL: https://www.enterprisedb.com/downloads/postgres-postgresql-downloads
+Database GUI:pgAdmin
+
+username: postgres
+password: 1234
+
+ีupdate lib
+pip freeze > requirements.txt
