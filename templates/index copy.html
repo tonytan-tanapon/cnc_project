@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Topnotch – Minimal (Customers & PO)</title>
+<style>
+  :root{
+    --bg:#f4f6f8; --panel:#fff; --text:#222; --muted:#6b7280;
+    --brand:#2c7be5; --ok:#22c55e; --warn:#f59e0b; --bad:#ef4444; --side:#2f3136; --sideText:#e5e7eb; --line:#e5e7eb;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Helvetica,Arial,sans-serif;color:var(--text);background:var(--bg);}
+  .layout{display:grid;grid-template-columns:240px 1fr;min-height:100vh}
+  .side{background:var(--side);color:var(--sideText);padding:18px 14px;display:flex;flex-direction:column;gap:14px}
+  .menu a{display:block;padding:10px;border-radius:8px;color:var(--sideText);text-decoration:none}
+  .menu a:hover,.menu a.active{background:#3b3e45}
+  .content{padding:18px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-bottom:16px}
+  .card .hd{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid var(--line);font-weight:600}
+  .card .bd{padding:12px 14px}
+  .row{display:flex;gap:12px;flex-wrap:wrap}
+  .col{flex:1 1 320px}
+  input,select,textarea{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:#fff}
+  label{display:block;font-size:12px;color:var(--muted);margin:8px 0 4px}
+  .btn{background:var(--brand);border:none;color:#fff;padding:8px 12px;border-radius:8px;cursor:pointer}
+  .btn:active{transform:translateY(1px)}
+  table{width:100%;border-collapse:collapse}
+  th,td{padding:8px 10px;border-bottom:1px solid #eef0f2;text-align:left}
+  th{font-size:13px;color:var(--muted)}
+  .muted{color:var(--muted)}
+  .view{display:none}
+  .view.active{display:block}
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside class="side">
+    <div style="font-weight:800">Topnotch – MFG</div>
+    <nav class="menu" id="menu">
+      <a data-view="customers" class="active">Customers</a>
+      <a data-view="po">Purchase Orders</a>
+    </nav>
+  </aside>
+
+  <main class="content">
+    <!-- CUSTOMERS -->
+    <section id="view-customers" class="view active">
+      <div class="card">
+        <div class="hd"><span>Add Customer</span></div>
+        <div class="bd row">
+          <div class="col">
+            <label>Customer Code</label>
+            <input id="cust-code" placeholder="AF6182" />
+          </div>
+          <div class="col">
+            <label>Customer Name</label>
+            <input id="cust-name" placeholder="Topnotch AF6182" />
+          </div>
+          <div style="width:100%;display:flex;gap:8px;justify-content:flex-end;margin-top:6px">
+            <button class="btn" onclick="saveCustomer()">Save</button>
+          </div>
+          <div id="cust-msg" class="muted" style="margin-left:6px"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="hd"><span>Customer List</span></div>
+        <div class="bd">
+          <table>
+            <thead><tr><th>Code</th><th>Name</th></tr></thead>
+            <tbody id="tbl-customers"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- PO -->
+    <section id="view-po" class="view">
+      <div class="card">
+        <div class="hd"><span>Add PO</span></div>
+        <div class="bd row">
+          <div class="col">
+            <label>PO Number</label>
+            <input id="po-no" placeholder="PO12345" />
+          </div>
+          <div class="col">
+            <label>Customer Code</label>
+            <input id="po-cust" placeholder="AF6182" />
+          </div>
+          <div class="col">
+            <label>Part</label>
+            <input id="po-part" placeholder="PN-001" />
+          </div>
+          <div class="col">
+            <label>Ordered Qty</label>
+            <input id="po-qty" type="number" placeholder="500" />
+          </div>
+          <div class="col">
+            <label>Due (YYYY-MM-DD)</label>
+            <input id="po-due" type="date" />
+          </div>
+          <div class="col">
+            <label>Status</label>
+            <input id="po-status" placeholder="open" value="open" />
+          </div>
+          <div style="width:100%;display:flex;gap:8px;justify-content:flex-end;margin-top:6px">
+            <button class="btn" onclick="savePO()">Save PO</button>
+          </div>
+          <div id="po-msg" class="muted" style="margin-left:6px"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="hd"><span>PO List</span></div>
+        <div class="bd">
+          <table>
+            <thead><tr><th>PO</th><th>Customer</th><th>Part</th><th>Qty</th><th>Due</th><th>Status</th></tr></thead>
+            <tbody id="tbl-po"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+// ---- Config ----
+const API_BASE = 'http://localhost:8000';
+
+// ---- Helpers ----
+const byId = id => document.getElementById(id);
+async function api(path, {method='GET', data} = {}){
+  const res = await fetch(API_BASE + path, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: data ? JSON.stringify(data) : undefined
+  });
+  if(!res.ok){
+    const msg = await res.text().catch(()=>res.statusText);
+    throw new Error(`${res.status} ${msg}`);
+  }
+  const ct = res.headers.get('content-type') || '';
+  return ct.includes('application/json') ? res.json() : null;
+}
+function showLoadingRow(tbodyId, cols){ byId(tbodyId).innerHTML = `<tr><td colspan="${cols}" class="muted">Loading…</td></tr>`; }
+function showErrorRow(tbodyId, err, cols){ byId(tbodyId).innerHTML = `<tr><td colspan="${cols}" style="color:var(--bad)">Error: ${err.message}</td></tr>`; }
+
+// ---- Customers ----
+async function renderCustomers(){
+  showLoadingRow('tbl-customers', 2);
+  try{
+    const data = await api('/api/customers');
+    byId('tbl-customers').innerHTML = (data||[]).map(c=>`<tr><td>${c.code}</td><td>${c.name}</td></tr>`).join('')
+      || `<tr><td colspan="2" class="muted">No customers</td></tr>`;
+  }catch(e){ showErrorRow('tbl-customers', e, 2); }
+}
+async function saveCustomer(){
+  const code = byId('cust-code').value.trim().toUpperCase();
+  const name = byId('cust-name').value.trim();
+  byId('cust-msg').textContent = '';
+  if(!code || !name){ byId('cust-msg').textContent = 'กรอก code และ name ก่อนครับ'; return; }
+  try{
+    await api('/api/customers', { method:'POST', data:{ code, name } });
+    byId('cust-msg').textContent = 'Saved ✔';
+    byId('cust-code').value = ''; byId('cust-name').value = '';
+    await renderCustomers();
+  }catch(e){
+    byId('cust-msg').textContent = 'Error: ' + e.message;
+  }
+}
+
+// ---- PO ----
+async function renderPO(){
+  showLoadingRow('tbl-po', 6);
+  try{
+    const data = await api('/api/po');
+    byId('tbl-po').innerHTML = (data||[]).map(r=>`
+      <tr>
+        <td>${r.po}</td><td>${r.customer_code}</td><td>${r.part}</td>
+        <td>${r.ordered_qty}</td><td>${r.due || '-'}</td><td>${r.status}</td>
+      </tr>`).join('') || `<tr><td colspan="6" class="muted">No PO</td></tr>`;
+  }catch(e){ showErrorRow('tbl-po', e, 6); }
+}
+async function savePO(){
+  const payload = {
+    po: byId('po-no').value.trim(),
+    customer_code: byId('po-cust').value.trim().toUpperCase(),
+    part: byId('po-part').value.trim(),
+    ordered_qty: Number(byId('po-qty').value || 0),
+    due: byId('po-due').value || null,
+    status: byId('po-status').value.trim() || 'open',
+  };
+  byId('po-msg').textContent = '';
+  if(!payload.po || !payload.customer_code){ byId('po-msg').textContent = 'กรอก PO และ Customer Code'; return; }
+  try{
+    await api('/api/po', { method:'POST', data: payload });
+    byId('po-msg').textContent = 'Saved ✔';
+    ['po-no','po-cust','po-part','po-qty','po-due','po-status'].forEach(id=>byId(id).value='');
+    await renderPO();
+  }catch(e){
+    byId('po-msg').textContent = 'Error: ' + e.message;
+  }
+}
+
+// ---- Routing ----
+document.getElementById('menu').addEventListener('click', e=>{
+  const v = e.target?.dataset?.view;
+  if(!v) return;
+  e.preventDefault();
+  document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
+  document.getElementById('view-'+v).classList.add('active');
+  document.querySelectorAll('#menu a').forEach(a=>a.classList.remove('active'));
+  e.target.classList.add('active');
+
+  if(v==='customers') renderCustomers();
+  if(v==='po') renderPO();
+});
+
+// ---- initial ----
+renderCustomers();
+</script>
+</body>
+</html>
