@@ -1,0 +1,189 @@
+{
+  "info": {
+    "name": "MFG End-to-End Example",
+    "_postman_id": "1d24ef30-cbdf-4c47-bf8c-11b6a47f1f98",
+    "description": "End-to-end manufacturing workflow from customer PO to shipment",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Create Customer",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"code\": \"CUST001\",\n  \"name\": \"ABC Industries\",\n  \"contact\": \"John Smith\",\n  \"email\": \"john@abc.com\",\n  \"phone\": \"123-456-7890\",\n  \"address\": \"123 Industrial Ave\"\n}"
+        },
+        "url": {
+          "raw": "http://localhost:8000/customers",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8000",
+          "path": ["customers"]
+        }
+      }
+    },
+    {
+      "name": "2. Create Purchase Order",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"po_number\": \"PO-1001\",\n  \"customer_id\": 1,\n  \"description\": \"Order for CNC parts\"\n}"
+        },
+        "url": {
+          "raw": "http://localhost:8000/pos",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8000",
+          "path": ["pos"]
+        }
+      }
+    },
+    {
+      "name": "3. Create Raw Material",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"code\": \"RM-STEEL-A36\",\n  \"name\": \"Steel A36\",\n  \"spec\": \"ASTM A36\",\n  \"uom\": \"kg\",\n  \"remark\": \"Standard mild steel\"\n}"
+        },
+        "url": {
+          "raw": "http://localhost:8000/raw-materials",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8000",
+          "path": ["raw-materials"]
+        }
+      }
+    },
+    {
+      "name": "4. Receive Raw Batch",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"material_id\": 1,\n  \"batch_no\": \"BATCH-20250810\",\n  \"supplier\": \"Steel Supplier Ltd.\",\n  \"received_at\": \"2025-08-10\",\n  \"qty_received\": 500,\n  \"location\": \"WH-A1\"\n}"
+        },
+        "url": {
+          "raw": "http://localhost:8000/raw-batches",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8000",
+          "path": ["raw-batches"]
+        }
+      }
+    },
+    {
+      "name": "5. Create Production Lot",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"lot_no\": \"LOT-20250810-01\",\n  \"part_no\": \"PN-001\",\n  \"po_id\": 1,\n  \"planned_qty\": 100\n}"
+        },
+        "url": {
+          "raw": "http://localhost:8000/production-lots",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8000",
+          "path": ["production-lots"]
+        }
+      }
+    },
+    {
+      "name": "6. Allocate Material to Lot",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"lot_id\": 1,\n  \"batch_id\": 1,\n  \"qty\": 200\n}"
+        },
+        "url": {
+          "raw": "http://localhost:8000/lot-material-use",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8000",
+          "path": ["lot-material-use"]
+        }
+      }
+    },
+    {
+      "name": "7. Create Shop Traveler",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"lot_id\": 1,\n  \"created_by_id\": 1,\n  \"notes\": \"Standard process\"\n}"
+        },
+        "url": {
+          "raw": "http://localhost:8000/shop-travelers",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8000",
+          "path": ["shop-travelers"]
+        }
+      }
+    },
+    {
+      "name": "8. Add Shop Traveler Steps",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"traveler_id\": 1,\n  \"seq\": 1,\n  \"step_name\": \"CNC Machining\",\n  \"station\": \"CNC-01\",\n  \"qa_required\": true\n}"
+        },
+        "url": {
+          "raw": "http://localhost:8000/shop-traveler-steps",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8000",
+          "path": ["shop-traveler-steps"]
+        }
+      }
+    },
+    {
+      "name": "9. Complete Step",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:8000/traveler-steps/1/finish?result=passed&qa_result=pass&qa_notes=OK",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8000",
+          "path": ["traveler-steps", "1", "finish"],
+          "query": [
+            { "key": "result", "value": "passed" },
+            { "key": "qa_result", "value": "pass" },
+            { "key": "qa_notes", "value": "OK" }
+          ]
+        }
+      }
+    }
+  ]
+}

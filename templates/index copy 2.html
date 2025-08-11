@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Topnotch – MFG · CNC Tracking</title>
+  <style>
+    :root{
+      --bg:#0f172a;          /* sidebar bg - slate-900 */
+      --bg-2:#111827;        /* darker */
+      --text:#e5e7eb;        /* slate-200 */
+      --muted:#9ca3af;       /* gray-400 */
+      --brand:#2563eb;       /* blue-600 */
+      --brand-2:#1d4ed8;     /* blue-700 */
+      --panel:#ffffff;       /* white */
+      --panel-2:#f8fafc;     /* slate-50 */
+      --border:#e5e7eb;      /* slate-200 */
+      --shadow:0 10px 20px rgba(2,6,23,.08),0 2px 6px rgba(2,6,23,.06);
+      --radius:14px;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,Segoe UI Emoji; background:var(--panel-2); color:#0f172a}
+
+    .app{display:grid; grid-template-columns: 260px 1fr; min-height:100vh}
+
+    /* Sidebar */
+    .sidebar{background:linear-gradient(180deg,var(--bg),var(--bg-2)); color:var(--text); padding:20px 18px;}
+    .logo{font-weight:800; letter-spacing:.2px; font-size:20px; display:flex; align-items:center; gap:10px;}
+    .logo-badge{display:inline-grid; place-items:center; width:28px; height:28px; border-radius:8px; background:var(--brand); font-weight:700}
+    .nav{margin-top:22px; display:flex; flex-direction:column; gap:6px}
+    .nav a{color:var(--text); text-decoration:none; padding:10px 12px; border-radius:10px; display:flex; align-items:center; gap:10px; transition:.15s ease; opacity:.9}
+    .nav a:hover{background:rgba(255,255,255,.06); opacity:1}
+    .nav a.active{background:rgba(37,99,235,.18); color:#fff; opacity:1}
+
+    /* Main */
+    .main{padding:20px 24px 48px}
+
+    /* Topbar */
+    .topbar{display:flex; align-items:center; gap:14px}
+    .search{flex:1; position:relative}
+    .search input{width:100%; padding:12px 14px 12px 42px; border:1px solid var(--border); border-radius:12px; outline:none; background:#fff; transition:border .15s ease}
+    .search input:focus{border-color:var(--brand)}
+    .search svg{position:absolute; left:12px; top:50%; transform:translateY(-50%); opacity:.55}
+    .btn{background:var(--brand); color:#fff; border:none; padding:10px 14px; border-radius:12px; font-weight:600; box-shadow:var(--shadow); cursor:pointer}
+    .btn:hover{background:var(--brand-2)}
+
+    /* Page title */
+    .page-title{font-size:28px; font-weight:800; margin:18px 4px}
+    .subtitle{margin:0 4px 18px; color:#475569}
+
+    /* Tiles */
+    .tiles{display:grid; grid-template-columns: repeat(2, minmax(240px, 1fr)); gap:18px}
+    @media (max-width: 800px){ .tiles{grid-template-columns:1fr} }
+
+    .tile{display:flex; align-items:center; justify-content:space-between; gap:14px; padding:18px; border-radius:var(--radius); background:var(--panel); border:1px solid var(--border); box-shadow:var(--shadow); text-decoration:none; color:inherit}
+    .tile:hover{border-color:var(--brand)}
+    .tile .info{display:flex; flex-direction:column}
+    .tile .title{font-weight:800}
+    .tile .desc{color:#64748b; font-size:14px}
+    .tile .emoji{font-size:28px}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="logo">
+        <span class="logo-badge">TN</span>
+        <span>Topnotch – MFG</span>
+      </div>
+      <nav class="nav">
+        <a href="#" class="active" title="Dashboard">Dashboard</a>
+        <a href="#" title="Customers">Customers</a>
+        <a href="#" title="Purchase Orders">Purchase Orders</a>
+        <a href="#" title="Material">Material</a>
+        <a href="#" title="Losts">Losts</a>
+        <a href="#" title="Reports">Reports</a>
+        <a href="#" title="Settings">Settings</a>
+      </nav>
+    </aside>
+
+    <!-- Main content -->
+    <main class="main">
+      <div class="topbar">
+        <div class="search">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zM9.5 14C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+          <input type="search" placeholder="Search PO / Lot / Tracking…" />
+        </div>
+        <button class="btn">+ Quick Action</button>
+      </div>
+
+      <h1 class="page-title">🚀 CNC Tracking System</h1>
+      <p class="subtitle">เข้าถึงเมนูหลักได้อย่างรวดเร็ว</p>
+
+      <section class="tiles">
+        <a class="tile" href="/products">
+          <div class="info">
+            <span class="title">ดูสินค้า (Products)</span>
+            <span class="desc">รายการสินค้า/ชิ้นงานทั้งหมด</span>
+          </div>
+          <div class="emoji">🏭</div>
+        </a>
+
+        <a class="tile" href="/scan_qr">
+          <div class="info">
+            <span class="title">สแกนสินค้า (Scan)</span>
+            <span class="desc">แสกน QR เพื่ออัปเดตสถานะการผลิต</span>
+          </div>
+          <div class="emoji">🔍</div>
+        </a>
+
+        <a class="tile" href="/track_all">
+          <div class="info">
+            <span class="title">ขั้นตอนการผลิต (Track)</span>
+            <span class="desc">ดูความคืบหน้าและประวัติการทำงาน</span>
+          </div>
+          <div class="emoji">🕒</div>
+        </a>
+
+        <a class="tile" href="/add-product">
+          <div class="info">
+            <span class="title">เพิ่มสินค้า (Add Product)</span>
+            <span class="desc">บันทึกสินค้าใหม่เข้าระบบ</span>
+          </div>
+          <div class="emoji">➕</div>
+        </a>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

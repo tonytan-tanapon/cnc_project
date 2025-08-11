@@ -3,12 +3,6 @@ from sqlalchemy.orm import relationship, declarative_base
 from datetime import datetime
 from database import Base
 
-# class User(Base):
-#     __tablename__ = "users"
-#     id = Column(Integer, primary_key=True, index=True)
-#     name = Column(String)
-#     email = Column(String, unique=True, index=True)
-
 class Customer(Base):
     __tablename__ = "customers"
     id = Column(Integer, primary_key=True, index=True)
@@ -72,22 +66,7 @@ class RawBatch(Base):
     material = relationship("RawMaterial", back_populates="batches")
     uses = relationship("LotMaterialUse", back_populates="batch")
 
-# 3) Lot การผลิต
-# class ProductionLot(Base):
-#     __tablename__ = "production_lots"
-#     id = Column(Integer, primary_key=True)
-#     lot_no = Column(String, unique=True, index=True, nullable=False) # เช่น L16899-1
-#     part_no = Column(String, nullable=True)                          # หรือทำ FK ไป parts.id ถ้ามี
-#     po_id = Column(Integer, ForeignKey("purchase_orders.id"), nullable=True)
-#     planned_qty = Column(Integer, nullable=False, default=0)
-#     started_at = Column(DateTime, nullable=True)
-#     finished_at = Column(DateTime, nullable=True)
-#     status = Column(String, nullable=False, default="in_process")    # in_process/hold/shipped
 
-#     po = relationship("PO", back_populates="lots", uselist=False)    # ถ้าจะให้ PO มีหลาย lot ให้ตั้ง one-to-many ที่ PO
-#     material_uses = relationship("LotMaterialUse", back_populates="lot")
-
-# (เพิ่ม relationship ที่ PO ถ้ายังไม่มี)
 from sqlalchemy.orm import declared_attr
 
 
@@ -198,38 +177,3 @@ class ShopTravelerStep(Base):
         Index("ix_traveler_steps_status", "status"),
         Index("ix_traveler_steps_operator", "operator_id"),
     )
-
-######################################################
-# # ตารางสินค้า
-# class Product(Base):
-#     __tablename__ = "products"
-
-#     product_id = Column(Integer, primary_key=True, index=True)
-#     product_name = Column(String, nullable=False)
-#     product_type = Column(String, nullable=True)
-#     price = Column(Float, nullable=True)
-#     quantity = Column(Integer, default=0)
-#     in_stock = Column(Boolean, default=True)
-#     created_at = Column(DateTime, default=datetime.utcnow)
-
-#     # ความสัมพันธ์: หนึ่งสินค้ามีหลายขั้นตอน
-#     process_steps = relationship("ProcessStep", back_populates="product")
-
-
-
-# # ตารางขั้นตอนการผลิต
-# class ProcessStep(Base):
-#     __tablename__ = "process_steps"
-
-#     step_id = Column(Integer, primary_key=True, index=True)
-#     product_id = Column(Integer, ForeignKey("products.product_id"), nullable=False)
-#     step_name = Column(String, nullable=False)
-#     step_order = Column(Integer, nullable=False)
-#     status = Column(String, default="pending")  # pending, in_progress, done
-#     started_at = Column(DateTime, nullable=True)
-#     completed_at = Column(DateTime, nullable=True)
-
-#     # ความสัมพันธ์กลับไปที่สินค้า
-#     product = relationship("Product", back_populates="process_steps")
-
-# # Base = declarative_base()

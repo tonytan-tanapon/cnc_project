@@ -6,59 +6,58 @@
   <title>Topnotch – MFG · CNC Tracking</title>
   <style>
     :root{
-      --bg:#0f172a;          /* sidebar bg - slate-900 */
-      --bg-2:#111827;        /* darker */
-      --text:#e5e7eb;        /* slate-200 */
-      --muted:#9ca3af;       /* gray-400 */
-      --brand:#2563eb;       /* blue-600 */
-      --brand-2:#1d4ed8;     /* blue-700 */
-      --panel:#ffffff;       /* white */
-      --panel-2:#f8fafc;     /* slate-50 */
-      --border:#e5e7eb;      /* slate-200 */
-      --shadow:0 10px 20px rgba(2,6,23,.08),0 2px 6px rgba(2,6,23,.06);
+      --bg:#0f172a; --bg-2:#111827; --text:#e5e7eb; --muted:#9ca3af;
+      --brand:#2563eb; --brand-2:#1d4ed8; --panel:#ffffff; --panel-2:#f8fafc;
+      --border:#e5e7eb; --shadow:0 10px 20px rgba(2,6,23,.08),0 2px 6px rgba(2,6,23,.06);
       --radius:14px;
     }
     *{box-sizing:border-box}
     html,body{height:100%}
-    body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,Segoe UI Emoji; background:var(--panel-2); color:#0f172a}
-
-    .app{display:grid; grid-template-columns: 260px 1fr; min-height:100vh}
-
+    body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,Segoe UI Emoji;background:var(--panel-2);color:#0f172a}
+    .app{display:grid;grid-template-columns:260px 1fr;min-height:100vh}
     /* Sidebar */
-    .sidebar{background:linear-gradient(180deg,var(--bg),var(--bg-2)); color:var(--text); padding:20px 18px;}
-    .logo{font-weight:800; letter-spacing:.2px; font-size:20px; display:flex; align-items:center; gap:10px;}
-    .logo-badge{display:inline-grid; place-items:center; width:28px; height:28px; border-radius:8px; background:var(--brand); font-weight:700}
-    .nav{margin-top:22px; display:flex; flex-direction:column; gap:6px}
-    .nav a{color:var(--text); text-decoration:none; padding:10px 12px; border-radius:10px; display:flex; align-items:center; gap:10px; transition:.15s ease; opacity:.9}
-    .nav a:hover{background:rgba(255,255,255,.06); opacity:1}
-    .nav a.active{background:rgba(37,99,235,.18); color:#fff; opacity:1}
-
+    .sidebar{background:linear-gradient(180deg,var(--bg),var(--bg-2));color:var(--text);padding:20px 18px}
+    .logo{font-weight:800;letter-spacing:.2px;font-size:20px;display:flex;align-items:center;gap:10px}
+    .logo-badge{display:inline-grid;place-items:center;width:28px;height:28px;border-radius:8px;background:var(--brand);font-weight:700}
+    .nav{margin-top:22px;display:flex;flex-direction:column;gap:6px}
+    .nav a{color:var(--text);text-decoration:none;padding:10px 12px;border-radius:10px;display:flex;align-items:center;gap:10px;transition:.15s ease;opacity:.9}
+    .nav a:hover{background:rgba(255,255,255,.06);opacity:1}
+    .nav a.active{background:rgba(37,99,235,.18);color:#fff;opacity:1}
     /* Main */
     .main{padding:20px 24px 48px}
-
     /* Topbar */
-    .topbar{display:flex; align-items:center; gap:14px}
-    .search{flex:1; position:relative}
-    .search input{width:100%; padding:12px 14px 12px 42px; border:1px solid var(--border); border-radius:12px; outline:none; background:#fff; transition:border .15s ease}
+    .topbar{display:flex;align-items:center;gap:14px}
+    .search{flex:1;position:relative}
+    .search input{width:100%;padding:12px 14px 12px 42px;border:1px solid var(--border);border-radius:12px;outline:none;background:#fff;transition:border .15s ease}
     .search input:focus{border-color:var(--brand)}
-    .search svg{position:absolute; left:12px; top:50%; transform:translateY(-50%); opacity:.55}
-    .btn{background:var(--brand); color:#fff; border:none; padding:10px 14px; border-radius:12px; font-weight:600; box-shadow:var(--shadow); cursor:pointer}
+    .search svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);opacity:.55}
+    .btn{background:var(--brand);color:#fff;border:none;padding:10px 14px;border-radius:12px;font-weight:600;box-shadow:var(--shadow);cursor:pointer}
     .btn:hover{background:var(--brand-2)}
-
-    /* Page title */
-    .page-title{font-size:28px; font-weight:800; margin:18px 4px}
-    .subtitle{margin:0 4px 18px; color:#475569}
-
-    /* Tiles */
-    .tiles{display:grid; grid-template-columns: repeat(2, minmax(240px, 1fr)); gap:18px}
-    @media (max-width: 800px){ .tiles{grid-template-columns:1fr} }
-
-    .tile{display:flex; align-items:center; justify-content:space-between; gap:14px; padding:18px; border-radius:var(--radius); background:var(--panel); border:1px solid var(--border); box-shadow:var(--shadow); text-decoration:none; color:inherit}
+    /* Titles & cards */
+    .page-title{font-size:28px;font-weight:800;margin:18px 4px}
+    .subtitle{margin:0 4px 18px;color:#475569}
+    .tiles{display:grid;grid-template-columns:repeat(2,minmax(240px,1fr));gap:18px}
+    @media (max-width:800px){.tiles{grid-template-columns:1fr}}
+    .tile{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:18px;border-radius:var(--radius);background:var(--panel);border:1px solid var(--border);box-shadow:var(--shadow);text-decoration:none;color:inherit}
     .tile:hover{border-color:var(--brand)}
-    .tile .info{display:flex; flex-direction:column}
+    .tile .info{display:flex;flex-direction:column}
     .tile .title{font-weight:800}
-    .tile .desc{color:#64748b; font-size:14px}
+    .tile .desc{color:#64748b;font-size:14px}
     .tile .emoji{font-size:28px}
+    .card{background:#fff;border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow);padding:16px;margin:10px 0}
+    .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:10px}
+    .col-3{grid-column:span 3}.col-4{grid-column:span 4}.col-6{grid-column:span 6}.col-12{grid-column:span 12}
+    label{font-size:12px;color:#334155;display:block;margin-bottom:4px}
+    input,select,textarea{width:100%;padding:10px 12px;border:1px solid #e2e8f0;border-radius:10px;background:#fff}
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:10px;border-bottom:1px solid #e2e8f0;text-align:left;font-size:13px}
+    th{background:#f8fafc}
+    .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0}
+    .hint{font-size:12px;color:#64748b}
+    .hidden{display:none}
+    .badge{display:inline-block;padding:.15rem .5rem;border:1px solid #e2e8f0;border-radius:999px;font-size:11px;color:#334155;background:#f8fafc}
+    .toast{position:fixed;right:16px;bottom:16px;padding:12px 14px;background:#0b1020;color:#e5e7eb;border:1px solid #334155;border-radius:12px;box-shadow:var(--shadow);opacity:0;transform:translateY(8px);transition:.2s}
+    .toast.show{opacity:1;transform:translateY(0)}
   </style>
 </head>
 <body>
@@ -69,64 +68,683 @@
         <span class="logo-badge">TN</span>
         <span>Topnotch – MFG</span>
       </div>
-      <nav class="nav">
-        <a href="#" class="active" title="Dashboard">Dashboard</a>
-        <a href="#" title="Customers">Customers</a>
-        <a href="#" title="Purchase Orders">Purchase Orders</a>
-        <a href="#" title="Material">Material</a>
-        <a href="#" title="Losts">Losts</a>
-        <a href="#" title="Reports">Reports</a>
-        <a href="#" title="Settings">Settings</a>
+      <nav class="nav" id="sideNav">
+        <a data-page="dash" class="active">Dashboard</a>
+        <a data-page="customers">Customers</a>
+        <a data-page="pos">Purchase Orders</a>
+        <a data-page="materials">Materials</a>
+        <a data-page="lots">Lots</a>
+        <a data-page="employees">Employees</a>
+        <a data-page="trav">Travelers & Steps</a>
+        <a data-page="subcon">Subcontracting</a>
+        <a data-page="suppliers">Suppliers</a>
+        <a data-page="reports">Reports</a>
       </nav>
     </aside>
 
-    <!-- Main content -->
+    <!-- Main -->
     <main class="main">
       <div class="topbar">
         <div class="search">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zM9.5 14C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
-          <input type="search" placeholder="Search PO / Lot / Tracking…" />
+          <input id="globalSearch" type="search" placeholder="Search PO / Lot / Tracking…" />
         </div>
-        <button class="btn">+ Quick Action</button>
+        <input id="apiBase" placeholder="API Base (ว่าง = origin) เช่น http://localhost:8000" style="width:320px;padding:10px 12px;border:1px solid #e2e8f0;border-radius:10px" />
+        <button class="btn" id="btnPing">Ping</button>
       </div>
 
-      <h1 class="page-title">🚀 CNC Tracking System</h1>
-      <p class="subtitle">เข้าถึงเมนูหลักได้อย่างรวดเร็ว</p>
+      <!-- Pages -->
+      <section id="page-dash">
+        <h1 class="page-title">🚀 CNC Tracking System</h1>
+        <p class="subtitle">เข้าถึงเมนูหลักได้อย่างรวดเร็ว</p>
+        <section class="tiles" id="quickTiles">
+          <a class="tile" data-nav="materials">
+            <div class="info"><span class="title">วัสดุ (Materials)</span><span class="desc">+ เพิ่มวัสดุใหม่ / คลัง</span></div><div class="emoji">🧱</div>
+          </a>
+          <a class="tile" data-nav="lots">
+            <div class="info"><span class="title">ล็อตการผลิต (Lots)</span><span class="desc">สร้าง lot / ติดตามสถานะ</span></div><div class="emoji">🏷️</div>
+          </a>
+          <a class="tile" data-nav="trav">
+            <div class="info"><span class="title">ขั้นตอนผลิต (Traveler/Steps)</span><span class="desc">เริ่ม/จบ step, QA</span></div><div class="emoji">🛠️</div>
+          </a>
+          <a class="tile" data-nav="subcon">
+            <div class="info"><span class="title">ส่งงานนอก (Subcon)</span><span class="desc">Order / Shipment / Receipt</span></div><div class="emoji">🚚</div>
+          </a>
 
-      <section class="tiles">
-        <a class="tile" href="/products">
-          <div class="info">
-            <span class="title">ดูสินค้า (Products)</span>
-            <span class="desc">รายการสินค้า/ชิ้นงานทั้งหมด</span>
-          </div>
-          <div class="emoji">🏭</div>
-        </a>
+          <a class="tile" data-nav="employees">
+  <div class="info"><span class="title">พนักงาน (Employees)</span><span class="desc">เพิ่ม/ดูรายชื่อพนักงาน</span></div>
+  <div class="emoji">👷</div>
+</a>
+        </section>
 
-        <a class="tile" href="/scan_qr">
-          <div class="info">
-            <span class="title">สแกนสินค้า (Scan)</span>
-            <span class="desc">แสกน QR เพื่ออัปเดตสถานะการผลิต</span>
+        <div class="grid" style="margin-top:16px">
+          <div class="col-6">
+            <div class="card">
+              <b>Lots – Summary</b>
+              <div class="toolbar"><button class="btn" id="btnDashLots">Reload</button></div>
+              <div id="dashLots"></div>
+            </div>
           </div>
-          <div class="emoji">🔍</div>
-        </a>
+          <div class="col-6">
+            <div class="card">
+              <b>Subcon – Orders</b>
+              <div class="toolbar"><button class="btn" id="btnDashSubcon">Reload</button></div>
+              <div id="dashSubcon"></div>
+            </div>
+          </div>
+        </div>
+      </section>
 
-        <a class="tile" href="/track_all">
-          <div class="info">
-            <span class="title">ขั้นตอนการผลิต (Track)</span>
-            <span class="desc">ดูความคืบหน้าและประวัติการทำงาน</span>
+      <section id="page-customers" class="hidden">
+        <h2 class="page-title">👤 Customers</h2>
+        <div class="card">
+          <div class="grid">
+            <div class="col-4"><label>Code</label><input id="c_code" placeholder="CUST-001"/></div>
+            <div class="col-4"><label>Name</label><input id="c_name" placeholder="Acme Corp"/></div>
+            <div class="col-4"><label>Contact</label><input id="c_contact" placeholder="John D."/></div>
+            <div class="col-4"><label>Email</label><input id="c_email"/></div>
+            <div class="col-4"><label>Phone</label><input id="c_phone"/></div>
+            <div class="col-12"><label>Address</label><input id="c_addr"/></div>
+            <div class="col-12"><button class="btn" id="c_create">Create</button> <span class="hint">POST /customers</span></div>
           </div>
-          <div class="emoji">🕒</div>
-        </a>
+        </div>
+        <div class="card">
+          <div class="toolbar">
+            <input id="c_q" placeholder="search code/name" style="padding:10px 12px;border:1px solid #e2e8f0;border-radius:10px">
+            <button class="btn" id="c_reload">Reload</button>
+          </div>
+          <div id="c_table"></div>
+        </div>
+      </section>
+      <section id="page-employees" class="hidden">
+        <h2 class="page-title">👩‍🏭 Employees</h2>
 
-        <a class="tile" href="/add-product">
-          <div class="info">
-            <span class="title">เพิ่มสินค้า (Add Product)</span>
-            <span class="desc">บันทึกสินค้าใหม่เข้าระบบ</span>
+        <div class="card">
+          <b>Create Employee</b>
+          <div class="grid" style="margin-top:8px">
+            <div class="col-4">
+              <label>Full Name</label>
+              <input id="e_name" placeholder="Jane Doe"/>
+            </div>
+            <div class="col-4">
+              <label>Email</label>
+              <input id="e_email" placeholder="jane@company.com"/>
+            </div>
+            <div class="col-4">
+              <label>Phone</label>
+              <input id="e_phone" placeholder="+1 555-1234"/>
+            </div>
+            <div class="col-4">
+              <label>Role/Position</label>
+              <input id="e_role" placeholder="Operator / QA / Supervisor"/>
+            </div>
+            <div class="col-12">
+              <button class="btn" id="e_create">Create</button>
+              <span class="hint">POST /employees</span>
+            </div>
           </div>
-          <div class="emoji">➕</div>
-        </a>
+        </div>
+
+        <div class="card">
+          <div class="toolbar">
+            <input id="e_q" placeholder="search name/email/role" style="padding:10px 12px;border:1px solid #e2e8f0;border-radius:10px">
+            <button class="btn" id="e_reload">Reload</button>
+          </div>
+          <div id="e_table"></div>
+        </div>
+      </section>
+
+      <section id="page-pos" class="hidden">
+        <h2 class="page-title">🧾 Purchase Orders</h2>
+        <div class="card">
+          <div class="grid">
+            <div class="col-4"><label>PO Number</label><input id="po_no" placeholder="PO-2025-0001"/></div>
+            <div class="col-4"><label>Description</label><input id="po_desc"/></div>
+            <div class="col-4"><label>Customer ID</label><input id="po_cust" type="number"/></div>
+            <div class="col-12"><button class="btn" id="po_create">Create</button> <span class="hint">POST /pos</span></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="toolbar"><button class="btn" id="po_reload">Reload</button></div>
+          <div id="po_table"></div>
+        </div>
+      </section>
+
+      <section id="page-materials" class="hidden">
+        <h2 class="page-title">🧱 Materials & Batches</h2>
+        <div class="grid">
+          <div class="col-6">
+            <div class="card">
+              <b>Create Material</b>
+              <div class="grid" style="margin-top:8px">
+                <div class="col-6"><label>Code</label><input id="m_code" placeholder="AL6061"/></div>
+                <div class="col-6"><label>Name</label><input id="m_name" placeholder="Aluminium 6061"/></div>
+                <div class="col-6"><label>Spec</label><input id="m_spec" placeholder="AMS/ASTM"/></div>
+                <div class="col-6"><label>UoM</label><input id="m_uom" value="kg"/></div>
+                <div class="col-12"><label>Remark</label><input id="m_remark"/></div>
+                <div class="col-12"><button class="btn" id="m_create">Create</button> <span class="hint">POST /materials</span></div>
+              </div>
+              <div class="toolbar"><button class="btn" id="m_reload">Reload</button></div>
+              <div id="m_table"></div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="card">
+              <b>Create Batch</b>
+              <div class="grid" style="margin-top:8px">
+                <div class="col-6"><label>Material ID</label><input id="b_mid" type="number"/></div>
+                <div class="col-6"><label>Batch No.</label><input id="b_no" placeholder="B-24001"/></div>
+                <div class="col-6"><label>Supplier ID</label><input id="b_sid" type="number"/></div>
+                <div class="col-6"><label>Qty Received</label><input id="b_qty" type="number" step="0.001" value="0"/></div>
+                <div class="col-6"><label>Location</label><input id="b_loc" placeholder="RACK-A1"/></div>
+                <div class="col-6"><label>Received Date</label><input id="b_recv" type="date"/></div>
+                <div class="col-12"><button class="btn" id="b_create">Create</button> <span class="hint">POST /batches</span></div>
+              </div>
+              <div class="toolbar"><button class="btn" id="b_reload">Reload</button></div>
+              <div id="b_table"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="page-lots" class="hidden">
+        <h2 class="page-title">🏷️ Production Lots</h2>
+        <div class="card">
+          <div class="grid">
+            <div class="col-4"><label>Lot No.</label><input id="l_no" placeholder="LOT-2025-0001"/></div>
+            <div class="col-4"><label>Part No.</label><input id="l_part"/></div>
+            <div class="col-2"><label>PO ID</label><input id="l_poid" type="number"/></div>
+            <div class="col-2"><label>Planned Qty</label><input id="l_qty" type="number" value="0"/></div>
+            <div class="col-4"><label>Status</label>
+              <select id="l_status">
+                <option value="in_process">in_process</option>
+                <option value="completed">completed</option>
+                <option value="hold">hold</option>
+              </select>
+            </div>
+            <div class="col-12"><button class="btn" id="l_create">Create</button> <span class="hint">POST /lots</span></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="toolbar"><button class="btn" id="l_reload">Reload</button></div>
+          <div id="l_table"></div>
+        </div>
+      </section>
+
+      <section id="page-trav" class="hidden">
+        <h2 class="page-title">🛠️ Travelers & Steps</h2>
+        <div class="grid">
+          <div class="col-6">
+            <div class="card">
+              <b>Create Traveler</b>
+              <div class="grid" style="margin-top:8px">
+                <div class="col-4"><label>Lot ID</label><input id="t_lot" type="number"/></div>
+                <div class="col-4"><label>Created by (Emp ID)</label><input id="t_emp" type="number"/></div>
+                <div class="col-12"><label>Notes</label><textarea id="t_notes" rows="2"></textarea></div>
+                <div class="col-12"><button class="btn" id="t_create">Create</button> <span class="hint">POST /travelers</span></div>
+              </div>
+              <div class="toolbar"><input id="t_q" placeholder="filter by lot_id / status" style="padding:10px 12px;border:1px solid #e2e8f0;border-radius:10px"><button class="btn" id="t_reload">Reload</button></div>
+              <div id="t_table"></div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="card">
+              <b>Add Step</b>
+              <div class="grid" style="margin-top:8px">
+                <div class="col-3"><label>Traveler ID</label><input id="s_tid" type="number"/></div>
+                <div class="col-3"><label>Seq</label><input id="s_seq" type="number" value="1"/></div>
+                <div class="col-6"><label>Station</label><input id="s_station" placeholder="CNC-1"/></div>
+                <div class="col-6"><label>Step Name</label><input id="s_name" placeholder="Milling"/></div>
+                <div class="col-6"><label>Step Code</label><input id="s_code" placeholder="MILL"/></div>
+                <div class="col-6"><label>Operator ID</label><input id="s_op" type="number"/></div>
+                <div class="col-6"><label>QA Required?</label>
+                  <select id="s_qa"><option value="false">false</option><option value="true">true</option></select>
+                </div>
+                <div class="col-12"><button class="btn" id="s_create">Add Step</button> <span class="hint">POST /traveler-steps</span></div>
+              </div>
+              <div class="toolbar">
+                <input id="s_list_tid" placeholder="Traveler ID for listing" style="padding:10px 12px;border:1px solid #e2e8f0;border-radius:10px">
+                <button class="btn" id="s_reload">Load Steps</button>
+              </div>
+              <div id="s_table"></div>
+              <div class="toolbar">
+                <input id="s_act" placeholder="Step ID" style="padding:10px 12px;border:1px solid #e2e8f0;border-radius:10px">
+                <button class="btn" id="s_start">Start</button>
+                <select id="s_result"><option>passed</option><option>failed</option><option>skipped</option></select>
+                <input id="s_qa_result" placeholder="qa_result">
+                <input id="s_qa_notes" placeholder="qa_notes">
+                <button class="btn" id="s_finish">Finish</button>
+              </div>
+              <div class="hint">POST /traveler-steps/{id}/start และ /finish?result=...</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="page-subcon" class="hidden">
+        <h2 class="page-title">🚚 Subcontracting</h2>
+        <div class="card">
+          <b>Create Subcon Order</b>
+          <div class="grid" style="margin-top:8px">
+            <div class="col-3"><label>Supplier ID</label><input id="sc_sup" type="number"/></div>
+            <div class="col-3"><label>Ref No</label><input id="sc_ref"/></div>
+            <div class="col-3"><label>Due Date</label><input id="sc_due" type="date"/></div>
+            <div class="col-3"><label>Notes</label><input id="sc_notes"/></div>
+            <div class="col-12"><label class="hint">Lines (traveler_step_id, qty_planned, unit_cost)</label>
+              <textarea id="sc_lines" rows="3">[
+  {"traveler_step_id": 1, "qty_planned": 100, "unit_cost": 2.50}
+]</textarea></div>
+            <div class="col-12"><button class="btn" id="sc_create">Create Order</button></div>
+          </div>
+          <div class="toolbar"><button class="btn" id="sc_reload">Reload Orders</button></div>
+          <div id="sc_table"></div>
+        </div>
+
+        <div class="grid">
+          <div class="col-6">
+            <div class="card">
+              <b>Create Shipment</b>
+              <div class="grid" style="margin-top:8px">
+                <div class="col-3"><label>Order ID</label><input id="sh_order" type="number"/></div>
+                <div class="col-3"><label>Carrier</label><input id="sh_carrier"/></div>
+                <div class="col-3"><label>Tracking</label><input id="sh_track"/></div>
+                <div class="col-3"><label>Package No</label><input id="sh_pkg"/></div>
+                <div class="col-12"><label class="hint">Items (traveler_step_id, qty)</label>
+                  <textarea id="sh_items" rows="3">[
+  {"traveler_step_id": 1, "qty": 50}
+]</textarea></div>
+                <div class="col-12"><button class="btn" id="sh_create">Create Shipment</button></div>
+              </div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="card">
+              <b>Create Receipt</b>
+              <div class="grid" style="margin-top:8px">
+                <div class="col-3"><label>Order ID</label><input id="rc_order" type="number"/></div>
+                <div class="col-3"><label>Doc No</label><input id="rc_doc"/></div>
+                <div class="col-3"><label>Received By</label><input id="rc_by"/></div>
+                <div class="col-3"><label>Received At</label><input id="rc_at" type="datetime-local"/></div>
+                <div class="col-12"><label class="hint">Items (traveler_step_id, qty_received, qty_rejected, scrap_qty, qa_result, qa_notes)</label>
+                  <textarea id="rc_items" rows="3">[
+  {"traveler_step_id": 1, "qty_received": 40, "qty_rejected": 5, "scrap_qty": 0, "qa_result": "pass", "qa_notes": "OK"}
+]</textarea></div>
+                <div class="col-12"><button class="btn" id="rc_create">Create Receipt</button></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="page-suppliers" class="hidden">
+        <h2 class="page-title">🏢 Suppliers</h2>
+        <div class="card">
+          <div class="grid">
+            <div class="col-3"><label>Code</label><input id="sup_code" placeholder="SUP-001"/></div>
+            <div class="col-3"><label>Name</label><input id="sup_name" placeholder="ABC Metals"/></div>
+            <div class="col-3"><label>Phone</label><input id="sup_phone"/></div>
+            <div class="col-3"><label>Email</label><input id="sup_email"/></div>
+            <div class="col-12"><label>Address</label><input id="sup_addr"/></div>
+            <div class="col-12"><button class="btn" id="sup_create">Create</button> <span class="hint">POST /suppliers</span></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="toolbar">
+            <input id="sup_q" placeholder="search code/name" style="padding:10px 12px;border:1px solid #e2e8f0;border-radius:10px">
+            <button class="btn" id="sup_reload">Reload</button>
+          </div>
+          <div id="sup_table"></div>
+        </div>
+      </section>
+
+      <section id="page-reports" class="hidden">
+        <h2 class="page-title">📊 Reports</h2>
+        <div class="card">
+          <div class="toolbar">
+            <button class="btn" id="rpt_lot_status">Lots by Status</button>
+            <button class="btn" id="rpt_subcon_due">Subcon due (7d)</button>
+          </div>
+          <div id="rpt_area"></div>
+        </div>
       </section>
     </main>
   </div>
+
+  <div class="toast" id="toast"><span id="toastText"></span></div>
+
+  <script>
+    // ---------- helpers ----------
+    const $ = (id)=>document.getElementById(id);
+    const apiBase = ()=> ($("apiBase").value||"").trim();
+    const withBase = (p)=> apiBase()+p;
+    const toast = (msg, ok=true)=>{
+      const t = $("toast"); $("toastText").textContent = msg;
+      t.style.borderColor = ok ? "#27d17d" : "#ef4444"; t.classList.add("show");
+      setTimeout(()=>t.classList.remove("show"), 2000);
+    };
+    const asJson = async(res)=> res.headers.get("content-type")?.includes("json") ? res.json() : res.text();
+    const jfetch = async(path, init={})=>{
+      const res = await fetch(withBase(path), {headers:{'content-type':'application/json'}, ...init});
+      if(!res.ok){ throw new Error(`${res.status}: ${await res.text()}`); }
+      return asJson(res);
+    };
+    const renderTable = (el, rows)=>{
+      if(!rows || rows.length===0){ el.innerHTML = '<div class="hint">ไม่มีข้อมูล</div>'; return; }
+      const cols = [...new Set(rows.flatMap(r=>Object.keys(r)))];
+      const head = `<thead><tr>${cols.map(c=>`<th>${c}</th>`).join("")}</tr></thead>`;
+      const esc = (v)=> v==null? "": (typeof v==="object" ? `<span class="badge">obj</span>` : String(v).replace(/[&<>"]/g, s=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[s])));
+      const body = `<tbody>${rows.map(r=>`<tr>${cols.map(c=>`<td>${esc(r[c])}</td>`).join("")}</tr>`).join("")}</tbody>`;
+      el.innerHTML = `<div style="overflow:auto"><table>${head}${body}</table></div>`;
+    };
+
+    // ---------- nav ----------
+   const pages = ["dash","customers","pos","materials","lots","employees","trav","subcon","suppliers","reports"];
+    const showPage = (name)=>{
+      pages.forEach(p=>{
+        document.getElementById("page-"+p).classList.toggle("hidden", p!==name);
+        document.querySelectorAll(`.nav a[data-page="${p}"]`).forEach(a=>a.classList.toggle("active", p===name));
+      });
+    };
+    document.getElementById("sideNav").addEventListener("click",(e)=>{
+      const a = e.target.closest("a"); if(!a) return;
+      const page = a.getAttribute("data-page"); if(!page) return;
+      e.preventDefault(); showPage(page);
+      // auto load
+      if(page==="materials"){ loadMaterials(); loadBatches(); }
+      if(page==="lots"){ loadLots(); }
+      if(page==="customers"){ loadCustomers(); }
+      if(page==="pos"){ loadPOs(); }
+      if(page==="trav"){ loadTravelers(); }
+      if(page==="subcon"){ loadSubconOrders(); }
+      if(page==="suppliers"){ loadSuppliers(); }
+    });
+    document.getElementById("quickTiles").addEventListener("click",(e)=>{
+      const a = e.target.closest(".tile"); if(!a) return;
+      const page = a.getAttribute("data-nav"); if(!page) return;
+      showPage(page);
+      if(page==="materials"){ loadMaterials(); loadBatches(); }
+      if(page==="lots"){ loadLots(); }
+      if(page==="trav"){ loadTravelers(); }
+      if(page==="subcon"){ loadSubconOrders(); }
+      if(page==="employees"){ loadEmployees(); }
+    });
+
+    // ---------- topbar ----------
+    $("btnPing").onclick = async()=>{ try{ await jfetch("/"); toast("API OK"); } catch(e){ toast("Ping failed: "+e.message,false); } };
+
+    // ---------- Dashboard cards ----------
+    async function dashLots(){
+      try{
+        const rows = await jfetch("/lots");
+        const total = rows.length;
+        const inproc = rows.filter(x=>x.status==="in_process").length;
+        const completed = rows.filter(x=>x.status==="completed").length;
+        const hold = rows.filter(x=>x.status==="hold").length;
+        $("dashLots").innerHTML = `
+          <div class="grid">
+            <div class="col-3"><div class="card"><b>Total</b><div style="font-size:22px">${total}</div></div></div>
+            <div class="col-3"><div class="card"><b>In Process</b><div style="font-size:22px">${inproc}</div></div></div>
+            <div class="col-3"><div class="card"><b>Completed</b><div style="font-size:22px">${completed}</div></div></div>
+            <div class="col-3"><div class="card"><b>Hold</b><div style="font-size:22px">${hold}</div></div></div>
+          </div>`;
+      }catch(e){ $("dashLots").innerHTML = `<div class="hint">${e.message}</div>`; }
+    }
+    async function dashSubcon(){
+      try{
+        const rows = await jfetch("/subcon/orders");
+        const open = rows.filter(o=>o.status!=="closed").length;
+        $("dashSubcon").innerHTML = `
+          <div class="grid">
+            <div class="col-6"><div class="card"><b>Orders</b><div style="font-size:22px">${rows.length}</div></div></div>
+            <div class="col-6"><div class="card"><b>Open</b><div style="font-size:22px">${open}</div></div></div>
+          </div>`;
+      }catch(e){ $("dashSubcon").innerHTML = `<div class="hint">${e.message}</div>`; }
+    }
+    $("btnDashLots").onclick = dashLots; $("btnDashSubcon").onclick = dashSubcon;
+
+    // ---------- Customers ----------
+    async function createCustomer(){
+      const payload = {
+        code:$("c_code").value.trim(), name:$("c_name").value.trim(),
+        contact:$("c_contact").value.trim()||null, email:$("c_email").value.trim()||null,
+        phone:$("c_phone").value.trim()||null, address:$("c_addr").value.trim()||null
+      };
+      try{ await jfetch("/customers",{method:"POST",body:JSON.stringify(payload)}); toast("Customer created"); loadCustomers(); }
+      catch(e){ toast(e.message,false); }
+    }
+    async function loadCustomers(){
+      try{
+        const q = $("c_q")?.value?.trim(); // ถ้ามี search param หลังบ้านรองรับ q ให้ต่อเพิ่มได้
+        const rows = await jfetch("/customers"+(q?`?q=${encodeURIComponent(q)}`:""));
+        renderTable($("c_table"), rows);
+      }catch(e){ $("c_table").innerHTML = `<div class="hint">${e.message}</div>`; }
+    }
+    $("c_create").onclick = createCustomer; $("c_reload").onclick = loadCustomers;
+
+    // ---------- Employees ----------
+async function createEmployee(){
+  const payload = {
+    name: $("e_name").value.trim(),
+    email: $("e_email").value.trim() || null,
+    phone: $("e_phone").value.trim() || null,
+    role: $("e_role").value.trim() || null
+  };
+  try{
+    await jfetch("/employees", { method:"POST", body: JSON.stringify(payload) });
+    toast("Employee created");
+    loadEmployees();
+    // เคลียร์ฟอร์มเบา ๆ
+    ["e_name","e_email","e_phone","e_role"].forEach(id=>$(id).value="");
+  }catch(e){ toast(e.message, false); }
+}
+
+async function loadEmployees(){
+  try{
+    // ถ้า backend รองรับ ?q= สำหรับค้นหา ให้เติมพารามฯ นี้
+    const q = $("e_q")?.value?.trim();
+    const rows = await jfetch("/employees" + (q?`?q=${encodeURIComponent(q)}`:""));
+    renderTable($("e_table"), rows);
+  }catch(e){
+    $("e_table").innerHTML = `<div class="hint">${e.message}</div>`;
+  }
+}
+
+$("e_create").onclick = createEmployee;
+$("e_reload").onclick = loadEmployees;
+    // ---------- POs ----------
+    async function createPO(){
+      const payload = { po_number:$("po_no").value.trim(), description:$("po_desc").value.trim()||null, customer_id: Number($("po_cust").value) };
+      try{ await jfetch("/pos",{method:"POST",body:JSON.stringify(payload)}); toast("PO created"); loadPOs(); }
+      catch(e){ toast(e.message,false); }
+    }
+    async function loadPOs(){
+      try{ const rows = await jfetch("/pos"); renderTable($("po_table"), rows); }
+      catch(e){ $("po_table").innerHTML = `<div class="hint">${e.message}</div>`; }
+    }
+    $("po_create").onclick = createPO; $("po_reload").onclick = loadPOs;
+
+    // ---------- Materials ----------
+    async function createMaterial(){
+      const payload = {
+        code:$("m_code").value.trim(), name:$("m_name").value.trim(),
+        spec:$("m_spec").value.trim()||null, uom:$("m_uom").value.trim()||"ea",
+        remark:$("m_remark").value.trim()||null
+      };
+      try{ await jfetch("/materials",{method:"POST",body:JSON.stringify(payload)}); toast("Material created"); loadMaterials(); }
+      catch(e){ toast(e.message,false); }
+    }
+    async function loadMaterials(){
+      try{ const rows = await jfetch("/materials"); renderTable($("m_table"), rows); }
+      catch(e){ $("m_table").innerHTML = `<div class="hint">${e.message}</div>`; }
+    }
+    $("m_create").onclick = createMaterial; $("m_reload").onclick = loadMaterials;
+
+    // ---------- Batches ----------
+    async function createBatch(){
+      const payload = {
+        material_id:Number($("b_mid").value), batch_no:$("b_no").value.trim(),
+        supplier_id:$("b_sid").value?Number($("b_sid").value):null,
+        qty_received:Number($("b_qty").value||0), location:$("b_loc").value.trim()||null,
+        received_at:$("b_recv").value||null, supplier_batch_no:null, mill_name:null, mill_heat_no:null, cert_file:null
+      };
+      try{ await jfetch("/batches",{method:"POST",body:JSON.stringify(payload)}); toast("Batch created"); loadBatches(); }
+      catch(e){ toast(e.message,false); }
+    }
+    async function loadBatches(){
+      try{ const rows = await jfetch("/batches"); renderTable($("b_table"), rows); }
+      catch(e){ $("b_table").innerHTML = `<div class="hint">${e.message}</div>`; }
+    }
+    $("b_create").onclick = createBatch; $("b_reload").onclick = loadBatches;
+
+    // ---------- Lots ----------
+    async function createLot(){
+      const payload = {
+        lot_no:$("l_no").value.trim(), part_no:$("l_part").value.trim()||null,
+        po_id:$("l_poid").value?Number($("l_poid").value):null,
+        planned_qty:Number($("l_qty").value||0), status:$("l_status").value
+      };
+      try{ await jfetch("/lots",{method:"POST",body:JSON.stringify(payload)}); toast("Lot created"); loadLots(); }
+      catch(e){ toast(e.message,false); }
+    }
+    async function loadLots(){
+      try{ const rows = await jfetch("/lots"); renderTable($("l_table"), rows); }
+      catch(e){ $("l_table").innerHTML = `<div class="hint">${e.message}</div>`; }
+    }
+    $("l_create").onclick = createLot; $("l_reload").onclick = loadLots;
+
+    // ---------- Travelers & Steps ----------
+    async function createTraveler(){
+      const payload = {
+        lot_id:Number($("t_lot").value), created_by_id:$("t_emp").value?Number($("t_emp").value):null,
+        status:"open", notes:$("t_notes").value||null
+      };
+      try{ const t = await jfetch("/travelers",{method:"POST",body:JSON.stringify(payload)}); toast("Traveler created (id: "+t.id+")"); loadTravelers(); }
+      catch(e){ toast(e.message,false); }
+    }
+    async function loadTravelers(){
+      try{ const rows = await jfetch("/travelers"); renderTable($("t_table"), rows); }
+      catch(e){ $("t_table").innerHTML = `<div class="hint">${e.message}</div>`; }
+    }
+    $("t_create").onclick = createTraveler; $("t_reload").onclick = loadTravelers;
+
+    async function createStep(){
+      const payload = {
+        traveler_id:Number($("s_tid").value), seq:Number($("s_seq").value),
+        step_name:$("s_name").value.trim(), step_code:$("s_code").value.trim()||null,
+        station:$("s_station").value.trim()||null, operator_id:$("s_op").value?Number($("s_op").value):null,
+        qa_required:$("s_qa").value==="true"
+      };
+      try{ await jfetch("/traveler-steps",{method:"POST",body:JSON.stringify(payload)}); toast("Step added"); listSteps(); }
+      catch(e){ toast(e.message,false); }
+    }
+    async function listSteps(){
+      const tid = $("s_list_tid").value || $("s_tid").value;
+      if(!tid){ toast("ใส่ Traveler ID ก่อน",false); return; }
+      try{ const rows = await jfetch(`/traveler-steps?traveler_id=${encodeURIComponent(tid)}`); renderTable($("s_table"), rows); }
+      catch(e){ $("s_table").innerHTML = `<div class="hint">${e.message}</div>`; }
+    }
+    async function startStep(){
+      const id = Number($("s_act").value); if(!id){ toast("ใส่ Step ID",false); return; }
+      try{ await jfetch(`/traveler-steps/${id}/start`,{method:"POST"}); toast("Step started"); listSteps(); }
+      catch(e){ toast(e.message,false); }
+    }
+    async function finishStep(){
+      const id = Number($("s_act").value); if(!id){ toast("ใส่ Step ID",false); return; }
+      const qs = new URLSearchParams({ result:$("s_result").value });
+      if($("s_qa_result").value) qs.set("qa_result",$("s_qa_result").value.trim());
+      if($("s_qa_notes").value) qs.set("qa_notes",$("s_qa_notes").value.trim());
+      try{ await jfetch(`/traveler-steps/${id}/finish?`+qs.toString(),{method:"POST"}); toast("Step finished"); listSteps(); }
+      catch(e){ toast(e.message,false); }
+    }
+    $("s_create").onclick = createStep; $("s_reload").onclick = listSteps; $("s_start").onclick = startStep; $("s_finish").onclick = finishStep;
+
+    // ---------- Suppliers ----------
+    async function createSupplier(){
+      const payload = {
+        code:$("sup_code").value.trim(), name:$("sup_name").value.trim(),
+        phone:$("sup_phone").value.trim()||null, email:$("sup_email").value.trim()||null, address:$("sup_addr").value.trim()||null,
+        payment_terms:null, contact:null
+      };
+      try{ await jfetch("/suppliers",{method:"POST",body:JSON.stringify(payload)}); toast("Supplier created"); loadSuppliers(); }
+      catch(e){ toast(e.message,false); }
+    }
+    async function loadSuppliers(){
+      try{
+        const q = $("sup_q").value.trim();
+        const rows = await jfetch("/suppliers"+(q?`?q=${encodeURIComponent(q)}`:""));
+        renderTable($("sup_table"), rows);
+      }catch(e){ $("sup_table").innerHTML = `<div class="hint">${e.message}</div>`; }
+    }
+    $("sup_create").onclick = createSupplier; $("sup_reload").onclick = loadSuppliers;
+
+    // ---------- Subcon ----------
+    async function createSubconOrder(){
+      let lines=[]; try{ lines = JSON.parse($("sc_lines").value||"[]"); }catch(e){ toast("Lines JSON ไม่ถูกต้อง",false); return; }
+      const payload = { supplier_id:Number($("sc_sup").value), ref_no:$("sc_ref").value||null, due_date:$("sc_due").value||null, notes:$("sc_notes").value||null, lines };
+      try{ await jfetch("/subcon/orders",{method:"POST",body:JSON.stringify(payload)}); toast("Order created"); loadSubconOrders(); }
+      catch(e){ toast(e.message,false); }
+    }
+    async function loadSubconOrders(){
+      try{
+        const rows = await jfetch("/subcon/orders");
+        const view = rows.map(o=>({ id:o.id, supplier_id:o.supplier_id, status:o.status, created_at:o.created_at, due_date:o.due_date,
+          lines:(o.lines||[]).map(l=>`#${l.id}: step ${l.traveler_step_id} (plan ${l.qty_planned})`).join('; ')
+        }));
+        renderTable($("sc_table"), view);
+      }catch(e){ $("sc_table").innerHTML = `<div class="hint">${e.message}</div>`; }
+    }
+    async function createShipment(){
+      let items=[]; try{ items = JSON.parse($("sh_items").value||"[]"); }catch(e){ toast("Items JSON ไม่ถูกต้อง",false); return; }
+      const payload = { order_id:Number($("sh_order").value), package_no:$("sh_pkg").value||null, carrier:$("sh_carrier").value||null, tracking_no:$("sh_track").value||null, items };
+      try{ await jfetch("/subcon/shipments",{method:"POST",body:JSON.stringify(payload)}); toast("Shipment created"); loadSubconOrders(); }
+      catch(e){ toast(e.message,false); }
+    }
+    async function createReceipt(){
+      let items=[]; try{ items = JSON.parse($("rc_items").value||"[]"); }catch(e){ toast("Items JSON ไม่ถูกต้อง",false); return; }
+      const payload = {
+        order_id:Number($("rc_order").value), doc_no:$("rc_doc").value||null, received_by:$("rc_by").value||null,
+        received_at:$("rc_at").value ? new Date($("rc_at").value).toISOString() : null, items
+      };
+      try{ await jfetch("/subcon/receipts",{method:"POST",body:JSON.stringify(payload)}); toast("Receipt created"); loadSubconOrders(); }
+      catch(e){ toast(e.message,false); }
+    }
+    $("sc_create").onclick = createSubconOrder; $("sc_reload").onclick = loadSubconOrders;
+    $("sh_create").onclick = createShipment; $("rc_create").onclick = createReceipt;
+
+    // ---------- Reports (ตัวอย่างง่ายๆ) ----------
+    $("rpt_lot_status").onclick = async()=>{
+      try{
+        const rows = await jfetch("/lots");
+        const by = rows.reduce((a,r)=>{a[r.status]=(a[r.status]||0)+1; return a;},{});
+        renderTable($("rpt_area"), Object.entries(by).map(([status,count])=>({status,count})));
+      }catch(e){ $("rpt_area").innerHTML = `<div class="hint">${e.message}</div>`; }
+    };
+    $("rpt_subcon_due").onclick = async()=>{
+      try{
+        const rows = await jfetch("/subcon/orders");
+        const soon = rows.filter(o=>o.due_date && (new Date(o.due_date)-Date.now())/86400000 <= 7);
+        renderTable($("rpt_area"), soon);
+      }catch(e){ $("rpt_area").innerHTML = `<div class="hint">${e.message}</div>`; }
+    };
+
+    // ---------- init ----------
+    (async function init(){
+      showPage("dash");
+      dashLots(); dashSubcon();
+      // quick-key navigation: g then letter
+      let gPressed=false;
+      window.addEventListener("keydown",(e)=>{
+        if(e.key.toLowerCase()==="g"){ gPressed=true; setTimeout(()=>gPressed=false,500); return; }
+        if(!gPressed) return;
+        const map = { c:"customers", p:"pos", m:"materials", l:"lots", e:"employees", t:"trav", s:"subcon", u:"suppliers", r:"reports", d:"dash" };
+        const page = map[e.key.toLowerCase()]; if(page){ showPage(page); }
+      });
+
+
+      
+    })();
+  </script>
+
+  
 </body>
 </html>

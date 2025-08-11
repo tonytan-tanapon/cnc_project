@@ -1,57 +1,85 @@
-from fastapi import FastAPI, Depends, Form, Query, HTTPException,APIRouter
+# main.py
+from fastapi import FastAPI, Depends, HTTPException, APIRouter, Request, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi import Request
 from fastapi.templating import Jinja2Templates
-from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
+from sqlalchemy import func
 from datetime import datetime
-from fastapi.responses import StreamingResponse
-from generate_qr import generate_qr_with_product_url  # ✅ import มาจากไฟล์ generate_qr.py
+from decimal import Decimal
+from typing import List
 
 from database import SessionLocal, engine
-from models import Base, PO
-
-from models import Customer, Employee
-from schemas import CustomerCreate, CustomerUpdate, CustomerOut
-from schemas import POCreate, POUpdate, POOut
-from schemas import EmployeeCreate, EmployeeUpdate, EmployeeOut
-
-from models import RawMaterial, RawBatch, ProductionLot, PO, LotMaterialUse   # <-- สร้าง models ตามที่คุยไว้
+from models import (
+    Base,
+    # master
+    Supplier, Customer, PO, Employee,
+    # materials
+    RawMaterial, RawBatch,
+    # production
+    ProductionLot, LotMaterialUse,
+    # traveler
+    ShopTraveler, ShopTravelerStep,
+    # subcon
+    SubconOrder, SubconOrderLine,
+    SubconShipment, SubconShipmentItem,
+    SubconReceipt, SubconReceiptItem,
+)
 from schemas import (
+    # customers
+    CustomerCreate, CustomerUpdate, CustomerOut,
+    # POs
+    POCreate, POUpdate, POOut,
+    # employees
+    EmployeeCreate, EmployeeUpdate, EmployeeOut,
+    # materials
     RawMaterialCreate, RawMaterialUpdate, RawMaterialOut,
+    # batches
     RawBatchCreate, RawBatchUpdate, RawBatchOut,
+    # lots
     ProductionLotCreate, ProductionLotUpdate, ProductionLotOut,
-    LotMaterialUseCreate, LotMaterialUseUpdate, LotMaterialUseOut
-)
-
-from models import ProductionLot, ShopTraveler, ShopTravelerStep, Employee
-from schemas import (
+    # lot uses
+    LotMaterialUseCreate, LotMaterialUseUpdate, LotMaterialUseOut,
+    # traveler
     ShopTravelerCreate, ShopTravelerUpdate, ShopTravelerOut,
-    ShopTravelerStepCreate, ShopTravelerStepUpdate, ShopTravelerStepOut
+    # steps
+    ShopTravelerStepCreate, ShopTravelerStepUpdate, ShopTravelerStepOut,
+    # suppliers
+    SupplierCreate, SupplierUpdate, SupplierOut,
+    # subcon
+    SubconOrderCreate, SubconOrderUpdate, SubconOrderOut,
+    SubconShipmentCreate, SubconShipmentOut,
+    SubconReceiptCreate, SubconReceiptOut,
 )
-from typing import List
-# import models
-# import crud
 
-# ✅ สร้างตารางใน database ตาม models
+# ---------- Bootstrap ----------
 Base.metadata.create_all(bind=engine)
 
-# ✅ สร้าง FastAPI app
-app = FastAPI()
+app = FastAPI(title="MFG API", version="1.0")
 
-# ✅ ตั้งค่า CORS สำหรับมือถือหรือ frontend อื่นเรียกใช้
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # หรือกำหนดเป็น ["http://<ip>:8080"]
+    allow_origins=["*"],  # ปรับตามจริงถ้ามี frontend
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-# ✅ Dependency สำหรับเชื่อมต่อ DB
+
+# Static & templates (ถ้าไม่มีโฟลเดอร์ก็ comment ได้)
+try:
+    app.mount("/static", StaticFiles(directory="static"), name="static")
+    templates = Jinja2Templates(directory="templates")
+except Exception:
+    templates = None
+
+@app.get("/", response_class=HTMLResponse)
+def home(request: Request):
+    if not templates:
+        return HTMLResponse("<h3>MFG API is running</h3>", status_code=200)
+    return templates.TemplateResponse("index.html", {"request": request})
+
+# DB dependency
 def get_db():
     db = SessionLocal()
     try:
@@ -59,202 +87,161 @@ def get_db():
     finally:
         db.close()
 
-# ✅ โมเดลรับข้อมูล QR
-class QRData(BaseModel):
-    data: str
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
-templates = Jinja2Templates(directory="templates")
-
-@app.get("/", response_class=HTMLResponse)
-def home(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
-
-
-# ---------------- Customers ----------------
+# ==================== Customers ====================
 cust_router = APIRouter(prefix="/customers", tags=["customers"])
 
 @cust_router.post("", response_model=CustomerOut)
-def create_customer(customer: CustomerCreate, db: Session = Depends(get_db)):
-    code = customer.code.upper().strip()
+def create_customer(payload: CustomerCreate, db: Session = Depends(get_db)):
+    code = payload.code.strip().upper()
     if db.query(Customer).filter(Customer.code == code).first():
-        raise HTTPException(status_code=400, detail="Customer code already exists")
-    new_cust = Customer(**{**customer.dict(), "code": code})
-    db.add(new_cust); db.commit(); db.refresh(new_cust)
-    return new_cust
+        raise HTTPException(409, "Customer code already exists")
+    c = Customer(code=code, name=payload.name.strip(), contact=payload.contact,
+                 email=payload.email, phone=payload.phone, address=payload.address)
+    db.add(c); db.commit(); db.refresh(c)
+    return c
 
 @cust_router.get("", response_model=List[CustomerOut])
-def get_customers(db: Session = Depends(get_db)):
-    return db.query(Customer).all()
+def list_customers(q: str | None = Query(None), db: Session = Depends(get_db)):
+    query = db.query(Customer)
+    if q:
+        ql = f"%{q}%"
+        query = query.filter((Customer.code.ilike(ql)) | (Customer.name.ilike(ql)))
+    return query.order_by(Customer.id.desc()).all()
 
 @cust_router.get("/{customer_id}", response_model=CustomerOut)
 def get_customer(customer_id: int, db: Session = Depends(get_db)):
-    cust = db.query(Customer).filter(Customer.id == customer_id).first()
-    if not cust:
-        raise HTTPException(status_code=404, detail="Customer not found")
-    return cust
+    c = db.get(Customer, customer_id)
+    if not c: raise HTTPException(404, "Customer not found")
+    return c
 
 @cust_router.put("/{customer_id}", response_model=CustomerOut)
-def update_customer(customer_id: int, update_data: CustomerUpdate, db: Session = Depends(get_db)):
-    cust = db.query(Customer).filter(Customer.id == customer_id).first()
-    if not cust:
-        raise HTTPException(status_code=404, detail="Customer not found")
-    for k, v in update_data.dict(exclude_unset=True).items():
-        setattr(cust, k, v)
-    db.commit(); db.refresh(cust)
-    return cust
+def update_customer(customer_id: int, payload: CustomerUpdate, db: Session = Depends(get_db)):
+    c = db.get(Customer, customer_id)
+    if not c: raise HTTPException(404, "Customer not found")
+    for k, v in payload.dict(exclude_unset=True).items():
+        setattr(c, k, v)
+    db.commit(); db.refresh(c)
+    return c
 
 @cust_router.delete("/{customer_id}")
 def delete_customer(customer_id: int, db: Session = Depends(get_db)):
-    cust = db.query(Customer).filter(Customer.id == customer_id).first()
-    if not cust:
-        raise HTTPException(status_code=404, detail="Customer not found")
-    db.delete(cust); db.commit()
-    return {"message": "Customer deleted successfully"}
+    c = db.get(Customer, customer_id)
+    if not c: raise HTTPException(404, "Customer not found")
+    if c.pos:
+        raise HTTPException(400, "Customer has POs; cannot delete")
+    db.delete(c); db.commit()
+    return {"message": "Customer deleted"}
 
-# --- include ทั้งสอง router ---
-app.include_router(cust_router)     # อย่าใส่ prefix ซ้ำที่ include
+app.include_router(cust_router)
 
 
-
-# ---------------- Purchase Orders ----------------
-
-from models import PO, Customer
-
+# ==================== POs ====================
 pos_router = APIRouter(prefix="/pos", tags=["pos"])
 
-# 1) Create
 @pos_router.post("", response_model=POOut)
 def create_po(payload: POCreate, db: Session = Depends(get_db)):
-    # po_number ต้องไม่ซ้ำ
-    exists = db.query(PO).filter(PO.po_number == payload.po_number).first()
-    if exists:
-        raise HTTPException(status_code=409, detail="PO number already exists")
-
-    # ต้องมี customer_id นี้อยู่จริง
+    if db.query(PO).filter(PO.po_number == payload.po_number).first():
+        raise HTTPException(409, "PO number already exists")
     cust = db.get(Customer, payload.customer_id)
-    if not cust:
-        raise HTTPException(status_code=400, detail="customer_id not found")
-
-    po = PO(po_number=payload.po_number.strip(),
-            description=payload.description,
-            customer_id=payload.customer_id)
-    db.add(po)
-    db.commit()
-    db.refresh(po)
+    if not cust: raise HTTPException(400, "customer_id not found")
+    po = PO(po_number=payload.po_number.strip(), description=payload.description, customer_id=payload.customer_id)
+    db.add(po); db.commit(); db.refresh(po)
     return po
 
-# 2) Read all
 @pos_router.get("", response_model=List[POOut])
 def list_pos(db: Session = Depends(get_db)):
     return db.query(PO).order_by(PO.id.desc()).all()
 
-# 3) Read by id
 @pos_router.get("/{po_id}", response_model=POOut)
 def get_po(po_id: int, db: Session = Depends(get_db)):
     po = db.get(PO, po_id)
-    if not po:
-        raise HTTPException(status_code=404, detail="PO not found")
+    if not po: raise HTTPException(404, "PO not found")
     return po
 
-# 4) Update
 @pos_router.put("/{po_id}", response_model=POOut)
 def update_po(po_id: int, payload: POUpdate, db: Session = Depends(get_db)):
     po = db.get(PO, po_id)
-    if not po:
-        raise HTTPException(status_code=404, detail="PO not found")
-
+    if not po: raise HTTPException(404, "PO not found")
     data = payload.dict(exclude_unset=True)
-
-    # ถ้าอัปเดต po_number → ต้องไม่ซ้ำของคนอื่น
     if "po_number" in data and data["po_number"]:
         new_no = data["po_number"].strip()
         dup = db.query(PO).filter(PO.po_number == new_no, PO.id != po_id).first()
-        if dup:
-            raise HTTPException(status_code=409, detail="PO number already exists")
+        if dup: raise HTTPException(409, "PO number already exists")
         po.po_number = new_no
-
-    # ถ้าอัปเดต customer_id → ต้องมีจริง
+        del data["po_number"]
     if "customer_id" in data and data["customer_id"] is not None:
-        cust = db.get(Customer, data["customer_id"])
-        if not cust:
-            raise HTTPException(status_code=400, detail="customer_id not found")
-        po.customer_id = data["customer_id"]
-
-    if "description" in data:
-        po.description = data["description"]
-
-    db.commit()
-    db.refresh(po)
+        if not db.get(Customer, data["customer_id"]):
+            raise HTTPException(400, "customer_id not found")
+    for k, v in data.items(): setattr(po, k, v)
+    db.commit(); db.refresh(po)
     return po
 
-# 5) Delete
 @pos_router.delete("/{po_id}")
 def delete_po(po_id: int, db: Session = Depends(get_db)):
     po = db.get(PO, po_id)
-    if not po:
-        raise HTTPException(status_code=404, detail="PO not found")
-    db.delete(po)
-    db.commit()
-    return {"message": "PO deleted successfully"}
+    if not po: raise HTTPException(404, "PO not found")
+    if po.lots:
+        raise HTTPException(400, "PO has lots; cannot delete")
+    db.delete(po); db.commit()
+    return {"message": "PO deleted"}
 
-app.include_router(pos_router) 
+app.include_router(pos_router)
 
-# ---------------- Employees ----------------
+
+# ==================== Employees ====================
 emp_router = APIRouter(prefix="/employees", tags=["employees"])
 
 @emp_router.post("", response_model=EmployeeOut)
-def create_employee(emp: EmployeeCreate, db: Session = Depends(get_db)):
-    if db.query(Employee).filter(Employee.emp_code == emp.emp_code).first():
-        raise HTTPException(status_code=400, detail="Employee code already exists")
-    new_emp = Employee(**emp.dict())
-    db.add(new_emp)
-    db.commit()
-    db.refresh(new_emp)
-    return new_emp
+def create_employee(payload: EmployeeCreate, db: Session = Depends(get_db)):
+    code = payload.emp_code.strip().upper()
+    if db.query(Employee).filter(Employee.emp_code == code).first():
+        raise HTTPException(409, "Employee code already exists")
+    e = Employee(emp_code=code, name=payload.name.strip(), position=payload.position,
+                 department=payload.department, email=payload.email, phone=payload.phone,
+                 status=payload.status or "active")
+    db.add(e); db.commit(); db.refresh(e)
+    return e
 
 @emp_router.get("", response_model=List[EmployeeOut])
-def get_employees(db: Session = Depends(get_db)):
-    return db.query(Employee).all()
+def list_employees(db: Session = Depends(get_db)):
+    return db.query(Employee).order_by(Employee.id.desc()).all()
 
 @emp_router.get("/{emp_id}", response_model=EmployeeOut)
 def get_employee(emp_id: int, db: Session = Depends(get_db)):
-    emp = db.query(Employee).filter(Employee.id == emp_id).first()
-    if not emp:
-        raise HTTPException(status_code=404, detail="Employee not found")
-    return emp
+    e = db.get(Employee, emp_id)
+    if not e: raise HTTPException(404, "Employee not found")
+    return e
 
 @emp_router.put("/{emp_id}", response_model=EmployeeOut)
-def update_employee(emp_id: int, updated: EmployeeUpdate, db: Session = Depends(get_db)):
-    emp = db.query(Employee).filter(Employee.id == emp_id).first()
-    if not emp:
-        raise HTTPException(status_code=404, detail="Employee not found")
-    for key, value in updated.dict(exclude_unset=True).items():
-        setattr(emp, key, value)
-    db.commit()
-    db.refresh(emp)
-    return emp
+def update_employee(emp_id: int, payload: EmployeeUpdate, db: Session = Depends(get_db)):
+    e = db.get(Employee, emp_id)
+    if not e: raise HTTPException(404, "Employee not found")
+    for k, v in payload.dict(exclude_unset=True).items():
+        setattr(e, k, v)
+    db.commit(); db.refresh(e)
+    return e
 
 @emp_router.delete("/{emp_id}")
 def delete_employee(emp_id: int, db: Session = Depends(get_db)):
-    emp = db.query(Employee).filter(Employee.id == emp_id).first()
-    if not emp:
-        raise HTTPException(status_code=404, detail="Employee not found")
-    db.delete(emp)
-    db.commit()
-    return {"message": "Employee deleted successfully"}
+    e = db.get(Employee, emp_id)
+    if not e: raise HTTPException(404, "Employee not found")
+    db.delete(e); db.commit()
+    return {"message": "Employee deleted"}
 
-app.include_router(emp_router) 
+app.include_router(emp_router)
 
-# ---------------- Raw Materials ----------------
+
+# ==================== Materials ====================
 materials_router = APIRouter(prefix="/materials", tags=["materials"])
 
 @materials_router.post("", response_model=RawMaterialOut)
 def create_material(payload: RawMaterialCreate, db: Session = Depends(get_db)):
     code = payload.code.strip().upper()
     if db.query(RawMaterial).filter(RawMaterial.code == code).first():
-        raise HTTPException(status_code=409, detail="Material code already exists")
-    m = RawMaterial(code=code, name=payload.name.strip(), spec=payload.spec, uom=payload.uom, remark=payload.remark)
+        raise HTTPException(409, "Material code already exists")
+    m = RawMaterial(code=code, name=payload.name.strip(),
+                    spec=payload.spec, uom=payload.uom, remark=payload.remark)
     db.add(m); db.commit(); db.refresh(m)
     return m
 
@@ -265,13 +252,13 @@ def list_materials(db: Session = Depends(get_db)):
 @materials_router.get("/{mat_id}", response_model=RawMaterialOut)
 def get_material(mat_id: int, db: Session = Depends(get_db)):
     m = db.get(RawMaterial, mat_id)
-    if not m: raise HTTPException(status_code=404, detail="Material not found")
+    if not m: raise HTTPException(404, "Material not found")
     return m
 
 @materials_router.put("/{mat_id}", response_model=RawMaterialOut)
 def update_material(mat_id: int, payload: RawMaterialUpdate, db: Session = Depends(get_db)):
     m = db.get(RawMaterial, mat_id)
-    if not m: raise HTTPException(status_code=404, detail="Material not found")
+    if not m: raise HTTPException(404, "Material not found")
     for k, v in payload.dict(exclude_unset=True).items():
         setattr(m, k, v)
     db.commit(); db.refresh(m)
@@ -280,30 +267,35 @@ def update_material(mat_id: int, payload: RawMaterialUpdate, db: Session = Depen
 @materials_router.delete("/{mat_id}")
 def delete_material(mat_id: int, db: Session = Depends(get_db)):
     m = db.get(RawMaterial, mat_id)
-    if not m: raise HTTPException(status_code=404, detail="Material not found")
-    # ป้องกันการลบถ้ามี batch ผูกอยู่ (เลือกได้ว่าจะบล็อกหรือ cascade)
+    if not m: raise HTTPException(404, "Material not found")
     if m.batches:
-        raise HTTPException(status_code=400, detail="Material has batches; cannot delete")
+        raise HTTPException(400, "Material has batches; cannot delete")
     db.delete(m); db.commit()
     return {"message": "Material deleted"}
+
 app.include_router(materials_router)
 
-# ---------------- Raw Batches ----------------
+
+# ==================== Raw Batches ====================
 batches_router = APIRouter(prefix="/batches", tags=["batches"])
 
 @batches_router.post("", response_model=RawBatchOut)
 def create_batch(payload: RawBatchCreate, db: Session = Depends(get_db)):
     if not db.get(RawMaterial, payload.material_id):
-        raise HTTPException(status_code=404, detail="Material not found")
+        raise HTTPException(404, "Material not found")
+
     b = RawBatch(
         material_id=payload.material_id,
         batch_no=payload.batch_no.strip(),
-        supplier=payload.supplier,
+        supplier_id=payload.supplier_id,
+        supplier_batch_no=payload.supplier_batch_no,
+        mill_name=payload.mill_name,
+        mill_heat_no=payload.mill_heat_no,
         received_at=payload.received_at,
         qty_received=payload.qty_received,
-        qty_used=0.0,
-        location=payload.location,
+        qty_used=Decimal("0"),
         cert_file=payload.cert_file,
+        location=payload.location,
     )
     db.add(b); db.commit(); db.refresh(b)
     return b
@@ -315,44 +307,50 @@ def list_batches(db: Session = Depends(get_db)):
 @batches_router.get("/{batch_id}", response_model=RawBatchOut)
 def get_batch(batch_id: int, db: Session = Depends(get_db)):
     b = db.get(RawBatch, batch_id)
-    if not b: raise HTTPException(status_code=404, detail="Batch not found")
+    if not b: raise HTTPException(404, "Batch not found")
     return b
 
 @batches_router.put("/{batch_id}", response_model=RawBatchOut)
 def update_batch(batch_id: int, payload: RawBatchUpdate, db: Session = Depends(get_db)):
     b = db.get(RawBatch, batch_id)
-    if not b: raise HTTPException(status_code=404, detail="Batch not found")
+    if not b: raise HTTPException(404, "Batch not found")
     data = payload.dict(exclude_unset=True)
-    # ห้ามตั้ง qty_received ให้ < qty_used
+
+    # ป้องกันตั้ง qty_received ให้ < qty_used
     if "qty_received" in data and data["qty_received"] is not None:
-        if data["qty_received"] < b.qty_used:
-            raise HTTPException(status_code=400, detail="qty_received cannot be less than qty_used")
-        b.qty_received = data["qty_received"]
+        new_recv = Decimal(str(data["qty_received"]))
+        if new_recv < b.qty_used:
+            raise HTTPException(400, "qty_received cannot be less than qty_used")
+        b.qty_received = new_recv
         del data["qty_received"]
+
     for k, v in data.items():
         setattr(b, k, v)
+
     db.commit(); db.refresh(b)
     return b
 
 @batches_router.delete("/{batch_id}")
 def delete_batch(batch_id: int, db: Session = Depends(get_db)):
     b = db.get(RawBatch, batch_id)
-    if not b: raise HTTPException(status_code=404, detail="Batch not found")
-    # บล็อกการลบถ้ามีการใช้งานแล้ว
+    if not b: raise HTTPException(404, "Batch not found")
     if b.qty_used > 0 or (b.uses and len(b.uses) > 0):
-        raise HTTPException(status_code=400, detail="Batch already used; cannot delete")
+        raise HTTPException(400, "Batch already used; cannot delete")
     db.delete(b); db.commit()
     return {"message": "Batch deleted"}
+
 app.include_router(batches_router)
-# ---------------- Production Lots ----------------
+
+
+# ==================== Production Lots ====================
 lots_router = APIRouter(prefix="/lots", tags=["lots"])
 
 @lots_router.post("", response_model=ProductionLotOut)
 def create_lot(payload: ProductionLotCreate, db: Session = Depends(get_db)):
     if payload.po_id is not None and not db.get(PO, payload.po_id):
-        raise HTTPException(status_code=404, detail="PO not found")
+        raise HTTPException(404, "PO not found")
     if db.query(ProductionLot).filter(ProductionLot.lot_no == payload.lot_no).first():
-        raise HTTPException(status_code=409, detail="Lot number already exists")
+        raise HTTPException(409, "Lot number already exists")
     lot = ProductionLot(
         lot_no=payload.lot_no.strip(),
         part_no=payload.part_no,
@@ -372,49 +370,53 @@ def list_lots(db: Session = Depends(get_db)):
 @lots_router.get("/{lot_id}", response_model=ProductionLotOut)
 def get_lot(lot_id: int, db: Session = Depends(get_db)):
     lot = db.get(ProductionLot, lot_id)
-    if not lot: raise HTTPException(status_code=404, detail="Lot not found")
+    if not lot: raise HTTPException(404, "Lot not found")
     return lot
 
 @lots_router.put("/{lot_id}", response_model=ProductionLotOut)
 def update_lot(lot_id: int, payload: ProductionLotUpdate, db: Session = Depends(get_db)):
     lot = db.get(ProductionLot, lot_id)
-    if not lot: raise HTTPException(status_code=404, detail="Lot not found")
+    if not lot: raise HTTPException(404, "Lot not found")
     data = payload.dict(exclude_unset=True)
     if "po_id" in data and data["po_id"] is not None:
         if not db.get(PO, data["po_id"]):
-            raise HTTPException(status_code=404, detail="PO not found")
-    for k, v in data.items():
-        setattr(lot, k, v)
+            raise HTTPException(404, "PO not found")
+    for k, v in data.items(): setattr(lot, k, v)
     db.commit(); db.refresh(lot)
     return lot
 
 @lots_router.delete("/{lot_id}")
 def delete_lot(lot_id: int, db: Session = Depends(get_db)):
     lot = db.get(ProductionLot, lot_id)
-    if not lot: raise HTTPException(status_code=404, detail="Lot not found")
-    # กันลบถ้ามี material ใช้อยู่
+    if not lot: raise HTTPException(404, "Lot not found")
     if lot.material_uses and len(lot.material_uses) > 0:
-        raise HTTPException(status_code=400, detail="Lot has material usage; cannot delete")
+        raise HTTPException(400, "Lot has material usage; cannot delete")
     db.delete(lot); db.commit()
     return {"message": "Lot deleted"}
+
 app.include_router(lots_router)
 
-# ---------------- Lot Material Use ----------------
+
+# ==================== Lot Material Use ====================
+def assert_batch_capacity(batch: RawBatch, qty_delta: Decimal):
+    # กันคงเหลือติดลบ
+    if (batch.qty_used + qty_delta) > batch.qty_received:
+        raise HTTPException(400, "Not enough batch balance")
+
 lotuse_router = APIRouter(prefix="/lot-uses", tags=["lot_uses"])
 
 @lotuse_router.post("", response_model=LotMaterialUseOut)
 def create_lot_use(payload: LotMaterialUseCreate, db: Session = Depends(get_db)):
     lot = db.get(ProductionLot, payload.lot_id)
     batch = db.get(RawBatch, payload.batch_id)
-    if not lot: raise HTTPException(status_code=404, detail="Lot not found")
-    if not batch: raise HTTPException(status_code=404, detail="Batch not found")
-    if payload.qty <= 0:
-        raise HTTPException(status_code=400, detail="qty must be > 0")
-    if batch.qty_used + payload.qty > batch.qty_received:
-        raise HTTPException(status_code=400, detail="Not enough batch balance")
+    if not lot: raise HTTPException(404, "Lot not found")
+    if not batch: raise HTTPException(404, "Batch not found")
+    qty = Decimal(str(payload.qty))
+    if qty <= 0: raise HTTPException(400, "qty must be > 0")
 
-    use = LotMaterialUse(lot_id=payload.lot_id, batch_id=payload.batch_id, qty=payload.qty)
-    batch.qty_used += payload.qty
+    assert_batch_capacity(batch, qty)
+    use = LotMaterialUse(lot_id=lot.id, batch_id=batch.id, qty=qty)
+    batch.qty_used = batch.qty_used + qty
     db.add(use); db.commit(); db.refresh(use)
     return use
 
@@ -425,57 +427,48 @@ def list_lot_uses(db: Session = Depends(get_db)):
 @lotuse_router.get("/{use_id}", response_model=LotMaterialUseOut)
 def get_lot_use(use_id: int, db: Session = Depends(get_db)):
     u = db.get(LotMaterialUse, use_id)
-    if not u: raise HTTPException(status_code=404, detail="Usage not found")
+    if not u: raise HTTPException(404, "Usage not found")
     return u
 
 @lotuse_router.put("/{use_id}", response_model=LotMaterialUseOut)
 def update_lot_use(use_id: int, payload: LotMaterialUseUpdate, db: Session = Depends(get_db)):
     u = db.get(LotMaterialUse, use_id)
-    if not u: raise HTTPException(status_code=404, detail="Usage not found")
-    if payload.qty <= 0:
-        raise HTTPException(status_code=400, detail="qty must be > 0")
+    if not u: raise HTTPException(404, "Usage not found")
+    new_qty = Decimal(str(payload.qty))
+    if new_qty <= 0: raise HTTPException(400, "qty must be > 0")
 
     batch = db.get(RawBatch, u.batch_id)
-    delta = payload.qty - u.qty
-    # ถ้าเพิ่ม ต้องมีของพอ
-    if delta > 0 and (batch.qty_used + delta > batch.qty_received):
-        raise HTTPException(status_code=400, detail="Not enough batch balance")
-
-    # ปรับยอด
-    u.qty = payload.qty
-    batch.qty_used += delta
+    delta = new_qty - u.qty
+    if delta != 0:
+        assert_batch_capacity(batch, delta)
+        u.qty = new_qty
+        batch.qty_used = batch.qty_used + delta
     db.commit(); db.refresh(u)
     return u
 
 @lotuse_router.delete("/{use_id}")
 def delete_lot_use(use_id: int, db: Session = Depends(get_db)):
     u = db.get(LotMaterialUse, use_id)
-    if not u: raise HTTPException(status_code=404, detail="Usage not found")
+    if not u: raise HTTPException(404, "Usage not found")
     batch = db.get(RawBatch, u.batch_id)
-    # คืนสต็อกกลับ
-    batch.qty_used -= u.qty
+    batch.qty_used = batch.qty_used - u.qty
     db.delete(u); db.commit()
     return {"message": "Usage deleted"}
+
 app.include_router(lotuse_router)
 
 
-#----Shop
+# ==================== Shop Travelers ====================
 travelers_router = APIRouter(prefix="/travelers", tags=["travelers"])
 steps_router = APIRouter(prefix="/traveler-steps", tags=["traveler_steps"])
 
-# ---------- ShopTraveler CRUD ----------
 @travelers_router.post("", response_model=ShopTravelerOut)
 def create_traveler(payload: ShopTravelerCreate, db: Session = Depends(get_db)):
     lot = db.get(ProductionLot, payload.lot_id)
-    if not lot:
-        raise HTTPException(status_code=404, detail="Lot not found")
-    if lot.traveler:
-        raise HTTPException(status_code=409, detail="Traveler already exists for this lot")
-
-    # optional: validate employee
+    if not lot: raise HTTPException(404, "Lot not found")
+    if lot.traveler: raise HTTPException(409, "Traveler already exists for this lot")
     if payload.created_by_id and not db.get(Employee, payload.created_by_id):
-        raise HTTPException(status_code=404, detail="Creator employee not found")
-
+        raise HTTPException(404, "Creator employee not found")
     t = ShopTraveler(
         lot_id=payload.lot_id,
         created_by_id=payload.created_by_id,
@@ -492,55 +485,42 @@ def list_travelers(db: Session = Depends(get_db)):
 @travelers_router.get("/{traveler_id}", response_model=ShopTravelerOut)
 def get_traveler(traveler_id: int, db: Session = Depends(get_db)):
     t = db.get(ShopTraveler, traveler_id)
-    if not t:
-        raise HTTPException(status_code=404, detail="Traveler not found")
+    if not t: raise HTTPException(404, "Traveler not found")
     return t
 
 @travelers_router.put("/{traveler_id}", response_model=ShopTravelerOut)
 def update_traveler(traveler_id: int, payload: ShopTravelerUpdate, db: Session = Depends(get_db)):
     t = db.get(ShopTraveler, traveler_id)
-    if not t:
-        raise HTTPException(status_code=404, detail="Traveler not found")
-
+    if not t: raise HTTPException(404, "Traveler not found")
     data = payload.dict(exclude_unset=True)
     if "created_by_id" in data and data["created_by_id"] is not None:
         if not db.get(Employee, data["created_by_id"]):
-            raise HTTPException(status_code=404, detail="Creator employee not found")
-
-    for k, v in data.items():
-        setattr(t, k, v)
-
+            raise HTTPException(404, "Creator employee not found")
+    for k, v in data.items(): setattr(t, k, v)
     db.commit(); db.refresh(t)
     return t
 
 @travelers_router.delete("/{traveler_id}")
 def delete_traveler(traveler_id: int, db: Session = Depends(get_db)):
     t = db.get(ShopTraveler, traveler_id)
-    if not t:
-        raise HTTPException(status_code=404, detail="Traveler not found")
+    if not t: raise HTTPException(404, "Traveler not found")
     if t.steps and len(t.steps) > 0:
-        raise HTTPException(status_code=400, detail="Traveler has steps; cannot delete")
+        raise HTTPException(400, "Traveler has steps; cannot delete")
     db.delete(t); db.commit()
     return {"message": "Traveler deleted"}
 
-
-# ---------- ShopTravelerStep CRUD + Actions ----------
+# ----- Steps CRUD -----
 @steps_router.post("", response_model=ShopTravelerStepOut)
 def create_traveler_step(payload: ShopTravelerStepCreate, db: Session = Depends(get_db)):
     t = db.get(ShopTraveler, payload.traveler_id)
-    if not t:
-        raise HTTPException(status_code=404, detail="Traveler not found")
+    if not t: raise HTTPException(404, "Traveler not found")
     if payload.operator_id and not db.get(Employee, payload.operator_id):
-        raise HTTPException(status_code=404, detail="Operator not found")
-
-    # enforce unique (traveler_id, seq)
+        raise HTTPException(404, "Operator not found")
     dup = db.query(ShopTravelerStep).filter(
         ShopTravelerStep.traveler_id == payload.traveler_id,
         ShopTravelerStep.seq == payload.seq
     ).first()
-    if dup:
-        raise HTTPException(status_code=409, detail="This seq already exists in traveler")
-
+    if dup: raise HTTPException(409, "This seq already exists in traveler")
     s = ShopTravelerStep(
         traveler_id=payload.traveler_id,
         seq=payload.seq,
@@ -566,73 +546,290 @@ def list_traveler_steps(traveler_id: int | None = None, db: Session = Depends(ge
 @steps_router.get("/{step_id}", response_model=ShopTravelerStepOut)
 def get_traveler_step(step_id: int, db: Session = Depends(get_db)):
     s = db.get(ShopTravelerStep, step_id)
-    if not s:
-        raise HTTPException(status_code=404, detail="Step not found")
+    if not s: raise HTTPException(404, "Step not found")
     return s
 
 @steps_router.put("/{step_id}", response_model=ShopTravelerStepOut)
 def update_traveler_step(step_id: int, payload: ShopTravelerStepUpdate, db: Session = Depends(get_db)):
     s = db.get(ShopTravelerStep, step_id)
-    if not s:
-        raise HTTPException(status_code=404, detail="Step not found")
-
+    if not s: raise HTTPException(404, "Step not found")
     data = payload.dict(exclude_unset=True)
 
-    # ถ้าอัปเดต seq → ต้องไม่ชนใน traveler เดียวกัน
     if "seq" in data and data["seq"] is not None and data["seq"] != s.seq:
         dup = db.query(ShopTravelerStep).filter(
             ShopTravelerStep.traveler_id == s.traveler_id,
             ShopTravelerStep.seq == data["seq"]
         ).first()
-        if dup:
-            raise HTTPException(status_code=409, detail="This seq already exists in traveler")
+        if dup: raise HTTPException(409, "This seq already exists in traveler")
 
-    # ถ้าตั้ง operator ใหม่
     if "operator_id" in data and data["operator_id"] is not None:
         if not db.get(Employee, data["operator_id"]):
-            raise HTTPException(status_code=404, detail="Operator not found")
+            raise HTTPException(404, "Operator not found")
 
-    for k, v in data.items():
-        setattr(s, k, v)
-
+    for k, v in data.items(): setattr(s, k, v)
     db.commit(); db.refresh(s)
     return s
 
 @steps_router.delete("/{step_id}")
 def delete_traveler_step(step_id: int, db: Session = Depends(get_db)):
     s = db.get(ShopTravelerStep, step_id)
-    if not s:
-        raise HTTPException(status_code=404, detail="Step not found")
+    if not s: raise HTTPException(404, "Step not found")
     db.delete(s); db.commit()
     return {"message": "Step deleted"}
 
-
-# ---------- Actions: start / finish ----------
+# ----- Step actions -----
 @steps_router.post("/{step_id}/start", response_model=ShopTravelerStepOut)
 def start_step(step_id: int, db: Session = Depends(get_db)):
     s = db.get(ShopTravelerStep, step_id)
-    if not s:
-        raise HTTPException(status_code=404, detail="Step not found")
-    s.status = "running"
-    s.started_at = datetime.utcnow()
+    if not s: raise HTTPException(404, "Step not found")
+    s.status = "running"; s.started_at = datetime.utcnow()
     db.commit(); db.refresh(s)
     return s
 
 @steps_router.post("/{step_id}/finish", response_model=ShopTravelerStepOut)
-def finish_step(step_id: int, result: str = "passed", qa_result: str | None = None, qa_notes: str | None = None, db: Session = Depends(get_db)):
+def finish_step(step_id: int, result: str = "passed",
+                qa_result: str | None = None, qa_notes: str | None = None,
+                db: Session = Depends(get_db)):
     s = db.get(ShopTravelerStep, step_id)
-    if not s:
-        raise HTTPException(status_code=404, detail="Step not found")
+    if not s: raise HTTPException(404, "Step not found")
     if result not in ["passed", "failed", "skipped"]:
-        raise HTTPException(status_code=400, detail="result must be passed/failed/skipped")
-    s.status = result
-    s.finished_at = datetime.utcnow()
-    if qa_result is not None:
-        s.qa_result = qa_result
-    if qa_notes is not None:
-        s.qa_notes = qa_notes
+        raise HTTPException(400, "result must be passed/failed/skipped")
+    s.status = result; s.finished_at = datetime.utcnow()
+    if qa_result is not None: s.qa_result = qa_result
+    if qa_notes is not None: s.qa_notes = qa_notes
     db.commit(); db.refresh(s)
     return s
 
 app.include_router(travelers_router)
 app.include_router(steps_router)
+
+
+# ==================== Suppliers ====================
+suppliers_router = APIRouter(prefix="/suppliers", tags=["suppliers"])
+
+@suppliers_router.post("", response_model=SupplierOut)
+def create_supplier(payload: SupplierCreate, db: Session = Depends(get_db)):
+    code = payload.code.strip().upper()
+    if db.query(Supplier).filter(Supplier.code == code).first():
+        raise HTTPException(409, "Supplier code already exists")
+    s = Supplier(
+        code=code, name=payload.name.strip(),
+        contact=payload.contact, email=payload.email, phone=payload.phone,
+        address=payload.address, payment_terms=payload.payment_terms
+    )
+    db.add(s); db.commit(); db.refresh(s)
+    return s
+
+@suppliers_router.get("", response_model=List[SupplierOut])
+def list_suppliers(q: str | None = Query(None), db: Session = Depends(get_db)):
+    query = db.query(Supplier)
+    if q:
+        ql = f"%{q}%"
+        query = query.filter((Supplier.code.ilike(ql)) | (Supplier.name.ilike(ql)))
+    return query.order_by(Supplier.name.asc()).all()
+
+@suppliers_router.get("/{supplier_id}", response_model=SupplierOut)
+def get_supplier(supplier_id: int, db: Session = Depends(get_db)):
+    s = db.get(Supplier, supplier_id)
+    if not s: raise HTTPException(404, "Supplier not found")
+    return s
+
+@suppliers_router.put("/{supplier_id}", response_model=SupplierOut)
+def update_supplier(supplier_id: int, payload: SupplierUpdate, db: Session = Depends(get_db)):
+    s = db.get(Supplier, supplier_id)
+    if not s: raise HTTPException(404, "Supplier not found")
+    for k, v in payload.dict(exclude_unset=True).items():
+        setattr(s, k, v)
+    db.commit(); db.refresh(s)
+    return s
+
+@suppliers_router.delete("/{supplier_id}")
+def delete_supplier(supplier_id: int, db: Session = Depends(get_db)):
+    s = db.get(Supplier, supplier_id)
+    if not s: raise HTTPException(404, "Supplier not found")
+    # กันลบถ้ามีอ้างอิง
+    if s.raw_batches:
+        raise HTTPException(400, "Supplier in use (raw_batches); cannot delete")
+    # (ถ้าจะเช็ค subcon_orders ให้ทำ backref ใน model แล้วเช็คเพิ่มได้)
+    db.delete(s); db.commit()
+    return {"message": "Supplier deleted"}
+
+app.include_router(suppliers_router)
+
+
+# ==================== Subcontracting ====================
+subcon_router = APIRouter(prefix="/subcon", tags=["subcontracting"])
+
+def assert_supplier_exists(db: Session, supplier_id: int):
+    if not db.get(Supplier, supplier_id):
+        raise HTTPException(404, "Supplier not found")
+
+def assert_step_exists(db: Session, step_id: int):
+    if not db.get(ShopTravelerStep, step_id):
+        raise HTTPException(404, f"Traveler step {step_id} not found")
+
+def shipped_qty_for_step(db: Session, order_id: int, step_id: int) -> Decimal:
+    total = (
+        db.query(func.coalesce(func.sum(SubconShipmentItem.qty), 0))
+        .join(SubconShipment, SubconShipmentItem.shipment_id == SubconShipment.id)
+        .filter(SubconShipment.order_id == order_id, SubconShipmentItem.traveler_step_id == step_id)
+        .scalar()
+    )
+    return Decimal(total)
+
+def received_qty_for_step(db: Session, order_id: int, step_id: int) -> Decimal:
+    total = (
+        db.query(func.coalesce(func.sum(SubconReceiptItem.qty_received), 0))
+        .join(SubconReceipt, SubconReceiptItem.receipt_id == SubconReceipt.id)
+        .filter(SubconReceipt.order_id == order_id, SubconReceiptItem.traveler_step_id == step_id)
+        .scalar()
+    )
+    return Decimal(total)
+
+# Orders
+@subcon_router.post("/orders", response_model=SubconOrderOut)
+def create_subcon_order(payload: SubconOrderCreate, db: Session = Depends(get_db)):
+    assert_supplier_exists(db, payload.supplier_id)
+    for line in payload.lines:
+        assert_step_exists(db, line.traveler_step_id)
+
+    order = SubconOrder(
+        supplier_id=payload.supplier_id,
+        ref_no=payload.ref_no,
+        due_date=payload.due_date,
+        notes=payload.notes,
+        status="open"
+    )
+    db.add(order); db.flush()
+
+    for line in payload.lines:
+        ol = SubconOrderLine(
+            order_id=order.id,
+            traveler_step_id=line.traveler_step_id,
+            qty_planned=line.qty_planned,
+            unit_cost=line.unit_cost
+        )
+        db.add(ol)
+
+    db.commit(); db.refresh(order); _ = order.lines
+    return order
+
+@subcon_router.get("/orders", response_model=List[SubconOrderOut])
+def list_subcon_orders(status: str | None = None, supplier_id: int | None = None, db: Session = Depends(get_db)):
+    q = db.query(SubconOrder)
+    if status: q = q.filter(SubconOrder.status == status)
+    if supplier_id: q = q.filter(SubconOrder.supplier_id == supplier_id)
+    items = q.order_by(SubconOrder.created_at.desc()).all()
+    for o in items: _ = o.lines
+    return items
+
+@subcon_router.get("/orders/{order_id}", response_model=SubconOrderOut)
+def get_subcon_order(order_id: int, db: Session = Depends(get_db)):
+    o = db.get(SubconOrder, order_id)
+    if not o: raise HTTPException(404, "Subcon order not found")
+    _ = o.lines
+    return o
+
+@subcon_router.put("/orders/{order_id}", response_model=SubconOrderOut)
+def update_subcon_order(order_id: int, payload: SubconOrderUpdate, db: Session = Depends(get_db)):
+    o = db.get(SubconOrder, order_id)
+    if not o: raise HTTPException(404, "Subcon order not found")
+    data = payload.dict(exclude_unset=True)
+    if "supplier_id" in data and data["supplier_id"] is not None:
+        assert_supplier_exists(db, data["supplier_id"])
+    for k, v in data.items(): setattr(o, k, v)
+    db.commit(); db.refresh(o); _ = o.lines
+    return o
+
+# Shipments
+@subcon_router.post("/shipments", response_model=SubconShipmentOut)
+def create_shipment(payload: SubconShipmentCreate, db: Session = Depends(get_db)):
+    order = db.get(SubconOrder, payload.order_id)
+    if not order: raise HTTPException(404, "Subcon order not found")
+    order_line_steps = {ol.traveler_step_id for ol in order.lines}
+    if not order_line_steps:
+        raise HTTPException(400, "Order has no lines; cannot ship")
+
+    sh = SubconShipment(
+        order_id=payload.order_id,
+        shipped_at=payload.shipped_at or datetime.utcnow(),
+        shipped_by=payload.shipped_by,
+        package_no=payload.package_no,
+        carrier=payload.carrier,
+        tracking_no=payload.tracking_no,
+        status="shipped"
+    )
+    db.add(sh); db.flush()
+
+    for it in payload.items:
+        if it.traveler_step_id not in order_line_steps:
+            raise HTTPException(400, f"Step {it.traveler_step_id} is not part of this order")
+        if it.qty <= 0:
+            raise HTTPException(400, "Shipment qty must be > 0")
+        db.add(SubconShipmentItem(
+            shipment_id=sh.id,
+            traveler_step_id=it.traveler_step_id,
+            qty=it.qty
+        ))
+
+    db.commit(); db.refresh(sh); _ = sh.items
+    return sh
+
+# Receipts
+@subcon_router.post("/receipts", response_model=SubconReceiptOut)
+def create_receipt(payload: SubconReceiptCreate, db: Session = Depends(get_db)):
+    order = db.get(SubconOrder, payload.order_id)
+    if not order: raise HTTPException(404, "Subcon order not found")
+    order_line_steps = {ol.traveler_step_id for ol in order.lines}
+
+    rc = SubconReceipt(
+        order_id=payload.order_id,
+        received_at=payload.received_at or datetime.utcnow(),
+        received_by=payload.received_by,
+        doc_no=payload.doc_no,
+        status="received"
+    )
+    db.add(rc); db.flush()
+
+    for it in payload.items:
+        sid = it.traveler_step_id
+        if sid not in order_line_steps:
+            raise HTTPException(400, f"Step {sid} is not part of this order")
+
+        shipped_total = (
+            db.query(func.coalesce(func.sum(SubconShipmentItem.qty), 0))
+            .join(SubconShipment, SubconShipmentItem.shipment_id == SubconShipment.id)
+            .filter(SubconShipment.order_id == order.id,
+                    SubconShipmentItem.traveler_step_id == sid)
+            .scalar()
+        )
+        received_total = (
+            db.query(func.coalesce(func.sum(SubconReceiptItem.qty_received), 0))
+            .join(SubconReceipt, SubconReceiptItem.receipt_id == SubconReceipt.id)
+            .filter(SubconReceipt.order_id == order.id,
+                    SubconReceiptItem.traveler_step_id == sid)
+            .scalar()
+        )
+        shipped_total = Decimal(shipped_total or 0)
+        received_total = Decimal(received_total or 0)
+
+        if it.qty_received < 0 or it.qty_rejected < 0 or it.scrap_qty < 0:
+            raise HTTPException(400, "Quantities must be >= 0")
+
+        if (received_total + Decimal(str(it.qty_received))) > shipped_total:
+            raise HTTPException(400, f"Received qty would exceed shipped qty for step {sid}")
+
+        db.add(SubconReceiptItem(
+            receipt_id=rc.id,
+            traveler_step_id=sid,
+            qty_received=it.qty_received,
+            qty_rejected=it.qty_rejected,
+            scrap_qty=it.scrap_qty,
+            qa_result=it.qa_result,
+            qa_notes=it.qa_notes
+        ))
+
+    db.commit(); db.refresh(rc); _ = rc.items
+    return rc
+
+app.include_router(subcon_router)
