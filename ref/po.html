@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <title>สร้าง PO ใหม่</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root { --bg:#f7f7fb; --card:#fff; --text:#222; --muted:#666; --pri:#2563eb; --pri-2:#1e40af; --bd:#e5e7eb; --ok:#16a34a; --warn:#eab308; }
+    *{box-sizing:border-box} body{margin:0; font-family:system-ui,Segoe UI,Roboto,TH Sarabun New,sans-serif; background:var(--bg); color:var(--text)}
+    .container{max-width:960px; margin:32px auto; padding:0 16px}
+    .card{background:var(--card); border:1px solid var(--bd); border-radius:16px; padding:20px; box-shadow:0 6px 16px rgba(0,0,0,.04)}
+    h1{font-size:22px; margin:0 0 16px}
+    .grid{display:grid; gap:12px}
+    .g2{grid-template-columns:1fr 1fr}
+    label{font-size:13px; color:var(--muted)}
+    input, textarea, select{width:100%; padding:10px 12px; border:1px solid var(--bd); border-radius:10px; background:#fff; font-size:14px}
+    .row{display:flex; gap:8px; align-items:center}
+    .btn{padding:10px 14px; border-radius:10px; border:1px solid var(--bd); background:#fff; cursor:pointer; font-size:14px}
+    .btn.primary{background:var(--pri); color:#fff; border-color:var(--pri)}
+    .btn.primary:hover{background:var(--pri-2)}
+    .btn.ghost{background:#fff}
+    .muted{color:var(--muted); font-size:13px}
+    .pill{display:inline-flex; gap:6px; align-items:center; padding:6px 10px; border-radius:999px; background:#eef2ff; color:#3730a3; font-size:12px}
+    .section-title{margin:8px 0 4px; font-weight:600}
+    .footer{display:flex; gap:8px; justify-content:flex-end; margin-top:16px}
+    .box{border:1px dashed var(--bd); border-radius:12px; padding:10px; background:#fcfcff}
+    .ok{color:var(--ok)} .warn{color:var(--warn)}
+    /* Modal */
+    .modal{position:fixed; inset:0; display:none; place-items:center; background:rgba(0,0,0,.22); padding:16px}
+    .modal.open{display:grid}
+    .modal .panel{max-width:900px; width:100%; background:#fff; border-radius:16px; border:1px solid var(--bd); padding:14px}
+    .table{width:100%; border-collapse:collapse; font-size:14px}
+    .table th,.table td{border-bottom:1px solid var(--bd); padding:10px 8px; text-align:left; vertical-align:top}
+    .table th{font-size:12px; color:var(--muted)}
+    .actions{display:flex; gap:8px; flex-wrap:wrap}
+    @media (max-width:720px){ .g2{grid-template-columns:1fr} .actions{flex-direction:column} }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <h1>สร้าง PO ใหม่</h1>
+
+      <!-- Customer select -->
+      <div class="grid g2">
+        <div>
+          <label>ลูกค้า *</label>
+          <div class="row">
+            <input id="customerInput" list="customerList" placeholder="พิมพ์เพื่อค้นหา (เช่น ชื่อบริษัท, อีเมล, เบอร์)" />
+            <datalist id="customerList"></datalist>
+            <button class="btn" id="btnPick">ค้นหา</button>
+            <button class="btn" id="btnCreate">+ ลูกค้าใหม่</button>
+          </div>
+          <div class="muted" id="customerHint">ยังไม่ได้เลือกลูกค้า</div>
+          <input type="hidden" id="customerId" />
+          <div class="box" id="customerPreview" style="display:none; margin-top:8px"></div>
+        </div>
+
+        <div class="grid">
+          <div>
+            <label>PO Number</label>
+            <input id="poNumber" readonly />
+          </div>
+          <div>
+            <label>วันที่</label>
+            <input id="poDate" type="date" />
+          </div>
+        </div>
+      </div>
+
+      <!-- PO Details -->
+      <div style="margin-top:14px">
+        <div class="section-title">รายละเอียด</div>
+        <textarea id="poDesc" rows="3" placeholder="รายละเอียดเพิ่มเติม (ไม่บังคับ)"></textarea>
+      </div>
+
+      <!-- Items (very simple demo) -->
+      <div style="margin-top:14px">
+        <div class="section-title">รายการ (ตัวอย่างง่าย ๆ)</div>
+        <div class="grid g2">
+          <div>
+            <label>สินค้า/บริการ</label>
+            <input id="itemName" placeholder="เช่น งานกลึงเพลา" />
+          </div>
+          <div class="grid g2">
+            <div>
+              <label>จำนวน</label>
+              <input id="itemQty" type="number" min="1" value="1" />
+            </div>
+            <div>
+              <label>ราคา/หน่วย</label>
+              <input id="itemPrice" type="number" min="0" step="0.01" value="0.00" />
+            </div>
+          </div>
+        </div>
+        <div class="muted" id="estTotal" style="margin-top:6px">ราคารวมโดยประมาณ: 0.00</div>
+      </div>
+
+      <div class="footer">
+        <button class="btn ghost" id="btnReset">ล้างฟอร์ม</button>
+        <button class="btn primary" id="btnSave">บันทึก PO</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: pick customer -->
+  <div class="modal" id="pickModal" aria-hidden="true">
+    <div class="panel">
+      <div class="row" style="justify-content:space-between">
+        <h3 style="margin:0">เลือกจากรายชื่อลูกค้า</h3>
+        <button class="btn" id="btnClosePick">ปิด</button>
+      </div>
+      <div class="row" style="margin:8px 0">
+        <input id="pickSearch" placeholder="ค้นหาชื่อลูกค้า / อีเมล / โทรศัพท์" />
+        <span class="pill">ทั้งหมด: <span id="countAll"></span></span>
+      </div>
+      <div style="overflow:auto; max-height:60vh">
+        <table class="table" id="customerTable">
+          <thead>
+            <tr>
+              <th>ชื่อ</th><th>อีเมล</th><th>โทรศัพท์</th><th>ที่อยู่</th><th></th>
+            </tr>
+          </thead>
+          <tbody><!-- rows injected --></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: create customer -->
+  <div class="modal" id="createModal" aria-hidden="true">
+    <div class="panel">
+      <div class="row" style="justify-content:space-between">
+        <h3 style="margin:0">เพิ่มลูกค้าใหม่</h3>
+        <button class="btn" id="btnCloseCreate">ปิด</button>
+      </div>
+      <div class="grid g2" style="margin-top:8px">
+        <div>
+          <label>ชื่อบริษัท/ลูกค้า *</label>
+          <input id="newName" />
+        </div>
+        <div>
+          <label>อีเมล</label>
+          <input id="newEmail" type="email" />
+        </div>
+        <div>
+          <label>โทรศัพท์</label>
+          <input id="newPhone" />
+        </div>
+        <div>
+          <label>ที่อยู่</label>
+          <input id="newAddress" />
+        </div>
+      </div>
+      <div class="footer">
+        <button class="btn" id="btnCreateNow">บันทึกและเลือกคนนี้</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ---- Mock data store (แทน backend) ----
+    const store = {
+      customers: [
+        {id: 1, name: "ABC Precision Co., Ltd.", email: "po@abc-precision.com", phone: "02-123-4567", address: "Bangkok"},
+        {id: 2, name: "CNC Works LA", email: "sales@cncworks.la", phone: "(213) 555-1088", address: "Los Angeles, CA"},
+        {id: 3, name: "Tanapon Engineering", email: "contact@tanapon-eng.com", phone: "099-222-3333", address: "Chiang Mai"},
+        {id: 4, name: "Wawio Manufacturing", email: "ops@wawio.com", phone: "(310) 123-8899", address: "Torrance, CA"},
+      ],
+      nextCustomerId: 5
+    };
+
+    // ---- Elements ----
+    const customerInput = document.getElementById('customerInput');
+    const customerList  = document.getElementById('customerList');
+    const customerId    = document.getElementById('customerId');
+    const customerHint  = document.getElementById('customerHint');
+    const customerPreview = document.getElementById('customerPreview');
+
+    const poNumber = document.getElementById('poNumber');
+    const poDate   = document.getElementById('poDate');
+    const poDesc   = document.getElementById('poDesc');
+    const itemName = document.getElementById('itemName');
+    const itemQty  = document.getElementById('itemQty');
+    const itemPrice= document.getElementById('itemPrice');
+    const estTotal = document.getElementById('estTotal');
+
+    const btnPick = document.getElementById('btnPick');
+    const btnCreate = document.getElementById('btnCreate');
+    const btnReset = document.getElementById('btnReset');
+    const btnSave  = document.getElementById('btnSave');
+
+    // Modals
+    const pickModal = document.getElementById('pickModal');
+    const btnClosePick = document.getElementById('btnClosePick');
+    const pickSearch = document.getElementById('pickSearch');
+    const customerTableBody = document.querySelector('#customerTable tbody');
+    const countAll = document.getElementById('countAll');
+
+    const createModal = document.getElementById('createModal');
+    const btnCloseCreate = document.getElementById('btnCloseCreate');
+    const btnCreateNow = document.getElementById('btnCreateNow');
+    const newName = document.getElementById('newName');
+    const newEmail = document.getElementById('newEmail');
+    const newPhone = document.getElementById('newPhone');
+    const newAddress = document.getElementById('newAddress');
+
+    // ---- Init ----
+    function todayISO(){
+      const d = new Date();
+      const mm = String(d.getMonth()+1).padStart(2,'0');
+      const dd = String(d.getDate()).padStart(2,'0');
+      return `${d.getFullYear()}-${mm}-${dd}`;
+    }
+
+    function generatePONumber(){
+      // demo: เก็บ counter ใน localStorage ต่อวัน
+      const key = `po-counter-${todayISO()}`;
+      const c = Number(localStorage.getItem(key) || 0) + 1;
+      localStorage.setItem(key, String(c));
+      return `PO-${new Date().getFullYear()}-${String(c).padStart(4,'0')}`;
+    }
+
+    function renderDatalist(){
+      customerList.innerHTML = '';
+      store.customers.forEach(c=>{
+        const opt = document.createElement('option');
+        opt.value = `${c.name} (${c.email ?? ''} ${c.phone ?? ''})`.trim();
+        opt.dataset.id = String(c.id);
+        customerList.appendChild(opt);
+      });
+    }
+
+    function setSelectedCustomer(c){
+      if(!c){ // clear
+        customerId.value = '';
+        customerInput.value = '';
+        customerHint.textContent = 'ยังไม่ได้เลือกลูกค้า';
+        customerPreview.style.display = 'none';
+        return;
+      }
+      customerId.value = c.id;
+      customerInput.value = `${c.name}`;
+      customerHint.innerHTML = `<span class="ok">✓ เลือกลูกค้าแล้ว</span>`;
+      customerPreview.style.display = 'block';
+      customerPreview.innerHTML = `
+        <div><strong>${c.name}</strong></div>
+        <div class="muted">${c.email || '-'}</div>
+        <div class="muted">${c.phone || '-'}</div>
+        <div class="muted">${c.address || '-'}</div>
+      `;
+    }
+
+    function renderPickTable(filter=''){
+      const q = filter.trim().toLowerCase();
+      const rows = store.customers.filter(c=>{
+        const hay = `${c.name} ${c.email||''} ${c.phone||''} ${c.address||''}`.toLowerCase();
+        return hay.includes(q);
+      });
+      countAll.textContent = rows.length;
+      customerTableBody.innerHTML = '';
+      rows.forEach(c=>{
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${c.name}</td>
+          <td>${c.email||'-'}</td>
+          <td>${c.phone||'-'}</td>
+          <td>${c.address||'-'}</td>
+          <td><button class="btn primary" data-pick="${c.id}">เลือก</button></td>
+        `;
+        customerTableBody.appendChild(tr);
+      });
+    }
+
+    function openModal(m){ m.classList.add('open'); }
+    function closeModal(m){ m.classList.remove('open'); }
+
+    function updateEstTotal(){
+      const qty = Number(itemQty.value || 0);
+      const price = Number(itemPrice.value || 0);
+      estTotal.textContent = `ราคารวมโดยประมาณ: ${(qty*price).toFixed(2)}`;
+    }
+
+    // Setup initial
+    poDate.value = todayISO();
+    poNumber.value = generatePONumber();
+    renderDatalist();
+    updateEstTotal();
+
+    // ---- Events ----
+    customerInput.addEventListener('change', ()=>{
+      // try to match by name prefix
+      const v = customerInput.value.trim().toLowerCase();
+      const c = store.customers.find(x => x.name.toLowerCase() === v)
+             || store.customers.find(x => v && (x.name.toLowerCase().startsWith(v)));
+      if(c) setSelectedCustomer(c);
+      else setSelectedCustomer(null);
+    });
+
+    btnPick.addEventListener('click', ()=>{
+      renderPickTable('');
+      pickSearch.value = '';
+      openModal(pickModal);
+    });
+    btnCreate.addEventListener('click', ()=>{
+      newName.value = ''; newEmail.value=''; newPhone.value=''; newAddress.value='';
+      openModal(createModal);
+      setTimeout(()=>newName.focus(), 50);
+    });
+    btnClosePick.addEventListener('click', ()=>closeModal(pickModal));
+    btnCloseCreate.addEventListener('click', ()=>closeModal(createModal));
+
+    pickSearch.addEventListener('input', (e)=>renderPickTable(e.target.value));
+
+    customerTableBody.addEventListener('click', (e)=>{
+      const btn = e.target.closest('button[data-pick]');
+      if(!btn) return;
+      const id = Number(btn.dataset.pick);
+      const c = store.customers.find(x=>x.id===id);
+      if(c){ setSelectedCustomer(c); closeModal(pickModal); }
+    });
+
+    btnCreateNow.addEventListener('click', ()=>{
+      const name = newName.value.trim();
+      if(!name){ alert('กรุณากรอกชื่อบริษัท/ลูกค้า'); return; }
+      const c = {
+        id: store.nextCustomerId++,
+        name,
+        email: newEmail.value.trim() || null,
+        phone: newPhone.value.trim() || null,
+        address: newAddress.value.trim() || null
+      };
+      store.customers.push(c);
+      renderDatalist();
+      setSelectedCustomer(c);
+      closeModal(createModal);
+    });
+
+    itemQty.addEventListener('input', updateEstTotal);
+    itemPrice.addEventListener('input', updateEstTotal);
+
+    btnReset.addEventListener('click', ()=>{
+      setSelectedCustomer(null);
+      poDate.value = todayISO();
+      poNumber.value = generatePONumber();
+      poDesc.value = '';
+      itemName.value = '';
+      itemQty.value = 1;
+      itemPrice.value = 0;
+      updateEstTotal();
+    });
+
+    btnSave.addEventListener('click', ()=>{
+      // Validation
+      if(!customerId.value){
+        alert('กรุณาเลือกลูกค้าก่อนบันทึก PO');
+        customerInput.focus();
+        return;
+      }
+      // payload (แทนการส่งไป backend)
+      const payload = {
+        customer_id: Number(customerId.value),
+        po_number: poNumber.value,
+        po_date: poDate.value,
+        description: poDesc.value || null,
+        items: [
+          {
+            name: itemName.value || 'รายการ',
+            qty: Number(itemQty.value || 0),
+            unit_price: Number(itemPrice.value || 0),
+            amount: Number(itemQty.value||0) * Number(itemPrice.value||0)
+          }
+        ]
+      };
+      console.log('POST /purchase-orders', payload);
+      alert('บันทึกสำเร็จ (ดู payload ใน console)');
+      // ที่ระบบจริง: fetch('/api/purchase-orders', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)})
+      btnReset.click();
+    });
+
+    // ปิด modal เมื่อคลิกพื้นหลัง
+    [pickModal, createModal].forEach(m=>{
+      m.addEventListener('click', (e)=>{ if(e.target===m) closeModal(m); });
+      document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeModal(m); });
+    });
+  </script>
+</body>
+</html>

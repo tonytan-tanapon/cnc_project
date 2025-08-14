@@ -5,7 +5,7 @@ from decimal import Decimal
 
 # ---------------- Customers ----------------
 class CustomerBase(BaseModel):
-    code: str
+    code: Optional[str] = None   # เดิมอาจเป็น str
     name: str
     contact: Optional[str] = None
     email: Optional[str] = None
@@ -30,7 +30,7 @@ class CustomerOut(CustomerBase):
 
 # ---------------- Purchase Orders ----------------
 class POCreate(BaseModel):
-    po_number: str
+    po_number: Optional[str] = None   # เดิมอาจเป็น str
     customer_id: int
     description: Optional[str] = None
 
@@ -50,7 +50,7 @@ class POOut(BaseModel):
 
 # ---------------- Employees ----------------
 class EmployeeBase(BaseModel):
-    emp_code: str
+    emp_code: Optional[str] = None
     name: str
     position: Optional[str] = None
     department: Optional[str] = None

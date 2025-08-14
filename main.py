@@ -9,7 +9,7 @@ from sqlalchemy import func
 from datetime import datetime
 from decimal import Decimal
 from typing import List
-
+from utils.code_generator import next_code, next_code_yearly
 from database import SessionLocal, engine
 from models import (
     Base,
@@ -53,6 +53,8 @@ from schemas import (
     SubconReceiptCreate, SubconReceiptOut,
 )
 
+import re
+from sqlalchemy.exc import IntegrityError
 # ---------- Bootstrap ----------
 Base.metadata.create_all(bind=engine)
 
@@ -73,6 +75,29 @@ try:
 except Exception:
     templates = None
 
+
+
+def next_customer_code(db: Session, prefix: str = "C", width: int = 4) -> str:
+    """
+    หา code รูปแบบเช่น C0001, C0002 ... โดยดูเลขท้ายที่มากสุดแล้ว +1
+    - prefix: อักษรขึ้นต้น (เช่น "C")
+    - width: ความยาวเลขที่ zero-pad
+    """
+    pat = re.compile(rf"^{re.escape(prefix)}(\d+)$")
+    max_n = 0
+    # ดึงเฉพาะ code ที่ขึ้นต้นด้วย prefix เพื่อลดโหลด
+    rows = db.query(Customer.code).filter(Customer.code.like(f"{prefix}%")).all()
+    for (code,) in rows:
+        if not code:
+            continue
+        m = pat.match(code)
+        if m:
+            n = int(m.group(1))
+            if n > max_n:
+                max_n = n
+    return f"{prefix}{str(max_n + 1).zfill(width)}"
+
+
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
     if not templates:
@@ -91,15 +116,57 @@ def get_db():
 # ==================== Customers ====================
 cust_router = APIRouter(prefix="/customers", tags=["customers"])
 
+# @cust_router.post("", response_model=CustomerOut)
+# def create_customer(payload: CustomerCreate, db: Session = Depends(get_db)):
+#     code = payload.code.strip().upper()
+#     if db.query(Customer).filter(Customer.code == code).first():
+#         raise HTTPException(409, "Customer code already exists")
+#     c = Customer(code=code, name=payload.name.strip(), contact=payload.contact,
+#                  email=payload.email, phone=payload.phone, address=payload.address)
+#     db.add(c); db.commit(); db.refresh(c)
+#     return c
 @cust_router.post("", response_model=CustomerOut)
 def create_customer(payload: CustomerCreate, db: Session = Depends(get_db)):
-    code = payload.code.strip().upper()
+    # รับค่าที่มา (อาจว่าง หรือใช้คำว่า AUTO ก็ได้)
+    raw = (payload.code or "").strip().upper()
+    autogen = (raw == "" or raw == "AUTO" or raw == "AUTOGEN")
+
+    # ถ้าไม่ได้กำหนด code มา ให้ระบบออกให้
+    # code = next_customer_code(db, prefix="C", width=4) 
+    code = next_code(db, Customer, "code", prefix="C", width=4) if autogen else raw
+    # กันซ้ำ (กรณีใส่มาเอง)
     if db.query(Customer).filter(Customer.code == code).first():
         raise HTTPException(409, "Customer code already exists")
-    c = Customer(code=code, name=payload.name.strip(), contact=payload.contact,
-                 email=payload.email, phone=payload.phone, address=payload.address)
-    db.add(c); db.commit(); db.refresh(c)
-    return c
+
+    c = Customer(
+        code=code,
+        name=payload.name.strip(),
+        contact=payload.contact,
+        email=payload.email,
+        phone=payload.phone,
+        address=payload.address,
+    )
+
+    # กัน race condition เบื้องต้น (กรณีสองคนกดพร้อมกัน)
+    for _ in range(3):
+        try:
+            db.add(c); db.commit(); db.refresh(c)
+            return c
+        except IntegrityError:
+            db.rollback()
+            if autogen:
+                # ถ้าชนซ้ำ เพราะมีคนแซงออก code เดียวกันไปก่อน ก็ออกใหม่แล้วลองอีกครั้ง
+                c.code = next_customer_code(db, prefix="C", width=4)
+            else:
+                # กรณีผู้ใช้กำหนด code เองแล้วซ้ำ ให้เด้ง error ตามเดิม
+                raise HTTPException(409, "Customer code already exists")
+
+    # ถ้าลอง 3 ครั้งแล้วยังชน ให้แจ้งผู้ใช้
+    raise HTTPException(500, "Failed to generate unique customer code")
+
+@cust_router.get("/next-code")
+def get_next_customer_code(prefix: str = "C", width: int = 4, db: Session = Depends(get_db)):
+    return {"next_code": next_customer_code(db, prefix, width)}
 
 @cust_router.get("", response_model=List[CustomerOut])
 def list_customers(q: str | None = Query(None), db: Session = Depends(get_db)):
@@ -139,15 +206,46 @@ app.include_router(cust_router)
 # ==================== POs ====================
 pos_router = APIRouter(prefix="/pos", tags=["pos"])
 
+# @pos_router.post("", response_model=POOut)
+# def create_po(payload: POCreate, db: Session = Depends(get_db)):
+#     if db.query(PO).filter(PO.po_number == payload.po_number).first():
+#         raise HTTPException(409, "PO number already exists")
+#     cust = db.get(Customer, payload.customer_id)
+#     if not cust: raise HTTPException(400, "customer_id not found")
+#     po = PO(po_number=payload.po_number.strip(), description=payload.description, customer_id=payload.customer_id)
+#     db.add(po); db.commit(); db.refresh(po)
+#     return po
+
 @pos_router.post("", response_model=POOut)
 def create_po(payload: POCreate, db: Session = Depends(get_db)):
-    if db.query(PO).filter(PO.po_number == payload.po_number).first():
+    raw = (payload.po_number or "").strip().upper()
+    autogen = (raw == "" or raw == "AUTO" or raw == "AUTOGEN")
+
+    po_no = next_code_yearly(db, PO, "po_number", prefix="PO") if autogen else raw
+
+    # กันซ้ำเบื้องต้น
+    if db.query(PO).filter(PO.po_number == po_no).first():
         raise HTTPException(409, "PO number already exists")
-    cust = db.get(Customer, payload.customer_id)
-    if not cust: raise HTTPException(400, "customer_id not found")
-    po = PO(po_number=payload.po_number.strip(), description=payload.description, customer_id=payload.customer_id)
-    db.add(po); db.commit(); db.refresh(po)
-    return po
+
+    po = PO(
+        po_number=po_no,
+        description=payload.description,
+        customer_id=payload.customer_id,
+    )
+
+    # กัน race condition (สองคนกดพร้อมกัน)
+    for _ in range(3):
+        try:
+            db.add(po); db.commit(); db.refresh(po)
+            return po
+        except IntegrityError:
+            db.rollback()
+            if autogen:
+                po.po_number = next_code_yearly(db, PO, "po_number", prefix="PO")
+            else:
+                raise HTTPException(409, "PO number already exists")
+
+    raise HTTPException(500, "Failed to generate unique PO number")
 
 @pos_router.get("", response_model=List[POOut])
 def list_pos(db: Session = Depends(get_db)):
@@ -192,16 +290,41 @@ app.include_router(pos_router)
 # ==================== Employees ====================
 emp_router = APIRouter(prefix="/employees", tags=["employees"])
 
+# @emp_router.post("", response_model=EmployeeOut)
+# def create_employee(payload: EmployeeCreate, db: Session = Depends(get_db)):
+#     code = payload.emp_code.strip().upper()
+#     if db.query(Employee).filter(Employee.emp_code == code).first():
+#         raise HTTPException(409, "Employee code already exists")
+#     e = Employee(emp_code=code, name=payload.name.strip(), position=payload.position,
+#                  department=payload.department, email=payload.email, phone=payload.phone,
+#                  status=payload.status or "active")
+#     db.add(e); db.commit(); db.refresh(e)
+#     return e
+
 @emp_router.post("", response_model=EmployeeOut)
 def create_employee(payload: EmployeeCreate, db: Session = Depends(get_db)):
-    code = payload.emp_code.strip().upper()
-    if db.query(Employee).filter(Employee.emp_code == code).first():
-        raise HTTPException(409, "Employee code already exists")
-    e = Employee(emp_code=code, name=payload.name.strip(), position=payload.position,
-                 department=payload.department, email=payload.email, phone=payload.phone,
-                 status=payload.status or "active")
-    db.add(e); db.commit(); db.refresh(e)
-    return e
+    raw_code = (payload.emp_code or "").strip().upper()
+    autogen = raw_code == "" or raw_code in ["AUTO", "AUTOGEN"]
+
+    emp_code = next_code_yearly(db, Employee, "emp_code", prefix="EMP") if autogen else raw_code
+
+    if db.query(Employee).filter(Employee.emp_code == emp_code).first():
+        raise HTTPException(status_code=409, detail="Employee code already exists")
+
+    emp = Employee(
+        emp_code=emp_code,
+        name=payload.name,
+        position=payload.position,
+        department=payload.department,
+        email=payload.email,
+        phone=payload.phone,
+        status=payload.status or "active"
+    )
+
+    db.add(emp)
+    db.commit()
+    db.refresh(emp)
+    return emp
 
 @emp_router.get("", response_model=List[EmployeeOut])
 def list_employees(db: Session = Depends(get_db)):
