@@ -158,29 +158,35 @@ class ShopTravelerStep(Base):
     id = Column(Integer, primary_key=True)
     traveler_id = Column(Integer, ForeignKey("shop_travelers.id"), nullable=False)
 
-    seq = Column(Integer, nullable=False)               # 1,2,3,...
-    step_code = Column(String, nullable=True)           # CUT, MILL, DRILL
-    step_name = Column(String, nullable=False)          # Cutting, Milling
-    station = Column(String, nullable=True)             # CNC-1
+    seq = Column(Integer, nullable=False)
+    step_code = Column(String, nullable=True)
+    step_name = Column(String, nullable=False)
+    station = Column(String, nullable=True)
 
-    status = Column(String, nullable=False, default="pending")  # pending/running/passed/failed/skipped
+    status = Column(String, nullable=False, default="pending")
     started_at = Column(DateTime, nullable=True)
     finished_at = Column(DateTime, nullable=True)
 
     operator_id = Column(Integer, ForeignKey("employees.id"), nullable=True)
 
+    # 👇 เพิ่มฟิลด์เครื่องที่ใช้จริง
+    machine_id = Column(Integer, ForeignKey("machines.id"), nullable=True)
+
     qa_required = Column(Boolean, default=False, nullable=False)
-    qa_result = Column(String, nullable=True)           # pass / fail / n.a.
+    qa_result = Column(String, nullable=True)
     qa_notes = Column(Text, nullable=True)
 
     traveler = relationship("ShopTraveler", back_populates="steps")
     operator = relationship("Employee", foreign_keys=[operator_id])
+    machine = relationship("Machine", back_populates="step_assignments")
 
     __table_args__ = (
         UniqueConstraint("traveler_id", "seq", name="uq_traveler_seq"),
         Index("ix_traveler_steps_status", "status"),
         Index("ix_traveler_steps_operator", "operator_id"),
+        Index("ix_traveler_steps_machine", "machine_id"),
     )
+
 
 # =============== Subcontracting (มาตรฐาน) ===============
 
@@ -280,4 +286,158 @@ class SubconReceiptItem(Base):
 
     __table_args__ = (
         Index("ix_subcon_receipt_items_step", "traveler_step_id"),
+    )
+
+
+# =============== Machines ===============
+
+class Machine(Base):
+    __tablename__ = "machines"
+    id = Column(Integer, primary_key=True)
+    code = Column(String, unique=True, index=True, nullable=False)   # เช่น CNC-01
+    name = Column(String, nullable=False)                            # เช่น HAAS VF-2
+    type = Column(String, nullable=True)                             # CNC_MILL / CNC_LATHE / DRILL / EDM ...
+    controller = Column(String, nullable=True)                       # FANUC / HAAS / SIEMENS ...
+    axis_count = Column(Integer, nullable=True)                      # 3 / 4 / 5
+    spindle_power_kw = Column(Numeric(10,3), nullable=True)
+    max_travel_x = Column(Numeric(10,3), nullable=True)              # mm หรือนิ้ว ตามระบบ
+    max_travel_y = Column(Numeric(10,3), nullable=True)
+    max_travel_z = Column(Numeric(10,3), nullable=True)
+    location = Column(String, nullable=True)                         # โซน/แถวในโรงงาน
+    status = Column(String, nullable=False, default="available")     # available / busy / maintenance / down / offline
+    notes = Column(Text, nullable=True)
+
+    # reverse relations
+    step_assignments = relationship("ShopTravelerStep", back_populates="machine")
+    schedules = relationship("MachineSchedule", back_populates="machine", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        Index("ix_machines_status", "status"),
+        Index("ix_machines_type_status", "type", "status"),
+    )
+
+class StepMachineOption(Base):
+    __tablename__ = "step_machine_options"
+    id = Column(Integer, primary_key=True)
+    traveler_step_id = Column(Integer, ForeignKey("shop_traveler_steps.id"), nullable=False)
+    machine_id = Column(Integer, ForeignKey("machines.id"), nullable=False)
+    priority = Column(Integer, nullable=True)  # 1 = แนะนำสุด
+
+    step = relationship("ShopTravelerStep", backref="eligible_machines")
+    machine = relationship("Machine")
+
+    __table_args__ = (
+        UniqueConstraint("traveler_step_id", "machine_id", name="uq_step_machine_option"),
+        Index("ix_step_machine_option_step", "traveler_step_id"),
+        Index("ix_step_machine_option_machine", "machine_id"),
+    )
+
+class MachineSchedule(Base):
+    __tablename__ = "machine_schedule"
+    id = Column(Integer, primary_key=True)
+    machine_id = Column(Integer, ForeignKey("machines.id"), nullable=False)
+    traveler_step_id = Column(Integer, ForeignKey("shop_traveler_steps.id"), nullable=False)
+
+    planned_start = Column(DateTime, nullable=True)
+    planned_end = Column(DateTime, nullable=True)
+    status = Column(String, nullable=False, default="scheduled")  # scheduled/started/completed/cancelled
+
+    machine = relationship("Machine", back_populates="schedules")
+    step = relationship("ShopTravelerStep", backref="machine_schedules")
+
+    __table_args__ = (
+        UniqueConstraint("machine_id", "traveler_step_id", name="uq_machine_step_once"),
+        Index("ix_machine_schedule_machine", "machine_id", "planned_start"),
+    )
+
+
+# =============== Measurement / QA Devices ===============
+
+class MeasurementDevice(Base):
+    __tablename__ = "measurement_devices"
+    id = Column(Integer, primary_key=True)
+    code = Column(String, unique=True, index=True, nullable=False)  # ex. CMM-01, HG-002
+    name = Column(String, nullable=False)                           # ex. Mitutoyo CMM, Height Gauge 600mm
+    type = Column(String, nullable=True)                            # CMM / HEIGHT_GAUGE / MICROMETER / CALIPER / ROUGHNESS / VISION / OTHER
+    brand = Column(String, nullable=True)
+    model = Column(String, nullable=True)
+    serial_no = Column(String, nullable=True)
+    location = Column(String, nullable=True)                        # เก็บที่ไหน/แผนก
+    status = Column(String, nullable=False, default="available")    # available / in_use / maintenance / out_of_calibration
+    calibration_due = Column(Date, nullable=True)                   # วันครบกำหนดคาลิเบรต
+    notes = Column(Text, nullable=True)
+
+    calibrations = relationship("DeviceCalibration", back_populates="device", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        Index("ix_measurement_devices_status", "status"),
+        Index("ix_measurement_devices_type", "type"),
+        Index("ix_measurement_devices_cal_due", "calibration_due"),
+    )
+
+
+class DeviceCalibration(Base):
+    __tablename__ = "device_calibrations"
+    id = Column(Integer, primary_key=True)
+    device_id = Column(Integer, ForeignKey("measurement_devices.id"), nullable=False)
+    calibrated_at = Column(Date, nullable=False)
+    due_at = Column(Date, nullable=True)
+    performed_by = Column(String, nullable=True)     # บริษัท/แผนกที่คาลิเบรต
+    result = Column(String, nullable=True)           # pass / fail
+    certificate_file = Column(String, nullable=True) # path เอกสารคาลิเบรต (PDF/JPG)
+
+    device = relationship("MeasurementDevice", back_populates="calibrations")
+
+    __table_args__ = (
+        Index("ix_device_calibrations_device", "device_id", "calibrated_at"),
+    )
+
+# =============== Inspection Records (QA per Step) ===============
+
+class InspectionRecord(Base):
+    __tablename__ = "inspection_records"
+    id = Column(Integer, primary_key=True)
+    traveler_step_id = Column(Integer, ForeignKey("shop_traveler_steps.id"), nullable=False)
+
+    # ใครตรวจ/ตรวจเมื่อไหร่
+    inspector_id = Column(Integer, ForeignKey("employees.id"), nullable=True)
+    device_id = Column(Integer, ForeignKey("measurement_devices.id"), nullable=True)  # อุปกรณ์หลักที่ใช้ (ถ้ามี)
+    started_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    finished_at = Column(DateTime, nullable=True)
+
+    overall_result = Column(String, nullable=True)   # pass / fail / partial
+    notes = Column(Text, nullable=True)
+
+    traveler_step = relationship("ShopTravelerStep", backref="inspection_records")
+    inspector = relationship("Employee")
+    device = relationship("MeasurementDevice")
+    items = relationship("InspectionItem", back_populates="record", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        Index("ix_inspection_records_step", "traveler_step_id"),
+        Index("ix_inspection_records_result", "overall_result"),
+    )
+
+
+class InspectionItem(Base):
+    __tablename__ = "inspection_items"
+    id = Column(Integer, primary_key=True)
+    record_id = Column(Integer, ForeignKey("inspection_records.id"), nullable=False)
+
+    characteristic = Column(String, nullable=False)      # ชื่อจุดวัด เช่น "OD Ø20.00", "Length 100.00", "Ra"
+    nominal_value = Column(Numeric(18, 4), nullable=True)
+    tol_lower = Column(Numeric(18, 4), nullable=True)    # ค่าต่ำสุดที่ยอมรับได้ (เช่น -0.010)
+    tol_upper = Column(Numeric(18, 4), nullable=True)    # ค่าสูงสุดที่ยอมรับได้ (เช่น +0.010)
+    measured_value = Column(Numeric(18, 4), nullable=True)
+    unit = Column(String, nullable=True)                 # mm / in / µm
+    result = Column(String, nullable=True)               # pass / fail
+    device_id = Column(Integer, ForeignKey("measurement_devices.id"), nullable=True)  # ถ้าวัดรายการนี้ด้วยอุปกรณ์เฉพาะ
+    attachment = Column(String, nullable=True)           # path รูป/รายงานย่อย
+
+    record = relationship("InspectionRecord", back_populates="items")
+    device = relationship("MeasurementDevice")
+
+    __table_args__ = (
+        Index("ix_inspection_items_record", "record_id"),
+        Index("ix_inspection_items_result", "result"),
     )
