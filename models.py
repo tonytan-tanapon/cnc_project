@@ -1,6 +1,6 @@
 from sqlalchemy import (
     Column, Integer, String, Text, Date, DateTime, ForeignKey, UniqueConstraint, Index,
-    Numeric, Boolean, Index
+    Numeric, Boolean
 )
 from sqlalchemy.orm import relationship
 from datetime import datetime
@@ -106,18 +106,41 @@ class RawBatch(Base):
 
 class ProductionLot(Base):
     __tablename__ = "production_lots"
+
     id = Column(Integer, primary_key=True)
     lot_no = Column(String, unique=True, index=True, nullable=False)
-    part_no = Column(String, nullable=True)
+
+    # เปลี่ยนจากเก็บ part_no ตรง ๆ → อ้างอิง Part master
+    part_id = Column(Integer, ForeignKey("parts.id"), nullable=False)
+    part_revision_id = Column(Integer, ForeignKey("part_revisions.id"), nullable=True)
+
     po_id = Column(Integer, ForeignKey("purchase_orders.id"), nullable=True)
     planned_qty = Column(Integer, nullable=False, default=0)
     started_at = Column(DateTime, nullable=True)
     finished_at = Column(DateTime, nullable=True)
     status = Column(String, nullable=False, default="in_process")
 
+    # Relationships
+    part = relationship("Part")  # part master
+    part_revision = relationship("PartRevision")  # revision ที่ใช้จริง
     po = relationship("PO", back_populates="lots")
-    material_uses = relationship("LotMaterialUse", back_populates="lot", cascade="all, delete-orphan")
-    traveler = relationship("ShopTraveler", back_populates="lot", uselist=False, cascade="all, delete-orphan")
+    material_uses = relationship(
+        "LotMaterialUse",
+        back_populates="lot",
+        cascade="all, delete-orphan"
+    )
+    travelers = relationship(
+        "ShopTraveler",
+        back_populates="lot",
+        cascade="all, delete-orphan"
+    )
+
+    def __repr__(self):
+        return (
+            f"<ProductionLot(lot_no={self.lot_no}, "
+            f"part_id={self.part_id}, part_revision_id={self.part_revision_id}, "
+            f"planned_qty={self.planned_qty}, status={self.status})>"
+        )
 
 class LotMaterialUse(Base):
     __tablename__ = "lot_material_use"
@@ -139,17 +162,23 @@ class LotMaterialUse(Base):
 class ShopTraveler(Base):
     __tablename__ = "shop_travelers"
     id = Column(Integer, primary_key=True)
-    lot_id = Column(Integer, ForeignKey("production_lots.id"), nullable=False, unique=True)
+    # เอา unique=True ออกเพื่อให้ 1 Lot มีหลาย Traveler ได้
+    lot_id = Column(Integer, ForeignKey("production_lots.id"), nullable=False)
 
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     created_by_id = Column(Integer, ForeignKey("employees.id"), nullable=True)
-    status = Column(String, nullable=False, default="open")   # open / in_progress / completed / hold / canceled
+    status = Column(String, nullable=False, default="open")
     notes = Column(Text, nullable=True)
 
-    lot = relationship("ProductionLot", back_populates="traveler")
+    # ให้ back_populates ชี้ไปชื่อเดียวกับ ProductionLot ("travelers")
+    lot = relationship("ProductionLot", back_populates="travelers")
     created_by = relationship("Employee", foreign_keys=[created_by_id])
-    steps = relationship("ShopTravelerStep", back_populates="traveler", cascade="all, delete-orphan",
-                         order_by="ShopTravelerStep.seq")
+    steps = relationship(
+        "ShopTravelerStep",
+        back_populates="traveler",
+        cascade="all, delete-orphan",
+        order_by="ShopTravelerStep.seq"
+    )
 
     __table_args__ = (Index("ix_shop_travelers_status", "status"),)
 
@@ -440,4 +469,125 @@ class InspectionItem(Base):
     __table_args__ = (
         Index("ix_inspection_items_record", "record_id"),
         Index("ix_inspection_items_result", "result"),
+    )
+
+class Part(Base):
+    __tablename__ = "parts"
+    id = Column(Integer, primary_key=True)
+    part_no = Column(String, unique=True, index=True, nullable=False)
+    name = Column(String)
+    description = Column(Text)
+    default_uom = Column(String, default="ea")
+    status = Column(String, default="active")
+
+    # เพิ่มบรรทัดนี้
+    revisions = relationship(
+        "PartRevision",
+        back_populates="part",
+        cascade="all, delete-orphan"
+    )
+
+
+class PartRevision(Base):
+    __tablename__ = "part_revisions"
+    id = Column(Integer, primary_key=True)
+    part_id = Column(Integer, ForeignKey("parts.id"), nullable=False)
+    rev = Column(String, nullable=False)
+    drawing_file = Column(String)
+    spec = Column(String)
+    is_current = Column(Boolean, default=False)
+
+    # เพิ่มบรรทัดนี้
+    part = relationship("Part", back_populates="revisions")
+
+    __table_args__ = (UniqueConstraint("part_id", "rev", name="uq_part_rev"),)
+
+
+# =============== Auth / Users & Roles ===============
+
+class User(Base):
+    __tablename__ = "users"
+    id = Column(Integer, primary_key=True)
+    username = Column(String, unique=True, index=True, nullable=False)
+    email = Column(String, unique=True, index=True, nullable=True)
+    # เก็บ hash เท่านั้น เช่น Argon2/Bcrypt (อย่าเก็บรหัสจริง)
+    password_hash = Column(String, nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+    is_superuser = Column(Boolean, default=False, nullable=False)
+
+    # ผูกกับ employee (1:1 ส่วนมาก) ให้ nullable=True เผื่อมี user ภายนอก/ที่ปรึกษา
+    employee_id = Column(Integer, ForeignKey("employees.id"), nullable=True, unique=True)
+    employee = relationship("Employee", backref="user", uselist=False)
+
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    last_login_at = Column(DateTime, nullable=True)
+
+    __table_args__ = (
+        Index("ix_users_active", "is_active"),
+    )
+
+
+class Role(Base):
+    __tablename__ = "roles"
+    id = Column(Integer, primary_key=True)
+    code = Column(String, unique=True, index=True, nullable=False)   # e.g. ADMIN, QA, OPERATOR
+    name = Column(String, nullable=False)
+    description = Column(Text, nullable=True)
+
+
+class UserRole(Base):
+    __tablename__ = "user_roles"
+    user_id = Column(Integer, ForeignKey("users.id"), primary_key=True)
+    role_id = Column(Integer, ForeignKey("roles.id"), primary_key=True)
+    assigned_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    user = relationship("User", backref="user_roles")
+    role = relationship("Role", backref="role_users")
+
+
+# (ถ้าต้อง “ละเอียดระดับสิทธิ์รายจุด” ค่อยเพิ่ม permissions)
+class Permission(Base):
+    __tablename__ = "permissions"
+    id = Column(Integer, primary_key=True)
+    code = Column(String, unique=True, index=True, nullable=False)   # e.g. VIEW_LOT, EDIT_LOT, CLOSE_TRAVELER
+    name = Column(String, nullable=False)
+    description = Column(Text, nullable=True)
+
+
+class RolePermission(Base):
+    __tablename__ = "role_permissions"
+    role_id = Column(Integer, ForeignKey("roles.id"), primary_key=True)
+    permission_id = Column(Integer, ForeignKey("permissions.id"), primary_key=True)
+
+    role = relationship("Role", backref="role_permissions")
+    permission = relationship("Permission", backref="permission_roles")
+
+
+# =============== Time Tracking ===============
+class TimeEntry(Base):
+    __tablename__ = "time_entries"
+    id = Column(Integer, primary_key=True)
+
+    employee_id = Column(Integer, ForeignKey("employees.id"), nullable=False, index=True)
+    # user ที่ทำการกด (บางกรณี operator กดให้/หัวหน้ากด) - optional
+    created_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+    clock_in_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    clock_in_method = Column(String, nullable=True)     # web/ipad/qr/badge
+    clock_in_location = Column(String, nullable=True)   # ไอพี/โซน/พิกัด
+    clock_out_at = Column(DateTime, nullable=True)
+    clock_out_method = Column(String, nullable=True)
+    clock_out_location = Column(String, nullable=True)
+
+    # สถานะช่วยตรวจง่าย
+    status = Column(String, nullable=False, default="open")  # open/closed/cancelled
+    notes = Column(Text, nullable=True)
+
+    employee = relationship("Employee")
+    created_by_user = relationship("User")
+
+    __table_args__ = (
+        Index("ix_time_entries_emp_status", "employee_id", "status"),
+        Index("ix_time_entries_in", "clock_in_at"),
+        Index("ix_time_entries_out", "clock_out_at"),
     )

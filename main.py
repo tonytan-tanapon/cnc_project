@@ -60,9 +60,18 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="MFG API", version="1.0")
 
+
+origins = [
+    "http://127.0.0.1:5500",
+    "http://localhost:5500",
+    "http://127.0.0.1:3000",
+    "http://localhost:3000",
+    # เพิ่ม origin ที่คุณใช้จริง
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # ปรับตามจริงถ้ามี frontend
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -115,6 +124,114 @@ def get_db():
 
 # ==================== Customers ====================
 cust_router = APIRouter(prefix="/customers", tags=["customers"])
+
+# ===== เพิ่มในส่วน Customers =====
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
+from typing import Optional, Literal
+
+@cust_router.get("/export", response_model=List[CustomerOut])
+def export_customers(q: str | None = Query(None), db: Session = Depends(get_db)):
+    query = db.query(Customer)
+    if q:
+        ql = f"%{q}%"
+        query = query.filter((Customer.code.ilike(ql)) | (Customer.name.ilike(ql)))
+    # เรียงจาก id ขึ้น/ลงได้ตามชอบ
+    return query.order_by(Customer.id.asc()).all()
+
+
+class CustomerOp(BaseModel):
+    op: Literal["I","U","D"]              # I=insert, U=update, D=delete
+    id: Optional[int] = None              # U/D ต้องมี id
+    code: Optional[str] = None
+    name: Optional[str] = None
+    contact: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    address: Optional[str] = None
+
+class CustomerOpResult(BaseModel):
+    row: int
+    status: Literal["ok","error"]
+    id: Optional[int] = None
+    message: Optional[str] = None
+
+@cust_router.post("/bulk", response_model=List[CustomerOpResult])
+def bulk_customers(ops: List[CustomerOp], db: Session = Depends(get_db)):
+    results: List[CustomerOpResult] = []
+    try:
+        for idx, op in enumerate(ops, start=1):
+            try:
+                if op.op == "D":
+                    if not op.id:
+                        raise HTTPException(400, "id required for delete")
+                    c = db.get(Customer, op.id)
+                    if not c:
+                        raise HTTPException(404, "Customer not found")
+                    # กันลบถ้ามี POs เหมือนเดิม
+                    if c.pos:
+                        raise HTTPException(400, "Customer has POs; cannot delete")
+                    db.delete(c)
+                    db.flush()
+                    results.append(CustomerOpResult(row=idx, status="ok", id=op.id))
+
+                elif op.op == "I":
+                    # ถ้าฝั่ง Excel อนุญาตให้ code ว่าง → auto gen ได้ (ใช้ของคุณอยู่แล้ว)
+                    code = (op.code or "").strip().upper()
+                    autogen = (code == "" or code in ["AUTO","AUTOGEN"])
+                    code = next_code(db, Customer, "code", prefix="C", width=4) if autogen else code
+                    if db.query(Customer).filter(Customer.code == code).first():
+                        raise HTTPException(409, "Customer code already exists")
+
+                    c = Customer(
+                        code=code,
+                        name=(op.name or "").strip(),
+                        contact=op.contact, email=op.email, phone=op.phone, address=op.address
+                    )
+                    if not c.name:
+                        raise HTTPException(400, "'name' is required")
+                    db.add(c); db.flush()
+                    results.append(CustomerOpResult(row=idx, status="ok", id=c.id))
+
+                elif op.op == "U":
+                    if not op.id:
+                        raise HTTPException(400, "id required for update")
+                    c = db.get(Customer, op.id)
+                    if not c:
+                        raise HTTPException(404, "Customer not found")
+
+                    # กันซ้ำ code (ถ้ามีส่งมา)
+                    if op.code is not None:
+                        new_code = (op.code or "").strip().upper()
+                        if new_code != "" and new_code != c.code:
+                            dup = db.query(Customer).filter(Customer.code == new_code, Customer.id != c.id).first()
+                            if dup:
+                                raise HTTPException(409, "Customer code already exists")
+                            c.code = new_code
+
+                    # อัปเดตฟิลด์อื่นๆ
+                    for k in ["name","contact","email","phone","address"]:
+                        v = getattr(op, k)
+                        if v is not None:
+                            setattr(c, k, v.strip() if isinstance(v, str) else v)
+
+                    if not c.name or str(c.name).strip() == "":
+                        raise HTTPException(400, "'name' is required")
+
+                    db.flush()
+                    results.append(CustomerOpResult(row=idx, status="ok", id=c.id))
+                else:
+                    raise HTTPException(400, "op must be I/U/D")
+            except HTTPException as he:
+                results.append(CustomerOpResult(row=idx, status="error", message=he.detail))
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        # ถ้าพังระดับทรานแซกชันใหญ่ ให้ตีกรอบกลับไปเป็น error เดียวก็ได้
+        raise
+    return results
+
+
 
 # @cust_router.post("", response_model=CustomerOut)
 # def create_customer(payload: CustomerCreate, db: Session = Depends(get_db)):
@@ -200,7 +317,13 @@ def delete_customer(customer_id: int, db: Session = Depends(get_db)):
     db.delete(c); db.commit()
     return {"message": "Customer deleted"}
 
+
+
+
 app.include_router(cust_router)
+
+
+
 
 
 # ==================== POs ====================
@@ -956,3 +1079,103 @@ def create_receipt(payload: SubconReceiptCreate, db: Session = Depends(get_db)):
     return rc
 
 app.include_router(subcon_router)
+
+from models import User
+from deps.auth import login_for_access_token, get_current_user
+
+auth_router = APIRouter(prefix="/auth", tags=["auth"])   # << ใส่ prefix
+
+@auth_router.post("/token")
+def issue_token(resp = Depends(login_for_access_token)):
+    return resp
+
+@auth_router.get("/me")
+def me(user: User = Depends(get_current_user)):
+    return {"id": user.id, "username": user.username, "is_superuser": user.is_superuser}
+
+app.include_router(auth_router)
+
+
+
+from deps.authz import require_perm
+payroll_router = APIRouter(
+    prefix="/payroll",
+    tags=["payroll"],
+    dependencies=[Depends(require_perm("PAYROLL_VIEW"))]  # คุมสิทธิ์ทั้งกลุ่ม
+)
+
+# ---- เพิ่มช่วงนี้ ----
+from datetime import date
+from sqlalchemy import text
+from deps.auth import get_current_user
+from deps.authz import require_perm
+from models import User
+
+payroll_router = APIRouter(
+    prefix="/payroll",
+    tags=["payroll"],
+    dependencies=[Depends(require_perm("PAYROLL_VIEW"))],  # คุมสิทธิ์ทั้งกลุ่ม
+)
+
+@payroll_router.get("/summary")
+def payroll_summary(
+    start: date | None = None,         # ไม่ส่ง = ตั้งเป็นวันแรกของเดือนนี้
+    end: date | None = None,           # ไม่ส่ง = ตั้งเป็นวันสุดท้ายของเดือนนี้ (exclusive ใช้วันแรกเดือนถัดไป)
+    employee_id: int | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    # default: ช่วงเดือนปัจจุบัน
+    today = date.today()
+    if not start:
+        start = today.replace(day=1)
+    if not end:
+        end = (start.replace(day=28) + timedelta(days=4)).replace(day=1)  # วันแรกของเดือนถัดไป
+
+    # SQL: รวมชั่วโมงต่อ "วัน" แล้วจัดเป็น Regular / OT1.5 / OT2.0
+    sql = text("""
+        WITH e AS (
+            SELECT te.employee_id,
+                   te.clock_in_at AT TIME ZONE 'UTC' AS cin,
+                   te.clock_out_at AT TIME ZONE 'UTC' AS cout
+            FROM time_entries te
+            WHERE te.clock_out_at IS NOT NULL
+              AND te.clock_in_at >= :start
+              AND te.clock_in_at <  :end
+              {emp_filter}
+        ),
+        d AS (
+            SELECT employee_id,
+                   date_trunc('day', cin) AS day,
+                   SUM(EXTRACT(EPOCH FROM (cout - cin))/3600.0) AS h
+            FROM e
+            GROUP BY employee_id, date_trunc('day', cin)
+        ),
+        c AS (
+            SELECT employee_id,
+                   day,
+                   CASE WHEN EXTRACT(ISODOW FROM day) IN (6,7) THEN 0 ELSE LEAST(h, 8) END AS reg,
+                   CASE WHEN EXTRACT(ISODOW FROM day) IN (6,7) THEN 0 ELSE GREATEST(h-8, 0) END AS ot15,
+                   CASE WHEN EXTRACT(ISODOW FROM day) IN (6,7) THEN h ELSE 0 END AS ot20
+            FROM d
+        )
+        SELECT e.id AS employee_id, e.emp_code, e.name,
+               COALESCE(SUM(c.reg),0)  AS regular_hours,
+               COALESCE(SUM(c.ot15),0) AS ot15_hours,
+               COALESCE(SUM(c.ot20),0) AS ot20_hours,
+               COALESCE(SUM(c.reg + c.ot15 + c.ot20),0) AS total_hours
+        FROM employees e
+        LEFT JOIN c ON c.employee_id = e.id
+        {emp_join_filter}
+        GROUP BY e.id, e.emp_code, e.name
+        ORDER BY e.id;
+    """.format(
+        emp_filter = "AND te.employee_id = :emp_id" if employee_id else "",
+        emp_join_filter = "WHERE e.id = :emp_id" if employee_id else ""
+    ))
+
+    rows = db.execute(sql, {"start": start, "end": end, "emp_id": employee_id}).mappings().all()
+    return [dict(r) for r in rows]
+
+app.include_router(payroll_router)
+# ---- จบส่วนที่เพิ่ม ----

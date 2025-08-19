@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Shop Traveler Demo</title>
+  <style>
+    :root{
+      --bg:#0b1020;        /* deep slate */
+      --card:#121a34;      /* card surface */
+      --muted:#2a355f;     /* outlines */
+      --ink:#e6ecff;       /* text */
+      --ink-dim:#b7c3ff;   /* dim text */
+      --primary:#6aa3ff;   /* buttons */
+      --accent:#a77bff;    /* accents */
+      --good:#19c37d;      /* pass */
+      --warn:#ffc857;      /* mid */
+      --bad:#ff6b6b;       /* fail */
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; font:16px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, "Helvetica Neue", Arial, "Apple Color Emoji","Segoe UI Emoji";
+      background: radial-gradient(1200px 600px at 10% 0%, #10183a 0%, var(--bg) 50%), linear-gradient(180deg, #0c1240 0%, var(--bg) 70%);
+      color:var(--ink);
+    }
+    .container{max-width:1100px; margin:32px auto; padding:0 16px}
+    header{display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:16px}
+    h1{font-size:28px; margin:0; letter-spacing:.3px}
+    .sub{color:var(--ink-dim); font-size:14px}
+
+    .row{display:flex; gap:12px; flex-wrap:wrap}
+    .card{background:linear-gradient(180deg, #121a34 0%, #0f1730 100%); border:1px solid var(--muted); border-radius:16px; padding:16px; box-shadow:0 8px 30px rgba(0,0,0,.25)}
+    .toolbar.card{position:sticky; top:12px; z-index:5}
+
+    label.small{font-size:12px; color:var(--ink-dim)}
+    input[type=text], input[type=number]{
+      background:#0b1430; border:1px solid var(--muted); color:var(--ink);
+      padding:10px 12px; border-radius:12px; outline:none; min-width:180px;
+    }
+    input::placeholder{color:#7f8ac8}
+    .btn{
+      border:1px solid color-mix(in srgb, var(--primary) 55%, #000 45%);
+      background:linear-gradient(180deg, color-mix(in srgb, var(--primary) 30%, #fff 0%), color-mix(in srgb, var(--primary) 10%, #000 90%));
+      color:#0b1020; font-weight:700; padding:10px 14px; border-radius:12px; cursor:pointer;
+      transition:transform .06s ease, filter .2s ease; user-select:none
+    }
+    .btn:hover{transform:translateY(-1px)}
+    .btn:disabled{opacity:.5; cursor:not-allowed}
+    .btn.ghost{background:transparent; color:var(--ink); border-color:var(--muted)}
+    .btn.warn{background:linear-gradient(180deg, color-mix(in srgb, var(--warn) 30%, #fff 0%), color-mix(in srgb, var(--warn) 10%, #000 90%)); border-color:color-mix(in srgb, var(--warn) 60%, #000 40%)}
+    .btn.danger{background:linear-gradient(180deg, color-mix(in srgb, var(--bad) 30%, #fff 0%), color-mix(in srgb, var(--bad) 10%, #000 90%)); border-color:color-mix(in srgb, var(--bad) 60%, #000 40%)}
+
+    .grid{display:grid; grid-template-columns:repeat(12,1fr); gap:12px}
+    .col-12{grid-column:span 12}
+    .col-6{grid-column:span 6}
+    .col-4{grid-column:span 4}
+    @media (max-width:900px){.col-6,.col-4{grid-column:span 12}}
+
+    .badge{display:inline-flex; align-items:center; gap:6px; padding:4px 8px; border-radius:999px; font-size:12px; border:1px solid var(--muted); color:var(--ink-dim)}
+    .pill{border-radius:999px; padding:4px 10px; font-size:12px; border:1px solid}
+    .pill.pending{color:#a8b3ff; border-color:#4a5899; background:#0b1430}
+    .pill.in_progress{color:var(--warn); border-color:#8f7430; background:#1a1608}
+    .pill.done{color:var(--good); border-color:#1c7a56; background:#071a15}
+    .pill.qa{color:#d4b9ff; border-color:#734fd6; background:#130f26}
+    .pill.pass{color:var(--good); border-color:#1c7a56; background:#071a15}
+    .pill.fail{color:var(--bad); border-color:#8a3838; background:#1d0e0e}
+
+    .trav-card{display:flex; flex-direction:column; gap:12px}
+    .trav-head{display:flex; align-items:center; justify-content:space-between; gap:10px}
+    .trav-meta{display:flex; gap:10px; flex-wrap:wrap; color:var(--ink-dim); font-size:13px}
+
+    .steps{display:flex; flex-direction:column; gap:8px}
+    .step{display:grid; grid-template-columns: 70px 1fr auto; gap:10px; align-items:center; padding:10px; border:1px dashed var(--muted); border-radius:12px; background:linear-gradient(180deg, #0a1228 0%, #0a1228 60%, #091023 100%)}
+    .step-title{display:flex; gap:10px; align-items:center}
+    .step-actions{display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end}
+
+    .progress{
+      height:10px; border-radius:999px; background:#0b1430; border:1px solid var(--muted); overflow:hidden
+    }
+    .progress > i{display:block; height:100%; width:0%; background:linear-gradient(90deg, var(--primary), var(--accent)); transition:width .3s ease}
+
+    .hint{font-size:12px; color:#97a3e9}
+    .divider{height:1px; background:linear-gradient(90deg, transparent, #364073, transparent); margin:8px 0}
+    .right{margin-left:auto}
+
+    .search{min-width:260px}
+    .empty{color:#7f8ac8; text-align:center; padding:24px}
+
+    .kbd{font:12px/1.2 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; background:#0e1733; border:1px solid #2a355f; padding:2px 6px; border-radius:6px}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div>
+        <h1>Shop Traveler Demo</h1>
+        <div class="sub">Single-file HTML • Click to create a traveler and advance steps (pending → in&nbsp;progress → done).</div>
+      </div>
+      <div class="badge">⌛ <span id="clock"></span></div>
+    </header>
+
+    <section class="toolbar card">
+      <div class="grid">
+        <div class="col-6">
+          <label class="small">Lot No.</label><br>
+          <input id="lotInput" type="text" placeholder="LOT-DEMO-0001" />
+        </div>
+        <div class="col-6">
+          <label class="small">Created by</label><br>
+          <input id="creatorInput" type="text" placeholder="Operator (optional)" />
+        </div>
+        <div class="col-12 row" style="margin-top:8px">
+          <button class="btn" id="createBtn">+ Create Traveler (with default steps)</button>
+          <button class="btn ghost" id="seedBtn">➕ Add Example Traveler</button>
+          <span class="right"></span>
+          <input id="filterInput" class="search" type="text" placeholder="Filter by lot / status / step..." />
+          <button class="btn ghost" id="resetBtn">↺ Reset Demo</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="list"></section>
+  </div>
+
+  <template id="cardTpl">
+    <div class="card trav-card">
+      <div class="trav-head">
+        <div style="display:flex; align-items:center; gap:10px">
+          <div class="pill qa">TRAVELER</div>
+          <strong class="lot"></strong>
+          <span class="pill status"></span>
+        </div>
+        <div class="trav-meta">
+          <span class="created"></span>
+          <span class="steps-count"></span>
+        </div>
+      </div>
+
+      <div class="progress"><i></i></div>
+      <div class="steps"></div>
+      <div class="divider"></div>
+      <div class="row">
+        <button class="btn ghost closeBtn">✔ Close Traveler</button>
+        <span class="hint right">Tip: Click <span class="kbd">Start</span> then <span class="kbd">Finish</span> on each step. QA steps will ask for Pass/Fail.</span>
+      </div>
+    </div>
+  </template>
+
+  <template id="stepTpl">
+    <div class="step">
+      <div class="step-badges">
+        <div class="pill seq"></div>
+        <div class="pill qa-tag" style="display:none">QA</div>
+      </div>
+      <div class="step-title">
+        <div>
+          <strong class="code"></strong><span> — </span><span class="name"></span>
+          <div class="hint station"></div>
+          <div class="hint times"></div>
+        </div>
+      </div>
+      <div class="step-actions">
+        <span class="pill state"></span>
+        <span class="pill qa-result" style="display:none"></span>
+        <button class="btn startBtn">Start</button>
+        <button class="btn warn finishBtn">Finish</button>
+        <button class="btn danger failBtn">Fail QA</button>
+        <button class="btn ghost resetBtn">Reset</button>
+      </div>
+    </div>
+  </template>
+
+  <script>
+    // ---------- Utilities ----------
+    const $$ = sel => document.querySelector(sel);
+    const $$$ = sel => Array.from(document.querySelectorAll(sel));
+    const fmt = ts => ts ? new Date(ts).toLocaleString() : '';
+    const uid = () => Math.random().toString(36).slice(2,10);
+
+    // ---------- State ----------
+    const STORAGE_KEY = 'shoptrav-demo-v1';
+    const state = loadState() || { travelers: [], lotCounter: 1 };
+
+    function saveState(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+    function loadState(){ try{ return JSON.parse(localStorage.getItem(STORAGE_KEY)); }catch{ return null; } }
+    function resetState(){ localStorage.removeItem(STORAGE_KEY); state.travelers=[]; state.lotCounter=1; render(); }
+
+    // ---------- Model helpers ----------
+    const defaultSteps = () => ([
+      { id: uid(), seq:10, code:'CUT',     name:'Cutting',          station:'SAW-01',   status:'pending', qa_required:false, qa_result:null, started_at:null, finished_at:null },
+      { id: uid(), seq:20, code:'TURN-1',  name:'Rough Turning',    station:'CNC-AREA', status:'pending', qa_required:false, qa_result:null, started_at:null, finished_at:null },
+      { id: uid(), seq:30, code:'TURN-2',  name:'Finish Turning',   station:'CNC-AREA', status:'pending', qa_required:false, qa_result:null, started_at:null, finished_at:null },
+      { id: uid(), seq:40, code:'QC-FINAL',name:'Final Inspection', station:'QA-1',     status:'pending', qa_required:true,  qa_result:null, started_at:null, finished_at:null },
+    ]);
+
+    function computeTravelerStatus(tr){
+      const allDone = tr.steps.length && tr.steps.every(s=>s.status==='done');
+      tr.status = allDone ? 'closed' : 'open';
+      if(allDone && !tr.finished_at) tr.finished_at = Date.now();
+      if(!allDone) tr.finished_at = null;
+      return tr.status;
+    }
+
+    function progressPct(tr){
+      if(!tr.steps.length) return 0;
+      const done = tr.steps.filter(s=>s.status==='done').length;
+      return Math.round((done / tr.steps.length) * 100);
+    }
+
+    function canStart(tr, step){
+      const prior = tr.steps.filter(s=>s.seq < step.seq);
+      return prior.every(s=>s.status==='done') && step.status==='pending';
+    }
+
+    // ---------- Actions ----------
+    function createTraveler(lotNo, createdBy){
+      const lot = lotNo?.trim() || `LOT-DEMO-${String(state.lotCounter).padStart(4,'0')}`;
+      state.lotCounter++;
+      const t = {
+        id: uid(), lot_no: lot, created_by: createdBy||'', created_at: Date.now(), finished_at:null,
+        status:'open', steps: defaultSteps(), notes:''
+      };
+      state.travelers.unshift(t);
+      saveState(); render();
+    }
+
+    function startStep(trId, stepId){
+      const tr = state.travelers.find(x=>x.id===trId);
+      const step = tr.steps.find(s=>s.id===stepId);
+      if(!canStart(tr, step)) { alert('Finish previous steps first.'); return; }
+      step.status='in_progress'; step.started_at=Date.now(); saveState(); render();
+    }
+
+    function finishStep(trId, stepId){
+      const tr = state.travelers.find(x=>x.id===trId);
+      const step = tr.steps.find(s=>s.id===stepId);
+      if(step.status!=='in_progress') { alert('Step is not in progress.'); return; }
+      if(step.qa_required && !step.qa_result){
+        const ans = prompt("QA result for this step? Type 'pass' or 'fail'", 'pass');
+        if(!ans) return; // cancelled
+        if(ans !== 'pass' && ans !== 'fail'){ alert('Please enter pass or fail'); return; }
+        step.qa_result = ans;
+      }
+      step.status='done'; step.finished_at=Date.now();
+      computeTravelerStatus(tr); saveState(); render();
+    }
+
+    function failQA(trId, stepId){
+      const tr = state.travelers.find(x=>x.id===trId);
+      const step = tr.steps.find(s=>s.id===stepId);
+      if(!step.qa_required){ alert('This step is not QA-required.'); return; }
+      step.qa_result='fail';
+      if(step.status==='in_progress'){ step.status='done'; step.finished_at=Date.now(); }
+      saveState(); render();
+    }
+
+    function resetStep(trId, stepId){
+      const tr = state.travelers.find(x=>x.id===trId);
+      const step = tr.steps.find(s=>s.id===stepId);
+      step.status='pending'; step.qa_result=null; step.started_at=null; step.finished_at=null;
+      tr.status='open'; tr.finished_at=null;
+      saveState(); render();
+    }
+
+    function closeTraveler(trId){
+      const tr = state.travelers.find(x=>x.id===trId);
+      const canClose = tr.steps.every(s=>s.status==='done');
+      if(!canClose){ alert('All steps must be done before closing.'); return; }
+      tr.status='closed'; tr.finished_at=Date.now(); saveState(); render();
+    }
+
+    // ---------- Render ----------
+    function render(){
+      const list = $$('#list');
+      list.innerHTML='';
+      const filter = $$('#filterInput').value.trim().toLowerCase();
+
+      let items = state.travelers;
+      if(filter){
+        items = items.filter(t=>{
+          const blob = [t.lot_no, t.status, ...t.steps.map(s=>s.code+" "+s.name+" "+s.status)].join(' ').toLowerCase();
+          return blob.includes(filter);
+        });
+      }
+
+      if(!items.length){ list.innerHTML = `<div class="card empty">No travelers yet. Create one above.</div>`; return; }
+
+      for(const tr of items){
+        computeTravelerStatus(tr);
+        const card = document.importNode($$('#cardTpl').content, true);
+        card.querySelector('.lot').textContent = tr.lot_no;
+        const st = card.querySelector('.status');
+        st.className = 'pill status ' + (tr.status==='open'?'in_progress':'done');
+        st.textContent = tr.status.toUpperCase();
+        card.querySelector('.created').textContent = `Created: ${fmt(tr.created_at)}${tr.created_by? ' • by '+tr.created_by:''}`;
+        card.querySelector('.steps-count').textContent = `${tr.steps.filter(s=>s.status==='done').length}/${tr.steps.length} steps done`;
+        card.querySelector('.progress i').style.width = progressPct(tr) + '%';
+
+        const stepsWrap = card.querySelector('.steps');
+        for(const step of [...tr.steps].sort((a,b)=>a.seq-b.seq)){
+          const row = document.importNode($$('#stepTpl').content, true);
+          row.querySelector('.seq').textContent = `#${step.seq}`;
+          const statePill = row.querySelector('.state');
+          statePill.className = 'pill state ' + step.status;
+          statePill.textContent = step.status.replace('_',' ').toUpperCase();
+
+          row.querySelector('.code').textContent = step.code;
+          row.querySelector('.name').textContent = step.name;
+          row.querySelector('.station').textContent = step.station ? `Station: ${step.station}` : '';
+          row.querySelector('.times').textContent = `${step.started_at? 'Start: '+fmt(step.started_at):''}${step.finished_at? ' • Finish: '+fmt(step.finished_at):''}`;
+
+          const qaTag = row.querySelector('.qa-tag');
+          const qaRes = row.querySelector('.qa-result');
+          if(step.qa_required){ qaTag.style.display='inline-flex'; }
+          if(step.qa_result){ qaRes.style.display='inline-flex'; qaRes.className='pill qa-result ' + (step.qa_result==='pass'?'pass':'fail'); qaRes.textContent = 'QA ' + step.qa_result.toUpperCase(); }
+
+          // Buttons
+          const startBtn = row.querySelector('.startBtn');
+          const finishBtn = row.querySelector('.finishBtn');
+          const failBtn = row.querySelector('.failBtn');
+          const resetBtn = row.querySelector('.resetBtn');
+
+          startBtn.disabled = !canStart(tr, step);
+          finishBtn.disabled = step.status!=='in_progress';
+          failBtn.style.display = step.qa_required ? 'inline-flex' : 'none';
+          failBtn.disabled = step.status==='pending';
+
+          startBtn.addEventListener('click', () => startStep(tr.id, step.id));
+          finishBtn.addEventListener('click', () => finishStep(tr.id, step.id));
+          failBtn.addEventListener('click', () => failQA(tr.id, step.id));
+          resetBtn.addEventListener('click', () => resetStep(tr.id, step.id));
+
+          stepsWrap.appendChild(row);
+        }
+
+        const el = document.createElement('div');
+        el.appendChild(card);
+        // Close button handler
+        el.querySelector('.closeBtn').addEventListener('click', ()=>closeTraveler(tr.id));
+        $$('#list').appendChild(el);
+      }
+    }
+
+    // ---------- Toolbar handlers ----------
+    $$('#createBtn').addEventListener('click', ()=>{
+      createTraveler($$('#lotInput').value, $$('#creatorInput').value);
+      $$('#lotInput').value='';
+    });
+
+    $$('#seedBtn').addEventListener('click', ()=>{
+      const n = state.lotCounter.toString().padStart(4,'0');
+      createTraveler(`LOT-SEED-${n}`, 'Bob');
+    });
+
+    $$('#resetBtn').addEventListener('click', ()=>{
+      if(confirm('Reset demo and clear saved state?')) resetState();
+    });
+
+    $$('#filterInput').addEventListener('input', render);
+
+    // ---------- Clock ----------
+    setInterval(()=>{ $$('#clock').textContent = new Date().toLocaleString(); }, 1000);
+
+    // ---------- Boot ----------
+    (function boot(){
+      if(!state.travelers.length){
+        // seed one traveler for first run
+        createTraveler('LOT-DEMO-0001', 'Alice');
+      } else {
+        render();
+      }
+    })();
+  </script>
+</body>
+</html>

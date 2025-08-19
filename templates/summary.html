@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Login + Payroll Summary (Plain)</title>
+
+<!-- ============== LOGIN PANEL ============== -->
+<h2>Sign in</h2>
+<div id="box-login">
+  <form id="form-login">
+    <label>Username
+      <input name="username" required />
+    </label>
+    <label>Password
+      <input name="password" type="password" required />
+    </label>
+    <button>Sign in</button>
+  </form>
+  <div id="login-msg"></div>
+</div>
+
+<!-- ============== APP PANEL ============== -->
+<div id="box-app" style="display:none">
+  <h2>Payroll Summary</h2>
+  <div>
+    <span id="me-line">user: -</span>
+    <button id="btn-logout" style="margin-left:8px">Logout</button>
+  </div>
+
+  <div style="margin:8px 0">
+    <label>Start
+      <input id="start" type="date" />
+    </label>
+    <label>End (exclusive)
+      <input id="end" type="date" />
+    </label>
+    <label>Employee ID (optional)
+      <input id="empId" type="number" min="1" />
+    </label>
+    <button id="btn-load">Load summary</button>
+  </div>
+
+  <div id="sum-msg"></div>
+
+  <!-- Simple table layout (no CSS) -->
+  <table id="tbl" border="1" cellspacing="0" cellpadding="4" style="width:100%; margin-top:6px">
+    <thead>
+      <tr>
+        <th>Emp ID</th>
+        <th>Emp Code</th>
+        <th>Name</th>
+        <th>Regular (hrs)</th>
+        <th>OT 1.5 (hrs)</th>
+        <th>OT 2.0 (hrs)</th>
+        <th>Total (hrs)</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+    <tfoot>
+      <tr>
+        <td colspan="3">Grand Total</td>
+        <td id="t-reg">0.00</td>
+        <td id="t-ot15">0.00</td>
+        <td id="t-ot20">0.00</td>
+        <td id="t-total">0.00</td>
+      </tr>
+    </tfoot>
+  </table>
+</div>
+
+<script>
+/* ================= CONFIG =================
+   If you serve this file from a different port (e.g., 5500),
+   keep API_BASE pointing to your FastAPI server and enable CORS there.
+   If the HTML is served by FastAPI on port 8000, location.origin is fine.
+*/
+const API_BASE = (location.port === '8000') ? location.origin : 'http://127.0.0.1:8000';
+
+/* ================ HELPERS ================= */
+const $ = sel => document.querySelector(sel);
+const fmt = n => (Math.round((+n||0)*100)/100).toFixed(2);
+
+/* Set default date range: first day of current month to first day of next month (exclusive). */
+function setDefaultDates() {
+  const d = new Date();
+  const start = new Date(d.getFullYear(), d.getMonth(), 1);
+  const end   = new Date(d.getFullYear(), d.getMonth()+1, 1);
+  $('#start').value = start.toISOString().slice(0,10);
+  $('#end').value   = end.toISOString().slice(0,10);
+}
+
+/* ================ AUTH ==================== */
+/** Call /auth/token and store JWT in localStorage. */
+async function login(username, password){
+  const body = new URLSearchParams({ username, password, grant_type:'password' });
+  const res  = await fetch(`${API_BASE}/auth/token`, {
+    method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body
+  });
+  const data = await res.json().catch(()=>({}));
+  if(!res.ok) throw new Error(data.detail || 'Login failed');
+  if(!data.access_token) throw new Error('No access token returned');
+  localStorage.setItem('token', data.access_token);
+  return data.access_token;
+}
+
+/** Verify token and get current user info from /auth/me. */
+async function getMe(token){
+  const res = await fetch(`${API_BASE}/auth/me`, {
+    headers:{ Authorization:`Bearer ${token}` }
+  });
+  const data = await res.json().catch(()=>({}));
+  if(!res.ok) throw new Error(data.detail || 'Unauthorized');
+  return data;
+}
+
+/** Clear token and reset UI. */
+function logout(){
+  localStorage.removeItem('token');
+  $('#me-line').textContent = 'user: -';
+  $('#sum-msg').textContent = '';
+  $('#tbl tbody').innerHTML = '';
+  $('#t-reg').textContent='0.00';
+  $('#t-ot15').textContent='0.00';
+  $('#t-ot20').textContent='0.00';
+  $('#t-total').textContent='0.00';
+  $('#box-app').style.display = 'none';
+  $('#box-login').style.display = '';
+}
+
+/* =============== SUMMARY ================== */
+/** Fetch /payroll/summary with optional employee filter. */
+async function loadSummary(){
+  const token = localStorage.getItem('token');
+  if(!token) { alert('Please sign in first.'); return; }
+
+  const params = new URLSearchParams();
+  if($('#start').value) params.set('start', $('#start').value);
+  if($('#end').value)   params.set('end',   $('#end').value);
+  const emp = $('#empId').value.trim();
+  if(emp) params.set('employee_id', emp);
+
+  $('#sum-msg').textContent = 'Loading...';
+  const res = await fetch(`${API_BASE}/payroll/summary?${params}`, {
+    headers:{ Authorization:`Bearer ${token}` }
+  });
+  const data = await res.json().catch(()=>({}));
+  if(!res.ok){
+    $('#sum-msg').textContent = data.detail || 'Failed to load summary.';
+    return;
+  }
+  renderTable(data);
+  $('#sum-msg').textContent = 'Loaded.';
+}
+
+/** Render table body and totals. */
+function renderTable(rows){
+  const tb = $('#tbl tbody'); tb.innerHTML = '';
+  let tReg=0, tOT15=0, tOT20=0, tTot=0;
+
+  (rows||[]).forEach(r=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${r.employee_id??''}</td>
+      <td>${r.emp_code??''}</td>
+      <td>${r.name??''}</td>
+      <td>${fmt(r.regular_hours)}</td>
+      <td>${fmt(r.ot15_hours)}</td>
+      <td>${fmt(r.ot20_hours)}</td>
+      <td>${fmt(r.total_hours)}</td>`;
+    tb.appendChild(tr);
+
+    tReg += +r.regular_hours||0;
+    tOT15+= +r.ot15_hours||0;
+    tOT20+= +r.ot20_hours||0;
+    tTot += +r.total_hours||0;
+  });
+
+  $('#t-reg').textContent = fmt(tReg);
+  $('#t-ot15').textContent = fmt(tOT15);
+  $('#t-ot20').textContent = fmt(tOT20);
+  $('#t-total').textContent = fmt(tTot);
+}
+
+/* ================= EVENTS ================= */
+setDefaultDates();
+
+/* Handle sign-in form submission. */
+$('#form-login').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  $('#login-msg').textContent = 'Signing in...';
+  try{
+    const u = e.target.username.value.trim();
+    const p = e.target.password.value;
+    const token = await login(u,p);
+    const me = await getMe(token);
+    $('#me-line').textContent = `user: ${me.username} (#${me.id})`;
+    $('#box-login').style.display = 'none';
+    $('#box-app').style.display = '';
+    await loadSummary();
+  }catch(err){
+    $('#login-msg').textContent = err.message;
+  }
+});
+
+/* Load summary on button click. */
+$('#btn-load').addEventListener('click', loadSummary);
+
+/* Logout button. */
+$('#btn-logout').addEventListener('click', logout);
+
+/* Auto-enter app if we already have a valid token. */
+(async function boot(){
+  const t = localStorage.getItem('token');
+  if(!t) return;
+  try{
+    const me = await getMe(t);
+    $('#me-line').textContent = `user: ${me.username} (#${me.id})`;
+    $('#box-login').style.display = 'none';
+    $('#box-app').style.display = '';
+    await loadSummary();
+  }catch{
+    logout();
+  }
+})();
+</script>
+</html>

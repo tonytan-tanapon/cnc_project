@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Shop Traveler – Employee GUI (Clean)</title>
+  <style>
+    /* === Simple white UI (no frameworks, no jQuery). All comments are in English. === */
+    :root{
+      --ink:#111; --muted:#e5e7eb; --muted2:#cfd6e0; --accent:#0b7cff; --good:#17a673; --warn:#f59e0b; --bad:#e75151;
+    }
+    html,body{height:100%}
+    body{margin:0; font:15px/1.5 system-ui, -apple-system, Segoe UI, Roboto, Arial; background:#fff; color:var(--ink)}
+    .container{max-width:1100px; margin:24px auto; padding:0 16px}
+    h1{margin:0 0 8px 0; font-size:22px}
+    .sub{color:#666; font-size:13px; margin-bottom:8px}
+
+    .card{background:#fff; border:1px solid var(--muted); border-radius:12px; padding:12px; box-shadow:0 4px 16px rgba(0,0,0,.05)}
+    .row{display:flex; gap:10px; flex-wrap:wrap; align-items:center}
+    .grid{display:grid; grid-template-columns:repeat(12,1fr); gap:10px}
+    .col-12{grid-column:span 12} .col-6{grid-column:span 6} .col-4{grid-column:span 4} .col-3{grid-column:span 3} .col-2{grid-column:span 2}
+    @media (max-width:900px){.col-6,.col-4,.col-3,.col-2{grid-column:span 12}}
+
+    label{font-size:12px; color:#555}
+    input[type=text], input[type=number], input[type=date]{width:100%; padding:9px 10px; border:1px solid var(--muted); border-radius:10px; outline:none}
+    input::placeholder{color:#9aa4b2}
+
+    .btn{border:1px solid var(--muted2); background:#f7fafc; padding:9px 12px; border-radius:10px; cursor:pointer}
+    .btn.primary{background:var(--accent); color:#fff; border-color:#0a6bdb}
+    .btn.warn{background:#fff7ed; border-color:#f7c37a}
+    .btn.good{background:#ecfdf5; border-color:#9be0c8}
+    .btn.bad{background:#fff1f1; border-color:#f0b4b4}
+    .btn.ghost{background:#fff}
+    .btn:disabled{opacity:.5; cursor:not-allowed}
+
+    .pill{display:inline-flex; align-items:center; gap:6px; padding:3px 8px; border-radius:999px; font-size:12px; border:1px solid var(--muted); background:#fff}
+    .pill.pending{background:#f8fafc}
+    .pill.in_progress{background:#fff7ed; border-color:#f7c37a; color:#9a6400}
+    .pill.done{background:#ecfdf5; border-color:#9be0c8; color:#146a4b}
+
+    .trav-card{display:flex; flex-direction:column; gap:10px}
+    .trav-head{display:flex; justify-content:space-between; align-items:center; gap:8px}
+    .trav-actions{display:flex; gap:8px; flex-wrap:wrap}
+
+    .steps{display:flex; flex-direction:column; gap:8px}
+    .step{border:1px dashed var(--muted); border-radius:10px; padding:10px}
+    .step-top{display:flex; align-items:center; justify-content:space-between}
+
+    .progress{height:10px; border-radius:999px; background:#f1f5f9; border:1px solid var(--muted); overflow:hidden}
+    .progress>i{display:block; height:100%; width:0%; background:linear-gradient(90deg, var(--accent), #7c3aed); transition:width .25s ease}
+
+    table{border-collapse:collapse; width:100%}
+    th,td{border:1px solid var(--muted); padding:8px}
+    th{background:#f8fafc; text-align:left}
+
+    /* Simple modal */
+    .modal{position:fixed; inset:0; background:rgba(0,0,0,.35); display:none; align-items:center; justify-content:center; padding:16px}
+    .modal.show{display:flex}
+    .panel{background:#fff; border:1px solid var(--muted); border-radius:12px; padding:16px; width:min(480px,96%)}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Shop Traveler – Employee GUI</h1>
+    <div class="sub">Create a traveler, then click Start/Finish on each step. QA steps will ask for Pass/Fail. (All data is saved in localStorage.)</div>
+
+    <!-- Creator toolbar -->
+    <section class="card" style="position:sticky; top:8px; z-index:5">
+      <div class="grid">
+        <div class="col-3"><label>Lot No.</label><input id="lot" type="text" placeholder="LOT-0001"></div>
+        <div class="col-3"><label>Part No.</label><input id="part" type="text" placeholder="P-1001"></div>
+        <div class="col-2"><label>Rev</label><input id="rev" type="text" placeholder="A"></div>
+        <div class="col-2"><label>Order Qty</label><input id="oqty" type="number" placeholder="100"></div>
+        <div class="col-2"><label>Prod Qty</label><input id="pqty" type="number" placeholder="100"></div>
+        <div class="col-12 row">
+          <button class="btn primary" id="createBtn">+ Create Traveler</button>
+          <button class="btn" id="seedBtn">Seed Example</button>
+          <button class="btn ghost" id="resetBtn">Reset Demo</button>
+          <span style="flex:1"></span>
+          <input id="filter" type="text" placeholder="Filter: lot / step / status" style="max-width:260px">
+        </div>
+      </div>
+    </section>
+
+    <section id="list" style="margin-top:12px"></section>
+  </div>
+
+  <!-- Templates -->
+  <template id="travTpl">
+    <div class="card trav-card">
+      <div class="trav-head">
+        <div class="row" style="gap:8px">
+          <span class="pill">TRAVELER</span>
+          <strong class="lot"></strong>
+          <span class="pill status"></span>
+        </div>
+        <div class="trav-actions">
+          <button class="btn"  data-role="add-step">+ Add Step</button>
+          <button class="btn good" data-role="close">✔ Close Traveler</button>
+        </div>
+      </div>
+      <div class="progress"><i></i></div>
+
+      <table class="hdr">
+        <tr>
+          <th>Part #</th><td class="part"></td>
+          <th>Rev</th><td class="rev"></td>
+          <th>Order Qty</th><td class="oqty"></td>
+          <th>Prod Qty</th><td class="pqty"></td>
+        </tr>
+      </table>
+
+      <div class="steps"></div>
+    </div>
+  </template>
+
+  <template id="stepTpl">
+    <div class="step">
+      <div class="step-top">
+        <div class="row" style="gap:8px">
+          <span class="pill seq"></span>
+          <strong class="code"></strong>
+          <span class="name"></span>
+          <span class="pill" data-qa style="display:none">QA</span>
+        </div>
+        <div class="row">
+          <span class="pill state"></span>
+          <span class="pill" data-qa-result style="display:none"></span>
+          <button class="btn" data-role="start">Start</button>
+          <button class="btn warn" data-role="finish">Finish</button>
+          <button class="btn bad" data-role="fail">Fail</button>
+          <button class="btn ghost" data-role="reset">Reset</button>
+        </div>
+      </div>
+      <div class="row" style="gap:8px; color:#555; font-size:12px">
+        <div class="times"></div>
+      </div>
+    </div>
+  </template>
+
+  <!-- QA modal -->
+  <div id="qaModal" class="modal" aria-hidden="true">
+    <div class="panel">
+      <h3>QA Result</h3>
+      <p id="qaStep" style="margin-top:-4px; color:#555"></p>
+      <div class="row" style="margin-top:8px">
+        <button class="btn good" id="qaPass">✔ Pass</button>
+        <button class="btn bad" id="qaFail">✖ Fail</button>
+        <span style="flex:1"></span>
+        <button class="btn ghost" id="qaCancel">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ===== Tiny helpers (no jQuery) =====
+    const $ = (sel,root=document)=>root.querySelector(sel);
+    const $$ = (sel,root=document)=>Array.from(root.querySelectorAll(sel));
+    const fmt = ts => ts ? new Date(ts).toLocaleString() : '';
+    const uid = () => Math.random().toString(36).slice(2,10);
+
+    // ===== Persistent state (localStorage) =====
+    const KEY = 'trav-clean-v1';
+    const state = load() || { travelers:[], counter:1 };
+    function save(){ localStorage.setItem(KEY, JSON.stringify(state)); }
+    function load(){ try{ return JSON.parse(localStorage.getItem(KEY)); } catch { return null; } }
+    function reset(){ localStorage.removeItem(KEY); state.travelers=[]; state.counter=1; render(); }
+
+    // ===== Model =====
+    function defaultSteps(){
+      return [
+        { id:uid(), seq:10, code:'M1',  name:'Material Prep',  qa_required:false, qa_result:null, status:'pending', started_at:null, finished_at:null },
+        { id:uid(), seq:20, code:'010', name:'Lathe OP#1',    qa_required:false, qa_result:null, status:'pending', started_at:null, finished_at:null },
+        { id:uid(), seq:30, code:'QC',  name:'Final Inspect', qa_required:true,  qa_result:null, status:'pending', started_at:null, finished_at:null },
+      ];
+    }
+
+    function computeStatus(tr){ tr.status = tr.steps.every(s=>s.status==='done') ? 'closed' : 'open'; return tr.status; }
+    function progress(tr){ const done = tr.steps.filter(s=>s.status==='done').length; return Math.round(done / tr.steps.length * 100); }
+    function canStart(tr, step){ return tr.steps.filter(s=>s.seq < step.seq).every(s=>s.status==='done') && step.status==='pending'; }
+
+    // ===== Actions =====
+    function createTraveler(){
+      const lot = $('#lot').value.trim() || `LOT-${String(state.counter).padStart(4,'0')}`; state.counter++;
+      const tr = {
+        id:uid(), lot_no:lot, created_at:Date.now(), status:'open',
+        header:{ part:$('#part').value.trim(), rev:$('#rev').value.trim(), oqty:Number($('#oqty').value)||0, pqty:Number($('#pqty').value)||0 },
+        steps: defaultSteps()
+      };
+      state.travelers.unshift(tr); save(); render();
+    }
+    function addStep(tr){
+      const next = Math.max(0, ...tr.steps.map(s=>s.seq)) + 10;
+      const code = prompt('Step code (e.g. 020):','020') || '020';
+      const name = prompt('Step name:','Milling') || 'Milling';
+      const qa = confirm('Is QA required for this step?');
+      tr.steps.push({ id:uid(), seq:next, code, name, qa_required:qa, qa_result:null, status:'pending', started_at:null, finished_at:null });
+      tr.steps.sort((a,b)=>a.seq-b.seq); save(); render();
+    }
+    function startStep(tr, step){ if(!canStart(tr,step)) return alert('Finish previous steps first.'); step.status='in_progress'; step.started_at=Date.now(); save(); render(); }
+    function openQA(tr, step){ $('#qaStep').textContent = `${step.code} — ${step.name}`; $('#qaModal').classList.add('show');
+      $('#qaPass').onclick = ()=>{ step.qa_result='pass'; finishStep(tr, step, true); $('#qaModal').classList.remove('show'); };
+      $('#qaFail').onclick = ()=>{ step.qa_result='fail'; finishStep(tr, step, true); $('#qaModal').classList.remove('show'); };
+      $('#qaCancel').onclick = ()=> $('#qaModal').classList.remove('show');
+    }
+    function finishStep(tr, step, qaHandled=false){
+      if(step.status!=='in_progress') return alert('Step is not in progress.');
+      if(step.qa_required && !qaHandled && !step.qa_result) return openQA(tr, step);
+      step.status='done'; step.finished_at=Date.now(); computeStatus(tr); save(); render();
+    }
+    function failStep(tr, step){ step.qa_result='fail'; if(step.status!=='in_progress') step.started_at=Date.now(); step.status='done'; step.finished_at=Date.now(); computeStatus(tr); save(); render(); }
+    function resetStep(tr, step){ step.status='pending'; step.started_at=null; step.finished_at=null; step.qa_result=null; computeStatus(tr); save(); render(); }
+    function closeTraveler(tr){ if(!tr.steps.every(s=>s.status==='done')) return alert('There are unfinished steps.'); tr.status='closed'; save(); render(); }
+
+    // ===== Render =====
+    function render(){
+      const list = $('#list'); list.innerHTML='';
+      const q = $('#filter').value.trim().toLowerCase();
+      const items = state.travelers.filter(t=>!q || `${t.lot_no} ${t.header.part} ${t.steps.map(s=>s.code+s.name+s.status).join(' ')}`.toLowerCase().includes(q));
+      if(!items.length){ list.innerHTML = '<div class="card" style="text-align:center;color:#666">No travelers yet. Create one above.</div>'; return; }
+
+      for(const tr of items){
+        computeStatus(tr);
+        const card = document.importNode($('#travTpl').content, true);
+        card.querySelector('.lot').textContent = tr.lot_no;
+        const st = card.querySelector('.status'); st.className = 'pill status ' + (tr.status==='open'?'in_progress':'done'); st.textContent = tr.status.toUpperCase();
+        card.querySelector('.progress i').style.width = progress(tr) + '%';
+        card.querySelector('.part').textContent = tr.header.part || '-';
+        card.querySelector('.rev').textContent  = tr.header.rev  || '-';
+        card.querySelector('.oqty').textContent = tr.header.oqty || 0;
+        card.querySelector('.pqty').textContent = tr.header.pqty || 0;
+
+        const stepsWrap = card.querySelector('.steps');
+        for(const s of [...tr.steps].sort((a,b)=>a.seq-b.seq)){
+          const row = document.importNode($('#stepTpl').content, true);
+          row.querySelector('.seq').textContent = '#'+s.seq;
+          row.querySelector('.code').textContent = s.code;
+          row.querySelector('.name').textContent = '— '+s.name;
+          row.querySelector('.state').className = 'pill state ' + s.status;
+          row.querySelector('.state').textContent = s.status.replace('_',' ').toUpperCase();
+          row.querySelector('.times').textContent = `${s.started_at? 'Start '+fmt(s.started_at):''}${s.finished_at? ' • Finish '+fmt(s.finished_at):''}`;
+          if(s.qa_required) row.querySelector('[data-qa]').style.display='inline-flex';
+          if(s.qa_result){ const r=row.querySelector('[data-qa-result]'); r.style.display='inline-flex'; r.textContent='QA '+s.qa_result.toUpperCase(); r.className='pill '+(s.qa_result==='pass'?'done':''); }
+
+          // Wire buttons for this step
+          row.querySelector('[data-role=start]').onclick  = ()=> startStep(tr, s);
+          row.querySelector('[data-role=finish]').onclick = ()=> finishStep(tr, s);
+          const failBtn = row.querySelector('[data-role=fail]');
+          failBtn.style.display = s.qa_required ? 'inline-flex' : 'none';
+          failBtn.onclick = ()=> failStep(tr, s);
+          row.querySelector('[data-role=reset]').onclick  = ()=> resetStep(tr, s);
+
+          stepsWrap.appendChild(row);
+        }
+
+        const host = document.createElement('div');
+        host.appendChild(card);
+        host.querySelector('[data-role=add-step]').onclick = ()=> addStep(tr);
+        host.querySelector('[data-role=close]').onclick    = ()=> closeTraveler(tr);
+        list.appendChild(host);
+      }
+    }
+
+    // ===== Toolbar wiring =====
+    document.getElementById('createBtn').addEventListener('click', createTraveler);
+    document.getElementById('seedBtn').addEventListener('click', ()=>{ document.getElementById('lot').value = `LOT-${String(state.counter).padStart(4,'0')}`; document.getElementById('part').value='1931-22-1'; document.getElementById('rev').value='E'; document.getElementById('oqty').value=900; document.getElementById('pqty').value=994; createTraveler(); });
+    document.getElementById('resetBtn').addEventListener('click', ()=>{ if(confirm('Clear demo data?')) reset(); });
+    document.getElementById('filter').addEventListener('input', render);
+
+    // ===== Boot =====
+    render();
+  </script>
+</body>
+</html>
