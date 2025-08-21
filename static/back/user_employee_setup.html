@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+  <title>Demo • Users & Employees (no login, no API)</title>
+  <style>
+    *{box-sizing:border-box}
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:#fff;color:#111;margin:24px}
+    h1{font-size:22px;margin:0 0 6px}
+    h2{font-size:18px;margin:16px 0 8px}
+    .muted{color:#666;font-size:13px}
+    .wrap{max-width:1100px;margin:0 auto}
+    .card{border:1px solid #e5e5e5;border-radius:12px;padding:16px;margin:14px 0}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    label{display:block;font-weight:600;margin:10px 0 6px}
+    input,select{width:100%;padding:10px;border:1px solid #ccc;border-radius:8px;font:inherit}
+    .actions{display:flex;gap:10px;align-items:center;margin-top:14px}
+    button{padding:10px 14px;border:none;border-radius:10px;font-weight:700;cursor:pointer;color:#fff;background:#2d9cdb}
+    .ghost{background:#fff;color:#333;border:1px solid #ddd}
+    .danger{background:#eb5757}
+    .ok{color:#2f855a}
+    .err{color:#d33}
+    .small{font-size:12px;color:#666}
+    table{width:100%;border-collapse:collapse;margin-top:10px}
+    th,td{border-top:1px solid #eee;padding:8px 10px;text-align:left;font-size:14px}
+    th{background:#fafafa}
+    .badge{display:inline-block;border:1px solid #e5e5e5;padding:2px 8px;border-radius:999px;font-size:12px;background:#fafafa}
+    .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+    .right{display:flex;justify-content:flex-end;gap:8px;align-items:center}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Users & Employees (Demo)</h1>
+    <div class="muted">เวอร์ชันสาธิต — ไม่ต้องล็อกอิน, ไม่เรียก API, ข้อมูลอยู่ในหน่วยความจำ</div>
+
+    <!-- 1) Create Employee -->
+    <div class="card">
+      <h2>1) สร้าง Employee</h2>
+      <div class="row">
+        <div>
+          <label>Emp Code (ปล่อยว่างให้ระบบรันอัตโนมัติ)</label>
+          <input id="empCode" placeholder="เช่น EMP2025-0001" />
+        </div>
+        <div>
+          <label>ชื่อพนักงาน (name)</label>
+          <input id="empName" placeholder="เช่น Tanapon S." />
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>ตำแหน่ง (position)</label>
+          <input id="empPos" />
+        </div>
+        <div>
+          <label>แผนก (department)</label>
+          <input id="empDept" />
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>Email</label>
+          <input id="empEmail" type="email" />
+        </div>
+        <div>
+          <label>Phone</label>
+          <input id="empPhone" />
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>Status</label>
+          <select id="empStatus">
+            <option value="active" selected>active</option>
+            <option value="inactive">inactive</option>
+          </select>
+        </div>
+        <div class="right">
+          <button id="btnCreateEmp">บันทึก Employee</button>
+        </div>
+      </div>
+      <div id="empMsg" class="small"></div>
+
+      <table id="empTable">
+        <thead>
+          <tr><th>ID</th><th>Emp Code</th><th>Name</th><th>Dept</th><th>Position</th><th>Status</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <!-- 2) Create User + link -->
+    <div class="card">
+      <h2>2) สร้าง User และลิงก์กับ Employee</h2>
+      <div class="row">
+        <div>
+          <label>Username</label>
+          <input id="uName" />
+        </div>
+        <div>
+          <label>Email (ทางเลือก)</label>
+          <input id="uEmail" type="email" />
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>Password</label>
+          <input id="uPass" type="password" />
+        </div>
+        <div>
+          <label>สิทธิ์</label>
+          <select id="uRole">
+            <option value="user" selected>พนักงานทั่วไป</option>
+            <option value="superuser">ผู้ดูแล (is_superuser)</option>
+          </select>
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>ลิงก์ Employee (ทางเลือก)</label>
+          <select id="uEmpSelect"><option value="">— ไม่ลิงก์ตอนนี้ —</option></select>
+        </div>
+        <div class="right">
+          <button id="btnCreateUser">บันทึก User + (ลิงก์ถ้าเลือก)</button>
+        </div>
+      </div>
+      <div id="userMsg" class="small"></div>
+
+      <table id="userTable">
+        <thead>
+          <tr><th>ID</th><th>Username</th><th>Email</th><th>Superuser</th><th>is_active</th><th>employee_id</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <!-- 3) Link existing -->
+    <div class="card">
+      <h2>3) ลิงก์ User ที่มีอยู่ ↔ Employee</h2>
+      <div class="grid3">
+        <div>
+          <label>User</label>
+          <select id="lkUser"><option value="">— เลือก User —</option></select>
+        </div>
+        <div>
+          <label>Employee</label>
+          <select id="lkEmp"><option value="">— เลือก Employee —</option></select>
+        </div>
+        <div class="right" style="align-items:end">
+          <button id="btnLink">ลิงก์</button>
+          <button id="btnUnlink" class="danger">ยกเลิกการลิงก์</button>
+        </div>
+      </div>
+      <div id="linkMsg" class="small"></div>
+    </div>
+
+    <div class="card">
+      <div class="right">
+        <button id="btnReset" class="ghost">ล้างข้อมูลเดโม</button>
+        <span class="muted">* ข้อมูลหายเมื่อรีเฟรชอยู่แล้ว ปุ่มนี้แค่เคลียร์จอ</span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ===== In-memory store (demo) =====
+    let EMPLOYEES = [];
+    let USERS = [];
+    let empSeq = 1;
+    let userSeq = 1;
+
+    const $ = id => document.getElementById(id);
+
+    // ===== Renderers =====
+    function renderEmpTable(){
+      const tb = $('empTable').querySelector('tbody');
+      tb.innerHTML = EMPLOYEES.map(e => `
+        <tr>
+          <td>${e.id}</td>
+          <td><span class="badge">${e.emp_code}</span></td>
+          <td>${e.name}</td>
+          <td>${e.department||''}</td>
+          <td>${e.position||''}</td>
+          <td>${e.status}</td>
+        </tr>
+      `).join('') || `<tr><td colspan="6" class="muted">ยังไม่มีข้อมูล</td></tr>`;
+    }
+    function renderUserTable(){
+      const tb = $('userTable').querySelector('tbody');
+      tb.innerHTML = USERS.map(u => `
+        <tr>
+          <td>${u.id}</td>
+          <td>${u.username}</td>
+          <td>${u.email||''}</td>
+          <td>${u.is_superuser ? 'Yes' : 'No'}</td>
+          <td>${u.is_active ? 'Yes' : 'No'}</td>
+          <td>${u.employee_id ?? ''}</td>
+        </tr>
+      `).join('') || `<tr><td colspan="6" class="muted">ยังไม่มีข้อมูล</td></tr>`;
+    }
+    function renderEmployeeSelects(){
+      const opts = ['<option value="">— เลือก Employee —</option>']
+        .concat(EMPLOYEES.map(e => `<option value="${e.id}">${e.id} • ${e.emp_code} ${e.name}</option>`));
+      $('uEmpSelect').innerHTML = ['<option value="">— ไม่ลิงก์ตอนนี้ —</option>'].concat(opts.slice(1)).join('');
+      $('lkEmp').innerHTML = opts.join('');
+    }
+    function renderUserSelect(){
+      const opts = ['<option value="">— เลือก User —</option>']
+        .concat(USERS.map(u => `<option value="${u.id}">${u.id} • ${u.username}${u.employee_id ? ' (emp:'+u.employee_id+')':''}</option>`));
+      $('lkUser').innerHTML = opts.join('');
+    }
+
+    // ===== Utils =====
+    function setMsg(el, text, ok=false){ el.textContent = text; el.className = 'small ' + (ok ? 'ok' : 'err'); }
+    function genEmpCode(){
+      const y = new Date().getFullYear();
+      const running = String(EMPLOYEES.length + 1).padStart(4,'0');
+      return `EMP${y}-${running}`;
+    }
+
+    // ===== Actions =====
+    function createEmployee(){
+      const name = $('empName').value.trim();
+      if (!name) return setMsg($('empMsg'), 'กรุณากรอกชื่อพนักงาน');
+
+      let code = $('empCode').value.trim();
+      if (!code) code = genEmpCode();
+      if (EMPLOYEES.some(e => e.emp_code === code)){
+        return setMsg($('empMsg'), 'Emp Code ซ้ำ');
+      }
+
+      const emp = {
+        id: empSeq++,
+        emp_code: code,
+        name,
+        position: $('empPos').value.trim() || null,
+        department: $('empDept').value.trim() || null,
+        email: $('empEmail').value.trim() || null,
+        phone: $('empPhone').value.trim() || null,
+        status: $('empStatus').value || 'active',
+      };
+      EMPLOYEES.push(emp);
+      setMsg($('empMsg'), `สร้างสำเร็จ: employee_id=${emp.id}`, true);
+      renderEmpTable(); renderEmployeeSelects();
+      // preselect ในฟอร์ม user
+      $('uEmpSelect').value = emp.id;
+      $('empName').value = ''; $('empCode').value = ''; $('empPos').value = ''; $('empDept').value = ''; $('empEmail').value = ''; $('empPhone').value = '';
+    }
+
+    function createUser(){
+      const username = $('uName').value.trim();
+      const password = $('uPass').value;
+      if (!username || !password) return setMsg($('userMsg'), 'กรุณากรอก Username และ Password');
+
+      if (USERS.some(u => u.username === username)){
+        return setMsg($('userMsg'), 'Username ซ้ำ');
+      }
+
+      const candidateEmpId = $('uEmpSelect').value ? parseInt($('uEmpSelect').value,10) : null;
+      if (candidateEmpId){
+        // 1:1 unique—ตรวจว่าถูกใช้ไปแล้วไหม
+        if (USERS.some(u => u.employee_id === candidateEmpId)){
+          return setMsg($('userMsg'), `employee_id=${candidateEmpId} ถูกลิงก์กับผู้ใช้อื่นแล้ว`);
+        }
+      }
+
+      const u = {
+        id: userSeq++,
+        username,
+        email: $('uEmail').value.trim() || null,
+        password_hash: '(demo only)', // เดโมไม่แฮชจริง
+        is_active: true,
+        is_superuser: $('uRole').value === 'superuser',
+        employee_id: candidateEmpId,
+      };
+      USERS.push(u);
+      setMsg($('userMsg'),
+        `สร้างผู้ใช้สำเร็จ: user_id=${u.id}` + (candidateEmpId ? ` • ลิงก์ employee_id=${candidateEmpId}` : ''),
+        true
+      );
+      renderUserTable(); renderUserSelect();
+      $('uName').value=''; $('uEmail').value=''; $('uPass').value='';
+      $('uRole').value='user'; $('uEmpSelect').value='';
+    }
+
+    function linkExisting(){
+      const uid = parseInt(($('lkUser').value||''),10);
+      const eid = parseInt(($('lkEmp').value||''),10);
+      if (!uid || !eid) return setMsg($('linkMsg'), 'กรุณาเลือก User และ Employee');
+
+      const u = USERS.find(x => x.id === uid);
+      if (!u) return setMsg($('linkMsg'), 'ไม่พบ User');
+
+      if (!EMPLOYEES.some(e => e.id === eid)) return setMsg($('linkMsg'), 'ไม่พบ Employee');
+
+      // enforce unique 1:1
+      if (USERS.some(x => x.employee_id === eid && x.id !== uid)){
+        return setMsg($('linkMsg'), `employee_id=${eid} ถูกลิงก์กับผู้ใช้อื่นแล้ว`);
+      }
+
+      u.employee_id = eid;
+      setMsg($('linkMsg'), `ลิงก์สำเร็จ: user_id=${uid} → employee_id=${eid}`, true);
+      renderUserTable(); renderUserSelect();
+    }
+
+    function unlinkExisting(){
+      const uid = parseInt(($('lkUser').value||''),10);
+      if (!uid) return setMsg($('linkMsg'), 'กรุณาเลือก User');
+
+      const u = USERS.find(x => x.id === uid);
+      if (!u) return setMsg($('linkMsg'), 'ไม่พบ User');
+
+      u.employee_id = null;
+      setMsg($('linkMsg'), `ยกเลิกการลิงก์สำเร็จ: user_id=${uid}`, true);
+      renderUserTable(); renderUserSelect();
+    }
+
+    function resetDemo(){
+      EMPLOYEES = [];
+      USERS = [];
+      empSeq = 1; userSeq = 1;
+      renderEmpTable(); renderUserTable(); renderEmployeeSelects(); renderUserSelect();
+      $('empMsg').textContent = ''; $('userMsg').textContent=''; $('linkMsg').textContent='';
+    }
+
+    // ===== Bind & init =====
+    $('btnCreateEmp').addEventListener('click', createEmployee);
+    $('btnCreateUser').addEventListener('click', createUser);
+    $('btnLink').addEventListener('click', linkExisting);
+    $('btnUnlink').addEventListener('click', unlinkExisting);
+    $('btnReset').addEventListener('click', resetDemo);
+
+    // seed เล็กๆ สำหรับลอง
+    (function seed(){
+      EMPLOYEES.push({id: empSeq++, emp_code:'EMP2025-0001', name:'Alice', position:'Operator', department:'Prod', email:null, phone:null, status:'active'});
+      EMPLOYEES.push({id: empSeq++, emp_code:'EMP2025-0002', name:'Bob',   position:'QC',       department:'QA',   email:null, phone:null, status:'active'});
+      USERS.push({id: userSeq++, username:'admin', email:'admin@example.com', password_hash:'(demo)', is_active:true, is_superuser:true,  employee_id:null});
+      USERS.push({id: userSeq++, username:'alice', email:'alice@example.com', password_hash:'(demo)', is_active:true, is_superuser:false, employee_id:1});
+      renderEmpTable(); renderUserTable(); renderEmployeeSelects(); renderUserSelect();
+      $('uEmpSelect').value = 2; // ค่า default ตอนเปิดหน้า
+    })();
+  </script>
+</body>
+</html>

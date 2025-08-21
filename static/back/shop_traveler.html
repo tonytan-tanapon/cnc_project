@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Employee Traveler Console — Mock UI</title>
+  <style>
+    :root { --gap: 14px; --radius: 10px; }
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 0; color: #111; background: #fafafa; }
+    header { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; background: #fff; border-bottom: 1px solid #e7e7e7; position: sticky; top: 0; z-index: 5; }
+    header .title { font-weight: 800; letter-spacing: .2px; }
+    header .who { font-size: 14px; color: #444; }
+
+    main { display: grid; grid-template-columns: 320px 1fr; gap: var(--gap); padding: var(--gap); }
+    @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+
+    .panel { background: #fff; border: 1px solid #e7e7e7; border-radius: var(--radius); }
+
+    .left { display: flex; flex-direction: column; height: calc(100dvh - 90px); }
+    .left .controls { display: grid; grid-template-columns: 1fr; gap: 10px; padding: 12px; border-bottom: 1px solid #eee; }
+    .left input, .left select { padding: 10px; border-radius: 8px; border: 1px solid #ddd; font: inherit; }
+
+    .list { overflow: auto; padding: 8px; }
+    .card { border: 1px solid #eee; border-radius: 10px; padding: 10px; margin: 8px 4px; cursor: pointer; background: #fff; }
+    .card:hover { background: #f7f7f7; }
+    .row { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
+    .meta { font-size: 12px; color: #666; display: flex; gap: 10px; flex-wrap: wrap; }
+
+    .badge { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid #ddd; background: #f5f5f5; }
+    .badge.warn { background: #fff7ed; border-color: #fde3c3; }
+    .badge.ok { background: #eefdf0; border-color: #c9efd1; }
+    .badge.info { background: #eef4ff; border-color: #d7e3ff; }
+
+    .right { min-height: 60dvh; display: grid; grid-template-rows: auto 1fr auto; }
+    .detail { padding: 14px; border-bottom: 1px solid #eee; }
+    .detail .h { font-weight: 700; font-size: 18px; margin-bottom: 4px; }
+    .detail .sub { font-size: 13px; color: #666; display: flex; gap: 12px; flex-wrap: wrap; }
+
+    .steps { padding: 10px 14px; overflow: auto; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border-bottom: 1px solid #f0f0f0; text-align: left; padding: 8px 6px; font-size: 14px; vertical-align: top; }
+    th { position: sticky; top: 0; background: #fff; z-index: 2; }
+
+    .actions button { padding: 8px 10px; border: 1px solid #ddd; background: #fff; border-radius: 8px; cursor: pointer; font: inherit; }
+    .actions button:hover { background: #f3f3f3; }
+    .actions button:disabled { opacity: .45; cursor: not-allowed; }
+
+    .footer { display: grid; grid-template-columns: 1fr; gap: 8px; padding: 10px 12px; border-top: 1px solid #eee; }
+    .log { max-height: 140px; overflow: auto; font-size: 12px; background: #fcfcfc; border: 1px dashed #ddd; border-radius: 8px; padding: 8px; }
+
+    .placeholder { padding: 24px; color: #666; }
+    .pill { border: 1px solid #e5e5e5; border-radius: 999px; padding: 3px 8px; font-size: 12px; }
+    .nowrap { white-space: nowrap; }
+
+    /* Modal styles */
+    .backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.3); display: none; align-items: center; justify-content: center; z-index: 20; }
+    .modal { width: 520px; max-width: calc(100vw - 28px); background: #fff; border: 1px solid #ddd; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,.12); }
+    .modal header { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border-bottom: 1px solid #eee; position: static; }
+    .modal .content { padding: 14px; display: grid; gap: 10px; }
+    .modal .row { display: flex; gap: 8px; align-items: center; justify-content: flex-start; }
+    .modal input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font: inherit; }
+    .modal footer { padding: 12px 14px; border-top: 1px solid #eee; display: flex; justify-content: flex-end; gap: 8px; }
+    .hint { font-size: 12px; color: #666; }
+    .err { font-size: 12px; color: #b00020; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="title">Employee Traveler Console <span style="font-weight:400;color:#666">(Mock)</span></div>
+    <div class="who" id="whoInfo">Signed in as <b>Tony</b> · Employee #7 · <span id="clock"></span></div>
+  </header>
+
+  <main>
+    <!-- LEFT: My Travelers list / filters -->
+    <section class="panel left">
+      <div class="controls">
+        <input id="q" type="search" placeholder="Search lot / traveler / step" />
+        <select id="statusFilter">
+          <option value="all">All statuses</option>
+          <option value="open">Open</option>
+          <option value="in_progress">In progress</option>
+          <option value="closed">Closed</option>
+        </select>
+        <div class="meta" style="justify-content:space-between">
+          <span>My travelers</span>
+          <span class="pill nowrap" id="count"></span>
+        </div>
+      </div>
+      <div id="travelerList" class="list" aria-live="polite"></div>
+    </section>
+
+    <!-- RIGHT: Traveler details & step actions -->
+    <section class="panel right" id="detailPanel">
+      <div class="placeholder">Select a traveler from the left list to view details and perform actions (Begin → Scan → Start / End) on each step. Timestamps will be captured locally (mock). No real API calls are made.</div>
+    </section>
+  </main>
+
+  <!-- Begin → Scan Material Modal -->
+  <div class="backdrop" id="scanBackdrop" role="dialog" aria-modal="true" aria-labelledby="scanTitle">
+    <div class="modal" role="document">
+      <header>
+        <div id="scanTitle"><b>Scan Material</b></div>
+        <button id="scanClose" title="Close" style="border:none;background:transparent;font-size:18px;cursor:pointer">✕</button>
+      </header>
+      <div class="content">
+        <div class="hint" id="scanHint">Scan the QR code on the incoming material to verify it matches this lot.</div>
+        <div class="row"><input id="scanInput" type="text" placeholder="Scan here (or type)" autofocus /></div>
+        <div class="hint">Tip: For this demo, the expected value is the lot code (e.g., <code>LOT-24-0001</code>).</div>
+        <div class="err" id="scanErr" style="display:none"></div>
+      </div>
+      <footer>
+        <button id="scanFill" class="pill" title="Fill with expected code">Auto-fill correct</button>
+        <span style="flex:1"></span>
+        <button id="scanCancel">Cancel</button>
+        <button id="scanConfirm"><b>Confirm & Begin</b></button>
+      </footer>
+    </div>
+  </div>
+
+  <script>
+    // ------------------------------
+    // MOCK DATA (shape mirrors your SQLAlchemy models)
+    // ------------------------------
+    /** NOTE: In real app, fetch from FastAPI:
+     *   GET /employees/:id/travelers          -> list of travelers assigned to employee
+     *   GET /shop_travelers/:id               -> traveler detail
+     *   POST /shop_traveler_steps/:id/begin   -> mark step started {operator_id}
+     *   POST /shop_traveler_steps/:id/end     -> mark step finished {qa_result?, qa_notes?}
+     *   PATCH /shop_travelers/:id             -> update status/notes as needed
+     *   POST /scan/verify                     -> verify material scan for traveler/lot
+     */
+
+    const currentEmployee = { id: 7, name: 'Tony' };
+
+    // Helper to format date/times in local readable form
+    const fmt = (d) => d ? new Date(d).toLocaleString() : '';
+    const nowISO = () => new Date().toISOString();
+
+    // Travelers (UI-only fields: assigneeId, lot_code, part_no)
+    const travelers = [
+      {
+        id: 101,
+        lot_id: 501,
+        lot_code: 'LOT-24-0001',
+        part_no: 'PN-AX12',
+        created_at: '2025-08-18T16:22:10Z',
+        created_by_id: 1,
+        status: 'open',
+        notes: 'Priority rush order.',
+        assigneeId: 7,
+        steps: [
+          { id: 1001, traveler_id: 101, seq: 10, step_code: 'CUT', step_name: 'Cutting', station: 'S1', status: 'pending', started_at: null, finished_at: null, operator_id: null, machine_id: 3, qa_required: false, qa_result: null, qa_notes: null },
+          { id: 1002, traveler_id: 101, seq: 20, step_code: 'MILL', step_name: 'Milling', station: 'S2', status: 'pending', started_at: null, finished_at: null, operator_id: null, machine_id: 4, qa_required: true,  qa_result: null, qa_notes: null },
+          { id: 1003, traveler_id: 101, seq: 30, step_code: 'QA', step_name: 'Inspection', station: 'QA', status: 'pending', started_at: null, finished_at: null, operator_id: null, machine_id: null, qa_required: true,  qa_result: null, qa_notes: null },
+        ]
+      },
+      {
+        id: 102,
+        lot_id: 502,
+        lot_code: 'LOT-24-0002',
+        part_no: 'PN-GL55',
+        created_at: '2025-08-17T09:15:00Z',
+        created_by_id: 2,
+        status: 'in_progress',
+        notes: 'Stainless material; handle carefully.',
+        assigneeId: 7,
+        steps: [
+          { id: 2001, traveler_id: 102, seq: 10, step_code: 'CUT', step_name: 'Cutting',    station: 'S1', status: 'done',        started_at: '2025-08-18T08:00:00Z', finished_at: '2025-08-18T10:12:00Z', operator_id: 7, machine_id: 1, qa_required: false, qa_result: null, qa_notes: null },
+          { id: 2002, traveler_id: 102, seq: 20, step_code: 'TURN', step_name: 'Turning',   station: 'S3', status: 'in_progress', started_at: '2025-08-19T16:10:00Z', finished_at: null,                   operator_id: 7, machine_id: 2, qa_required: false, qa_result: null, qa_notes: null },
+          { id: 2003, traveler_id: 102, seq: 30, step_code: 'QA',   step_name: 'Inspection',station: 'QA', status: 'pending',     started_at: null,                         finished_at: null,                   operator_id: null, machine_id: null, qa_required: true,  qa_result: null, qa_notes: null },
+        ]
+      },
+      {
+        id: 103,
+        lot_id: 503,
+        lot_code: 'LOT-24-0003',
+        part_no: 'PN-JK77',
+        created_at: '2025-08-16T12:05:00Z',
+        created_by_id: 3,
+        status: 'closed',
+        notes: 'Completed yesterday.',
+        assigneeId: 9,
+        steps: [
+          { id: 3001, traveler_id: 103, seq: 10, step_code: 'CUT', step_name: 'Cutting', station: 'S1', status: 'done', started_at: '2025-08-16T12:10:00Z', finished_at: '2025-08-16T13:00:00Z', operator_id: 9, machine_id: 1, qa_required: false, qa_result: null, qa_notes: null },
+          { id: 3002, traveler_id: 103, seq: 20, step_code: 'MILL', step_name: 'Milling', station: 'S2', status: 'done', started_at: '2025-08-16T13:10:00Z', finished_at: '2025-08-16T16:40:00Z', operator_id: 9, machine_id: 2, qa_required: true,  qa_result: 'pass', qa_notes: 'OK' },
+        ]
+      }
+    ];
+
+    let selectedTravelerId = null;
+    let pendingBegin = null; // holds {travelerId, stepId} while modal is open
+
+    const $ = (sel, el = document) => el.querySelector(sel);
+    const $$ = (sel, el = document) => Array.from(el.querySelectorAll(sel));
+
+    // Live clock in header
+    setInterval(() => { $('#clock').textContent = new Date().toLocaleString(); }, 1000);
+
+    // Derived helpers
+    function computeTravelerStatus(tv) {
+      const total = tv.steps.length;
+      const done = tv.steps.filter(s => s.status === 'done').length;
+      const inProg = tv.steps.some(s => s.status === 'in_progress');
+      if (done === total) return 'closed';
+      if (inProg || done > 0) return 'in_progress';
+      return 'open';
+    }
+
+    function progressText(tv) {
+      const total = tv.steps.length;
+      const done = tv.steps.filter(s => s.status === 'done').length;
+      return `${done}/${total} steps`;
+    }
+
+    // Render list of my travelers
+    function renderTravelerList() {
+      const list = $('#travelerList');
+      list.innerHTML = '';
+      const q = ($('#q').value || '').trim().toLowerCase();
+      const filter = $('#statusFilter').value;
+
+      const mine = travelers.filter(t => t.assigneeId === currentEmployee.id);
+
+      const filtered = mine.filter(t => {
+        const st = computeTravelerStatus(t);
+        const matchesStatus = filter === 'all' ? true : st === filter;
+        const hay = `${t.id} ${t.lot_code} ${t.part_no} ${t.notes} ${t.steps.map(s => s.step_name + ' ' + s.step_code).join(' ')}`.toLowerCase();
+        const matchesQ = q ? hay.includes(q) : true;
+        return matchesStatus && matchesQ;
+      });
+
+      $('#count').textContent = `${filtered.length} item(s)`;
+
+      if (!filtered.length) {
+        list.innerHTML = '<div class="placeholder">No travelers found.</div>';
+        return;
+      }
+
+      filtered.forEach(t => {
+        const st = computeTravelerStatus(t);
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.setAttribute('role', 'button');
+        card.setAttribute('aria-label', `Open traveler ${t.id}`);
+        card.addEventListener('click', () => openTraveler(t.id));
+        card.innerHTML = `
+          <div class="row">
+            <div>
+              <div><b>${t.lot_code}</b> · <span class="meta">Traveler #${t.id}</span></div>
+              <div class="meta">
+                <span>${t.part_no}</span>
+                <span>${progressText(t)}</span>
+              </div>
+            </div>
+            <div>
+              <span class="badge ${st==='open'?'info':(st==='closed'?'ok':'warn')}">${st.replace('_',' ')}</span>
+            </div>
+          </div>
+        `;
+        list.appendChild(card);
+      });
+    }
+
+    // Open detail panel for a traveler
+    function openTraveler(id) {
+      selectedTravelerId = id;
+      const t = travelers.find(x => x.id === id);
+      t.status = computeTravelerStatus(t);
+
+      const right = $('#detailPanel');
+      right.innerHTML = `
+        <div class="detail">
+          <div class="h">${t.lot_code} · Traveler #${t.id}</div>
+          <div class="sub">
+            <span class="pill">Part: <b>${t.part_no}</b></span>
+            <span class="pill">Status: <b>${t.status.replace('_',' ')}</b></span>
+            <span class="pill">Created: ${fmt(t.created_at)}</span>
+            <span class="pill">Owner: ${currentEmployee.name}</span>
+          </div>
+          <div style="margin-top:8px; font-size:13px; color:#444">${t.notes || ''}</div>
+        </div>
+        <div class="steps">
+          <table aria-label="Steps">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Step</th>
+                <th>Station</th>
+                <th>Status</th>
+                <th>Started</th>
+                <th>Finished</th>
+                <th>Operator</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="stepsBody"></tbody>
+          </table>
+        </div>
+        <div class="footer">
+          <div style="font-size:12px;color:#666">Last action payload (what would be sent to API):</div>
+          <pre class="log" id="actionLog">–</pre>
+        </div>
+      `;
+
+      // Fill steps
+      const tbody = $('#stepsBody');
+      tbody.innerHTML = '';
+      t.steps.sort((a,b) => a.seq - b.seq).forEach(s => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${s.seq}</td>
+          <td><div><b>${s.step_name}</b> <span class="meta">${s.step_code || ''}</span></div>${s.qa_required ? '<div class="badge info" style="margin-top:4px">QA required</div>': ''}</td>
+          <td>${s.station || ''}</td>
+          <td><span class="badge ${s.status==='pending'?'info':(s.status==='done'?'ok':'warn')}">${s.status.replace('_',' ')}</span></td>
+          <td>${fmt(s.started_at)}</td>
+          <td>${fmt(s.finished_at)}</td>
+          <td>${s.operator_id ? (s.operator_id===currentEmployee.id? currentEmployee.name + ' (me)': '#' + s.operator_id) : ''}</td>
+          <td class="actions"></td>
+        `;
+        const actionsTD = tr.querySelector('.actions');
+
+        // Begin button → must scan material first
+        const beginBtn = document.createElement('button');
+        beginBtn.textContent = 'Begin';
+        beginBtn.disabled = s.status !== 'pending';
+        beginBtn.addEventListener('click', () => requestBegin(t.id, s.id));
+        actionsTD.appendChild(beginBtn);
+
+        // End button (no scan required)
+        const endBtn = document.createElement('button');
+        endBtn.textContent = 'End';
+        endBtn.disabled = s.status !== 'in_progress';
+        endBtn.style.marginLeft = '6px';
+        endBtn.addEventListener('click', () => endStep(t.id, s.id));
+        actionsTD.appendChild(endBtn);
+
+        // Simple QA buttons appear if QA required & step ended
+        if (s.qa_required) {
+          const qaPass = document.createElement('button');
+          qaPass.textContent = 'QA Pass';
+          qaPass.style.marginLeft = '10px';
+          qaPass.disabled = s.status !== 'done' || s.qa_result === 'pass';
+          qaPass.addEventListener('click', () => setQa(t.id, s.id, 'pass'));
+
+          const qaFail = document.createElement('button');
+          qaFail.textContent = 'QA Fail';
+          qaFail.style.marginLeft = '6px';
+          qaFail.disabled = s.status !== 'done' || s.qa_result === 'fail';
+          qaFail.addEventListener('click', () => setQa(t.id, s.id, 'fail'));
+
+          actionsTD.appendChild(qaPass);
+          actionsTD.appendChild(qaFail);
+        }
+
+        tbody.appendChild(tr);
+      });
+    }
+
+    // ------------------------------
+    // Begin flow with material scan
+    // ------------------------------
+    const backdrop = $('#scanBackdrop');
+    const scanInput = $('#scanInput');
+    const scanErr = $('#scanErr');
+    const scanClose = $('#scanClose');
+    const scanCancel = $('#scanCancel');
+    const scanConfirm = $('#scanConfirm');
+    const scanFill = $('#scanFill');
+
+    function openScanModal(travelerId, stepId) {
+      pendingBegin = { travelerId, stepId };
+      scanInput.value = '';
+      scanErr.style.display = 'none';
+
+      const tv = travelers.find(t => t.id === travelerId);
+      $('#scanHint').innerHTML = `Scan the material for <b>${tv.lot_code}</b>. It must match this lot.`;
+
+      backdrop.style.display = 'flex';
+      setTimeout(() => scanInput.focus(), 50);
+    }
+
+    function closeScanModal() {
+      backdrop.style.display = 'none';
+      pendingBegin = null;
+    }
+
+    function requestBegin(travelerId, stepId) {
+      // Open scanner modal for validation; do not change step state yet
+      openScanModal(travelerId, stepId);
+    }
+
+    function tryConfirmScan() {
+      if (!pendingBegin) return;
+      const { travelerId, stepId } = pendingBegin;
+      const tv = travelers.find(t => t.id === travelerId);
+      const expected = tv.lot_code; // demo rule: scanned value must equal lot code
+      const scanned = (scanInput.value || '').trim();
+
+      const ok = scanned && scanned.toUpperCase() === expected.toUpperCase();
+
+      // Log the verification attempt (mock API call)
+      logAction({
+        method: 'POST',
+        url: `/scan/verify`,
+        body: { traveler_id: travelerId, step_id: stepId, scanned_value: scanned, expected_value: expected, match: ok }
+      });
+
+      if (!ok) {
+        scanErr.textContent = 'Material does not match this lot. Please scan the correct item.';
+        scanErr.style.display = 'block';
+        // Keep modal open; user can try again or cancel. Begin button remains available.
+        return;
+      }
+
+      // Success → proceed with original begin action
+      closeScanModal();
+      beginStep(travelerId, stepId);
+    }
+
+    // Modal wiring
+    scanConfirm.addEventListener('click', tryConfirmScan);
+    scanCancel.addEventListener('click', closeScanModal);
+    scanClose.addEventListener('click', closeScanModal);
+    scanFill.addEventListener('click', () => {
+      if (!pendingBegin) return;
+      const tv = travelers.find(t => t.id === pendingBegin.travelerId);
+      scanInput.value = tv.lot_code; // helper to simulate a correct scan
+    });
+    scanInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') tryConfirmScan(); });
+
+    // ------------------------------
+    // Actions (unchanged, but beginStep is now called only after successful scan)
+    // ------------------------------
+    function beginStep(travelerId, stepId) {
+      const tv = travelers.find(t => t.id === travelerId);
+      const s = tv.steps.find(x => x.id === stepId);
+      if (s.status !== 'pending') return;
+      s.status = 'in_progress';
+      s.started_at = nowISO();
+      s.operator_id = currentEmployee.id;
+      tv.status = computeTravelerStatus(tv);
+      renderTravelerList();
+      openTraveler(travelerId);
+      logAction({
+        method: 'POST',
+        url: `/shop_traveler_steps/${stepId}/begin`,
+        body: { operator_id: currentEmployee.id, started_at: s.started_at }
+      });
+    }
+
+    function endStep(travelerId, stepId) {
+      const tv = travelers.find(t => t.id === travelerId);
+      const s = tv.steps.find(x => x.id === stepId);
+      if (s.status !== 'in_progress') return;
+      s.status = 'done';
+      s.finished_at = nowISO();
+      tv.status = computeTravelerStatus(tv);
+      renderTravelerList();
+      openTraveler(travelerId);
+      logAction({
+        method: 'POST',
+        url: `/shop_traveler_steps/${stepId}/end`,
+        body: { finished_at: s.finished_at }
+      });
+    }
+
+    function setQa(travelerId, stepId, result) {
+      const tv = travelers.find(t => t.id === travelerId);
+      const s = tv.steps.find(x => x.id === stepId);
+      if (s.status !== 'done') return;
+      s.qa_result = result; // 'pass' | 'fail'
+      renderTravelerList();
+      openTraveler(travelerId);
+      logAction({
+        method: 'PATCH',
+        url: `/shop_traveler_steps/${stepId}`,
+        body: { qa_result: result }
+      });
+    }
+
+    function logAction(payload) {
+      const pretty = JSON.stringify(payload, null, 2);
+      $('#actionLog').textContent = pretty;
+    }
+
+    // Wire controls
+    $('#q').addEventListener('input', renderTravelerList);
+    $('#statusFilter').addEventListener('change', renderTravelerList);
+
+    // Initial render
+    renderTravelerList();
+  </script>
+</body>
+</html>

@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Topnotch – MFG · CNC Tracking</title>
+  <link rel="stylesheet" href="/static/css/app.css" />
+</head>
+<body>
+  <div class="app">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="logo">
+        <span class="logo-badge">TN</span>
+        <span>Topnotch – MFG</span>
+      </div>
+      <nav class="nav" id="sideNav">
+        <a href="#" data-page="dash" class="active">Dashboard</a>
+        <a href="#" data-page="customers">Customers</a>
+        <a href="#" data-page="pos">Purchase Orders</a>
+        <a href="#" data-page="materials">Materials</a>
+        <a href="#" data-page="lots">Lots</a>
+        <a href="#" data-page="employees">Employees</a>
+        <a href="#" data-page="trav">Travelers & Steps</a>
+        <a href="#" data-page="subcon">Subcontracting</a>
+        <a href="#" data-page="suppliers">Suppliers</a>
+        <a href="#" data-page="reports">Reports</a>
+      </nav>
+    </aside>
+
+    <!-- Main -->
+    <main class="main">
+      <div class="topbar">
+        <div class="search">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zM9.5 14C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+          </svg>
+          <input id="globalSearch" type="search" placeholder="Search PO / Lot / Tracking…" />
+        </div>
+        <!-- ค่าเริ่มต้นของ API Base จะถูกจัดการใน js/api.js -->
+        <input id="apiBase" value="/api/v1" placeholder="API Base (ว่าง = /api/v1) เช่น http://localhost:8000/api/v1" />
+        <button class="btn" id="btnPing" type="button">Ping</button>
+      </div>
+
+      <!-- Pages -->
+
+      <!-- Dashboard -->
+      <section id="page-dash">
+        <h1 class="page-title">🚀 CNC Tracking System</h1>
+        <p class="subtitle">Quick Access</p>
+
+        <section class="tiles" id="quickTiles">
+          <a class="tile" href="#" data-nav="materials">
+            <div class="info">
+              <span class="title">Materials</span>
+              <span class="desc">+ Add new material / Stock</span>
+            </div>
+            <div class="emoji">🧱</div>
+          </a>
+          <a class="tile" href="#" data-nav="lots">
+            <div class="info">
+              <span class="title">Lots</span>
+              <span class="desc">Add lot / track lot</span>
+            </div>
+            <div class="emoji">🏷️</div>
+          </a>
+          <a class="tile" href="#" data-nav="trav">
+            <div class="info">
+              <span class="title">Traveler/Steps</span>
+              <span class="desc">Start/Complete step, QA</span>
+            </div>
+            <div class="emoji">🛠️</div>
+          </a>
+          <a class="tile" href="#" data-nav="subcon">
+            <div class="info">
+              <span class="title">Subcon</span>
+              <span class="desc">Order / Shipment / Receipt</span>
+            </div>
+            <div class="emoji">🚚</div>
+          </a>
+          <a class="tile" href="#" data-nav="employees">
+            <div class="info">
+              <span class="title">Employees</span>
+              <span class="desc">Add/Employee lists</span>
+            </div>
+            <div class="emoji">👷</div>
+          </a>
+        </section>
+
+        <div class="grid" style="margin-top:16px">
+          <div class="col-6">
+            <div class="card">
+              <b>Lots – Summary</b>
+              <div class="toolbar">
+                <button class="btn" id="btnDashLots" type="button">Reload</button>
+              </div>
+              <div id="dashLots"></div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="card">
+              <b>Subcon – Orders</b>
+              <div class="toolbar">
+                <button class="btn" id="btnDashSubcon" type="button">Reload</button>
+              </div>
+              <div id="dashSubcon"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Customers -->
+      <section id="page-customers" class="hidden">
+        <h2 class="page-title">👤 Customers</h2>
+        <div class="card">
+          <div class="grid">
+            <div class="col-4"><label>Code</label><input id="c_code" placeholder="CUST-001" /></div>
+            <div class="col-4"><label>Name</label><input id="c_name" placeholder="Acme Corp" /></div>
+            <div class="col-4"><label>Contact</label><input id="c_contact" placeholder="John D." /></div>
+            <div class="col-4"><label>Email</label><input id="c_email" /></div>
+            <div class="col-4"><label>Phone</label><input id="c_phone" /></div>
+            <div class="col-12"><label>Address</label><input id="c_addr" /></div>
+            <div class="col-12">
+              <button class="btn" id="c_create" type="button">Create</button>
+              <span class="hint">POST /customers</span>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="toolbar">
+            <input id="c_q" placeholder="search code/name" />
+            <button class="btn" id="c_reload" type="button">Reload</button>
+          </div>
+          <div id="c_table"></div>
+        </div>
+      </section>
+
+      <!-- Employees -->
+      <section id="page-employees" class="hidden">
+        <h2 class="page-title">👩‍🏭 Employees</h2>
+
+        <div class="card">
+          <b>Create Employee</b>
+          <div class="grid" style="margin-top:8px">
+            <div class="col-4">
+              <label>Full Name</label>
+              <input id="e_name" placeholder="Jane Doe" />
+            </div>
+            <div class="col-4">
+              <label>Email</label>
+              <input id="e_email" placeholder="jane@company.com" />
+            </div>
+            <div class="col-4">
+              <label>Phone</label>
+              <input id="e_phone" placeholder="+1 555-1234" />
+            </div>
+            <div class="col-4">
+              <label>Role/Position</label>
+              <input id="e_role" placeholder="Operator / QA / Supervisor" />
+            </div>
+            <div class="col-12">
+              <button class="btn" id="e_create" type="button">Create</button>
+              <span class="hint">POST /employees</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="toolbar">
+            <input id="e_q" placeholder="search name/email/role" />
+            <button class="btn" id="e_reload" type="button">Reload</button>
+          </div>
+          <div id="e_table"></div>
+        </div>
+      </section>
+
+      <!-- Purchase Orders -->
+      <section id="page-pos" class="hidden">
+        <h2 class="page-title">🧾 Purchase Orders</h2>
+        <div class="card">
+          <div class="grid">
+            <div class="col-4"><label>PO Number</label><input id="po_no" placeholder="PO-2025-0001" /></div>
+            <div class="col-4"><label>Description</label><input id="po_desc" /></div>
+            <div class="col-4"><label>Customer ID</label><input id="po_cust" type="number" /></div>
+            <div class="col-12">
+              <button class="btn" id="po_create" type="button">Create</button>
+              <span class="hint">POST /pos</span>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="toolbar">
+            <button class="btn" id="po_reload" type="button">Reload</button>
+          </div>
+          <div id="po_table"></div>
+        </div>
+      </section>
+
+      <!-- Materials & Batches -->
+      <section id="page-materials" class="hidden">
+        <h2 class="page-title">🧱 Materials & Batches</h2>
+        <div class="grid">
+          <div class="col-6">
+            <div class="card">
+              <b>Create Material</b>
+              <div class="grid" style="margin-top:8px">
+                <div class="col-6"><label>Code</label><input id="m_code" placeholder="AL6061" /></div>
+                <div class="col-6"><label>Name</label><input id="m_name" placeholder="Aluminium 6061" /></div>
+                <div class="col-6"><label>Spec</label><input id="m_spec" placeholder="AMS/ASTM" /></div>
+                <div class="col-6"><label>UoM</label><input id="m_uom" value="kg" /></div>
+                <div class="col-12"><label>Remark</label><input id="m_remark" /></div>
+                <div class="col-12">
+                  <button class="btn" id="m_create" type="button">Create</button>
+                  <span class="hint">POST /materials</span>
+                </div>
+              </div>
+              <div class="toolbar"><button class="btn" id="m_reload" type="button">Reload</button></div>
+              <div id="m_table"></div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="card">
+              <b>Create Batch</b>
+              <div class="grid" style="margin-top:8px">
+                <div class="col-6"><label>Material ID</label><input id="b_mid" type="number" /></div>
+                <div class="col-6"><label>Batch No.</label><input id="b_no" placeholder="B-24001" /></div>
+                <div class="col-6"><label>Supplier ID</label><input id="b_sid" type="number" /></div>
+                <div class="col-6"><label>Qty Received</label><input id="b_qty" type="number" step="0.001" value="0" /></div>
+                <div class="col-6"><label>Location</label><input id="b_loc" placeholder="RACK-A1" /></div>
+                <div class="col-6"><label>Received Date</label><input id="b_recv" type="date" /></div>
+                <div class="col-12">
+                  <button class="btn" id="b_create" type="button">Create</button>
+                  <span class="hint">POST /batches</span>
+                </div>
+              </div>
+              <div class="toolbar"><button class="btn" id="b_reload" type="button">Reload</button></div>
+              <div id="b_table"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Lots -->
+      <section id="page-lots" class="hidden">
+        <h2 class="page-title">🏷️ Production Lots</h2>
+        <div class="card">
+          <div class="grid">
+            <div class="col-4"><label>Lot No.</label><input id="l_no" placeholder="LOT-2025-0001" /></div>
+            <div class="col-4"><label>Part No.</label><input id="l_part" /></div>
+            <div class="col-2"><label>PO ID</label><input id="l_poid" type="number" /></div>
+            <div class="col-2"><label>Planned Qty</label><input id="l_qty" type="number" value="0" /></div>
+            <div class="col-4">
+              <label>Status</label>
+              <select id="l_status">
+                <option value="in_process">in_process</option>
+                <option value="completed">completed</option>
+                <option value="hold">hold</option>
+              </select>
+            </div>
+            <div class="col-12">
+              <button class="btn" id="l_create" type="button">Create</button>
+              <span class="hint">POST /lots</span>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="toolbar"><button class="btn" id="l_reload" type="button">Reload</button></div>
+          <div id="l_table"></div>
+        </div>
+      </section>
+
+      <!-- Travelers & Steps -->
+      <section id="page-trav" class="hidden">
+        <h2 class="page-title">🛠️ Travelers & Steps</h2>
+        <div class="grid">
+          <div class="col-6">
+            <div class="card">
+              <b>Create Traveler</b>
+              <div class="grid" style="margin-top:8px">
+                <div class="col-4"><label>Lot ID</label><input id="t_lot" type="number" /></div>
+                <div class="col-4"><label>Created by (Emp ID)</label><input id="t_emp" type="number" /></div>
+                <div class="col-12"><label>Notes</label><textarea id="t_notes" rows="2"></textarea></div>
+                <div class="col-12">
+                  <button class="btn" id="t_create" type="button">Create</button>
+                  <span class="hint">POST /travelers</span>
+                </div>
+              </div>
+              <div class="toolbar">
+                <input id="t_q" placeholder="filter by lot_id / status" />
+                <button class="btn" id="t_reload" type="button">Reload</button>
+              </div>
+              <div id="t_table"></div>
+            </div>
+          </div>
+
+          <div class="col-6">
+            <div class="card">
+              <b>Add Step</b>
+              <div class="grid" style="margin-top:8px">
+                <div class="col-3"><label>Traveler ID</label><input id="s_tid" type="number" /></div>
+                <div class="col-3"><label>Seq</label><input id="s_seq" type="number" value="1" /></div>
+                <div class="col-6"><label>Station</label><input id="s_station" placeholder="CNC-1" /></div>
+                <div class="col-6"><label>Step Name</label><input id="s_name" placeholder="Milling" /></div>
+                <div class="col-6"><label>Step Code</label><input id="s_code" placeholder="MILL" /></div>
+                <div class="col-6"><label>Operator ID</label><input id="s_op" type="number" /></div>
+                <div class="col-6">
+                  <label>QA Required?</label>
+                  <select id="s_qa">
+                    <option value="false">false</option>
+                    <option value="true">true</option>
+                  </select>
+                </div>
+                <div class="col-12">
+                  <button class="btn" id="s_create" type="button">Add Step</button>
+                  <span class="hint">POST /traveler-steps</span>
+                </div>
+              </div>
+
+              <div class="toolbar">
+                <input id="s_list_tid" placeholder="Traveler ID for listing" />
+                <button class="btn" id="s_reload" type="button">Load Steps</button>
+              </div>
+              <div id="s_table"></div>
+
+              <div class="toolbar">
+                <input id="s_act" placeholder="Step ID" />
+                <button class="btn" id="s_start" type="button">Start</button>
+                <select id="s_result">
+                  <option>passed</option>
+                  <option>failed</option>
+                  <option>skipped</option>
+                </select>
+                <input id="s_qa_result" placeholder="qa_result" />
+                <input id="s_qa_notes" placeholder="qa_notes" />
+                <button class="btn" id="s_finish" type="button">Finish</button>
+              </div>
+              <div class="hint">POST /traveler-steps/{id}/start และ /finish?result=...</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Subcontracting -->
+      <section id="page-subcon" class="hidden">
+        <h2 class="page-title">🚚 Subcontracting</h2>
+
+        <div class="card">
+          <b>Create Subcon Order</b>
+          <div class="grid" style="margin-top:8px">
+            <div class="col-3"><label>Supplier ID</label><input id="sc_sup" type="number" /></div>
+            <div class="col-3"><label>Ref No</label><input id="sc_ref" /></div>
+            <div class="col-3"><label>Due Date</label><input id="sc_due" type="date" /></div>
+            <div class="col-3"><label>Notes</label><input id="sc_notes" /></div>
+            <div class="col-12">
+              <label class="hint">Lines (traveler_step_id, qty_planned, unit_cost)</label>
+              <textarea id="sc_lines" rows="3">[
+  {"traveler_step_id": 1, "qty_planned": 100, "unit_cost": 2.50}
+]</textarea>
+            </div>
+            <div class="col-12"><button class="btn" id="sc_create" type="button">Create Order</button></div>
+          </div>
+
+          <div class="toolbar"><button class="btn" id="sc_reload" type="button">Reload Orders</button></div>
+          <div id="sc_table"></div>
+        </div>
+
+        <div class="grid">
+          <div class="col-6">
+            <div class="card">
+              <b>Create Shipment</b>
+              <div class="grid" style="margin-top:8px">
+                <div class="col-3"><label>Order ID</label><input id="sh_order" type="number" /></div>
+                <div class="col-3"><label>Carrier</label><input id="sh_carrier" /></div>
+                <div class="col-3"><label>Tracking</label><input id="sh_track" /></div>
+                <div class="col-3"><label>Package No</label><input id="sh_pkg" /></div>
+                <div class="col-12">
+                  <label class="hint">Items (traveler_step_id, qty)</label>
+                  <textarea id="sh_items" rows="3">[
+  {"traveler_step_id": 1, "qty": 50}
+]</textarea>
+                </div>
+                <div class="col-12"><button class="btn" id="sh_create" type="button">Create Shipment</button></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-6">
+            <div class="card">
+              <b>Create Receipt</b>
+              <div class="grid" style="margin-top:8px">
+                <div class="col-3"><label>Order ID</label><input id="rc_order" type="number" /></div>
+                <div class="col-3"><label>Doc No</label><input id="rc_doc" /></div>
+                <div class="col-3"><label>Received By</label><input id="rc_by" /></div>
+                <div class="col-3"><label>Received At</label><input id="rc_at" type="datetime-local" /></div>
+                <div class="col-12">
+                  <label class="hint">Items (traveler_step_id, qty_received, qty_rejected, scrap_qty, qa_result, qa_notes)</label>
+                  <textarea id="rc_items" rows="3">[
+  {"traveler_step_id": 1, "qty_received": 40, "qty_rejected": 5, "scrap_qty": 0, "qa_result": "pass", "qa_notes": "OK"}
+]</textarea>
+                </div>
+                <div class="col-12"><button class="btn" id="rc_create" type="button">Create Receipt</button></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Suppliers -->
+      <section id="page-suppliers" class="hidden">
+        <h2 class="page-title">🏢 Suppliers</h2>
+        <div class="card">
+          <div class="grid">
+            <div class="col-3"><label>Code</label><input id="sup_code" placeholder="SUP-001" /></div>
+            <div class="col-3"><label>Name</label><input id="sup_name" placeholder="ABC Metals" /></div>
+            <div class="col-3"><label>Phone</label><input id="sup_phone" /></div>
+            <div class="col-3"><label>Email</label><input id="sup_email" /></div>
+            <div class="col-12"><label>Address</label><input id="sup_addr" /></div>
+            <div class="col-12">
+              <button class="btn" id="sup_create" type="button">Create</button>
+              <span class="hint">POST /suppliers</span>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="toolbar">
+            <input id="sup_q" placeholder="search code/name" />
+            <button class="btn" id="sup_reload" type="button">Reload</button>
+          </div>
+          <div id="sup_table"></div>
+        </div>
+      </section>
+
+      <!-- Reports -->
+      <section id="page-reports" class="hidden">
+        <h2 class="page-title">📊 Reports</h2>
+        <div class="card">
+          <div class="toolbar">
+            <button class="btn" id="rpt_lot_status" type="button">Lots by Status</button>
+            <button class="btn" id="rpt_subcon_due" type="button">Subcon due (7d)</button>
+          </div>
+          <div id="rpt_area"></div>
+        </div>
+      </section>
+
+    <section id="page-customer-detail" class="hidden">
+      <h2 class="page-title" id="cust_title">Customer</h2>
+      <div class="toolbar">
+        <button class="btn" id="cust_back" type="button">← Back</button>
+      </div>
+      <div id="cust_view"></div>
+    </section>
+
+    </main>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span></div>
+
+  <!-- SPA bootstrap -->
+  <script type="module" src="/static/js/main.js"></script>
+</body>
+</html>

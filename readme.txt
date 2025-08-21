@@ -24,7 +24,12 @@ sqlacodegen postgresql://postgres:1234@localhost:5432/mydb --outfile models.py
 
  IPv4 Address. . . . . . . . . . . : 192.168.1.211
 
+ CNC Topcouch 192.168.1.198
+
 
 
 alembic revision --autogenerate -m "add users and time_entries tables"
 alembic upgrade head
+
+100.76.36.69
+fd7a:115c:a1e0::ef01:2452

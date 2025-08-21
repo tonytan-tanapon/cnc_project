@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Shop Travelers (CRUD)</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<style>
+  :root { --b:#ddd; --bg:#f7f7f7; }
+  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;margin:24px}
+  h1{margin:0 0 10px}
+  .sub{color:#666;font-size:13px;margin-bottom:12px}
+  .toolbar{display:flex;gap:8px;margin-bottom:12px}
+  .btn{padding:6px 10px;border:1px solid var(--b);border-radius:6px;background:#fff;cursor:pointer}
+  .btn[disabled]{opacity:.5;cursor:not-allowed}
+  table{width:100%;border-collapse:collapse}
+  th,td{border:1px solid var(--b);padding:8px;vertical-align:top}
+  th{text-align:left;background:var(--bg)}
+  td[contenteditable="true"]{outline:2px solid #9ad; background:#eef}
+  .actions{display:flex;gap:6px;flex-wrap:wrap}
+  .muted{color:#666;font-size:12px}
+  .nowrap{white-space:nowrap}
+</style>
+</head>
+<body>
+  <h1>Shop Travelers</h1>
+  <div class="sub">Add / inline edit / delete. Click “Steps” to manage steps of a traveler.</div>
+
+  <div class="toolbar">
+    <button id="btnAdd" class="btn">+ Add Traveler</button>
+    <button id="btnReload" class="btn">Reload</button>
+    <span id="status" class="muted">Ready.</span>
+  </div>
+
+  <table id="tbl">
+    <thead>
+      <tr>
+        <th style="width:70px">ID</th>
+        <th>Lot ID</th>
+        <th>Created By</th>
+        <th>Status</th>
+        <th>Notes</th>
+        <th>Created At</th>
+        <th style="width:220px">Actions</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+<script>
+const API_LIST   = '/travelers';
+const API_ITEM   = id => `/travelers/${id}`;
+const STEPS_LINK = id => `/static/traveler_steps.html?traveler_id=${encodeURIComponent(id)}`;
+
+const tbody = document.querySelector('#tbl tbody');
+const statusEl = document.getElementById('status');
+document.getElementById('btnReload').addEventListener('click', loadRows);
+document.getElementById('btnAdd').addEventListener('click', addBlankRow);
+
+function esc(s){ return String(s ?? '').replace(/[&<>"']/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m])); }
+function fmtDate(v){ try{ return v? new Date(v).toLocaleString() : "" }catch{ return v??"" } }
+function setStatus(t){ statusEl.textContent = t }
+
+function rowHTML(t){
+  const id = t?.id ?? '';
+  const lot_id = t?.lot_id ?? '';
+  const created_by_id = t?.created_by_id ?? '';
+  const status = t?.status ?? 'open';
+  const notes = t?.notes ?? '';
+  const created_at = t?.created_at ?? '';
+
+  return `
+    <tr data-id="${id}">
+      <td class="nowrap">${id}</td>
+      <td data-field="lot_id">${esc(lot_id)}</td>
+      <td data-field="created_by_id">${esc(created_by_id)}</td>
+      <td data-field="status">${esc(status)}</td>
+      <td data-field="notes">${esc(notes)}</td>
+      <td>${esc(fmtDate(created_at))}</td>
+      <td class="actions">
+        <a class="btn" href="${id?STEPS_LINK(id):'#'}" ${id?'':'style="pointer-events:none;opacity:.5"'}>Steps</a>
+        <button class="btn btnEdit">Edit</button>
+        <button class="btn btnSave" style="display:none">Save</button>
+        <button class="btn btnCancel" style="display:none">Cancel</button>
+        <button class="btn btnDelete" ${id?'':'disabled'}>Delete</button>
+      </td>
+    </tr>
+  `;
+}
+
+async function loadRows(){
+  setStatus('Loading…');
+  tbody.innerHTML = '';
+  try{
+    const res = await fetch(API_LIST);
+    if(!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+    if(!Array.isArray(data) || data.length===0){
+      setStatus('No travelers.');
+      return;
+    }
+    tbody.innerHTML = data.map(rowHTML).join('');
+    setStatus(`${data.length} traveler(s) loaded.`);
+  }catch(e){
+    console.error(e); setStatus('Failed: '+e.message);
+  }
+}
+loadRows();
+
+function addBlankRow(){
+  // prepend a brand-new editable row (id empty => POST on save)
+  const tr = document.createElement('tr');
+  tr.innerHTML = rowHTML({status:'open'});
+  tbody.prepend(tr);
+  enterEdit(tr);
+}
+
+function enterEdit(tr){
+  const tds = tr.querySelectorAll('[data-field]');
+  tds.forEach(td => td.setAttribute('contenteditable', 'true'));
+  tr.classList.add('editing');
+  tr.querySelector('.btnEdit').style.display = 'none';
+  tr.querySelector('.btnSave').style.display = '';
+  tr.querySelector('.btnCancel').style.display = '';
+}
+
+function exitEdit(tr, revert=false){
+  const tds = tr.querySelectorAll('[data-field]');
+  tds.forEach(td => td.setAttribute('contenteditable', 'false'));
+  tr.classList.remove('editing');
+  tr.querySelector('.btnEdit').style.display = '';
+  tr.querySelector('.btnSave').style.display = 'none';
+  tr.querySelector('.btnCancel').style.display = 'none';
+  if(revert) { // reload the row from server if it has id
+    const id = tr.dataset.id;
+    if(id){ reloadRow(tr, id); } else { tr.remove(); }
+  }
+}
+
+async function reloadRow(tr, id){
+  try{
+    const res = await fetch(API_ITEM(id));
+    if(!res.ok) throw new Error(await res.text());
+    const t = await res.json();
+    const fresh = document.createElement('tbody');
+    fresh.innerHTML = rowHTML(t);
+    tr.replaceWith(fresh.firstElementChild);
+  }catch(e){
+    console.error(e); setStatus('Reload row failed: '+e.message);
+  }
+}
+
+function getPayloadFromRow(tr){
+  // Only send fields allowed by API: lot_id, created_by_id, status, notes
+  const get = name => tr.querySelector(`[data-field="${name}"]`)?.innerText.trim() ?? '';
+  const payload = {
+    lot_id: parseInt(get('lot_id')) || null,
+    created_by_id: parseInt(get('created_by_id')) || null,
+    status: get('status') || 'open',
+    notes: get('notes') || null,
+  };
+  return payload;
+}
+
+async function saveRow(tr){
+  const id = tr.dataset.id;
+  const payload = getPayloadFromRow(tr);
+  try{
+    setStatus('Saving…');
+    let res;
+    if(id){
+      res = await fetch(API_ITEM(id), {
+        method:'PUT',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(payload),
+      });
+    }else{
+      res = await fetch(API_LIST, {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(payload),
+      });
+    }
+    if(!res.ok) throw new Error(await res.text());
+    const saved = await res.json();
+    // Replace with fresh row UI
+    const fresh = document.createElement('tbody');
+    fresh.innerHTML = rowHTML(saved);
+    tr.replaceWith(fresh.firstElementChild);
+    setStatus('Saved.');
+  }catch(e){
+    console.error(e); setStatus('Save failed: '+e.message);
+  }
+}
+
+async function deleteRow(tr){
+  const id = tr.dataset.id;
+  if(!id){ tr.remove(); return; }
+  if(!confirm(`Delete traveler #${id}?`)) return;
+  try{
+    setStatus('Deleting…');
+    const res = await fetch(API_ITEM(id), { method:'DELETE' });
+    if(!res.ok) throw new Error(await res.text());
+    tr.remove();
+    setStatus('Deleted.');
+  }catch(e){
+    console.error(e); setStatus('Delete failed: '+e.message);
+  }
+}
+
+tbody.addEventListener('click', (ev)=>{
+  const btn = ev.target.closest('button, a');
+  if(!btn) return;
+  const tr = ev.target.closest('tr');
+  if(btn.classList.contains('btnEdit'))   enterEdit(tr);
+  else if(btn.classList.contains('btnSave'))   saveRow(tr).then(()=>{ /* no-op */ });
+  else if(btn.classList.contains('btnCancel')) exitEdit(tr, true);
+  else if(btn.classList.contains('btnDelete')) deleteRow(tr);
+});
+</script>
+</body>
+</html>

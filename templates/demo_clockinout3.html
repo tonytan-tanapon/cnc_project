@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tiny Time Clock (API)</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 24px; color: #111; background: #fff; }
+    #now { font-size: 28px; font-weight: 600; margin-bottom: 16px; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+    button { font: inherit; padding: 20px; border: none; border-radius: 10px; color: #fff; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+
+    /* Colors */
+    #btnLeft.log-in { background: #2d9cdb; }      /* blue for log in */
+    #btnLeft.log-out { background: #eb5757; }     /* red for log out */
+    #btnRight.start-break { background: #f2c94c; color:#111; } /* yellow for start break */
+    #btnRight.stop-break { background: #27ae60; } /* green for stop break */
+
+    .list { border: 1px solid #e5e5e5; border-radius: 10px; }
+    .item { display: grid; grid-template-columns: 200px 1fr; gap: 12px; padding: 10px 12px; border-top: 1px solid #f0f0f0; }
+    .item:first-child { border-top: 0; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    .muted { color: #666; }
+    .header { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+    small { font-size: 12px; }
+    .row2 { display:flex; gap:12px; align-items:center; margin-bottom: 16px; }
+    input, select { padding:8px; border:1px solid #ccc; border-radius:8px; font: inherit; }
+    .badge { display:inline-block; border:1px solid #e5e5e5; padding:4px 8px; border-radius:999px; font-size:12px; color:#444; background:#fafafa; }
+  </style>
+</head>
+<body>
+  <div id="now">—</div>
+
+  <!-- quick context controls (optional) -->
+  <div class="row2">
+    <span class="badge" id="who">—</span>
+    <label>Employee ID
+      <input id="employeeId" type="number" placeholder="e.g. 101" style="width:120px;">
+    </label>
+    <label>Method
+      <select id="method">
+        <option value="web" selected>web</option>
+        <option value="ipad">ipad</option>
+        <option value="qr">qr</option>
+        <option value="badge">badge</option>
+      </select>
+    </label>
+    <label>Location
+      <input id="location" type="text" placeholder="Front Desk" style="width:160px;">
+    </label>
+  </div>
+
+  <div class="row">
+    <button id="btnLeft" class="log-in">Log In</button>
+    <button id="btnRight" class="start-break" disabled>Start Break</button>
+  </div>
+
+  <div class="header">
+    <strong>Activity</strong>
+    <small class="muted">(Log In, Log Out, Start Break, Stop Break)</small>
+  </div>
+  <div id="activity" class="list"></div>
+
+  <script>
+    // =============================
+    // Config
+    // =============================
+    const API_BASE = localStorage.getItem('api_base') || 'http://127.0.0.1:8000';
+    // Prior login page should set localStorage.access_token = '...'; and current user info
+    const TOKEN = localStorage.getItem('access_token');
+
+    // Guard: if no token, bounce to login page (adjust path to your app)
+    if (!TOKEN) {
+      alert('Not authenticated. Please login first.');
+      window.location.href = '/login.html';
+    }
+
+    // =============================
+    // Simple state (also mirrors server)
+    // =============================
+    const LS_KEY = 'tiny_time_clock_api_v1';
+    const state = { status: 'idle', onBreak: false, activities: [], timeEntryId: null, lastBreakId: null, user: null };
+
+    function load() { try { const s = JSON.parse(localStorage.getItem(LS_KEY)); if (s) Object.assign(state, s); } catch {} }
+    function save() { localStorage.setItem(LS_KEY, JSON.stringify(state)); }
+
+    const $ = (id) => document.getElementById(id);
+    const left = $('btnLeft');
+    const right = $('btnRight');
+
+    function nowISO() { return new Date().toISOString(); }
+    function fmt(ts) { return new Date(ts).toLocaleString(); }
+
+    // =============================
+    // API helper
+    // =============================
+    async function apiFetch(path, options = {}) {
+      const res = await fetch(`${API_BASE}${path}`, {
+        ...options,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${TOKEN}`,
+          ...(options.headers || {})
+        }
+      });
+      if (res.status === 401) {
+        alert('Session expired. Please login again.');
+        localStorage.removeItem('access_token');
+        window.location.href = '/login.html';
+        return;
+      }
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`API ${res.status}: ${text}`);
+      }
+      const ct = res.headers.get('content-type') || '';
+      return ct.includes('application/json') ? res.json() : res.text();
+    }
+
+    // Get current user (optional, for header badge)
+    async function fetchMe() {
+      try {
+        const me = await apiFetch('/auth/me');
+        state.user = me;
+        $('who').textContent = `User: ${me.username} (id=${me.id})`;
+        save();
+      } catch (e) {
+        console.warn(e);
+      }
+    }
+
+    // =============================
+    // Render
+    // =============================
+    function addActivity(kind) {
+      state.activities.unshift({ kind, at: nowISO() });
+      save();
+      renderActivities();
+    }
+
+    function renderActivities() {
+      const box = $('activity');
+      if (!state.activities.length) { box.innerHTML = '<div class="item muted">No activity yet.</div>'; return; }
+      box.innerHTML = state.activities.map(a => `
+        <div class="item">
+          <div class="mono">${fmt(a.at)}</div>
+          <div>${a.kind}</div>
+        </div>
+      `).join('');
+    }
+
+    function updateButtons() {
+      if (state.status === 'idle') {
+        left.textContent = 'Log In';
+        left.className = 'log-in';
+      } else {
+        left.textContent = 'Log Out';
+        left.className = 'log-out';
+      }
+
+      right.disabled = (state.status === 'idle');
+      if (state.status === 'working') {
+        right.textContent = 'Start Break';
+        right.className = 'start-break';
+      }
+      if (state.status === 'lunch') {
+        right.textContent = 'Stop Break';
+        right.className = 'stop-break';
+      }
+    }
+
+    function tickNow() { $('now').textContent = new Date().toLocaleString(); }
+
+    // =============================
+    // Actions (wired to API)
+    // =============================
+    async function onLeft() {
+      try {
+        if (state.status === 'idle') {
+          const employeeId = parseInt($('employeeId').value || '0', 10);
+          if (!employeeId) { alert('Please enter Employee ID'); return; }
+          const payload = {
+            employee_id: employeeId,
+            method: $('method').value,
+            location: $('location').value || null,
+            notes: null
+          };
+          const tr = await apiFetch('/time-entries/start', { method: 'POST', body: JSON.stringify(payload) });
+          state.timeEntryId = tr.id;
+          state.status = 'working';
+          state.onBreak = false;
+          addActivity('Log In');
+        } else {
+          // If logging out during break, server will auto-close last break
+          const payload = { method: $('method').value, location: $('location').value || null, notes: null };
+          const tr = await apiFetch(`/time-entries/${state.timeEntryId}/stop`, { method: 'POST', body: JSON.stringify(payload) });
+          state.status = 'idle';
+          state.onBreak = false;
+          state.timeEntryId = null;
+          state.lastBreakId = null;
+          addActivity('Log Out');
+        }
+        updateButtons();
+      } catch (e) {
+        alert(e.message);
+        console.error(e);
+      }
+    }
+
+    async function onRight() {
+      try {
+        if (!state.timeEntryId) { alert('No active time entry. Please Log In.'); return; }
+        if (state.status === 'working' && !state.onBreak) {
+          const payload = { time_entry_id: state.timeEntryId, break_type: 'lunch', method: $('method').value, location: $('location').value || null, is_paid: false };
+          const br = await apiFetch('/breaks/start', { method: 'POST', body: JSON.stringify(payload) });
+          state.lastBreakId = br.id;
+          state.status = 'lunch';
+          state.onBreak = true;
+          addActivity('Start Break');
+        } else if (state.status === 'lunch' && state.onBreak) {
+          await apiFetch(`/breaks/${state.lastBreakId}/stop`, { method: 'POST', body: JSON.stringify({}) });
+          state.status = 'working';
+          state.onBreak = false;
+          addActivity('Stop Break');
+        }
+        updateButtons();
+      } catch (e) {
+        alert(e.message);
+        console.error(e);
+      }
+    }
+
+    function bind() {
+      left.addEventListener('click', onLeft);
+      right.addEventListener('click', onRight);
+    }
+
+    // Init
+    load();
+    bind();
+    updateButtons();
+    renderActivities();
+    tickNow();
+    setInterval(tickNow, 1000);
+    fetchMe();
+  </script>
+</body>
+</html>

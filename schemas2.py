@@ -1,25 +1,11 @@
+from pydantic import BaseModel, Field
 from typing import Optional, Literal, List
 from datetime import date, datetime
 from decimal import Decimal
-from pydantic import BaseModel, ConfigDict, Field
 
-# ---------------------------
-# Base config (Pydantic v2)
-# ---------------------------
-class APIBase(BaseModel):
-    # from_attributes = True ให้แปลงจาก ORM ได้
-    # Decimal -> float เพื่อส่ง JSON ได้สะดวก (ปรับตามความต้องการได้)
-    model_config = ConfigDict(
-        from_attributes=True,
-        json_encoders={Decimal: float}
-    )
-
-# =========================================
-# =============== Customers ===============
-# =========================================
-
-class CustomerBase(APIBase):
-    code: str
+# ---------------- Customers ----------------
+class CustomerBase(BaseModel):
+    code: Optional[str] = None   # เดิมอาจเป็น str
     name: str
     contact: Optional[str] = None
     email: Optional[str] = None
@@ -29,7 +15,7 @@ class CustomerBase(APIBase):
 class CustomerCreate(CustomerBase):
     pass
 
-class CustomerUpdate(APIBase):
+class CustomerUpdate(BaseModel):
     name: Optional[str] = None
     contact: Optional[str] = None
     email: Optional[str] = None
@@ -38,35 +24,33 @@ class CustomerUpdate(APIBase):
 
 class CustomerOut(CustomerBase):
     id: int
+    class Config:
+        from_attributes = True
 
 
-# =========================================
-# ============ Purchase Orders ============
-# =========================================
-
-class POCreate(APIBase):
-    po_number: str
+# ---------------- Purchase Orders ----------------
+class POCreate(BaseModel):
+    po_number: Optional[str] = None   # เดิมอาจเป็น str
     customer_id: int
     description: Optional[str] = None
 
-class POUpdate(APIBase):
+class POUpdate(BaseModel):
     po_number: Optional[str] = None
     customer_id: Optional[int] = None
     description: Optional[str] = None
 
-class POOut(APIBase):
+class POOut(BaseModel):
     id: int
     po_number: str
     customer_id: int
     description: Optional[str] = None
+    class Config:
+        from_attributes = True
 
 
-# =========================================
-# ================ Employees ==============
-# =========================================
-
-class EmployeeBase(APIBase):
-    emp_code: str
+# ---------------- Employees ----------------
+class EmployeeBase(BaseModel):
+    emp_code: Optional[str] = None
     name: str
     position: Optional[str] = None
     department: Optional[str] = None
@@ -77,7 +61,7 @@ class EmployeeBase(APIBase):
 class EmployeeCreate(EmployeeBase):
     pass
 
-class EmployeeUpdate(APIBase):
+class EmployeeUpdate(BaseModel):
     name: Optional[str] = None
     position: Optional[str] = None
     department: Optional[str] = None
@@ -87,13 +71,12 @@ class EmployeeUpdate(APIBase):
 
 class EmployeeOut(EmployeeBase):
     id: int
+    class Config:
+        from_attributes = True
 
 
-# =========================================
-# ================= Suppliers =============
-# =========================================
-
-class SupplierCreate(APIBase):
+# ---------- Suppliers (ใหม่) ----------
+class SupplierCreate(BaseModel):
     code: str
     name: str
     contact: Optional[str] = None
@@ -102,7 +85,7 @@ class SupplierCreate(APIBase):
     address: Optional[str] = None
     payment_terms: Optional[str] = None
 
-class SupplierUpdate(APIBase):
+class SupplierUpdate(BaseModel):
     name: Optional[str] = None
     contact: Optional[str] = None
     email: Optional[str] = None
@@ -110,7 +93,7 @@ class SupplierUpdate(APIBase):
     address: Optional[str] = None
     payment_terms: Optional[str] = None
 
-class SupplierOut(APIBase):
+class SupplierOut(BaseModel):
     id: int
     code: str
     name: str
@@ -119,51 +102,49 @@ class SupplierOut(APIBase):
     phone: Optional[str] = None
     address: Optional[str] = None
     payment_terms: Optional[str] = None
+    class Config:
+        from_attributes = True
 
 
-# =========================================
-# ============== Raw Materials ============
-# =========================================
-
-class RawMaterialCreate(APIBase):
+# ---------- Raw Materials ----------
+class RawMaterialCreate(BaseModel):
     code: str
     name: str
     spec: Optional[str] = None
     uom: Optional[str] = "kg"
     remark: Optional[str] = None
 
-class RawMaterialUpdate(APIBase):
+class RawMaterialUpdate(BaseModel):
     name: Optional[str] = None
     spec: Optional[str] = None
     uom: Optional[str] = None
     remark: Optional[str] = None
 
-class RawMaterialOut(APIBase):
+class RawMaterialOut(BaseModel):
     id: int
     code: str
     name: str
     spec: Optional[str] = None
     uom: Optional[str] = None
     remark: Optional[str] = None
+    class Config:
+        from_attributes = True
 
 
-# =========================================
-# ================= Raw Batches ===========
-# =========================================
-
-class RawBatchCreate(APIBase):
+# ---------- Raw Batches (แก้ไขให้มาตรฐาน) ----------
+class RawBatchCreate(BaseModel):
     material_id: int
-    batch_no: str
-    supplier_id: Optional[int] = None
-    supplier_batch_no: Optional[str] = None
-    mill_name: Optional[str] = None
-    mill_heat_no: Optional[str] = None
+    batch_no: str                                  # เลขล็อตจาก supplier
+    supplier_id: Optional[int] = None              # FK -> Supplier (ถ้ามี)
+    supplier_batch_no: Optional[str] = None        # เลขอ้างอิงภายในของ supplier
+    mill_name: Optional[str] = None                # โรงหลอมต้นทาง
+    mill_heat_no: Optional[str] = None             # Heat No. จากโรงหลอม
     received_at: Optional[date] = None
     qty_received: Decimal = Field(..., gt=Decimal("0"))
     location: Optional[str] = None
     cert_file: Optional[str] = None
 
-class RawBatchUpdate(APIBase):
+class RawBatchUpdate(BaseModel):
     batch_no: Optional[str] = None
     supplier_id: Optional[int] = None
     supplier_batch_no: Optional[str] = None
@@ -174,7 +155,7 @@ class RawBatchUpdate(APIBase):
     location: Optional[str] = None
     cert_file: Optional[str] = None
 
-class RawBatchOut(APIBase):
+class RawBatchOut(BaseModel):
     id: int
     material_id: int
     batch_no: str
@@ -187,97 +168,90 @@ class RawBatchOut(APIBase):
     qty_used: Decimal
     location: Optional[str] = None
     cert_file: Optional[str] = None
+    class Config:
+        from_attributes = True
 
 
-# =========================================
-# ============== Production Lots ==========
-# =========================================
-
+# ---------- Production Lots ----------
 LotStatus = Literal["planned", "in_process", "hold", "completed", "shipped", "canceled"]
 
-class ProductionLotCreate(APIBase):
+class ProductionLotCreate(BaseModel):
     lot_no: str
-    part_id: int                 # ใช้ตรงกับ Model
-    part_revision_id: Optional[int] = None
+    part_no: Optional[str] = None
     po_id: Optional[int] = None
     planned_qty: int = 0
     started_at: Optional[datetime] = None
     finished_at: Optional[datetime] = None
     status: Optional[LotStatus] = "in_process"
 
-class ProductionLotUpdate(APIBase):
-    part_id: Optional[int] = None
-    part_revision_id: Optional[int] = None
+class ProductionLotUpdate(BaseModel):
+    part_no: Optional[str] = None
     po_id: Optional[int] = None
     planned_qty: Optional[int] = None
     started_at: Optional[datetime] = None
     finished_at: Optional[datetime] = None
     status: Optional[LotStatus] = None
 
-class ProductionLotOut(APIBase):
+class ProductionLotOut(BaseModel):
     id: int
     lot_no: str
-    part_id: int
-    part_revision_id: Optional[int] = None
+    part_no: Optional[str] = None
     po_id: Optional[int] = None
     planned_qty: int
     started_at: Optional[datetime] = None
     finished_at: Optional[datetime] = None
     status: LotStatus
-    # ดึงจาก property ใน ORM
-    part_no: Optional[str] = None
+    class Config:
+        from_attributes = True
 
 
-# =========================================
-# ============ Lot Material Use ===========
-# =========================================
-
-class LotMaterialUseCreate(APIBase):
+# ---------- Lot Material Use ----------
+class LotMaterialUseCreate(BaseModel):
     lot_id: int
     batch_id: int
     qty: Decimal = Field(..., gt=Decimal("0"))
 
-class LotMaterialUseUpdate(APIBase):
-    qty: Decimal = Field(..., gt=Decimal("0"))
+class LotMaterialUseUpdate(BaseModel):
+    qty: Decimal = Field(..., gt=Decimal("0"))  # เปลี่ยนปริมาณ (จะคำนวณ delta ให้)
 
-class LotMaterialUseOut(APIBase):
+class LotMaterialUseOut(BaseModel):
     id: int
     lot_id: int
     batch_id: int
     qty: Decimal
+    class Config:
+        from_attributes = True
 
 
-# =========================================
-# ============== Shop Traveler ============
-# =========================================
-
+# ---------- Shop Traveler ----------
 TravelerStatus = Literal["open", "in_progress", "completed", "hold", "canceled"]
 
-class ShopTravelerCreate(APIBase):
+class ShopTravelerCreate(BaseModel):
     lot_id: int
     created_by_id: Optional[int] = None
     notes: Optional[str] = None
     status: Optional[TravelerStatus] = "open"
 
-class ShopTravelerUpdate(APIBase):
+class ShopTravelerUpdate(BaseModel):
     created_by_id: Optional[int] = None
     notes: Optional[str] = None
     status: Optional[TravelerStatus] = None
 
-class ShopTravelerOut(APIBase):
+class ShopTravelerOut(BaseModel):
     id: int
     lot_id: int
     created_by_id: Optional[int] = None
     status: TravelerStatus
     notes: Optional[str] = None
     created_at: datetime
+    class Config:
+        from_attributes = True
 
 
 # --- Shop Traveler Steps ---
-
 StepStatus = Literal["pending", "running", "passed", "failed", "skipped"]
 
-class ShopTravelerStepCreate(APIBase):
+class ShopTravelerStepCreate(BaseModel):
     traveler_id: int
     seq: int
     step_name: str
@@ -286,7 +260,7 @@ class ShopTravelerStepCreate(APIBase):
     operator_id: Optional[int] = None
     qa_required: Optional[bool] = False
 
-class ShopTravelerStepUpdate(APIBase):
+class ShopTravelerStepUpdate(BaseModel):
     seq: Optional[int] = None
     step_name: Optional[str] = None
     step_code: Optional[str] = None
@@ -299,7 +273,7 @@ class ShopTravelerStepUpdate(APIBase):
     qa_result: Optional[str] = None
     qa_notes: Optional[str] = None
 
-class ShopTravelerStepOut(APIBase):
+class ShopTravelerStepOut(BaseModel):
     id: int
     traveler_id: int
     seq: int
@@ -313,44 +287,44 @@ class ShopTravelerStepOut(APIBase):
     qa_required: bool
     qa_result: Optional[str] = None
     qa_notes: Optional[str] = None
+    class Config:
+        from_attributes = True
 
 
-# =========================================
-# ============== Subcontracting ===========
-# =========================================
-
+# ---------- Subcontracting (ใหม่ตามมาตรฐาน) ----------
 SubconOrderStatus = Literal["open", "confirmed", "shipped", "received", "closed", "cancelled"]
 SubconShipmentStatus = Literal["shipped", "partially_received", "closed"]
 SubconReceiptStatus = Literal["received", "partial", "rejected"]
 
-# Orders
-class SubconOrderLineIn(APIBase):
+class SubconOrderLineIn(BaseModel):
     traveler_step_id: int
     qty_planned: Decimal = Field(..., gt=Decimal("0"))
     unit_cost: Optional[Decimal] = None
 
-class SubconOrderCreate(APIBase):
+class SubconOrderCreate(BaseModel):
     supplier_id: int
     ref_no: Optional[str] = None
     due_date: Optional[date] = None
     notes: Optional[str] = None
     lines: List[SubconOrderLineIn]
 
-class SubconOrderUpdate(APIBase):
+class SubconOrderUpdate(BaseModel):
     supplier_id: Optional[int] = None
     ref_no: Optional[str] = None
     due_date: Optional[date] = None
     notes: Optional[str] = None
     status: Optional[SubconOrderStatus] = None
 
-class SubconOrderLineOut(APIBase):
+class SubconOrderLineOut(BaseModel):
     id: int
     order_id: int
     traveler_step_id: int
     qty_planned: Decimal
     unit_cost: Optional[Decimal] = None
+    class Config:
+        from_attributes = True
 
-class SubconOrderOut(APIBase):
+class SubconOrderOut(BaseModel):
     id: int
     supplier_id: int
     ref_no: Optional[str] = None
@@ -359,14 +333,16 @@ class SubconOrderOut(APIBase):
     due_date: Optional[date] = None
     notes: Optional[str] = None
     lines: List[SubconOrderLineOut] = []
+    class Config:
+        from_attributes = True
 
 
 # Shipments
-class SubconShipmentItemIn(APIBase):
+class SubconShipmentItemIn(BaseModel):
     traveler_step_id: int
     qty: Decimal = Field(..., gt=Decimal("0"))
 
-class SubconShipmentCreate(APIBase):
+class SubconShipmentCreate(BaseModel):
     order_id: int
     shipped_at: Optional[datetime] = None
     shipped_by: Optional[str] = None
@@ -375,13 +351,15 @@ class SubconShipmentCreate(APIBase):
     tracking_no: Optional[str] = None
     items: List[SubconShipmentItemIn]
 
-class SubconShipmentItemOut(APIBase):
+class SubconShipmentItemOut(BaseModel):
     id: int
     shipment_id: int
     traveler_step_id: int
     qty: Decimal
+    class Config:
+        from_attributes = True
 
-class SubconShipmentOut(APIBase):
+class SubconShipmentOut(BaseModel):
     id: int
     order_id: int
     shipped_at: datetime
@@ -391,10 +369,12 @@ class SubconShipmentOut(APIBase):
     tracking_no: Optional[str] = None
     status: SubconShipmentStatus
     items: List[SubconShipmentItemOut] = []
+    class Config:
+        from_attributes = True
 
 
 # Receipts
-class SubconReceiptItemIn(APIBase):
+class SubconReceiptItemIn(BaseModel):
     traveler_step_id: int
     qty_received: Decimal = Field(..., ge=Decimal("0"))
     qty_rejected: Decimal = Field(default=Decimal("0"), ge=Decimal("0"))
@@ -402,14 +382,14 @@ class SubconReceiptItemIn(APIBase):
     qa_result: Optional[str] = None
     qa_notes: Optional[str] = None
 
-class SubconReceiptCreate(APIBase):
+class SubconReceiptCreate(BaseModel):
     order_id: int
     received_at: Optional[datetime] = None
     received_by: Optional[str] = None
     doc_no: Optional[str] = None
     items: List[SubconReceiptItemIn]
 
-class SubconReceiptItemOut(APIBase):
+class SubconReceiptItemOut(BaseModel):
     id: int
     receipt_id: int
     traveler_step_id: int
@@ -418,8 +398,10 @@ class SubconReceiptItemOut(APIBase):
     scrap_qty: Decimal
     qa_result: Optional[str] = None
     qa_notes: Optional[str] = None
+    class Config:
+        from_attributes = True
 
-class SubconReceiptOut(APIBase):
+class SubconReceiptOut(BaseModel):
     id: int
     order_id: int
     received_at: datetime
@@ -427,129 +409,33 @@ class SubconReceiptOut(APIBase):
     doc_no: Optional[str] = None
     status: SubconReceiptStatus
     items: List[SubconReceiptItemOut] = []
+    class Config:
+        from_attributes = True
 
-#### Break Entries ####
 class BreakEntryBase(BaseModel):
-    break_type: str = "lunch"
+    break_type: str = "lunch"                # lunch/rest/other
+    start_at: datetime
+    end_at: Optional[datetime] = None
+    method: Optional[str] = None             # web/ipad/qr/badge
+    location: Optional[str] = None
+    notes: Optional[str] = None
+    is_paid: bool = False                    # เผื่อรองรับกรณีพักแบบ paid/unpaid
+
+class BreakEntryCreate(BreakEntryBase):
+    time_entry_id: int                       # FK ไปที่ TimeEntry
+
+class BreakEntryUpdate(BaseModel):
+    break_type: Optional[str] = None
+    start_at: Optional[datetime] = None
+    end_at: Optional[datetime] = None
     method: Optional[str] = None
     location: Optional[str] = None
     notes: Optional[str] = None
-    is_paid: bool = False  # <- เพิ่ม
-
-class BreakEntryCreate(BreakEntryBase):
-    time_entry_id: int
-    start_at: Optional[datetime] = None  # ถ้าอยากให้ส่งเองได้
+    is_paid: Optional[bool] = None
 
 class BreakEntryOut(BreakEntryBase):
     id: int
     time_entry_id: int
-    start_at: datetime
-    end_at: Optional[datetime] = None
+
     class Config:
         from_attributes = True
-
-# =========================
-# ======== Leave ==========
-# =========================
-
-from typing import Optional, Annotated
-from datetime import date, datetime
-from decimal import Decimal
-from enum import Enum
-from pydantic import BaseModel, Field, model_validator, ConfigDict
-
-# ชนิด Decimal แบบกำหนดจำนวนหลักทศนิยม
-Decimal5_2 = Annotated[Decimal, Field(max_digits=5, decimal_places=2)]
-Decimal4_2 = Annotated[Decimal, Field(max_digits=4, decimal_places=2)]
-Decimal3_2 = Annotated[Decimal, Field(max_digits=3, decimal_places=2)]
-
-class LeaveStatus(str, Enum):
-    draft = "draft"
-    pending = "pending"
-    approved = "approved"
-    rejected = "rejected"
-    cancelled = "cancelled"
-
-class LeaveType(str, Enum):
-    vacation = "vacation"
-    sick = "sick"
-    personal = "personal"
-    bereavement = "bereavement"
-    unpaid = "unpaid"
-    other = "other"
-
-class LeaveEntryBase(BaseModel):
-    leave_type: LeaveType = LeaveType.vacation
-    notes: Optional[str] = None
-    is_paid: bool = True
-    # บางบริษัทเก็บชั่วโมงที่จ่ายตรง ๆ (รองรับ half-day)
-    hours: Optional[Annotated[Decimal5_2, Field(ge=0, description="จำนวนชั่วโมงที่นับเป็นจ่าย (ถ้าระบุ)")]] = None
-    status: LeaveStatus = LeaveStatus.approved
-
-class LeaveEntryCreate(LeaveEntryBase):
-    employee_id: int
-    start_at: datetime
-    end_at: datetime
-
-    @model_validator(mode="after")
-    def _validate_range(self):
-        if self.end_at <= self.start_at:
-            raise ValueError("end_at must be greater than start_at")
-        return self
-
-class LeaveEntryUpdate(BaseModel):
-    # ใช้สำหรับ PATCH (แก้ทีละฟิลด์)
-    leave_type: Optional[LeaveType] = None
-    notes: Optional[str] = None
-    is_paid: Optional[bool] = None
-    hours: Optional[Annotated[Decimal5_2, Field(ge=0)]] = None
-    status: Optional[LeaveStatus] = None
-    start_at: Optional[datetime] = None
-    end_at: Optional[datetime] = None
-
-    @model_validator(mode="after")
-    def _validate_range(self):
-        if self.start_at and self.end_at and self.end_at <= self.start_at:
-            raise ValueError("end_at must be greater than start_at")
-        return self
-
-class LeaveEntryOut(LeaveEntryBase):
-    id: int
-    employee_id: int
-    start_at: datetime
-    end_at: datetime
-
-    # Pydantic v2
-    model_config = ConfigDict(from_attributes=True)
-
-
-# =========================
-# ======= Holiday =========
-# =========================
-
-class HolidayBase(BaseModel):
-    name: str
-    is_paid: bool = True
-    # จำนวนชั่วโมงที่จ่ายในวันหยุด (เช่น 8.0), ไม่ใส่ = ใช้นโยบายดีฟอลต์
-    hours: Optional[Annotated[Decimal4_2, Field(ge=0, le=24)]] = None
-    # เผื่อกรณีจ่ายพิเศษ (1.5x / 2x) เมื่อทำงานในวันหยุด
-    pay_multiplier: Optional[Annotated[Decimal3_2, Field(ge=1)]] = None
-    notes: Optional[str] = None
-
-class HolidayCreate(HolidayBase):
-    holiday_date: date
-
-class HolidayUpdate(BaseModel):
-    name: Optional[str] = None
-    is_paid: Optional[bool] = None
-    hours: Optional[Annotated[Decimal4_2, Field(ge=0, le=24)]] = None
-    pay_multiplier: Optional[Annotated[Decimal3_2, Field(ge=1)]] = None
-    notes: Optional[str] = None
-    holiday_date: Optional[date] = None  # เผื่อเลื่อนวัน
-
-class HolidayOut(HolidayBase):
-    id: int
-    holiday_date: date
-
-    # Pydantic v2
-    model_config = ConfigDict(from_attributes=True)

@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+  <title>Login • MFG API</title>
+  <style>
+    *{box-sizing:border-box}
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:#fff;color:#111;margin:0}
+    .wrap{max-width:420px;margin:64px auto;padding:0 16px}
+    h1{font-size:22px;margin:0 0 8px}
+    .muted{color:#666;font-size:13px;margin-bottom:16px}
+    .card{border:1px solid #e5e5e5;border-radius:12px;padding:16px}
+    label{display:block;font-weight:600;margin:10px 0 6px}
+    input[type="text"],input[type="password"],input[type="url"]{width:100%;padding:10px;border:1px solid #ccc;border-radius:8px;font:inherit}
+    .row{display:flex;gap:10px;align-items:center}
+    .row>*{flex:1}
+    .actions{display:flex;gap:10px;align-items:center;margin-top:16px}
+    button{padding:10px 14px;border:none;border-radius:10px;font-weight:700;cursor:pointer;color:#fff;background:#2d9cdb}
+    button:disabled{opacity:.6;cursor:not-allowed}
+    .outline{background:#fff;color:#2d9cdb;border:1px solid #2d9cdb}
+    .msg{margin-top:12px;font-size:14px}
+    .msg.error{color:#d33}.msg.ok{color:#2f855a}
+    .hint{display:flex;justify-content:space-between;align-items:center;margin-top:8px;font-size:12px;color:#666}
+    .footer{margin-top:24px;font-size:12px;color:#666;text-align:center}
+    .toggle{user-select:none;cursor:pointer;font-size:12px;color:#2d9cdb}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Sign in</h1>
+    <div class="muted">กรอกข้อมูลเพื่อเข้าสู่หน้า Time Clock</div>
+
+    <div class="card">
+      <label for="api">API Base (ปล่อยว่างเพื่อใช้โดเมนปัจจุบัน)</label>
+      <input id="api" type="url" placeholder="http://127.0.0.1:8000/api/v1" />
+
+      <div class="row">
+        <div>
+          <label for="u">Username</label>
+          <input id="u" type="text" autocomplete="username" />
+        </div>
+        <div>
+          <label for="p">Password</label>
+          <input id="p" type="password" autocomplete="current-password" />
+          <div class="hint"><span class="toggle" id="showPw">แสดงรหัสผ่าน</span><span></span></div>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button id="loginBtn">Login</button>
+        <label class="row" style="flex:0 0 auto; gap:6px; align-items:center;">
+          <input id="remember" type="checkbox" style="width:auto; flex:0 0 auto;" />
+          <span style="flex:0 0 auto; font-size:13px; color:#444;">จำผู้ใช้</span>
+        </label>
+        <button id="clearBtn" class="outline" type="button">ล้างค่า</button>
+      </div>
+      <div id="msg" class="msg"></div>
+    </div>
+
+    <div class="footer">เข้าสู่ระบบสำเร็จ จะพาไปที่ <code>/static/time_clock.html</code></div>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const apiInput = $('api'), u = $('u'), p = $('p'), loginBtn = $('loginBtn'), msg = $('msg'), remember = $('remember'), showPw = $('showPw');
+
+    // โหลดค่าที่บันทึกไว้
+    const savedApi = localStorage.getItem('api_base');
+    const savedUser = localStorage.getItem('login_username');
+    if (savedApi) apiInput.value = savedApi;
+    if (savedUser) { u.value = savedUser; remember.checked = true; }
+
+    // toggle password
+    showPw.addEventListener('click', () => {
+      if (p.type === 'password') { p.type = 'text'; showPw.textContent = 'ซ่อนรหัสผ่าน'; }
+      else { p.type = 'password'; showPw.textContent = 'แสดงรหัสผ่าน'; }
+    });
+
+    function setMsg(text, ok=false){
+      msg.textContent = text || '';
+      msg.className = 'msg ' + (ok ? 'ok' : 'error');
+    }
+
+    async function doLogin(){
+      const base = (apiInput.value || '').trim() || location.origin;
+      const username = u.value.trim();
+      const password = p.value;
+      if (!username || !password){ setMsg('กรุณากรอกชื่อผู้ใช้และรหัสผ่าน'); return; }
+
+      // จำค่า
+      localStorage.setItem('api_base', base);
+      if (remember.checked) localStorage.setItem('login_username', username);
+      else localStorage.removeItem('login_username');
+
+      setMsg('กำลังเข้าสู่ระบบ...', true);
+      loginBtn.disabled = true;
+
+      try {
+        const res = await fetch(base + '/auth/token', {
+          method:'POST',
+          headers:{ 'Content-Type':'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({ username, password })
+        });
+        if (!res.ok){
+          const t = await res.text();
+          throw new Error(`${res.status}: ${t}`);
+        }
+        const data = await res.json();
+        if (!data || !data.access_token) throw new Error('ไม่พบ access_token');
+
+        localStorage.setItem('access_token', data.access_token);
+        if (data.token_type) localStorage.setItem('token_type', data.token_type);
+
+        // (ทางเลือก) ตรวจสอบตัวเองสั้นๆ
+        try {
+          const meRes = await fetch(base + '/auth/me', { headers:{ Authorization: `Bearer ${data.access_token}` }});
+          if (meRes.ok){
+            const me = await meRes.json();
+            localStorage.setItem('current_user', JSON.stringify(me));
+          }
+        } catch {}
+
+        setMsg('เข้าสู่ระบบสำเร็จ กำลังพาไปหน้า Time Clock...', true);
+        window.location.href = '/static/time_clock.html';
+      } catch(e){
+        console.error(e);
+        setMsg('เข้าสู่ระบบไม่สำเร็จ: ' + e.message);
+        loginBtn.disabled = false;
+      }
+    }
+
+    // events
+    loginBtn.addEventListener('click', doLogin);
+    u.addEventListener('keydown', (ev)=>{ if(ev.key==='Enter') doLogin(); });
+    p.addEventListener('keydown', (ev)=>{ if(ev.key==='Enter') doLogin(); });
+    $('clearBtn').addEventListener('click', ()=>{ u.value=''; p.value=''; setMsg(''); });
+
+    // ถ้ามี token อยู่แล้ว อาจเด้งไปเลย (ทางเลือก)
+    (function autoForwardIfLoggedIn(){
+      const token = localStorage.getItem('access_token');
+      if (token) {
+        // ถ้าอยากตรวจสอบจริงๆ ให้เรียก /auth/me ก่อน แล้วค่อยไปหน้า time clock
+        // ที่นี่ขอข้ามเพื่อความเร็ว
+        // window.location.href = '/static/time_clock.html';
+      }
+    })();
+  </script>
+</body>
+</html>

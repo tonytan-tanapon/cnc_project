@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tiny Time Clock</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 24px; color: #111; background: #fff; }
+    #now { font-size: 28px; font-weight: 600; margin-bottom: 16px; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+    button { font: inherit; padding: 20px; border: none; border-radius: 10px; color: #fff; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+
+    /* Colors */
+    #btnLeft.log-in { background: #2d9cdb; }      /* blue for log in */
+    #btnLeft.log-out { background: #eb5757; }     /* red for log out */
+    #btnRight.start-break { background: #f2c94c; color:#111; } /* yellow for start break */
+    #btnRight.stop-break { background: #27ae60; } /* green for stop break */
+
+    .list { border: 1px solid #e5e5e5; border-radius: 10px; }
+    .item { display: grid; grid-template-columns: 160px 1fr; gap: 12px; padding: 10px 12px; border-top: 1px solid #f0f0f0; }
+    .item:first-child { border-top: 0; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    .muted { color: #666; }
+    .header { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+    small { font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div id="now">—</div>
+
+  <div class="row">
+    <button id="btnLeft" class="log-in">Log In</button>
+    <button id="btnRight" class="start-break" disabled>Start Break</button>
+  </div>
+
+  <div class="header">
+    <strong>Activity</strong>
+    <small class="muted">(Log In, Log Out, Start Break, Stop Break)</small>
+  </div>
+  <div id="activity" class="list"></div>
+
+  <script>
+    const LS_KEY = 'tiny_time_clock_v1';
+    const state = { status: 'idle', onBreak: false, activities: [] };
+
+    function load() { try { const s = JSON.parse(localStorage.getItem(LS_KEY)); if (s) Object.assign(state, s); } catch {} }
+    function save() { localStorage.setItem(LS_KEY, JSON.stringify(state)); }
+
+    const $ = (id) => document.getElementById(id);
+    const left = $('btnLeft');
+    const right = $('btnRight');
+
+    function nowISO() { return new Date().toISOString(); }
+    function fmt(ts) { return new Date(ts).toLocaleString(); }
+
+    function addActivity(kind) {
+      state.activities.unshift({ kind, at: nowISO() });
+      save();
+      renderActivities();
+    }
+
+    function renderActivities() {
+      const box = $('activity');
+      if (!state.activities.length) { box.innerHTML = '<div class="item muted">No activity yet.</div>'; return; }
+      box.innerHTML = state.activities.map(a => `
+        <div class="item">
+          <div class="mono">${fmt(a.at)}</div>
+          <div>${a.kind}</div>
+        </div>
+      `).join('');
+    }
+
+    function updateButtons() {
+      if (state.status === 'idle') {
+        left.textContent = 'Log In';
+        left.className = 'log-in';
+      } else {
+        left.textContent = 'Log Out';
+        left.className = 'log-out';
+      }
+
+      right.disabled = (state.status === 'idle');
+      if (state.status === 'working') {
+        right.textContent = 'Start Break';
+        right.className = 'start-break';
+      }
+      if (state.status === 'lunch') {
+        right.textContent = 'Stop Break';
+        right.className = 'stop-break';
+      }
+    }
+
+    function tickNow() { $('now').textContent = new Date().toLocaleString(); }
+
+    function onLeft() {
+      if (state.status === 'idle') {
+        state.status = 'working';
+        state.onBreak = false;
+        addActivity('Log In');
+      } else {
+        if (state.status === 'lunch' && state.onBreak) {
+          state.onBreak = false;
+          addActivity('Stop Break');
+        }
+        state.status = 'idle';
+        addActivity('Log Out');
+      }
+      save();
+      updateButtons();
+    }
+
+    function onRight() {
+      if (state.status === 'working' && !state.onBreak) {
+        state.status = 'lunch';
+        state.onBreak = true;
+        addActivity('Start Break');
+      } else if (state.status === 'lunch' && state.onBreak) {
+        state.status = 'working';
+        state.onBreak = false;
+        addActivity('Stop Break');
+      }
+      save();
+      updateButtons();
+    }
+
+    function bind() {
+      left.addEventListener('click', onLeft);
+      right.addEventListener('click', onRight);
+    }
+
+    load();
+    bind();
+    updateButtons();
+    renderActivities();
+    tickNow();
+    setInterval(tickNow, 1000);
+  </script>
+</body>
+</html>

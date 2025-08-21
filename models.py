@@ -6,7 +6,9 @@ from sqlalchemy.orm import relationship
 from datetime import datetime
 from database import Base
 
-# =============== Master ===============
+# =========================================
+# =============== Master ==================
+# =========================================
 
 class Supplier(Base):
     __tablename__ = "suppliers"
@@ -19,10 +21,12 @@ class Supplier(Base):
     address = Column(String, nullable=True)
     payment_terms = Column(String, nullable=True)
 
-    # reverse relations (optional)
+    # reverse relations
     raw_batches = relationship("RawBatch", back_populates="supplier")
 
-# =============== Customer / PO ===============
+    def __repr__(self):
+        return f"<Supplier(code={self.code}, name={self.name})>"
+
 
 class Customer(Base):
     __tablename__ = "customers"
@@ -36,6 +40,10 @@ class Customer(Base):
 
     pos = relationship("PO", back_populates="customer")
 
+    def __repr__(self):
+        return f"<Customer(code={self.code}, name={self.name})>"
+
+
 class PO(Base):
     __tablename__ = "purchase_orders"
     id = Column(Integer, primary_key=True, index=True)
@@ -46,7 +54,9 @@ class PO(Base):
     customer = relationship("Customer", back_populates="pos")
     lots = relationship("ProductionLot", back_populates="po", cascade="all, delete-orphan")
 
-# =============== Employee ===============
+    def __repr__(self):
+        return f"<PO(po_number={self.po_number}, customer_id={self.customer_id})>"
+
 
 class Employee(Base):
     __tablename__ = "employees"
@@ -59,7 +69,15 @@ class Employee(Base):
     phone = Column(String, nullable=True)
     status = Column(String, default="active")  # active / inactive
 
-# =============== Materials / Batches ===============
+    user = relationship("User", back_populates="employee", uselist=False)
+
+    def __repr__(self):
+        return f"<Employee(emp_code={self.emp_code}, name={self.name})>"
+
+
+# =========================================
+# =========== Materials / Batches =========
+# =========================================
 
 class RawMaterial(Base):
     __tablename__ = "raw_materials"
@@ -72,24 +90,25 @@ class RawMaterial(Base):
 
     batches = relationship("RawBatch", back_populates="material")
 
+    def __repr__(self):
+        return f"<RawMaterial(code={self.code}, name={self.name})>"
+
+
 class RawBatch(Base):
     __tablename__ = "raw_batches"
     id = Column(Integer, primary_key=True)
     material_id = Column(Integer, ForeignKey("raw_materials.id"), nullable=False)
-
-    # อ้าง supplier เป็น FK (มาตรฐานขึ้น, ไม่เก็บเป็น string ลอย ๆ)
     supplier_id = Column(Integer, ForeignKey("suppliers.id"), nullable=True)
 
-    # Traceability เพิ่มเติม
-    batch_no = Column(String, index=True, nullable=False)            # หมายเลขล็อต/แบทช์ (จาก supplier)
-    supplier_batch_no = Column(String, nullable=True)                # ถ้า supplier มีเลขอ้างอิงภายใน
-    mill_name = Column(String, nullable=True)                        # โรงหลอมต้นทาง
-    mill_heat_no = Column(String, nullable=True)                     # Heat No. จากโรงหลอม
+    batch_no = Column(String, index=True, nullable=False)            # หมายเลขล็อตจาก supplier
+    supplier_batch_no = Column(String, nullable=True)
+    mill_name = Column(String, nullable=True)
+    mill_heat_no = Column(String, nullable=True)
 
     received_at = Column(Date, nullable=True)
-    qty_received = Column(Numeric(18,3), nullable=False, default=0)
-    qty_used = Column(Numeric(18,3), nullable=False, default=0)      # สะสมที่ใช้ไป
-    cert_file = Column(String, nullable=True)                        # path COC/MTC
+    qty_received = Column(Numeric(18, 3), nullable=False, default=0)
+    qty_used = Column(Numeric(18, 3), nullable=False, default=0)
+    cert_file = Column(String, nullable=True)
     location = Column(String, nullable=True)
 
     material = relationship("RawMaterial", back_populates="batches")
@@ -97,12 +116,53 @@ class RawBatch(Base):
     uses = relationship("LotMaterialUse", back_populates="batch")
 
     __table_args__ = (
-        # ป้องกันซ้ำในบริบทเดียวกัน (ปรับตามธุรกิจจริง)
         UniqueConstraint("material_id", "batch_no", "supplier_id", name="uq_batch_material_supplier"),
         Index("ix_raw_batches_mat_recv", "material_id", "received_at"),
     )
 
-# =============== Production / Lot / Traveler ===============
+    def __repr__(self):
+        return f"<RawBatch(material_id={self.material_id}, batch_no={self.batch_no})>"
+
+
+# =========================================
+# ======= Part Master / Part Revisions ====
+# =========================================
+
+class Part(Base):
+    __tablename__ = "parts"
+    id = Column(Integer, primary_key=True)
+    part_no = Column(String, unique=True, index=True, nullable=False)
+    name = Column(String)
+    description = Column(Text)
+    default_uom = Column(String, default="ea")
+    status = Column(String, default="active")
+
+    revisions = relationship("PartRevision", back_populates="part", cascade="all, delete-orphan")
+
+    def __repr__(self):
+        return f"<Part(part_no={self.part_no})>"
+
+
+class PartRevision(Base):
+    __tablename__ = "part_revisions"
+    id = Column(Integer, primary_key=True)
+    part_id = Column(Integer, ForeignKey("parts.id"), nullable=False)
+    rev = Column(String, nullable=False)
+    drawing_file = Column(String)
+    spec = Column(String)
+    is_current = Column(Boolean, default=False)
+
+    part = relationship("Part", back_populates="revisions")
+
+    __table_args__ = (UniqueConstraint("part_id", "rev", name="uq_part_rev"),)
+
+    def __repr__(self):
+        return f"<PartRevision(part_id={self.part_id}, rev={self.rev})>"
+
+
+# =========================================
+# ======== Production / Lot / Traveler ====
+# =========================================
 
 class ProductionLot(Base):
     __tablename__ = "production_lots"
@@ -110,7 +170,6 @@ class ProductionLot(Base):
     id = Column(Integer, primary_key=True)
     lot_no = Column(String, unique=True, index=True, nullable=False)
 
-    # เปลี่ยนจากเก็บ part_no ตรง ๆ → อ้างอิง Part master
     part_id = Column(Integer, ForeignKey("parts.id"), nullable=False)
     part_revision_id = Column(Integer, ForeignKey("part_revisions.id"), nullable=True)
 
@@ -120,49 +179,45 @@ class ProductionLot(Base):
     finished_at = Column(DateTime, nullable=True)
     status = Column(String, nullable=False, default="in_process")
 
-    # Relationships
-    part = relationship("Part")  # part master
-    part_revision = relationship("PartRevision")  # revision ที่ใช้จริง
+    part = relationship("Part")
+    part_revision = relationship("PartRevision")
     po = relationship("PO", back_populates="lots")
-    material_uses = relationship(
-        "LotMaterialUse",
-        back_populates="lot",
-        cascade="all, delete-orphan"
-    )
-    travelers = relationship(
-        "ShopTraveler",
-        back_populates="lot",
-        cascade="all, delete-orphan"
-    )
+
+    material_uses = relationship("LotMaterialUse", back_populates="lot", cascade="all, delete-orphan")
+    travelers = relationship("ShopTraveler", back_populates="lot", cascade="all, delete-orphan")
+
+    @property
+    def part_no(self) -> str | None:
+        return self.part.part_no if self.part else None
 
     def __repr__(self):
-        return (
-            f"<ProductionLot(lot_no={self.lot_no}, "
-            f"part_id={self.part_id}, part_revision_id={self.part_revision_id}, "
-            f"planned_qty={self.planned_qty}, status={self.status})>"
-        )
+        return f"<ProductionLot(lot_no={self.lot_no}, part_id={self.part_id}, status={self.status})>"
+
 
 class LotMaterialUse(Base):
     __tablename__ = "lot_material_use"
     id = Column(Integer, primary_key=True)
     lot_id = Column(Integer, ForeignKey("production_lots.id"), nullable=False)
     batch_id = Column(Integer, ForeignKey("raw_batches.id"), nullable=False)
-    qty = Column(Numeric(18,3), nullable=False)  # แนะนำ Numeric
+    qty = Column(Numeric(18, 3), nullable=False)
 
     lot = relationship("ProductionLot", back_populates="material_uses")
     batch = relationship("RawBatch", back_populates="uses")
 
     __table_args__ = (
-        # ถ้าอยากรวมแถวซ้ำให้บังคับ unique คู่ lot-batch
+        # ถ้าต้องการบังคับไม่ให้ lot-batch ซ้ำ ให้ปลดคอมเมนต์บรรทัดล่าง
         # UniqueConstraint("lot_id", "batch_id", name="uq_lot_batch"),
         Index("ix_lmu_lot", "lot_id"),
         Index("ix_lmu_batch", "batch_id"),
     )
 
+    def __repr__(self):
+        return f"<LotMaterialUse(lot_id={self.lot_id}, batch_id={self.batch_id}, qty={self.qty})>"
+
+
 class ShopTraveler(Base):
     __tablename__ = "shop_travelers"
     id = Column(Integer, primary_key=True)
-    # เอา unique=True ออกเพื่อให้ 1 Lot มีหลาย Traveler ได้
     lot_id = Column(Integer, ForeignKey("production_lots.id"), nullable=False)
 
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
@@ -170,7 +225,6 @@ class ShopTraveler(Base):
     status = Column(String, nullable=False, default="open")
     notes = Column(Text, nullable=True)
 
-    # ให้ back_populates ชี้ไปชื่อเดียวกับ ProductionLot ("travelers")
     lot = relationship("ProductionLot", back_populates="travelers")
     created_by = relationship("Employee", foreign_keys=[created_by_id])
     steps = relationship(
@@ -181,6 +235,10 @@ class ShopTraveler(Base):
     )
 
     __table_args__ = (Index("ix_shop_travelers_status", "status"),)
+
+    def __repr__(self):
+        return f"<ShopTraveler(lot_id={self.lot_id}, status={self.status})>"
+
 
 class ShopTravelerStep(Base):
     __tablename__ = "shop_traveler_steps"
@@ -197,8 +255,6 @@ class ShopTravelerStep(Base):
     finished_at = Column(DateTime, nullable=True)
 
     operator_id = Column(Integer, ForeignKey("employees.id"), nullable=True)
-
-    # 👇 เพิ่มฟิลด์เครื่องที่ใช้จริง
     machine_id = Column(Integer, ForeignKey("machines.id"), nullable=True)
 
     qa_required = Column(Boolean, default=False, nullable=False)
@@ -216,14 +272,19 @@ class ShopTravelerStep(Base):
         Index("ix_traveler_steps_machine", "machine_id"),
     )
 
+    def __repr__(self):
+        return f"<ShopTravelerStep(traveler_id={self.traveler_id}, seq={self.seq}, status={self.status})>"
 
-# =============== Subcontracting (มาตรฐาน) ===============
+
+# =========================================
+# ============ Subcontracting =============
+# =========================================
 
 class SubconOrder(Base):
     __tablename__ = "subcon_orders"
     id = Column(Integer, primary_key=True)
     supplier_id = Column(Integer, ForeignKey("suppliers.id"), nullable=False)
-    ref_no = Column(String, nullable=True)              # เลขอ้างอิงภายใน/กับ supplier
+    ref_no = Column(String, nullable=True)
     status = Column(String, nullable=False, default="open")  # open/confirmed/shipped/received/closed/cancelled
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     due_date = Column(Date, nullable=True)
@@ -236,16 +297,18 @@ class SubconOrder(Base):
 
     __table_args__ = (Index("ix_subcon_orders_supplier_status", "supplier_id", "status"),)
 
+    def __repr__(self):
+        return f"<SubconOrder(id={self.id}, supplier_id={self.supplier_id}, status={self.status})>"
+
+
 class SubconOrderLine(Base):
     __tablename__ = "subcon_order_lines"
     id = Column(Integer, primary_key=True)
     order_id = Column(Integer, ForeignKey("subcon_orders.id"), nullable=False)
-
-    # ผูกกับขั้นตอนที่ส่งออกไปทำ
     traveler_step_id = Column(Integer, ForeignKey("shop_traveler_steps.id"), nullable=False)
 
-    qty_planned = Column(Numeric(18,3), nullable=False, default=0)
-    unit_cost = Column(Numeric(18,2), nullable=True)        # ถ้าต้องคิดต้นทุนต่อชิ้น/ต่อขั้น
+    qty_planned = Column(Numeric(18, 3), nullable=False, default=0)
+    unit_cost = Column(Numeric(18, 2), nullable=True)
 
     order = relationship("SubconOrder", back_populates="lines")
     step = relationship("ShopTravelerStep")
@@ -254,6 +317,10 @@ class SubconOrderLine(Base):
         UniqueConstraint("order_id", "traveler_step_id", name="uq_order_step"),
         Index("ix_subcon_order_lines_step", "traveler_step_id"),
     )
+
+    def __repr__(self):
+        return f"<SubconOrderLine(order_id={self.order_id}, step_id={self.traveler_step_id})>"
+
 
 class SubconShipment(Base):
     __tablename__ = "subcon_shipments"
@@ -270,20 +337,26 @@ class SubconShipment(Base):
     order = relationship("SubconOrder", back_populates="shipments")
     items = relationship("SubconShipmentItem", back_populates="shipment", cascade="all, delete-orphan")
 
+    def __repr__(self):
+        return f"<SubconShipment(order_id={self.order_id}, status={self.status})>"
+
+
 class SubconShipmentItem(Base):
     __tablename__ = "subcon_shipment_items"
     id = Column(Integer, primary_key=True)
     shipment_id = Column(Integer, ForeignKey("subcon_shipments.id"), nullable=False)
     traveler_step_id = Column(Integer, ForeignKey("shop_traveler_steps.id"), nullable=False)
 
-    qty = Column(Numeric(18,3), nullable=False, default=0)
+    qty = Column(Numeric(18, 3), nullable=False, default=0)
 
     shipment = relationship("SubconShipment", back_populates="items")
     step = relationship("ShopTravelerStep")
 
-    __table_args__ = (
-        Index("ix_subcon_shipment_items_step", "traveler_step_id"),
-    )
+    __table_args__ = (Index("ix_subcon_shipment_items_step", "traveler_step_id"),)
+
+    def __repr__(self):
+        return f"<SubconShipmentItem(shipment_id={self.shipment_id}, step_id={self.traveler_step_id}, qty={self.qty})>"
+
 
 class SubconReceipt(Base):
     __tablename__ = "subcon_receipts"
@@ -292,11 +365,15 @@ class SubconReceipt(Base):
 
     received_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     received_by = Column(String, nullable=True)
-    doc_no = Column(String, nullable=True)  # ใบรับของ/เอกสารอ้างอิง
+    doc_no = Column(String, nullable=True)
     status = Column(String, nullable=False, default="received")  # received/partial/rejected
 
     order = relationship("SubconOrder", back_populates="receipts")
     items = relationship("SubconReceiptItem", back_populates="receipt", cascade="all, delete-orphan")
+
+    def __repr__(self):
+        return f"<SubconReceipt(order_id={self.order_id}, status={self.status})>"
+
 
 class SubconReceiptItem(Base):
     __tablename__ = "subcon_receipt_items"
@@ -304,39 +381,41 @@ class SubconReceiptItem(Base):
     receipt_id = Column(Integer, ForeignKey("subcon_receipts.id"), nullable=False)
     traveler_step_id = Column(Integer, ForeignKey("shop_traveler_steps.id"), nullable=False)
 
-    qty_received = Column(Numeric(18,3), nullable=False, default=0)
-    qty_rejected = Column(Numeric(18,3), nullable=False, default=0)
-    scrap_qty = Column(Numeric(18,3), nullable=False, default=0)
+    qty_received = Column(Numeric(18, 3), nullable=False, default=0)
+    qty_rejected = Column(Numeric(18, 3), nullable=False, default=0)
+    scrap_qty = Column(Numeric(18, 3), nullable=False, default=0)
     qa_result = Column(String, nullable=True)   # pass/fail/partial
     qa_notes = Column(Text, nullable=True)
 
     receipt = relationship("SubconReceipt", back_populates="items")
     step = relationship("ShopTravelerStep")
 
-    __table_args__ = (
-        Index("ix_subcon_receipt_items_step", "traveler_step_id"),
-    )
+    __table_args__ = (Index("ix_subcon_receipt_items_step", "traveler_step_id"),)
+
+    def __repr__(self):
+        return f"<SubconReceiptItem(receipt_id={self.receipt_id}, step_id={self.traveler_step_id})>"
 
 
-# =============== Machines ===============
+# =========================================
+# ================ Machines ===============
+# =========================================
 
 class Machine(Base):
     __tablename__ = "machines"
     id = Column(Integer, primary_key=True)
     code = Column(String, unique=True, index=True, nullable=False)   # เช่น CNC-01
     name = Column(String, nullable=False)                            # เช่น HAAS VF-2
-    type = Column(String, nullable=True)                             # CNC_MILL / CNC_LATHE / DRILL / EDM ...
-    controller = Column(String, nullable=True)                       # FANUC / HAAS / SIEMENS ...
-    axis_count = Column(Integer, nullable=True)                      # 3 / 4 / 5
-    spindle_power_kw = Column(Numeric(10,3), nullable=True)
-    max_travel_x = Column(Numeric(10,3), nullable=True)              # mm หรือนิ้ว ตามระบบ
-    max_travel_y = Column(Numeric(10,3), nullable=True)
-    max_travel_z = Column(Numeric(10,3), nullable=True)
-    location = Column(String, nullable=True)                         # โซน/แถวในโรงงาน
+    type = Column(String, nullable=True)                             # CNC_MILL / CNC_LATHE / ...
+    controller = Column(String, nullable=True)                       # FANUC / HAAS / ...
+    axis_count = Column(Integer, nullable=True)
+    spindle_power_kw = Column(Numeric(10, 3), nullable=True)
+    max_travel_x = Column(Numeric(10, 3), nullable=True)
+    max_travel_y = Column(Numeric(10, 3), nullable=True)
+    max_travel_z = Column(Numeric(10, 3), nullable=True)
+    location = Column(String, nullable=True)
     status = Column(String, nullable=False, default="available")     # available / busy / maintenance / down / offline
     notes = Column(Text, nullable=True)
 
-    # reverse relations
     step_assignments = relationship("ShopTravelerStep", back_populates="machine")
     schedules = relationship("MachineSchedule", back_populates="machine", cascade="all, delete-orphan")
 
@@ -344,6 +423,10 @@ class Machine(Base):
         Index("ix_machines_status", "status"),
         Index("ix_machines_type_status", "type", "status"),
     )
+
+    def __repr__(self):
+        return f"<Machine(code={self.code}, status={self.status})>"
+
 
 class StepMachineOption(Base):
     __tablename__ = "step_machine_options"
@@ -360,6 +443,10 @@ class StepMachineOption(Base):
         Index("ix_step_machine_option_step", "traveler_step_id"),
         Index("ix_step_machine_option_machine", "machine_id"),
     )
+
+    def __repr__(self):
+        return f"<StepMachineOption(step_id={self.traveler_step_id}, machine_id={self.machine_id})>"
+
 
 class MachineSchedule(Base):
     __tablename__ = "machine_schedule"
@@ -379,21 +466,26 @@ class MachineSchedule(Base):
         Index("ix_machine_schedule_machine", "machine_id", "planned_start"),
     )
 
+    def __repr__(self):
+        return f"<MachineSchedule(machine_id={self.machine_id}, step_id={self.traveler_step_id}, status={self.status})>"
 
-# =============== Measurement / QA Devices ===============
+
+# =========================================
+# ========== Measurement / QA =============
+# =========================================
 
 class MeasurementDevice(Base):
     __tablename__ = "measurement_devices"
     id = Column(Integer, primary_key=True)
-    code = Column(String, unique=True, index=True, nullable=False)  # ex. CMM-01, HG-002
-    name = Column(String, nullable=False)                           # ex. Mitutoyo CMM, Height Gauge 600mm
-    type = Column(String, nullable=True)                            # CMM / HEIGHT_GAUGE / MICROMETER / CALIPER / ROUGHNESS / VISION / OTHER
+    code = Column(String, unique=True, index=True, nullable=False)
+    name = Column(String, nullable=False)
+    type = Column(String, nullable=True)
     brand = Column(String, nullable=True)
     model = Column(String, nullable=True)
     serial_no = Column(String, nullable=True)
-    location = Column(String, nullable=True)                        # เก็บที่ไหน/แผนก
+    location = Column(String, nullable=True)
     status = Column(String, nullable=False, default="available")    # available / in_use / maintenance / out_of_calibration
-    calibration_due = Column(Date, nullable=True)                   # วันครบกำหนดคาลิเบรต
+    calibration_due = Column(Date, nullable=True)
     notes = Column(Text, nullable=True)
 
     calibrations = relationship("DeviceCalibration", back_populates="device", cascade="all, delete-orphan")
@@ -404,6 +496,9 @@ class MeasurementDevice(Base):
         Index("ix_measurement_devices_cal_due", "calibration_due"),
     )
 
+    def __repr__(self):
+        return f"<MeasurementDevice(code={self.code}, status={self.status})>"
+
 
 class DeviceCalibration(Base):
     __tablename__ = "device_calibrations"
@@ -411,26 +506,25 @@ class DeviceCalibration(Base):
     device_id = Column(Integer, ForeignKey("measurement_devices.id"), nullable=False)
     calibrated_at = Column(Date, nullable=False)
     due_at = Column(Date, nullable=True)
-    performed_by = Column(String, nullable=True)     # บริษัท/แผนกที่คาลิเบรต
+    performed_by = Column(String, nullable=True)
     result = Column(String, nullable=True)           # pass / fail
-    certificate_file = Column(String, nullable=True) # path เอกสารคาลิเบรต (PDF/JPG)
+    certificate_file = Column(String, nullable=True)
 
     device = relationship("MeasurementDevice", back_populates="calibrations")
 
-    __table_args__ = (
-        Index("ix_device_calibrations_device", "device_id", "calibrated_at"),
-    )
+    __table_args__ = (Index("ix_device_calibrations_device", "device_id", "calibrated_at"),)
 
-# =============== Inspection Records (QA per Step) ===============
+    def __repr__(self):
+        return f"<DeviceCalibration(device_id={self.device_id}, calibrated_at={self.calibrated_at})>"
+
 
 class InspectionRecord(Base):
     __tablename__ = "inspection_records"
     id = Column(Integer, primary_key=True)
     traveler_step_id = Column(Integer, ForeignKey("shop_traveler_steps.id"), nullable=False)
 
-    # ใครตรวจ/ตรวจเมื่อไหร่
     inspector_id = Column(Integer, ForeignKey("employees.id"), nullable=True)
-    device_id = Column(Integer, ForeignKey("measurement_devices.id"), nullable=True)  # อุปกรณ์หลักที่ใช้ (ถ้ามี)
+    device_id = Column(Integer, ForeignKey("measurement_devices.id"), nullable=True)
     started_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     finished_at = Column(DateTime, nullable=True)
 
@@ -447,21 +541,24 @@ class InspectionRecord(Base):
         Index("ix_inspection_records_result", "overall_result"),
     )
 
+    def __repr__(self):
+        return f"<InspectionRecord(step_id={self.traveler_step_id}, result={self.overall_result})>"
+
 
 class InspectionItem(Base):
     __tablename__ = "inspection_items"
     id = Column(Integer, primary_key=True)
     record_id = Column(Integer, ForeignKey("inspection_records.id"), nullable=False)
 
-    characteristic = Column(String, nullable=False)      # ชื่อจุดวัด เช่น "OD Ø20.00", "Length 100.00", "Ra"
+    characteristic = Column(String, nullable=False)
     nominal_value = Column(Numeric(18, 4), nullable=True)
-    tol_lower = Column(Numeric(18, 4), nullable=True)    # ค่าต่ำสุดที่ยอมรับได้ (เช่น -0.010)
-    tol_upper = Column(Numeric(18, 4), nullable=True)    # ค่าสูงสุดที่ยอมรับได้ (เช่น +0.010)
+    tol_lower = Column(Numeric(18, 4), nullable=True)
+    tol_upper = Column(Numeric(18, 4), nullable=True)
     measured_value = Column(Numeric(18, 4), nullable=True)
-    unit = Column(String, nullable=True)                 # mm / in / µm
+    unit = Column(String, nullable=True)
     result = Column(String, nullable=True)               # pass / fail
-    device_id = Column(Integer, ForeignKey("measurement_devices.id"), nullable=True)  # ถ้าวัดรายการนี้ด้วยอุปกรณ์เฉพาะ
-    attachment = Column(String, nullable=True)           # path รูป/รายงานย่อย
+    device_id = Column(Integer, ForeignKey("measurement_devices.id"), nullable=True)
+    attachment = Column(String, nullable=True)
 
     record = relationship("InspectionRecord", back_populates="items")
     device = relationship("MeasurementDevice")
@@ -471,60 +568,33 @@ class InspectionItem(Base):
         Index("ix_inspection_items_result", "result"),
     )
 
-class Part(Base):
-    __tablename__ = "parts"
-    id = Column(Integer, primary_key=True)
-    part_no = Column(String, unique=True, index=True, nullable=False)
-    name = Column(String)
-    description = Column(Text)
-    default_uom = Column(String, default="ea")
-    status = Column(String, default="active")
-
-    # เพิ่มบรรทัดนี้
-    revisions = relationship(
-        "PartRevision",
-        back_populates="part",
-        cascade="all, delete-orphan"
-    )
+    def __repr__(self):
+        return f"<InspectionItem(record_id={self.record_id}, characteristic={self.characteristic})>"
 
 
-class PartRevision(Base):
-    __tablename__ = "part_revisions"
-    id = Column(Integer, primary_key=True)
-    part_id = Column(Integer, ForeignKey("parts.id"), nullable=False)
-    rev = Column(String, nullable=False)
-    drawing_file = Column(String)
-    spec = Column(String)
-    is_current = Column(Boolean, default=False)
-
-    # เพิ่มบรรทัดนี้
-    part = relationship("Part", back_populates="revisions")
-
-    __table_args__ = (UniqueConstraint("part_id", "rev", name="uq_part_rev"),)
-
-
-# =============== Auth / Users & Roles ===============
+# =========================================
+# ============== Auth / RBAC =============
+# =========================================
 
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True)
     username = Column(String, unique=True, index=True, nullable=False)
     email = Column(String, unique=True, index=True, nullable=True)
-    # เก็บ hash เท่านั้น เช่น Argon2/Bcrypt (อย่าเก็บรหัสจริง)
     password_hash = Column(String, nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
     is_superuser = Column(Boolean, default=False, nullable=False)
 
-    # ผูกกับ employee (1:1 ส่วนมาก) ให้ nullable=True เผื่อมี user ภายนอก/ที่ปรึกษา
-    employee_id = Column(Integer, ForeignKey("employees.id"), nullable=True, unique=True)
-    employee = relationship("Employee", backref="user", uselist=False)
+    employee_id = Column(Integer, ForeignKey("employees.id", ondelete="SET NULL"), nullable=True, unique=True, index=True)
+    employee = relationship("Employee", back_populates="user", uselist=False)
 
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     last_login_at = Column(DateTime, nullable=True)
 
-    __table_args__ = (
-        Index("ix_users_active", "is_active"),
-    )
+    __table_args__ = (Index("ix_users_active", "is_active"),)
+
+    def __repr__(self):
+        return f"<User(username={self.username}, active={self.is_active})>"
 
 
 class Role(Base):
@@ -533,6 +603,9 @@ class Role(Base):
     code = Column(String, unique=True, index=True, nullable=False)   # e.g. ADMIN, QA, OPERATOR
     name = Column(String, nullable=False)
     description = Column(Text, nullable=True)
+
+    def __repr__(self):
+        return f"<Role(code={self.code})>"
 
 
 class UserRole(Base):
@@ -544,14 +617,19 @@ class UserRole(Base):
     user = relationship("User", backref="user_roles")
     role = relationship("Role", backref="role_users")
 
+    def __repr__(self):
+        return f"<UserRole(user_id={self.user_id}, role_id={self.role_id})>"
 
-# (ถ้าต้อง “ละเอียดระดับสิทธิ์รายจุด” ค่อยเพิ่ม permissions)
+
 class Permission(Base):
     __tablename__ = "permissions"
     id = Column(Integer, primary_key=True)
     code = Column(String, unique=True, index=True, nullable=False)   # e.g. VIEW_LOT, EDIT_LOT, CLOSE_TRAVELER
     name = Column(String, nullable=False)
     description = Column(Text, nullable=True)
+
+    def __repr__(self):
+        return f"<Permission(code={self.code})>"
 
 
 class RolePermission(Base):
@@ -562,32 +640,99 @@ class RolePermission(Base):
     role = relationship("Role", backref="role_permissions")
     permission = relationship("Permission", backref="permission_roles")
 
+    def __repr__(self):
+        return f"<RolePermission(role_id={self.role_id}, permission_id={self.permission_id})>"
 
-# =============== Time Tracking ===============
+
+# =========================================
+# ============== Time Tracking ============
+# =========================================
+
+from sqlalchemy import (
+    Column, Integer, String, Text, DateTime, ForeignKey, Index
+)
+from sqlalchemy.orm import relationship
+from datetime import datetime
+
 class TimeEntry(Base):
     __tablename__ = "time_entries"
+
     id = Column(Integer, primary_key=True)
 
     employee_id = Column(Integer, ForeignKey("employees.id"), nullable=False, index=True)
-    # user ที่ทำการกด (บางกรณี operator กดให้/หัวหน้ากด) - optional
     created_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+    # ✅ account ที่รับ payroll (แยกสลิปตามผู้ใช้)
+    work_user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
 
     clock_in_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     clock_in_method = Column(String, nullable=True)     # web/ipad/qr/badge
-    clock_in_location = Column(String, nullable=True)   # ไอพี/โซน/พิกัด
+    clock_in_location = Column(String, nullable=True)
     clock_out_at = Column(DateTime, nullable=True)
     clock_out_method = Column(String, nullable=True)
     clock_out_location = Column(String, nullable=True)
 
-    # สถานะช่วยตรวจง่าย
     status = Column(String, nullable=False, default="open")  # open/closed/cancelled
     notes = Column(Text, nullable=True)
 
+    # --- relationships ---
     employee = relationship("Employee")
-    created_by_user = relationship("User")
+    created_by_user = relationship("User", foreign_keys=[created_by_user_id])
+    payroll_user = relationship("User", foreign_keys=[work_user_id])
 
     __table_args__ = (
         Index("ix_time_entries_emp_status", "employee_id", "status"),
         Index("ix_time_entries_in", "clock_in_at"),
         Index("ix_time_entries_out", "clock_out_at"),
+        Index("ix_time_entries_work_user", "work_user_id"),
+        # ช่วยสรุป payroll แยกตาม account + ช่วงเวลา
+        Index("ix_time_entries_emp_work_week", "employee_id", "work_user_id", "clock_in_at"),
     )
+
+    def __repr__(self):
+        return f"<TimeEntry(emp_id={self.employee_id}, work_user_id={self.work_user_id}, status={self.status})>"
+
+
+class BreakEntry(Base):
+    __tablename__ = "break_entries"
+    id = Column(Integer, primary_key=True)
+    time_entry_id = Column(Integer, ForeignKey("time_entries.id"), nullable=False, index=True)
+    break_type = Column(String, nullable=False, default="lunch")
+    start_at = Column(DateTime, nullable=False, default=datetime.utcnow)  # ✅ ใส่ default
+    end_at   = Column(DateTime, nullable=True)
+
+    method = Column(String, nullable=True)
+    location = Column(String, nullable=True)
+    notes = Column(Text, nullable=True)
+
+    is_paid = Column(Boolean, nullable=False, default=False)
+    time_entry = relationship("TimeEntry", backref="breaks")
+
+    __table_args__ = (
+        Index("ix_break_entries_parent", "time_entry_id"),
+        Index("ix_break_entries_start", "start_at"),
+        Index("ix_break_entries_end", "end_at"),
+    )
+
+class LeaveEntry(Base):
+    __tablename__ = "leave_entries"
+    id = Column(Integer, primary_key=True)
+    employee_id = Column(Integer, ForeignKey("employees.id"), nullable=False, index=True)
+    leave_type = Column(String, nullable=False)  # vacation/sick/personal/etc.
+    start_at = Column(DateTime, nullable=False)
+    end_at   = Column(DateTime, nullable=False)
+    hours    = Column(Numeric(5,2), nullable=True)  # เผื่อกรณีลาครึ่งวัน
+    is_paid  = Column(Boolean, nullable=False, default=True)
+    status   = Column(String, nullable=False, default="approved")  # draft/pending/approved/rejected
+    notes    = Column(Text)
+    employee = relationship("Employee")
+    __table_args__ = (Index("ix_leave_emp_date", "employee_id", "start_at", "end_at"),)
+
+class Holiday(Base):
+    __tablename__ = "holidays"
+    id = Column(Integer, primary_key=True)
+    holiday_date = Column(Date, nullable=False, unique=True)
+    name = Column(String, nullable=False)
+    is_paid = Column(Boolean, nullable=False, default=True)
+    hours = Column(Numeric(4,2), nullable=True)      # เช่น 8.0 ชม/วัน
+    pay_multiplier = Column(Numeric(3,2), default=1) # ถ้ามีกฏจ่ายพิเศษ 1.5x/2x

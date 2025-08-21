@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Simple Time Clock (Lunch Break)</title>
+  <style>
+    /* Plain, minimal, white UI */
+    :root { --gap: 12px; }
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 24px; color: #111; background: #fff; }
+    h1 { font-size: 20px; margin: 0 0 8px; }
+    h2 { font-size: 16px; margin: 0 0 8px; }
+    .subtle { color: #555; font-size: 13px; }
+    .row { display: flex; gap: var(--gap); flex-wrap: wrap; align-items: center; }
+    .grid { display: grid; gap: var(--gap); grid-template-columns: 1fr 1fr; align-items: start; }
+    .card { border: 1px solid #ddd; border-radius: 10px; padding: 12px; background: #fff; }
+    label { display: block; font-weight: 600; margin-bottom: 4px; }
+    input, select, textarea, button { font: inherit; padding: 8px; border: 1px solid #ccc; border-radius: 6px; }
+    input[type="text"], textarea { width: 100%; }
+    textarea { min-height: 64px; }
+    button { cursor: pointer; }
+    button[disabled] { opacity: .5; cursor: not-allowed; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid #e5e5e5; padding: 6px 8px; text-align: left; vertical-align: top; }
+    th { font-weight: 600; }
+    .muted { color: #777; }
+    .right { text-align: right; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    .stack { display: flex; flex-direction: column; gap: 6px; }
+  </style>
+</head>
+<body>
+  <h1>Simple Time Clock</h1>
+  <div class="subtle" id="now">—</div>
+
+  <div class="grid" style="margin-top: 16px;">
+    <!-- Left column: Inputs & Actions -->
+    <div class="stack">
+      <div class="card">
+        <h2>Employee</h2>
+        <label for="employee">Employee ID or Name</label>
+        <input id="employee" type="text" placeholder="e.g. 123 or Alice" />
+      </div>
+
+      <div class="card">
+        <h2>Action Details</h2>
+        <div class="row">
+          <div style="flex: 1 1 180px;">
+            <label for="method">Method</label>
+            <select id="method">
+              <option value="web">web</option>
+              <option value="ipad">ipad</option>
+              <option value="qr">qr</option>
+              <option value="badge">badge</option>
+            </select>
+          </div>
+          <div style="flex: 2 1 240px;">
+            <label for="location">Location</label>
+            <input id="location" type="text" placeholder="e.g. Front Desk" />
+          </div>
+        </div>
+        <label for="notes" style="margin-top: 8px;">Notes (optional)</label>
+        <textarea id="notes" placeholder="Add a short note..."></textarea>
+      </div>
+
+      <div class="card">
+        <h2>Actions</h2>
+        <div class="row">
+          <button id="btnClockIn">Start Shift (Clock In)</button>
+          <button id="btnLunchOut">Start Lunch</button>
+          <button id="btnLunchIn">End Lunch</button>
+          <button id="btnClockOut">End Shift (Clock Out)</button>
+        </div>
+        <div class="row" style="margin-top: 8px;">
+          <button id="btnReset" title="Clear current session only">Reset Session</button>
+          <button id="btnClearAll" title="Clear session and logs">Clear All</button>
+          <button id="btnExport">Export JSON</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right column: Status & Logs -->
+    <div class="stack">
+      <div class="card">
+        <h2>Status</h2>
+        <div id="statusText" class="muted">Not clocked in.</div>
+        <div style="margin-top: 8px;" class="mono" id="summary">—</div>
+      </div>
+
+      <div class="card">
+        <h2>Breaks</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Type</th>
+              <th>Start</th>
+              <th>End</th>
+              <th>Paid</th>
+              <th>Duration</th>
+            </tr>
+          </thead>
+          <tbody id="breaksBody">
+            <tr><td colspan="6" class="muted">No breaks.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <h2>Event Log (session)</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Event</th>
+              <th>Time</th>
+              <th>Method</th>
+              <th>Location</th>
+              <th>Note</th>
+            </tr>
+          </thead>
+          <tbody id="logBody">
+            <tr><td colspan="6" class="muted">No events.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // In-memory state + localStorage persistence (no real database)
+    const LS_KEY_SESSION = "timeclock_session_v1";
+    const LS_KEY_LOGS = "timeclock_logs_v1"; // per-session logs
+
+    const initialSession = () => ({
+      employee: "",
+      clockInAt: null,
+      clockOutAt: null,
+      methodAtClockIn: null,
+      locationAtClockIn: null,
+      notesAtClockIn: null,
+      breaks: [], // { breakType, startAt, endAt, method, location, notes, isPaid }
+      status: "idle" // idle | working | lunch | closed
+    });
+
+    const state = {
+      session: initialSession(),
+      logs: [] // [{type, at, method, location, note}]
+    };
+
+    // --- Utilities ---
+    const $ = (id) => document.getElementById(id);
+    const fmt = (d) => new Date(d).toLocaleString();
+    const nowISO = () => new Date().toISOString();
+    const isOnLunch = () => {
+      const brs = state.session.breaks;
+      if (!brs || brs.length === 0) return false;
+      const last = brs[brs.length - 1];
+      return !!last && !last.endAt;
+    };
+    const clamp = (n) => Math.max(0, n|0);
+    const humanDuration = (ms) => {
+      if (!ms || ms < 0) return "0:00";
+      const totalMin = Math.floor(ms / 60000);
+      const hh = Math.floor(totalMin / 60);
+      const mm = clamp(totalMin % 60).toString().padStart(2, "0");
+      return `${hh}:${mm}`;
+    };
+
+    function saveToLS() {
+      localStorage.setItem(LS_KEY_SESSION, JSON.stringify(state.session));
+      localStorage.setItem(LS_KEY_LOGS, JSON.stringify(state.logs));
+    }
+    function loadFromLS() {
+      const s = localStorage.getItem(LS_KEY_SESSION);
+      const l = localStorage.getItem(LS_KEY_LOGS);
+      if (s) try { state.session = JSON.parse(s); } catch {}
+      if (l) try { state.logs = JSON.parse(l); } catch {}
+    }
+
+    function appendLog(type, method, location, note) {
+      state.logs.push({ type, at: nowISO(), method: method || null, location: location || null, note: note || null });
+    }
+
+    function clearLogsTable() {
+      $("logBody").innerHTML = '<tr><td colspan="6" class="muted">No events.</td></tr>';
+    }
+
+    function renderLogs() {
+      const tbody = $("logBody");
+      if (!state.logs.length) return clearLogsTable();
+      tbody.innerHTML = state.logs
+        .map((e, idx) => `
+          <tr>
+            <td class="mono">${idx + 1}</td>
+            <td>${e.type}</td>
+            <td class="mono">${fmt(e.at)}</td>
+            <td>${e.method || ""}</td>
+            <td>${e.location || ""}</td>
+            <td>${e.note || ""}</td>
+          </tr>
+        `)
+        .join("");
+    }
+
+    function renderBreaks() {
+      const tbody = $("breaksBody");
+      const brs = state.session.breaks || [];
+      if (!brs.length) {
+        tbody.innerHTML = '<tr><td colspan="6" class="muted">No breaks.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = brs
+        .map((b, idx) => {
+          const dur = b.endAt ? (new Date(b.endAt) - new Date(b.startAt)) : 0;
+          return `
+            <tr>
+              <td class="mono">${idx + 1}</td>
+              <td>${b.breakType}</td>
+              <td class="mono">${fmt(b.startAt)}</td>
+              <td class="mono">${b.endAt ? fmt(b.endAt) : "—"}</td>
+              <td>${b.isPaid ? "yes" : "no"}</td>
+              <td class="mono">${humanDuration(dur)}</td>
+            </tr>
+          `;
+        })
+        .join("");
+    }
+
+    function renderStatus() {
+      const s = state.session;
+      let text = "Not clocked in.";
+      if (s.status === "working") {
+        text = `Working since ${fmt(s.clockInAt)}`;
+      } else if (s.status === "lunch") {
+        const br = s.breaks[s.breaks.length - 1];
+        text = `On lunch (since ${fmt(br.startAt)})`;
+      } else if (s.status === "closed") {
+        text = `Shift closed at ${fmt(s.clockOutAt)}`;
+      }
+      $("statusText").textContent = text;
+
+      // Summary: worked duration minus unpaid breaks
+      if (s.clockInAt) {
+        const end = s.clockOutAt ? new Date(s.clockOutAt) : new Date();
+        const totalMs = end - new Date(s.clockInAt);
+        const unpaidMs = (s.breaks || []).reduce((acc, b) => acc + (b.isPaid ? 0 : (b.endAt ? (new Date(b.endAt) - new Date(b.startAt)) : 0)), 0);
+        const netMs = Math.max(0, totalMs - unpaidMs);
+        $("summary").textContent = `Total: ${humanDuration(totalMs)} | Unpaid breaks: ${humanDuration(unpaidMs)} | Net: ${humanDuration(netMs)}`;
+      } else {
+        $("summary").textContent = "—";
+      }
+    }
+
+    function updateButtons() {
+      const s = state.session;
+      const hasEmployee = $("employee").value.trim().length > 0;
+      const onLunch = isOnLunch();
+
+      $("btnClockIn").disabled  = s.status !== "idle" || !hasEmployee;
+      $("btnLunchOut").disabled = s.status !== "working" || onLunch;
+      $("btnLunchIn").disabled  = s.status !== "lunch";
+      $("btnClockOut").disabled = (s.status !== "working" && s.status !== "lunch");
+    }
+
+    function renderAll() {
+      renderStatus();
+      renderBreaks();
+      renderLogs();
+      updateButtons();
+      saveToLS();
+    }
+
+    // --- Actions ---
+    function getActionInputs() {
+      return {
+        method: $("method").value,
+        location: $("location").value.trim() || null,
+        note: $("notes").value.trim() || null
+      };
+    }
+
+    function clearNote() { $("notes").value = ""; }
+
+    function clockIn() {
+      const employee = $("employee").value.trim();
+      if (!employee) { alert("Please enter Employee ID or Name before clocking in."); return; }
+      const { method, location, note } = getActionInputs();
+
+      state.session = initialSession();
+      state.session.employee = employee;
+      state.session.clockInAt = nowISO();
+      state.session.methodAtClockIn = method;
+      state.session.locationAtClockIn = location;
+      state.session.notesAtClockIn = note;
+      state.session.status = "working";
+
+      state.logs = [];
+      appendLog("clock_in", method, location, note);
+      clearNote();
+      renderAll();
+    }
+
+    function lunchOut() {
+      if (state.session.status !== "working") return;
+      const { method, location, note } = getActionInputs();
+      state.session.breaks.push({ breakType: "lunch", startAt: nowISO(), endAt: null, method, location, notes: note, isPaid: false });
+      state.session.status = "lunch";
+      appendLog("lunch_out", method, location, note);
+      clearNote();
+      renderAll();
+    }
+
+    function lunchIn() {
+      if (state.session.status !== "lunch") return;
+      const { method, location, note } = getActionInputs();
+      const brs = state.session.breaks;
+      if (!brs.length || brs[brs.length - 1].endAt) return;
+      brs[brs.length - 1].endAt = nowISO();
+      appendLog("lunch_in", method, location, note);
+      clearNote();
+      state.session.status = "working";
+      renderAll();
+    }
+
+    function clockOut() {
+      if (state.session.status !== "working" && state.session.status !== "lunch") return;
+      const { method, location, note } = getActionInputs();
+
+      // If currently on lunch, auto-close that break
+      if (state.session.status === "lunch") {
+        const brs = state.session.breaks;
+        if (brs.length && !brs[brs.length - 1].endAt) {
+          brs[brs.length - 1].endAt = nowISO();
+          appendLog("lunch_in (auto)", method, location, note);
+        }
+      }
+
+      state.session.clockOutAt = nowISO();
+      state.session.status = "closed";
+      appendLog("clock_out", method, location, note);
+      clearNote();
+      renderAll();
+    }
+
+    function resetSession() {
+      if (!confirm("Reset current session? This keeps the event log panel as-is.")) return;
+      state.session = initialSession();
+      renderAll();
+    }
+
+    function clearAll() {
+      if (!confirm("Clear session and logs? This will wipe local data for this page.")) return;
+      state.session = initialSession();
+      state.logs = [];
+      saveToLS();
+      renderAll();
+    }
+
+    function exportJSON() {
+      const payload = {
+        session: state.session,
+        logs: state.logs
+      };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const employee = state.session.employee || "employee";
+      a.download = `timeclock_${employee}_${Date.now()}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    // --- Wire up ---
+    function bindEvents() {
+      $("btnClockIn").addEventListener("click", clockIn);
+      $("btnLunchOut").addEventListener("click", lunchOut);
+      $("btnLunchIn").addEventListener("click", lunchIn);
+      $("btnClockOut").addEventListener("click", clockOut);
+      $("btnReset").addEventListener("click", resetSession);
+      $("btnClearAll").addEventListener("click", clearAll);
+      $("btnExport").addEventListener("click", exportJSON);
+      $("employee").addEventListener("input", updateButtons);
+    }
+
+    // Clock display
+    function tickNow() { $("now").textContent = new Date().toLocaleString(); }
+
+    // Init
+    loadFromLS();
+    bindEvents();
+    renderAll();
+    tickNow();
+    setInterval(tickNow, 1000);
+  </script>
+</body>
+</html>
