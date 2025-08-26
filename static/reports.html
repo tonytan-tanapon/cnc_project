@@ -9,8 +9,15 @@
 <body>
   <div class="app">
     <!-- Sidebar (partial) -->
-    <aside class="sidebar" data-include="/static/partials/nav.html"></aside>
-
+    <!-- <aside class="sidebar" data-include="/static/partials/nav.html"></aside> -->
+    <aside class="sidebar">
+      <div class="logo">
+        <span class="logo-badge">TN</span>
+        <span>Topnotch – MFG</span>
+      </div>
+      <!-- เมนูจะถูก inject จาก /static/partials/nav.html -->
+      <div id="navSlot" data-nav-slot></div>
+    </aside>
     <!-- Main -->
     <main class="main">
       <!-- Topbar -->
@@ -57,7 +64,7 @@
   <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span></div>
 
   <!-- Load nav partial + set active + init topbar -->
-  <script type="module">
+  <!-- <script type="module">
     const side = document.querySelector('.sidebar[data-include]');
     if (side) {
       fetch(side.getAttribute('data-include'))
@@ -69,8 +76,10 @@
         .catch(()=>{});
     }
     import('/static/js/api.js?v=4').then(m => m.initTopbar && m.initTopbar());
-  </script>
-
+  </script> -->
+ <!-- โหลดเมนู + ไฮไลท์ active อัตโนมัติ -->
+  <script type="module" src="/static/js/nav-loader.js"></script>
+ 
   <!-- Page logic -->
   <script type="module" src="/static/js/page-reports.js?v=1"></script>
 </body>

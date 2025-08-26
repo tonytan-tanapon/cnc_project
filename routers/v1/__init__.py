@@ -5,7 +5,7 @@ from fastapi import APIRouter
 from . import (
     auth,customers, pos, employees, materials, batches,
     lots,lot_uses,travelers, traveler_steps,suppliers, subcon, payroll, time_clock,
-    parts
+    parts, users
 )
 
 api_v1 = APIRouter()
@@ -26,5 +26,5 @@ api_v1.include_router(time_clock.timeclock_router)
 api_v1.include_router(time_clock.breaks_router)
 api_v1.include_router(parts.parts_router)
 api_v1.include_router(parts.part_revisions_router)
-
+api_v1.include_router(users.router)
 __all__ = ["api_v1"]

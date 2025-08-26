@@ -164,10 +164,15 @@ class PartRevision(Base):
 # ======== Production / Lot / Traveler ====
 # =========================================
 
+# models.py (เฉพาะส่วน ProductionLot)
+
 class ProductionLot(Base):
     __tablename__ = "production_lots"
 
     id = Column(Integer, primary_key=True)
+    # ✅ เพิ่ม lot_code
+    lot_code = Column(String, unique=True, index=True, nullable=False)  # e.g. "L0001"
+
     lot_no = Column(String, unique=True, index=True, nullable=False)
 
     part_id = Column(Integer, ForeignKey("parts.id"), nullable=False)
@@ -191,7 +196,8 @@ class ProductionLot(Base):
         return self.part.part_no if self.part else None
 
     def __repr__(self):
-        return f"<ProductionLot(lot_no={self.lot_no}, part_id={self.part_id}, status={self.status})>"
+        return f"<ProductionLot(lot_code={getattr(self,'lot_code',None)}, lot_no={self.lot_no}, part_id={self.part_id}, status={self.status})>"
+
 
 
 class LotMaterialUse(Base):
@@ -238,6 +244,7 @@ class ShopTraveler(Base):
 
     def __repr__(self):
         return f"<ShopTraveler(lot_id={self.lot_id}, status={self.status})>"
+
 
 
 class ShopTravelerStep(Base):
@@ -585,8 +592,22 @@ class User(Base):
     is_active = Column(Boolean, default=True, nullable=False)
     is_superuser = Column(Boolean, default=False, nullable=False)
 
-    employee_id = Column(Integer, ForeignKey("employees.id", ondelete="SET NULL"), nullable=True, unique=True, index=True)
+    employee_id = Column(
+        Integer,
+        ForeignKey("employees.id", ondelete="SET NULL"),
+        nullable=True,
+        unique=True,
+        index=True,
+    )
     employee = relationship("Employee", back_populates="user", uselist=False)
+
+    # สำคัญ: นิยามความสัมพันธ์ไปยังตารางเชื่อม พร้อม cascade และ passive_deletes
+    user_roles = relationship(
+        "UserRole",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
 
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     last_login_at = Column(DateTime, nullable=True)
@@ -604,22 +625,41 @@ class Role(Base):
     name = Column(String, nullable=False)
     description = Column(Text, nullable=True)
 
+    # ความสัมพันธ์กลับมาที่ตารางเชื่อม
+    role_users = relationship(
+        "UserRole",
+        back_populates="role",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
     def __repr__(self):
         return f"<Role(code={self.code})>"
 
 
 class UserRole(Base):
     __tablename__ = "user_roles"
-    user_id = Column(Integer, ForeignKey("users.id"), primary_key=True)
-    role_id = Column(Integer, ForeignKey("roles.id"), primary_key=True)
+
+    # ใส่ ondelete="CASCADE" ทั้งสองฝั่ง
+    user_id = Column(
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True,
+        nullable=False,
+    )
+    role_id = Column(
+        Integer,
+        ForeignKey("roles.id", ondelete="CASCADE"),
+        primary_key=True,
+        nullable=False,
+    )
     assigned_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
-    user = relationship("User", backref="user_roles")
-    role = relationship("Role", backref="role_users")
+    user = relationship("User", back_populates="user_roles")
+    role = relationship("Role", back_populates="role_users")
 
     def __repr__(self):
         return f"<UserRole(user_id={self.user_id}, role_id={self.role_id})>"
-
 
 class Permission(Base):
     __tablename__ = "permissions"

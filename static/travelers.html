@@ -3,17 +3,20 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Travelers · Topnotch MFG</title>
+  <title>Travelers · Topnotch – MFG</title>
   <link rel="stylesheet" href="/static/css/app.css" />
 </head>
 <body>
   <div class="app">
-    <!-- Sidebar (partial เพื่อลดการพิมพ์ซ้ำ) -->
-    <aside class="sidebar" data-include="/static/partials/nav.html"></aside>
+    <aside class="sidebar">
+      <div class="logo">
+        <span class="logo-badge">TN</span>
+        <span>Topnotch – MFG</span>
+      </div>
+      <div id="navSlot" data-nav-slot></div>
+    </aside>
 
-    <!-- Main -->
     <main class="main">
-      <!-- Topbar -->
       <div class="topbar">
         <div class="search">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -25,104 +28,37 @@
         <button class="btn" id="btnPing" type="button">Ping</button>
       </div>
 
-      <!-- Page -->
       <section id="page-travelers">
-        <h2 class="page-title">🛠️ Travelers & Steps</h2>
+        <h2 class="page-title">🧾 Travelers</h2>
 
-        <div class="grid">
-          <!-- Create Traveler + List -->
-          <div class="col-6">
-            <div class="card">
-              <b>Create Traveler</b>
-              <div class="grid" style="margin-top:8px">
-                <div class="col-4"><label>Lot ID</label><input id="t_lot" type="number" /></div>
-                <div class="col-4"><label>Created by (Emp ID)</label><input id="t_emp" type="number" /></div>
-                <div class="col-12"><label>Notes</label><textarea id="t_notes" rows="2"></textarea></div>
-                <div class="col-12">
-                  <button class="btn" id="t_create" type="button">Create</button>
-                  <span class="hint">POST /travelers</span>
-                </div>
-              </div>
-
-              <div class="toolbar">
-                <input id="t_q" placeholder="filter by lot_id / status" />
-                <button class="btn" id="t_reload" type="button">Reload</button>
-              </div>
-              <div id="t_table"></div>
+        <div class="card">
+          <b>Create Traveler</b>
+          <div class="grid" style="margin-top:8px">
+            <div class="col-3"><label>Lot ID</label><input id="t_lot" type="number" /></div>
+            <div class="col-3"><label>Created by (Emp ID)</label><input id="t_emp" type="number" /></div>
+            <div class="col-6"><label>Status</label><input id="t_status" placeholder="open / in_progress / closed" /></div>
+            <div class="col-12"><label>Notes</label><textarea id="t_notes" rows="2"></textarea></div>
+            <div class="col-12">
+              <button class="btn" id="t_create" type="button">Create</button>
+              <span class="hint">POST /travelers</span>
             </div>
           </div>
+        </div>
 
-          <!-- Add Step + Actions -->
-          <div class="col-6">
-            <div class="card">
-              <b>Add Step</b>
-              <div class="grid" style="margin-top:8px">
-                <div class="col-3"><label>Traveler ID</label><input id="s_tid" type="number" /></div>
-                <div class="col-3"><label>Seq</label><input id="s_seq" type="number" value="1" /></div>
-                <div class="col-6"><label>Station</label><input id="s_station" placeholder="CNC-1" /></div>
-                <div class="col-6"><label>Step Name</label><input id="s_name" placeholder="Milling" /></div>
-                <div class="col-6"><label>Step Code</label><input id="s_code" placeholder="MILL" /></div>
-                <div class="col-6"><label>Operator ID</label><input id="s_op" type="number" /></div>
-                <div class="col-6">
-                  <label>QA Required?</label>
-                  <select id="s_qa">
-                    <option value="false">false</option>
-                    <option value="true">true</option>
-                  </select>
-                </div>
-                <div class="col-12">
-                  <button class="btn" id="s_create" type="button">Add Step</button>
-                  <span class="hint">POST /traveler-steps</span>
-                </div>
-              </div>
-
-              <div class="toolbar">
-                <input id="s_list_tid" placeholder="Traveler ID for listing" />
-                <button class="btn" id="s_reload" type="button">Load Steps</button>
-              </div>
-              <div id="s_table"></div>
-
-              <div class="toolbar">
-                <input id="s_act" placeholder="Step ID" />
-                <button class="btn" id="s_start" type="button">Start</button>
-                <select id="s_result">
-                  <option>passed</option>
-                  <option>failed</option>
-                  <option>skipped</option>
-                </select>
-                <input id="s_qa_result" placeholder="qa_result" />
-                <input id="s_qa_notes" placeholder="qa_notes" />
-                <button class="btn" id="s_finish" type="button">Finish</button>
-              </div>
-              <div class="hint">POST /traveler-steps/{id}/start และ /finish?result=...</div>
-            </div>
+        <div class="card">
+          <div class="toolbar">
+            <input id="t_q" placeholder="filter by lot_id / status" />
+            <button class="btn" id="t_reload" type="button">Reload</button>
           </div>
+          <div id="t_table"></div>
         </div>
       </section>
     </main>
   </div>
 
-  <!-- Toast -->
   <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span></div>
 
-  <!-- โหลด nav partial + ทำ active + init topbar -->
-  <script type="module">
-    // inject sidebar nav
-    const side = document.querySelector('.sidebar[data-include]');
-    if (side) {
-      fetch(side.getAttribute('data-include'))
-        .then(r => r.text())
-        .then(html => {
-          side.innerHTML = html;
-          import('/static/js/nav-active.js?v=1').then(m => m.activateCurrentNav && m.activateCurrentNav());
-        })
-        .catch(()=>{});
-    }
-    // init topbar (apiBase, ping)
-    import('/static/js/api.js?v=4').then(m => m.initTopbar && m.initTopbar());
-  </script>
-
-  <!-- หน้า Travelers -->
-  <script type="module" src="/static/js/page-travelers.js?v=1"></script>
+  <script type="module" src="/static/js/nav-loader.js"></script>
+  <script type="module" src="/static/js/page-travelers.js?v=tr_001"></script>
 </body>
 </html>

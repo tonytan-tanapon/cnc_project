@@ -248,3 +248,33 @@ th{ background:#f8fafc; position:sticky; top:0; z-index:1 }
   .app{ grid-template-columns:1fr }
   .btn, .toolbar, #apiBase{ display:none !important }
 }
+
+
+/* ให้รู้ว่าเซลล์พาไปหน้า detail ได้ */
+.customers-table td.clickable {
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+/* hover ทั้งแถวให้ feedback */
+.customers-table tr[data-id]:hover {
+  background: rgba(0,0,0,.03);
+}
+
+/* กันเคสมีอะไรทับ table container (เช่น badge ลอย/sticky แปลก ๆ) */
+#c_table {
+  position: relative;
+  z-index: 1;
+}
+
+/* ปุ่ม code ให้หน้าตาเหมือนลิงก์ แต่ไม่ใช่ <a> */
+.customers-table .code-jump{
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+  color: inherit;
+}
+.customers-table tr:hover { background: rgba(0,0,0,.03); }

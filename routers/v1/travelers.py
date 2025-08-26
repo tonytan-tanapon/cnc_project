@@ -1,7 +1,8 @@
 # routers/travelers.py
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-from typing import List
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.orm import Session, selectinload
+from sqlalchemy import or_
+from typing import List, Optional
 
 from database import get_db
 from models import ShopTraveler, ProductionLot, Employee
@@ -14,10 +15,12 @@ router = APIRouter(prefix="/travelers", tags=["travelers"])
 
 @router.post("", response_model=ShopTravelerOut)
 def create_traveler(payload: ShopTravelerCreate, db: Session = Depends(get_db)):
+    # ตรวจ lot
     lot = db.get(ProductionLot, payload.lot_id)
     if not lot:
         raise HTTPException(404, "Lot not found")
 
+    # ตรวจผู้สร้าง (optional)
     if payload.created_by_id and not db.get(Employee, payload.created_by_id):
         raise HTTPException(404, "Creator employee not found")
 
@@ -34,13 +37,42 @@ def create_traveler(payload: ShopTravelerCreate, db: Session = Depends(get_db)):
 
 
 @router.get("", response_model=List[ShopTravelerOut])
-def list_travelers(db: Session = Depends(get_db)):
-    return db.query(ShopTraveler).order_by(ShopTraveler.id.desc()).all()
+def list_travelers(
+    q: Optional[str] = Query(None, description="ค้นหา lot_code / lot_no"),
+    db: Session = Depends(get_db),
+):
+    """
+    คืนรายการ Traveler ทั้งหมด (ใหม่ -> เก่า)
+    - eager load: lot (เพื่อให้ property lot_code ใช้ได้ทันที ไม่เกิด N+1)
+    - ถ้ามีพารามิเตอร์ q จะค้นหาจาก lot_code / lot_no
+    """
+    query = db.query(ShopTraveler).options(selectinload(ShopTraveler.lot))
+
+    if q:
+        ql = f"%{q}%"
+        # join เฉพาะเวลาค้นหา เพื่อให้ filter ที่ ProductionLot ได้
+        query = (
+            query.join(ShopTraveler.lot)
+                 .filter(or_(
+                     ProductionLot.lot_code.ilike(ql),
+                     ProductionLot.lot_no.ilike(ql),
+                 ))
+        )
+
+    return query.order_by(ShopTraveler.id.desc()).all()
 
 
 @router.get("/{traveler_id}", response_model=ShopTravelerOut)
 def get_traveler(traveler_id: int, db: Session = Depends(get_db)):
-    t = db.get(ShopTraveler, traveler_id)
+    """
+    ดึง Traveler เดี่ยว พร้อม eager load lot
+    """
+    t = (
+        db.query(ShopTraveler)
+          .options(selectinload(ShopTraveler.lot))
+          .filter(ShopTraveler.id == traveler_id)
+          .first()
+    )
     if not t:
         raise HTTPException(404, "Traveler not found")
     return t
@@ -54,6 +86,7 @@ def update_traveler(traveler_id: int, payload: ShopTravelerUpdate, db: Session =
 
     data = payload.dict(exclude_unset=True)
 
+    # validate created_by_id ถ้ามีส่งมา
     if "created_by_id" in data and data["created_by_id"] is not None:
         if not db.get(Employee, data["created_by_id"]):
             raise HTTPException(404, "Creator employee not found")
