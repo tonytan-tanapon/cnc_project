@@ -19,6 +19,8 @@ password: 1234
 ีupdate lib
 pip freeze > requirements.txt
 
+pip install -r requirements.txt
+
 create Database
 sqlacodegen postgresql://postgres:1234@localhost:5432/mydb --outfile models.py
 
@@ -33,3 +35,10 @@ alembic upgrade head
 
 100.76.36.69
 fd7a:115c:a1e0::ef01:2452
+
+Initial Database
+Delete all version 
+then
+
+alembic revision --autogenerate -m "add tables"
+alembic upgrade head
