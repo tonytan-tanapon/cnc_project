@@ -29,7 +29,7 @@ def create_po(payload: POCreate, db: Session = Depends(get_db)):
         description=payload.description,
         customer_id=payload.customer_id,
     )
-
+    print(po)
     # กัน race condition ตอน autogen
     for _ in range(3):
         try:

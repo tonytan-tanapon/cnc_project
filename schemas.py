@@ -32,8 +32,15 @@ class CustomerBase(APIBase):
     phone: Optional[str] = None
     address: Optional[str] = None
 
-class CustomerCreate(CustomerBase):
-    pass
+class CustomerCreate(BaseModel):
+    # เดิมน่าจะเป็น: code: str   # (required)
+    # แก้เป็น optional:
+    code: Optional[str] = None
+    name: str
+    contact: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    address: Optional[str] = None
 
 class CustomerUpdate(APIBase):
     name: Optional[str] = None
@@ -76,8 +83,14 @@ class EmployeeBase(APIBase):
     phone: Optional[str] = None
     status: Optional[str] = "active"
 
-class EmployeeCreate(EmployeeBase):
-    pass
+class EmployeeCreate(APIBase):
+    emp_code: Optional[str] = None   # ใส่ได้หรือไม่ใส่ก็ได้
+    name: str
+    position: Optional[str] = None
+    department: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    status: Optional[str] = "active"
 
 class EmployeeUpdate(APIBase):
     name: Optional[str] = None
@@ -222,6 +235,11 @@ class ProductionLotOut(APIBase):
     status: LotStatus
     # from ORM property
     part_no: Optional[str] = None
+    traveler_ids: list[int] = []        # ✅ list ทั้งหมด
+    traveler_ids_str: Optional[str] = None  # ✅ แสดงเป็น string คั่นด้วย ,
+
+    class Config:
+        from_attributes = True
 
 # =========================================
 # ============ Lot Material Use ===========
@@ -265,19 +283,27 @@ class ShopTravelerOut(APIBase):
     created_at: datetime
     
 
-# --- Shop Traveler Steps ---
 StepStatus = Literal["pending", "running", "passed", "failed", "skipped"]
 
-class ShopTravelerStepCreate(APIBase):
-    traveler_id: int
+# ---------------- Base ----------------
+class ShopTravelerStepBase(BaseModel):
     seq: int
     step_name: str
     step_code: Optional[str] = None
     station: Optional[str] = None
     operator_id: Optional[int] = None
     qa_required: Optional[bool] = False
+    # ปริมาณ
+    qty_receive: Optional[Decimal] = None
+    qty_accept:  Optional[Decimal] = None
+    qty_reject:  Optional[Decimal] = None
 
-class ShopTravelerStepUpdate(APIBase):
+# ---------------- Create ----------------
+class ShopTravelerStepCreate(ShopTravelerStepBase):
+    traveler_id: int   # create ต้องมี traveler_id เสมอ
+
+# ---------------- Update ----------------
+class ShopTravelerStepUpdate(BaseModel):
     seq: Optional[int] = None
     step_name: Optional[str] = None
     step_code: Optional[str] = None
@@ -289,22 +315,20 @@ class ShopTravelerStepUpdate(APIBase):
     finished_at: Optional[datetime] = None
     qa_result: Optional[str] = None
     qa_notes: Optional[str] = None
+    # ปริมาณ (optional)
+    qty_receive: Optional[Decimal] = None
+    qty_accept:  Optional[Decimal] = None
+    qty_reject:  Optional[Decimal] = None
 
-class ShopTravelerStepOut(APIBase):
+# ---------------- Out ----------------
+class ShopTravelerStepOut(BaseModel):
     id: int
     traveler_id: int
     seq: int
     step_name: str
-    step_code: Optional[str] = None
-    station: Optional[str] = None
-    operator_id: Optional[int] = None
-    status: StepStatus
-    started_at: Optional[datetime] = None
-    finished_at: Optional[datetime] = None
-    qa_required: bool
-    qa_result: Optional[str] = None
-    qa_notes: Optional[str] = None
 
+    class Config:
+        from_attributes = True
 # =========================================
 # ============== Subcontracting ===========
 # =========================================
@@ -442,6 +466,7 @@ class BreakEntryOut(BreakEntryBase):
 Decimal5_2 = Annotated[Decimal, Field(max_digits=5, decimal_places=2)]
 Decimal4_2 = Annotated[Decimal, Field(max_digits=4, decimal_places=2)]
 Decimal3_2 = Annotated[Decimal, Field(max_digits=3, decimal_places=2)]
+Decimal8_2 = Annotated[Decimal, Field(max_digits=8, decimal_places=2)]
 
 class LeaveStatus(str, Enum):
     draft = "draft"
@@ -559,3 +584,108 @@ class PermissionOut(APIBase):
     id: int
     code: str
     name: str
+
+
+
+# ===== Decimal helpers (ADD) =====
+# from pydantic import condecimal
+
+# Decimal8_2 = condecimal(max_digits=8, decimal_places=2)
+# Decimal4_2 = condecimal(max_digits=4, decimal_places=2)
+
+# =========================================
+# ================= Pay Rates =============
+# =========================================
+class PayRateBase(APIBase):
+    hourly_rate: Decimal8_2
+    ot_multiplier: Optional[Decimal4_2] = Decimal("1.50")
+    dt_multiplier: Optional[Decimal4_2] = Decimal("2.00")
+
+class PayRateCreate(PayRateBase):
+    employee_id: int
+    effective_from: datetime
+
+class PayRateUpdate(APIBase):
+    # อนุญาตแก้ไขเรตล่าสุด (หรือทำเป็น append-only ใน service ก็ได้)
+    hourly_rate: Optional[Decimal8_2] = None
+    ot_multiplier: Optional[Decimal4_2] = None
+    dt_multiplier: Optional[Decimal4_2] = None
+    effective_from: Optional[datetime] = None
+
+class PayRateOut(PayRateBase):
+    id: int
+    employee_id: int
+    effective_from: datetime
+
+    # =========================================
+# =============== Time Entries ============
+# =========================================
+TimeEntryStatus = Literal["open", "closed", "cancelled"]
+
+class TimeEntryBase(APIBase):
+    employee_id: int
+    created_by_user_id: Optional[int] = None
+    work_user_id: Optional[int] = None
+    clock_in_at: Optional[datetime] = None
+    clock_in_method: Optional[str] = None
+    clock_in_location: Optional[str] = None
+    clock_out_at: Optional[datetime] = None
+    clock_out_method: Optional[str] = None
+    clock_out_location: Optional[str] = None
+    status: TimeEntryStatus = "open"
+    notes: Optional[str] = None
+
+class TimeEntryCreate(TimeEntryBase):
+    @model_validator(mode="after")
+    def _validate_range(self):
+        if self.clock_out_at and self.clock_in_at and self.clock_out_at < self.clock_in_at:
+            raise ValueError("clock_out_at must be >= clock_in_at")
+        return self
+
+class TimeEntryUpdate(APIBase):
+    created_by_user_id: Optional[int] = None
+    work_user_id: Optional[int] = None
+    clock_in_at: Optional[datetime] = None
+    clock_in_method: Optional[str] = None
+    clock_in_location: Optional[str] = None
+    clock_out_at: Optional[datetime] = None
+    clock_out_method: Optional[str] = None
+    clock_out_location: Optional[str] = None
+    status: Optional[TimeEntryStatus] = None
+    notes: Optional[str] = None
+
+    @model_validator(mode="after")
+    def _validate_range(self):
+        if self.clock_out_at and self.clock_in_at and self.clock_out_at < self.clock_in_at:
+            raise ValueError("clock_out_at must be >= clock_in_at")
+        return self
+
+class TimeEntryOut(TimeEntryBase):
+    id: int
+
+
+
+class PayPeriodBase(BaseModel):
+    name: Optional[str] = None
+    start_at: datetime
+    end_at: datetime
+    status: Literal["open", "locked", "paid"] = "open"
+    anchor: Optional[str] = None
+    notes: Optional[str] = None
+
+class PayPeriodCreate(PayPeriodBase):
+    pass
+
+class PayPeriodUpdate(BaseModel):
+    name: Optional[str] = None
+    start_at: Optional[datetime] = None
+    end_at: Optional[datetime] = None
+    status: Optional[Literal["open", "locked", "paid"]] = None
+    anchor: Optional[str] = None
+    notes: Optional[str] = None
+
+class PayPeriodOut(PayPeriodBase):
+    id: int
+    locked_at: Optional[datetime] = None
+    paid_at: Optional[datetime] = None
+    model_config = ConfigDict(from_attributes=True)

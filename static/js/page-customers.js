@@ -47,6 +47,7 @@ function renderCustomersTable(container, rows) {
         <td>${escapeHtml(r.contact ?? '')}</td>
         <td>${escapeHtml(r.email ?? '')}</td>
         <td>${escapeHtml(r.phone ?? '')}</td>
+        
       </tr>
     `;
   }).join('');
@@ -77,9 +78,10 @@ function renderCustomersTable(container, rows) {
 async function loadCustomers() {
   const q = $('c_q')?.value?.trim();
   const url = '/customers' + (q ? `?q=${encodeURIComponent(q)}` : '');
-
+ 
   try {
     const rows = await jfetch(url);
+
     const container = $('c_table');
     if (!container) return;
     renderCustomersTable(container, rows);
@@ -89,15 +91,15 @@ async function loadCustomers() {
 }
 
 async function createCustomer() {
-  const payload = {
-    code: $('c_code').value.trim() || null,
+    const code = ($('c_code')?.value || '').trim().toUpperCase();
+    const payload = {
     name: $('c_name').value.trim(),
     contact: $('c_contact').value.trim() || null,
     email: $('c_email').value.trim() || null,
     phone: $('c_phone').value.trim() || null,
     address: $('c_addr').value.trim() || null,
   };
-
+  if (code) payload.code = code; // กรอกถึงค่อยส่ง ไม่กรอก = ไม่ส่งคีย์
   if (!payload.name) {
     toast('กรอกชื่อลูกค้าก่อน', false);
     return;

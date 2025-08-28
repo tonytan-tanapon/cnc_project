@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>บันทึกเวลาเข้างาน/ออกงาน (Manual Time Entry)</title>
+  <style>
+    :root{
+      --bg:#0b1016; --card:#121824; --muted:#aab2c0; --text:#e6edf7; --acc:#4cc9f0; --ok:#4ade80; --warn:#f59e0b; --err:#ef4444;
+      --br:16px;
+    }
+    html,body{height:100%;}
+    body{margin:0;font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;color:var(--text);background:linear-gradient(180deg,#0b1016,#0f172a);}    
+    .wrap{max-width:1100px;margin:40px auto;padding:0 16px;}
+    h1{font-weight:800;font-size:28px;letter-spacing:.2px;margin:0 0 14px}
+    h2{font-size:18px;margin:22px 0 10px;color:#d7def0}
+    .card{background:var(--card);border-radius:var(--br);box-shadow:0 8px 30px rgba(0,0,0,.25);padding:18px;margin:14px 0;}
+    .grid{display:grid;gap:14px}
+    .g2{grid-template-columns:repeat(2,minmax(0,1fr));}
+    .g3{grid-template-columns:repeat(3,minmax(0,1fr));}
+    label{font-weight:600;color:#d1d9ea;margin-bottom:6px;display:block}
+    input,select,textarea{width:100%;box-sizing:border-box;background:#0f1420;border:1px solid #263044;color:var(--text);padding:10px 12px;border-radius:12px;outline:none}
+    input:focus,select:focus,textarea:focus{border-color:var(--acc);box-shadow:0 0 0 3px rgba(76,201,240,.18)}
+    .row{display:flex;gap:10px;align-items:center}
+    .btn{cursor:pointer;user-select:none;border:none;background:#1f2937;color:#e8eef9;padding:10px 14px;border-radius:12px;font-weight:700}
+    .btn:hover{filter:brightness(1.15)}
+    .btn.acc{background:linear-gradient(135deg,#2563eb,#06b6d4)}
+    .btn.sub{background:#30384a}
+    .btn.ok{background:#16a34a}
+    .btn.warn{background:#ca8a04}
+    .btn.danger{background:#b91c1c}
+    table{width:100%;border-collapse:collapse;border:1px solid #27344b;border-radius:12px;overflow:hidden}
+    th,td{border-bottom:1px dashed #27344b;padding:10px 12px;text-align:left}
+    th{background:#0d1420;color:#b7c2d9;font-weight:700}
+    tbody tr:hover{background:#0c1220}
+    .pill{display:inline-flex;align-items:center;gap:6px;background:#0c1320;border:1px solid #293246;color:#c8d3ea;border-radius:999px;padding:4px 10px;font-size:12px}
+    .muted{color:var(--muted)}
+    .right{display:flex;justify-content:flex-end;gap:10px}
+    .totals{display:flex;gap:12px;flex-wrap:wrap}
+    .totals .pill{background:#0e1728}
+    .help{color:#a6b0c6;font-size:13px}
+    .foot{opacity:.8;margin-top:12px}
+    .error{color:var(--err)}
+    .hidden{display:none}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>บันทึกเวลาเข้างาน/ออกงาน – Manual Time Entry</h1>
+    <div class="card">
+      <div class="grid g3">
+        <div>
+          <label>พนักงาน (ชื่อ-สกุล)</label>
+          <input id="empName" placeholder="เช่น Somchai Prasert" />
+        </div>
+        <div>
+          <label>วันที่ทำงาน</label>
+          <input id="workDate" type="date" />
+        </div>
+        <div>
+          <label>บัญชีผู้รับเงิน (work_user)</label>
+          <input id="workUser" placeholder="ใส่รหัส/อีเมลผู้รับเงิน (ถ้ามี)" />
+        </div>
+      </div>
+
+      <h2>เวลาทำงาน</h2>
+      <div class="grid g2">
+        <div>
+          <label>เวลาเข้างาน (Clock In)</label>
+          <input id="clockIn" type="time" step="60" />
+        </div>
+        <div>
+          <label>เวลาออกงาน (Clock Out)</label>
+          <input id="clockOut" type="time" step="60" />
+        </div>
+      </div>
+      <div class="grid g3" style="margin-top:10px">
+        <div>
+          <label>วิธีบันทึก</label>
+          <select id="methodIn">
+            <option value="paper">paper</option>
+            <option value="web">web</option>
+            <option value="ipad">ipad</option>
+            <option value="qr">qr</option>
+            <option value="badge">badge</option>
+          </select>
+        </div>
+        <div>
+          <label>สถานที่/จุดบันทึก</label>
+          <input id="locIn" placeholder="เช่น Front Desk, Line-1" />
+        </div>
+        <div>
+          <label>หมายเหตุ</label>
+          <input id="notes" placeholder="optional" />
+        </div>
+      </div>
+
+      <h2 style="margin-top:18px">ช่วงพัก (Breaks)</h2>
+      <div class="help">เพิ่มหลายช่วงได้ (เช่น Lunch, Restroom, Personal) — ค่าดีฟอลต์เป็นพักไม่จ่าย</div>
+      <table id="breakTable" style="margin-top:8px">
+        <thead>
+          <tr>
+            <th style="width:26%">ประเภท</th>
+            <th style="width:20%">เริ่มพัก</th>
+            <th style="width:20%">สิ้นสุด</th>
+            <th style="width:16%">จ่าย?</th>
+            <th>หมายเหตุ</th>
+            <th style="width:70px"></th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <div class="row" style="margin-top:10px">
+        <button class="btn sub" onclick="addBreak()">+ เพิ่มช่วงพัก</button>
+        <span class="help">แนะนำ: พักกลางวัน 30 นาที – ตั้งเริ่ม/สิ้นสุดให้พอดี</span>
+      </div>
+
+      <h2 style="margin-top:18px">สรุปชั่วโมง</h2>
+      <div id="summary" class="totals"></div>
+      <div id="err" class="error"></div>
+
+      <div class="right" style="margin-top:16px">
+        <button class="btn sub" onclick="clearForm()">ล้างฟอร์ม</button>
+        <button class="btn acc" onclick="saveEntry()">บันทึกลงรายการด้านล่าง</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>รายการที่บันทึกในหน้านี้</h2>
+      <table id="listTable">
+        <thead>
+          <tr>
+            <th>พนักงาน</th>
+            <th>วันที่</th>
+            <th>เข้า</th>
+            <th>ออก</th>
+            <th>ชั่วโมงสุทธิ</th>
+            <th>พัก (รวม)</th>
+            <th>รายละเอียด</th>
+            <th style="width:70px"></th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+
+      <div class="right" style="margin-top:12px">
+        <button class="btn warn" onclick="downloadCSV()">ดาวน์โหลด CSV</button>
+        <button class="btn ok" onclick="copyJSON()">คัดลอก JSON</button>
+      </div>
+      <div class="foot help">CSV จะสร้าง 2 ไฟล์: <span class="mono">time_entries.csv</span> และ <span class="mono">break_entries.csv</span> สำหรับนำเข้าโปรแกรม/สเปรดชีต</div>
+    </div>
+  </div>
+
+<script>
+  const $ = s => document.querySelector(s);
+  const $$ = s => Array.from(document.querySelectorAll(s));
+  const breakTBody = $('#breakTable tbody');
+  const listTBody  = $('#listTable tbody');
+  const state = { rows: [] };
+
+  function todayStr(){
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth()+1).padStart(2,'0');
+    const da= String(d.getDate()).padStart(2,'0');
+    return `${y}-${m}-${da}`;
+  }
+  $('#workDate').value = todayStr();
+
+  function addBreak(row){
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input placeholder="lunch/rest" value="${row?.type || 'lunch'}"></td>
+      <td><input type="time" step="60" value="${row?.start||''}"></td>
+      <td><input type="time" step="60" value="${row?.end||''}"></td>
+      <td style="text-align:center"><input type="checkbox" ${row?.paid? 'checked':''}></td>
+      <td><input placeholder="notes" value="${row?.notes||''}"></td>
+      <td><button class="btn danger" onclick="this.closest('tr').remove();calcSummary()">ลบ</button></td>
+    `;
+    breakTBody.appendChild(tr);
+    calcSummary();
+  }
+
+  function clearBreaks(){ breakTBody.innerHTML = ''; }
+  function clearForm(){
+    $('#empName').value='';
+    $('#workUser').value='';
+    $('#clockIn').value='';
+    $('#clockOut').value='';
+    $('#methodIn').value='paper';
+    $('#locIn').value='';
+    $('#notes').value='';
+    clearBreaks();
+    addBreak({type:'lunch'});
+    calcSummary();
+  }
+  addBreak({type:'lunch'});
+
+  function toDate(dateStr, timeStr){
+    if(!dateStr || !timeStr) return null;
+    return new Date(`${dateStr}T${timeStr}:00`);
+  }
+
+  function diffMinutes(a,b){
+    // assumes b >= a
+    return Math.max(0, Math.round((b-a)/60000));
+  }
+
+  function calcSummary(){
+    const err = $('#err'); err.textContent='';
+    const blocks = [];
+    const dStr = $('#workDate').value;
+    const inT  = toDate(dStr, $('#clockIn').value);
+    const outT = toDate(dStr, $('#clockOut').value);
+    if(!inT || !outT){ $('#summary').innerHTML=''; return; }
+    if(outT < inT){ err.textContent = 'เวลาออกต้องมากกว่าเวลาเข้า'; $('#summary').innerHTML=''; return; }
+
+    // collect breaks
+    let unpaidMin = 0, paidMin = 0;
+    $$('#breakTable tbody tr').forEach(tr =>{
+      const [typeInp, startInp, endInp, paidInp, notesInp] = tr.querySelectorAll('input');
+      const s = toDate(dStr, startInp.value);
+      const e = toDate(dStr, endInp.value);
+      const paid = paidInp.checked;
+      if(s && e && e > s){
+        const m = diffMinutes(s,e);
+        if(paid) paidMin += m; else unpaidMin += m;
+        blocks.push({type:typeInp.value||'break', start:startInp.value, end:endInp.value, paid, notes:notesInp.value||''});
+      }
+    });
+
+    const grossMin = diffMinutes(inT, outT);
+    const netMin   = Math.max(0, grossMin - unpaidMin);
+
+    const pill = (name,val) => `<span class="pill"><strong>${name}</strong> ${val}</span>`;
+    const fmtH = m => (m/60).toFixed(2)+' h';
+
+    $('#summary').innerHTML = `
+      ${pill('ชั่วโมงรวม', fmtH(grossMin))}
+      ${pill('พักไม่จ่าย', fmtH(unpaidMin))}
+      ${pill('พักที่จ่าย', fmtH(paidMin))}
+      ${pill('ชั่วโมงสุทธิ', fmtH(netMin))}
+    `;
+
+    return { grossMin, unpaidMin, paidMin, netMin, breaks: blocks };
+  }
+
+  ['#workDate','#clockIn','#clockOut'].forEach(sel=>{
+    $(sel).addEventListener('input', calcSummary)
+  });
+
+  function collectForm(){
+    const s = calcSummary();
+    if(!s) throw new Error('กรอกเวลาเข้า/ออกให้ครบก่อน');
+    const d = {
+      employee_name: $('#empName').value.trim(),
+      work_user: $('#workUser').value.trim() || null,
+      work_date: $('#workDate').value,
+      clock_in: $('#clockIn').value,
+      clock_out: $('#clockOut').value,
+      method: $('#methodIn').value,
+      location: $('#locIn').value.trim() || null,
+      notes: $('#notes').value.trim() || null,
+      gross_minutes: s.grossMin,
+      unpaid_minutes: s.unpaidMin,
+      paid_minutes: s.paidMin,
+      net_minutes: s.netMin,
+      breaks: s.breaks
+    };
+    if(!d.employee_name) throw new Error('กรอกชื่อพนักงาน');
+    return d;
+  }
+
+  function saveEntry(){
+    try{
+      const row = collectForm();
+      state.rows.push(row);
+      renderList();
+      clearForm();
+    }catch(e){ $('#err').textContent = e.message || String(e); }
+  }
+
+  function renderList(){
+    listTBody.innerHTML = '';
+    for(const r of state.rows){
+      const tr = document.createElement('tr');
+      const fmtH = m => (m/60).toFixed(2)+' h';
+      const bsum = r.breaks.length
+        ? r.breaks.map(b=>`${b.type}:${b.start}-${b.end}${b.paid?'(paid)':''}`).join(' | ')
+        : '-';
+      tr.innerHTML = `
+        <td>${escapeHtml(r.employee_name)}</td>
+        <td>${r.work_date}</td>
+        <td>${r.clock_in}</td>
+        <td>${r.clock_out}</td>
+        <td>${fmtH(r.net_minutes)}</td>
+        <td>${fmtH(r.unpaid_minutes + r.paid_minutes)}</td>
+        <td class="muted mono">${escapeHtml(bsum)}</td>
+        <td><button class="btn danger" onclick="delRow(${state.rows.indexOf(r)})">ลบ</button></td>
+      `;
+      listTBody.appendChild(tr);
+    }
+  }
+
+  function delRow(i){ state.rows.splice(i,1); renderList(); }
+
+  function escapeHtml(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+  // --- Exporters ---
+  function toCSV(rows){
+    const lines = [];
+    lines.push(['employee_name','work_user','work_date','clock_in','clock_out','method','location','notes','gross_minutes','unpaid_minutes','paid_minutes','net_minutes'].join(','));
+    for(const r of rows){
+      lines.push([
+        q(r.employee_name), q(r.work_user), r.work_date, r.clock_in, r.clock_out,
+        r.method, q(r.location), q(r.notes), r.gross_minutes, r.unpaid_minutes, r.paid_minutes, r.net_minutes
+      ].join(','));
+    }
+    return lines.join('\n');
+  }
+  function breaksToCSV(rows){
+    const lines = [];
+    lines.push(['employee_name','work_date','break_type','start','end','is_paid','notes'].join(','));
+    for(const r of rows){
+      for(const b of r.breaks){
+        lines.push([q(r.employee_name), r.work_date, q(b.type), b.start, b.end, b.paid?1:0, q(b.notes)].join(','));
+      }
+    }
+    return lines.join('\n');
+  }
+  function q(v){ if(v==null) return ''; return '"'+String(v).replaceAll('"','""')+'"'; }
+
+  function downloadCSV(){
+    if(!state.rows.length){ alert('ยังไม่มีรายการ'); return; }
+    const blob1 = new Blob([toCSV(state.rows)], {type:'text/csv;charset=utf-8;'});
+    const blob2 = new Blob([breaksToCSV(state.rows)], {type:'text/csv;charset=utf-8;'});
+    saveBlob(blob1, 'time_entries.csv');
+    saveBlob(blob2, 'break_entries.csv');
+  }
+  function saveBlob(blob, filename){
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = filename; a.click();
+    setTimeout(()=>URL.revokeObjectURL(a.href), 2000);
+  }
+
+  function copyJSON(){
+    const json = JSON.stringify(state.rows, null, 2);
+    navigator.clipboard.writeText(json).then(()=>{
+      alert('คัดลอก JSON แล้ว');
+    });
+  }
+</script>
+</body>
+</html>

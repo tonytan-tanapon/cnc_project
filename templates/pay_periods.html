@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <title>Pay Periods Manager</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    :root{--bg:#0b1324;--card:#121a2b;--muted:#9fb0cc;--text:#eaf0ff;--acc:#4cc9f0;--ok:#22c55e;--warn:#f59e0b;--err:#ef4444;--br:14px}
+    *{box-sizing:border-box}
+    body{margin:0;background:linear-gradient(180deg,#0b1324,#0f172a);color:var(--text);font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
+    .wrap{max-width:1100px;margin:32px auto;padding:0 14px}
+    h1{margin:0 0 14px;font-size:24px}
+    .card{background:var(--card);border-radius:var(--br);padding:16px;box-shadow:0 10px 26px rgba(0,0,0,.25);margin-bottom:14px}
+    label{display:block;margin:6px 0 4px;font-weight:600;color:#cfe0ff}
+    input,select,textarea{width:100%;background:#0f1626;border:1px solid #24334c;color:var(--text);padding:9px 11px;border-radius:10px;outline:none}
+    input:focus,select:focus,textarea:focus{border-color:var(--acc);box-shadow:0 0 0 3px rgba(76,201,240,.18)}
+    .grid{display:grid;gap:10px}
+    .g4{grid-template-columns:repeat(4,minmax(0,1fr))}
+    .g3{grid-template-columns:repeat(3,minmax(0,1fr))}
+    .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .btn{border:none;border-radius:10px;padding:9px 12px;cursor:pointer;font-weight:700;color:#eaf0ff;background:#253246}
+    .btn:hover{filter:brightness(1.1)}
+    .btn.acc{background:linear-gradient(135deg,#2563eb,#06b6d4)}
+    .btn.ok{background:#16a34a}
+    .btn.warn{background:#d97706}
+    .btn.err{background:#b91c1c}
+    .muted{color:var(--muted)}
+    table{width:100%;border-collapse:collapse;border:1px solid #24334c;border-radius:12px;overflow:hidden}
+    th,td{padding:10px 12px;border-bottom:1px dashed #223049;vertical-align:top}
+    th{background:#0e1728;color:#cbd6ef;text-align:left}
+    tbody tr:hover{background:#0d1526}
+    .badge{display:inline-flex;align-items:center;gap:6px;border:1px solid #2a3a55;background:#0d1628;border-radius:999px;padding:2px 10px;font-size:12px}
+    .b-open{border-color:#2a6eea}
+    .b-locked{border-color:#d97706}
+    .b-paid{border-color:#16a34a}
+    .right{display:flex;justify-content:flex-end;gap:8px}
+    .error{color:var(--err);margin-top:8px}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+    small{color:#9fb0cc}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>จัดการ Pay Periods</h1>
+
+    <!-- Create / Filter -->
+    <div class="card">
+      <div class="grid g4">
+        <div>
+          <label>ชื่อรอบ (ไม่บังคับ)</label>
+          <input id="ppName" placeholder="เช่น 2025-PP-17 หรือ Aug-1-15">
+        </div>
+        <div>
+          <label>เริ่มรอบ (datetime-local)</label>
+          <input id="ppStart" type="datetime-local">
+        </div>
+        <div>
+          <label>สิ้นสุดรอบ (exclusive)</label>
+          <input id="ppEnd" type="datetime-local">
+        </div>
+        <div>
+          <label>Status</label>
+          <select id="ppStatus">
+            <option value="open">open</option>
+            <option value="locked">locked</option>
+            <option value="paid">paid</option>
+          </select>
+        </div>
+      </div>
+      <div class="grid g3" style="margin-top:10px">
+        <div>
+          <label>Anchor (optional)</label>
+          <input id="ppAnchor" placeholder="biweekly / weekly / monthly">
+        </div>
+        <div>
+          <label>Notes</label>
+          <input id="ppNotes" placeholder="รายละเอียดเพิ่มเติม">
+        </div>
+        <div class="right" style="align-items:end">
+          <button class="btn acc" onclick="createPeriod()">+ สร้างรอบใหม่</button>
+        </div>
+      </div>
+      <small>หมายเหตุ: แนะนำให้ใช้ช่วงแบบ <span class="mono">[start_at, end_at)</span> (ขวาเปิด) เพื่อลดปัญหาทับซ้อน</small>
+      <div id="errCreate" class="error"></div>
+    </div>
+
+    <!-- List -->
+    <div class="card">
+      <div class="row" style="margin-bottom:8px">
+        <label>กรองสถานะ:</label>
+        <select id="filterStatus" onchange="loadPeriods()">
+          <option value="">ทั้งหมด</option>
+          <option value="open">open</option>
+          <option value="locked">locked</option>
+          <option value="paid">paid</option>
+        </select>
+        <button class="btn" onclick="loadPeriods()">รีเฟรช</button>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th style="width:120px">ID</th>
+            <th>ชื่อ</th>
+            <th>ช่วง</th>
+            <th>สถานะ</th>
+            <th>โน้ต</th>
+            <th style="width:320px">การทำงาน</th>
+          </tr>
+        </thead>
+        <tbody id="tblBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+<script>
+  // ====== CONFIG ======
+  const API_BASE = ""; // เช่น "http://localhost:8000/api/v1/payroll" ถ้าจำเป็น
+
+  // ====== HELPERS ======
+  const $ = s => document.querySelector(s);
+  function toISO(dtLocal) {
+    // รับค่า datetime-local -> ISO string (UTC) โดยไม่เปลี่ยนเวลาเป็นโซนอื่น
+    // สมมติ backend รับ ISO (เช่น "2025-08-27T00:00:00")
+    if (!dtLocal) return null;
+    // บราวเซอร์ให้เป็น "YYYY-MM-DDTHH:mm"
+    return dtLocal + ":00";
+  }
+  function fmtRange(a, b) {
+    return `${a?.replace('T',' ')}  →  ${b?.replace('T',' ')}`;
+  }
+  function badge(status) {
+    const cls = status === 'paid' ? 'b-paid' : status === 'locked' ? 'b-locked' : 'b-open';
+    return `<span class="badge ${cls}">${status}</span>`;
+  }
+  async function api(path, opts = {}) {
+    const res = await fetch(API_BASE + path, {headers:{'Content-Type':'application/json'}, ...opts});
+    if (!res.ok) {
+      const text = await res.text().catch(()=>res.statusText);
+      throw new Error(text || `HTTP ${res.status}`);
+    }
+    return res.json();
+  }
+
+  // ====== CREATE ======
+  async function createPeriod() {
+    $('#errCreate').textContent = '';
+    try {
+      const payload = {
+        name:   $('#ppName').value || null,
+        start_at: toISO($('#ppStart').value),
+        end_at:   toISO($('#ppEnd').value),
+        status: $('#ppStatus').value || 'open',
+        anchor: $('#ppAnchor').value || null,
+        notes:  $('#ppNotes').value || null
+      };
+      if (!payload.start_at || !payload.end_at) throw new Error('กรุณาใส่วันเริ่มและวันสิ้นสุด');
+      const data = await api('/pay-periods', {method:'POST', body: JSON.stringify(payload)});
+      clearCreateForm();
+      await loadPeriods();
+      alert(`สร้างรอบสำเร็จ (id=${data.id})`);
+    } catch (e) {
+      $('#errCreate').textContent = e.message || String(e);
+    }
+  }
+  function clearCreateForm(){
+    $('#ppName').value = '';
+    $('#ppStart').value = '';
+    $('#ppEnd').value = '';
+    $('#ppStatus').value = 'open';
+    $('#ppAnchor').value = '';
+    $('#ppNotes').value = '';
+  }
+
+  // ====== LIST ======
+  async function loadPeriods() {
+    const status = $('#filterStatus').value;
+    const qs = status ? `?status=${encodeURIComponent(status)}` : '';
+    const items = await api('/pay-periods' + qs);
+    renderTable(items);
+  }
+
+  function renderTable(items) {
+    const tb = $('#tblBody');
+    tb.innerHTML = '';
+    for (const it of items) {
+      const tr = document.createElement('tr');
+
+      const actions = `
+        <div class="row">
+          <button class="btn" onclick='editRow(${it.id})'>แก้ไข</button>
+          ${it.status === 'open' ? `<button class="btn warn" onclick='lockRow(${it.id})'>ล็อค</button>` : ``}
+          ${it.status === 'locked' ? `<button class="btn ok" onclick='markPaid(${it.id})'>Mark paid</button>` : ``}
+          ${it.status === 'locked' ? `<button class="btn" onclick='unlockRow(${it.id})'>ปลดล็อค</button>` : ``}
+        </div>
+      `;
+
+      tr.innerHTML = `
+        <td><span class="mono">${it.id}</span></td>
+        <td>${escapeHtml(it.name || '-')}</td>
+        <td>
+          <div class="mono">${fmtRange(it.start_at?.slice(0,16), it.end_at?.slice(0,16))}</div>
+        </td>
+        <td>${badge(it.status)}</td>
+        <td>${escapeHtml(it.notes || '')}</td>
+        <td>${actions}</td>
+      `;
+      tb.appendChild(tr);
+    }
+  }
+
+  // ====== ACTIONS ======
+  async function editRow(id) {
+    try {
+      const it = await api(`/pay-periods/${id}`);
+      const name = prompt('ชื่อรอบ (เว้นว่างได้):', it.name || '');
+      if (name === null) return;
+
+      // แปลง ISO -> datetime-local UI
+      const sDef = (it.start_at || '').slice(0,16);
+      const eDef = (it.end_at || '').slice(0,16);
+      const start_at = prompt('เริ่มรอบ (YYYY-MM-DDTHH:mm):', sDef) || sDef;
+      const end_at   = prompt('สิ้นสุดรอบ (YYYY-MM-DDTHH:mm):', eDef) || eDef;
+
+      const status = prompt('สถานะ (open/locked/paid):', it.status) || it.status;
+      const anchor = prompt('Anchor (optional):', it.anchor || '') || null;
+      const notes  = prompt('Notes:', it.notes || '') || null;
+
+      const payload = {
+        name: name || null,
+        start_at: toISO(start_at),
+        end_at: toISO(end_at),
+        status,
+        anchor,
+        notes
+      };
+      await api(`/pay-periods/${id}`, {method:'PATCH', body: JSON.stringify(payload)});
+      await loadPeriods();
+      alert('อัปเดตรอบสำเร็จ');
+    } catch (e) {
+      alert('แก้ไขไม่สำเร็จ: ' + (e.message || e));
+    }
+  }
+
+  async function lockRow(id) {
+    if (!confirm('ล็อคงวดนี้? (จะกันการแก้ไขรายการเวลาในช่วงนี้)')) return;
+    try {
+      await api(`/pay-periods/${id}/lock`, {method:'POST'});
+      await loadPeriods();
+    } catch (e) { alert(e.message || e); }
+  }
+  async function unlockRow(id) {
+    if (!confirm('ปลดล็อคงวดนี้?')) return;
+    try {
+      await api(`/pay-periods/${id}/unlock`, {method:'POST'});
+      await loadPeriods();
+    } catch (e) { alert(e.message || e); }
+  }
+  async function markPaid(id) {
+    if (!confirm('ยืนยัน Mark Paid สำหรับงวดนี้?')) return;
+    try {
+      await api(`/pay-periods/${id}/mark-paid`, {method:'POST'});
+      await loadPeriods();
+    } catch (e) { alert(e.message || e); }
+  }
+
+  function escapeHtml(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+  // ====== INIT ======
+  loadPeriods();
+</script>
+</body>
+</html>

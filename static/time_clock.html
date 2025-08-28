@@ -1,0 +1,438 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <title>Time Clock (Range + Inline Edit)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root{--text:#111;--muted:#6b7280;--line:#e5e7eb;--btn:#374151;--acc:#2563eb;--ok:#16a34a;--warn:#d97706;--err:#b91c1c}
+    *{box-sizing:border-box}
+    body{margin:0;background:#fff;color:var(--text);font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Arial}
+    .wrap{max-width:1200px;margin:28px auto;padding:0 14px}
+    h1{margin:0 0 12px;font-size:22px}
+    .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:14px}
+    label{display:block;margin:6px 0 4px;font-weight:600}
+    input,select,textarea{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:#fff}
+    input:focus,select:focus,textarea:focus{outline:2px solid #c7d2fe;border-color:#c7d2fe}
+    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:end}
+    .btn{border:none;border-radius:10px;padding:9px 12px;cursor:pointer;font-weight:700;color:#fff;background:var(--btn)}
+    .btn.acc{background:var(--acc)} .btn.ok{background:var(--ok)} .btn.warn{background:var(--warn)} .btn.err{background:var(--err)}
+    table{width:100%;border-collapse:collapse;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+    th,td{padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top;text-align:left}
+    th{background:#f9fafb}
+    .mono{font-family:ui-monospace,Menlo,Consolas,monospace}
+    .muted{color:var(--muted)}
+    .small{font-size:12px}
+    .right{margin-left:auto}
+    .hidden{display:none}
+    .sum{font-weight:700}
+    .nowrap{white-space:nowrap}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Time Clock — View & Inline Edit</h1>
+
+  <!-- Filters -->
+  <div class="card">
+    <div class="row">
+      <div style="min-width:220px">
+        <label>เริ่ม (date)</label>
+        <input id="f_start" type="date">
+      </div>
+      <div style="min-width:220px">
+        <label>สิ้นสุด (date) — รวมวันสุดท้าย</label>
+        <input id="f_end" type="date">
+      </div>
+      <div class="right">
+        <button class="btn" onclick="quickToday()">Today</button>
+        <button class="btn" onclick="quickThisWeek()">This Week</button>
+        <button class="btn" onclick="loadEntries()">โหลดข้อมูล</button>
+      </div>
+    </div>
+    <div class="small muted">หมายเหตุ: ระบบจะ query แบบช่วง [start_at, end_at+1day) เพื่อรวมทั้งวันสุดท้าย</div>
+  </div>
+
+  <!-- Create new manual entry -->
+  <div class="card">
+    <div class="row">
+      <div style="min-width:210px;flex:1">
+        <label>วันที่</label>
+        <input id="c_date" type="date">
+      </div>
+      <div style="min-width:210px;flex:1">
+        <label>Clock In (เวลา)</label>
+        <input id="c_in" type="time" value="08:00">
+      </div>
+      <div style="min-width:210px;flex:1">
+        <label>Clock Out (เวลา)</label>
+        <input id="c_out" type="time" value="17:00">
+      </div>
+      <div style="min-width:300px;flex:2">
+        <label>Notes</label>
+        <input id="c_notes" placeholder="optional">
+      </div>
+      <div>
+        <button class="btn acc" onclick="createEntry()">+ Add Entry</button>
+      </div>
+    </div>
+    <!-- เพิ่มช่อง Lunch ตอนสร้าง -->
+    <div class="row" style="margin-top:10px">
+      <div style="min-width:210px;flex:1">
+        <label>Lunch Start (เวลา)</label>
+        <input id="c_lunch_start" type="time" placeholder="เช่น 12:00">
+      </div>
+      <div style="min-width:210px;flex:1">
+        <label>Lunch End (เวลา)</label>
+        <input id="c_lunch_end" type="time" placeholder="เช่น 12:30">
+      </div>
+      <div style="min-width:210px;display:flex;align-items:center;gap:8px">
+        <input id="c_lunch_paid" type="checkbox">
+        <label for="c_lunch_paid" style="margin:0">Lunch เป็น Paid?</label>
+      </div>
+    </div>
+    <div class="small muted">จะสร้างผ่าน <span class="mono">POST /time-entries/manual</span> และถ้ากรอก Lunch จะเรียก <span class="mono">PUT /time-entries/manual/{id}/breaks/upsert</span> (ถ้าไม่พบจะ fallback ไป manual POST)</div>
+  </div>
+
+  <!-- Table -->
+  <div class="card">
+    <div class="row small muted">
+      <div>แสดงรายการตามช่วงด้านบน</div>
+      <div class="right">Total hours (approx): <span id="sumHours" class="sum">0.00</span> h</div>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th class="nowrap">ID</th>
+          <th>Date</th>
+          <th>Clock In</th>
+          <th>Clock Out</th>
+          <th>Lunch Start</th>
+          <th>Lunch End</th>
+          <th>Notes</th>
+          <th class="nowrap">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="tblBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+  // ==== CONFIG ====
+  const API_BASE = "http://127.0.0.1:8000/api/v1";
+  const TE = "/time-entries";             // time entries
+  const BR = "/breaks";                   // realtime breaks (start/stop)
+  const BR_MANUAL = "/time-entries/breaks/manual"; // manual create/patch
+  const BR_UPSERT = (id) => `/time-entries/manual/${id}/breaks/upsert`; // aggregate upsert (ถ้ามีที่ backend)
+
+  // ==== HELPERS ====
+  const $ = s => document.querySelector(s);
+  const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+  // date helpers
+  const pad = n => String(n).padStart(2,'0');
+  const toISODate = d => d ? d + "T00:00:00" : null;
+  const toISODateEndExclusive = d => d ? addDaysStr(d, 1) + "T00:00:00" : null; // [start, end+1)
+  function addDaysStr(yyyy_mm_dd, days){
+    const dt = new Date(yyyy_mm_dd+"T00:00:00");
+    dt.setDate(dt.getDate()+days);
+    return dt.toISOString().slice(0,10);
+  }
+  function combineDateTime(dateStr, timeStr){
+    if(!dateStr || !timeStr) return null;
+    return `${dateStr}T${timeStr}:00`;
+  }
+  function fromISODate(iso){ return (iso||'').slice(0,10); }
+  function fromISOTime(iso){ if(!iso) return ''; const d=new Date(iso); if(isNaN(d)) return ''; return `${pad(d.getHours())}:${pad(d.getMinutes())}`; }
+
+  // duration calc (simple, not DST-safe across days)
+  function hoursBetween(isoStart, isoEnd){
+    if(!isoStart || !isoEnd) return 0;
+    const s=new Date(isoStart), e=new Date(isoEnd);
+    if(isNaN(s)||isNaN(e)||e<=s) return 0;
+    return (e - s) / 3600000;
+  }
+
+  async function api(path, opts={}){
+    const res = await fetch(API_BASE + path, { headers:{'Content-Type':'application/json'}, ...opts });
+    if(!res.ok){ throw new Error((await res.text().catch(()=>res.statusText)) || `HTTP ${res.status}`); }
+    return res.json();
+  }
+
+  // ==== LOAD ====
+  async function loadEntries(){
+    const s = $('#f_start').value;
+    const e = $('#f_end').value;
+    if(!s || !e){ alert('กรุณาเลือกช่วงวันที่'); return; }
+
+    const qs1 = `${TE}/range?start_at=${encodeURIComponent(toISODate(s))}&end_at=${encodeURIComponent(toISODateEndExclusive(e))}`;
+    const qs2 = `${TE}?start_at=${encodeURIComponent(toISODate(s))}&end_at=${encodeURIComponent(toISODateEndExclusive(e))}`; // fallback
+
+    let items = [];
+    try{
+      items = await api(qs1);
+    }catch{
+      items = await api(qs2);
+    }
+    render(items);
+    calcSummary(items);
+  }
+
+  function calcSummary(items){
+    let sum = 0;
+    for(const it of items){
+      const inAt = it.clock_in_at;
+      const outAt = it.clock_out_at;
+      let lunchStart=null, lunchEnd=null;
+      if(Array.isArray(it.breaks)){
+        const lunch = it.breaks.find(b => (b.break_type||'').toLowerCase()==='lunch' && !b.is_paid);
+        if(lunch){ lunchStart=lunch.start_at; lunchEnd=lunch.end_at; }
+      }
+      const work = hoursBetween(inAt, outAt);
+      const lunchH = hoursBetween(lunchStart, lunchEnd);
+      sum += Math.max(0, work - lunchH);
+    }
+    $('#sumHours').textContent = sum.toFixed(2);
+  }
+
+  function render(items){
+    const tb = $('#tblBody'); tb.innerHTML='';
+    for(const it of items){
+      const lunch = Array.isArray(it.breaks) ? it.breaks.find(b => (b.break_type||'').toLowerCase()==='lunch' && !b.is_paid) : null;
+
+      const tr = document.createElement('tr');
+      tr.dataset.id = it.id;
+      tr.dataset.breakId = lunch?.id || '';
+      tr.innerHTML = `
+        <td class="mono nowrap">${it.id}</td>
+
+        <td>
+          <input type="date" data-field="date" value="${esc(fromISODate(it.clock_in_at))}" disabled>
+        </td>
+
+        <td>
+          <input type="time" data-field="clock_in_at" value="${esc(fromISOTime(it.clock_in_at))}" disabled>
+        </td>
+
+        <td>
+          <input type="time" data-field="clock_out_at" value="${esc(fromISOTime(it.clock_out_at))}" disabled>
+        </td>
+
+        <td>
+          <input type="time" data-field="lunch_start" value="${esc(fromISOTime(lunch?.start_at))}" ${lunch?'':'disabled'}>
+        </td>
+
+        <td>
+          <input type="time" data-field="lunch_end" value="${esc(fromISOTime(lunch?.end_at))}" ${lunch?'':'disabled'}>
+        </td>
+
+        <td>
+          <input type="text" data-field="notes" value="${esc(it.notes || '')}" disabled>
+        </td>
+
+        <td class="nowrap">
+          <button class="btn" onclick="toggleEdit(${it.id}, true)">Edit</button>
+          <button class="btn acc hidden" onclick="saveRow(${it.id})">Save</button>
+          <button class="btn hidden" onclick="toggleEdit(${it.id}, false)">Cancel</button>
+        </td>
+      `;
+      tb.appendChild(tr);
+    }
+  }
+
+  function toggleEdit(id, enable){
+    const tr = document.querySelector(`tr[data-id="${id}"]`);
+    if(!tr) return;
+
+    const btns = tr.querySelectorAll('button');
+    const [btnEdit, btnSave, btnCancel] = btns;
+
+    const inputs = tr.querySelectorAll('input[data-field]');
+    inputs.forEach(el => {
+      // เปิดทั้งหมดเมื่อเข้าโหมดแก้ เพื่อรองรับการสร้าง lunch แม้ยังไม่มี breakId
+      el.disabled = !enable;
+    });
+
+    if(enable){
+      btnEdit.classList.add('hidden');
+      btnSave.classList.remove('hidden');
+      btnCancel.classList.remove('hidden');
+      tr._snapshot = snapshotRow(tr);
+    }else{
+      btnEdit.classList.remove('hidden');
+      btnSave.classList.add('hidden');
+      btnCancel.classList.add('hidden');
+      if(tr._snapshot){ restoreSnapshot(tr, tr._snapshot); delete tr._snapshot; }
+    }
+  }
+
+  function snapshotRow(tr){
+    const snap = {};
+    tr.querySelectorAll('input[data-field]').forEach(el => snap[el.dataset.field] = el.value);
+    return snap;
+  }
+  function restoreSnapshot(tr, snap){
+    tr.querySelectorAll('input[data-field]').forEach(el => {
+      if(Object.prototype.hasOwnProperty.call(snap, el.dataset.field)){
+        el.value = snap[el.dataset.field];
+      }
+    });
+  }
+
+  async function saveRow(id){
+    const tr = document.querySelector(`tr[data-id="${id}"]`);
+    if(!tr) return;
+
+    const dateStr   = tr.querySelector('input[data-field="date"]').value;
+    const inTime    = tr.querySelector('input[data-field="clock_in_at"]').value;
+    const outTime   = tr.querySelector('input[data-field="clock_out_at"]').value;
+    const notes     = tr.querySelector('input[data-field="notes"]').value;
+
+    const lunchStartTime = tr.querySelector('input[data-field="lunch_start"]')?.value || '';
+    const lunchEndTime   = tr.querySelector('input[data-field="lunch_end"]')?.value || '';
+
+    // Build payloads
+    const tePayload = {
+      clock_in_at: inTime  ? combineDateTime(dateStr, inTime)  : null,
+      clock_out_at: outTime? combineDateTime(dateStr, outTime) : null,
+      notes: notes || null
+    };
+
+    try{
+      // 1) update time entry
+      await api(`${TE}/manual/${id}`, { method:'PATCH', body: JSON.stringify(tePayload) });
+
+      // 2) upsert lunch break (ถ้ามีช่องเวลาสักช่อง)
+      const brId = tr.dataset.breakId;
+      if(lunchStartTime || lunchEndTime){
+        if(lunchEndTime && (!lunchStartTime || lunchEndTime <= lunchStartTime)){
+          alert('Lunch End ต้องช้ากว่า Lunch Start'); return;
+        }
+
+        const upsertPayload = {
+          break_type: "lunch",
+          start_at: lunchStartTime ? combineDateTime(dateStr, lunchStartTime) : null,
+          end_at:   lunchEndTime   ? combineDateTime(dateStr, lunchEndTime)   : null,
+          is_paid: false,
+          method: "manual"
+        };
+
+        // ลองเรียก upsert ก่อน (ถ้ามี endpoint นี้)
+        try{
+          await api(BR_UPSERT(id), { method:'PUT', body: JSON.stringify(upsertPayload) });
+        }catch(err){
+          const msg = String(err.message||'');
+          if(msg.includes('404') || msg.toLowerCase().includes('not found')){
+            // fallback ไป manual POST/PATCH เดิม
+            const brPayload = { ...upsertPayload };
+            if(brId){
+              await api(`${BR_MANUAL}/${brId}`, { method:'PATCH', body: JSON.stringify(brPayload) });
+            }else if(lunchStartTime){
+              await api(`${BR_MANUAL}`, { method:'POST', body: JSON.stringify({ time_entry_id: id, ...brPayload }) });
+            }
+          }else{
+            throw err;
+          }
+        }
+      }
+
+      await loadEntries();
+    }catch(e){
+      alert('บันทึกไม่สำเร็จ: ' + (e.message || e));
+    }
+  }
+
+  // ==== CREATE NEW ENTRY ====
+  async function createEntry(){
+    const d = $('#c_date').value;
+    const tIn = $('#c_in').value;
+    const tOut = $('#c_out').value;
+    const notes = $('#c_notes').value || null;
+
+    // lunch inputs (optional)
+    const lunchStart = $('#c_lunch_start').value || '';
+    const lunchEnd   = $('#c_lunch_end').value || '';
+    const lunchPaid  = $('#c_lunch_paid').checked === true;
+
+    if(!d || !tIn){ alert('กรุณาใส่วันที่และเวลา Clock In'); return; }
+    if(lunchEnd && (!lunchStart || lunchEnd <= lunchStart)){
+      alert('เวลา Lunch End ต้องช้ากว่า Lunch Start'); return;
+    }
+
+    const payload = {
+      employee_id: /* ใส่ employee_id ที่ต้องการ backfill */ 1,
+      clock_in_at: combineDateTime(d, tIn),
+      clock_out_at: tOut ? combineDateTime(d, tOut) : null,
+      notes,
+      status: tOut ? "closed" : "open"
+    };
+    try{
+      // 1) สร้าง time entry
+      const te = await api(`${TE}/manual`, { method:'POST', body: JSON.stringify(payload) });
+
+      // 2) ถ้ากรอก lunch → upsert ก่อน, ถ้า 404 ค่อย fallback
+      if(lunchStart || lunchEnd){
+        const upsertPayload = {
+          break_type: "lunch",
+          start_at: lunchStart ? combineDateTime(d, lunchStart) : null,
+          end_at:   lunchEnd   ? combineDateTime(d, lunchEnd)   : null,
+          is_paid: !!lunchPaid,
+          method: "manual"
+        };
+        try{
+          await api(BR_UPSERT(te.id), { method:'PUT', body: JSON.stringify(upsertPayload) });
+        }catch(err){
+          const msg = String(err.message||'');
+          if(msg.includes('404') || msg.toLowerCase().includes('not found')){
+            await api(`${BR_MANUAL}`, { method:'POST', body: JSON.stringify({ time_entry_id: te.id, ...upsertPayload }) });
+          }else{
+            throw err;
+          }
+        }
+      }
+
+      await loadEntries();
+
+      // reset lunch fields
+      $('#c_lunch_start').value = '';
+      $('#c_lunch_end').value = '';
+      $('#c_lunch_paid').checked = false;
+
+    }catch(e){
+      alert('สร้างไม่สำเร็จ: ' + (e.message || e));
+    }
+  }
+
+  // ==== Quick range ====
+  function quickToday(){
+    const today = new Date().toISOString().slice(0,10);
+    $('#f_start').value = today;
+    $('#f_end').value = today;
+    $('#c_date').value = today;
+    loadEntries();
+  }
+  function quickThisWeek(){
+    const now = new Date();
+    const day = now.getDay(); // 0=Sun..6=Sat
+    const sunday = new Date(now); sunday.setDate(now.getDate() - day);
+    const saturday = new Date(sunday); saturday.setDate(sunday.getDate()+6);
+    const s = sunday.toISOString().slice(0,10);
+    const e = saturday.toISOString().slice(0,10);
+    $('#f_start').value = s;
+    $('#f_end').value = e;
+    $('#c_date').value = s;
+    loadEntries();
+  }
+
+  // ==== INIT ====
+  (function init(){
+    const today = new Date().toISOString().slice(0,10);
+    $('#f_start').value = today;
+    $('#f_end').value = today;
+    $('#c_date').value = today;
+    loadEntries();
+  })();
+</script>
+</body>
+</html>

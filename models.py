@@ -1,6 +1,6 @@
 from sqlalchemy import (
     Column, Integer, String, Text, Date, DateTime, ForeignKey, UniqueConstraint, Index,
-    Numeric, Boolean
+    Numeric, Boolean, CheckConstraint
 )
 from sqlalchemy.orm import relationship
 from datetime import datetime
@@ -170,9 +170,6 @@ class ProductionLot(Base):
     __tablename__ = "production_lots"
 
     id = Column(Integer, primary_key=True)
-    # ✅ เพิ่ม lot_code
-    lot_code = Column(String, unique=True, index=True, nullable=False)  # e.g. "L0001"
-
     lot_no = Column(String, unique=True, index=True, nullable=False)
 
     part_id = Column(Integer, ForeignKey("parts.id"), nullable=False)
@@ -189,15 +186,26 @@ class ProductionLot(Base):
     po = relationship("PO", back_populates="lots")
 
     material_uses = relationship("LotMaterialUse", back_populates="lot", cascade="all, delete-orphan")
-    travelers = relationship("ShopTraveler", back_populates="lot", cascade="all, delete-orphan")
+   
+    travelers = relationship(
+        "ShopTraveler",
+        back_populates="lot",
+        cascade="all, delete-orphan",
+        order_by="ShopTraveler.created_at.asc()"
+    )
 
+    @property
+    def traveler_ids(self) -> list[int]:
+        return [t.id for t in self.travelers]
+
+    @property
+    def traveler_ids_str(self) -> str:
+        return ",".join(str(t.id) for t in self.travelers)
     @property
     def part_no(self) -> str | None:
         return self.part.part_no if self.part else None
 
-    def __repr__(self):
-        return f"<ProductionLot(lot_code={getattr(self,'lot_code',None)}, lot_no={self.lot_no}, part_id={self.part_id}, status={self.status})>"
-
+   
 
 
 class LotMaterialUse(Base):
@@ -267,6 +275,11 @@ class ShopTravelerStep(Base):
     qa_required = Column(Boolean, default=False, nullable=False)
     qa_result = Column(String, nullable=True)
     qa_notes = Column(Text, nullable=True)
+
+    # ✅ ใหม่
+    qty_receive = Column(Numeric(18, 3), nullable=False, default=0)  # (สะกด receive นะครับ)
+    qty_accept  = Column(Numeric(18, 3), nullable=False, default=0)
+    qty_reject  = Column(Numeric(18, 3), nullable=False, default=0)
 
     traveler = relationship("ShopTraveler", back_populates="steps")
     operator = relationship("Employee", foreign_keys=[operator_id])
@@ -776,3 +789,44 @@ class Holiday(Base):
     is_paid = Column(Boolean, nullable=False, default=True)
     hours = Column(Numeric(4,2), nullable=True)      # เช่น 8.0 ชม/วัน
     pay_multiplier = Column(Numeric(3,2), default=1) # ถ้ามีกฏจ่ายพิเศษ 1.5x/2x
+
+class PayRate(Base):
+    __tablename__ = "pay_rates"
+    id = Column(Integer, primary_key=True)
+    employee_id = Column(Integer, ForeignKey("employees.id"), index=True, nullable=False)
+    effective_from = Column(DateTime, nullable=False)
+    hourly_rate = Column(Numeric(8,2), nullable=False)
+    ot_multiplier = Column(Numeric(4,2), default=1.5)    # 1.5x
+    dt_multiplier = Column(Numeric(4,2), default=2.0)    # 2.0x
+    # optional: shift_diff, job_code, union_code, …
+    # __table_args__ = (Index("ix_pay_rates_emp_eff", "employee_id", "effective_from"),)
+    # ในโมเดล PayRate
+    __table_args__ = (Index("ix_pay_rates_emp_eff", "employee_id", "effective_from"),
+    # ไม่ให้ซ้ำวันเดียวกัน
+    UniqueConstraint("employee_id", "effective_from", name="uq_pay_rates_emp_eff"),
+    )
+
+
+# models.py
+class PayPeriod(Base):
+    __tablename__ = "pay_periods"
+    id = Column(Integer, primary_key=True)
+    name = Column(String, nullable=True)            # eg. "2025-W17", "2025-PP-08A"
+    start_at = Column(DateTime, nullable=False)     # ช่วงงวดที่บริษัทกำหนด
+    end_at   = Column(DateTime, nullable=False)     # แนะนำให้เป็น exclusive: [start, end)
+    status   = Column(String, nullable=False, default="open")   # open/locked/paid
+    anchor   = Column(String, nullable=True)        # optional: biweekly, weekly, monthly
+    notes    = Column(Text, nullable=True)
+
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    locked_by  = Column(Integer, ForeignKey("users.id"), nullable=True)
+    locked_at  = Column(DateTime, nullable=True)
+    paid_at    = Column(DateTime, nullable=True)
+
+    __table_args__ = (
+        # กันช่วงงวดซ้อนกัน
+        Index("ix_pay_periods_range", "start_at", "end_at"),
+        # ไม่ให้มีช่วงเดียวกันซ้ำ
+        UniqueConstraint("start_at", "end_at", name="uq_pay_periods_range"),
+        CheckConstraint("end_at > start_at", name="ck_pay_periods_valid"),
+    )

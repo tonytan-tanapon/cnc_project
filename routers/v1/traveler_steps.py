@@ -3,13 +3,13 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List, Optional
-
+from decimal import Decimal
 from database import get_db
 from models import ShopTravelerStep, ShopTraveler, Employee
 from schemas import (
     ShopTravelerStepCreate, ShopTravelerStepUpdate, ShopTravelerStepOut
 )
-
+                  
 router = APIRouter(prefix="/traveler-steps", tags=["traveler_steps"])
 
 
@@ -135,21 +135,53 @@ def finish_step(
     result: str = "passed",
     qa_result: Optional[str] = None,
     qa_notes: Optional[str] = None,
+    qty_receive: Optional[Decimal] = None,
+    qty_accept: Optional[Decimal] = None,
+    qty_reject: Optional[Decimal] = None,
     db: Session = Depends(get_db),
 ):
     s = db.get(ShopTravelerStep, step_id)
     if not s:
         raise HTTPException(404, "Step not found")
-
     if result not in ["passed", "failed", "skipped"]:
         raise HTTPException(400, "result must be passed/failed/skipped")
 
+    # ✅ อัปเดต qty ถ้ามีส่งมา
+    if qty_receive is not None: s.qty_receive = qty_receive
+    if qty_accept  is not None: s.qty_accept  = qty_accept
+    if qty_reject  is not None: s.qty_reject  = qty_reject
+
+    # ✅ validation ง่ายๆ (ถ้ามีรับเข้า)
+    if s.qty_receive is not None and (s.qty_accept or 0) + (s.qty_reject or 0) > (s.qty_receive or 0):
+        raise HTTPException(400, "qty_accept + qty_reject must not exceed qty_receive")
+
     s.status = result
     s.finished_at = datetime.utcnow()
-    if qa_result is not None:
-        s.qa_result = qa_result
-    if qa_notes is not None:
-        s.qa_notes = qa_notes
+    if qa_result is not None: s.qa_result = qa_result
+    if qa_notes  is not None: s.qa_notes  = qa_notes
+
+    db.commit()
+    db.refresh(s)
+    return s
+
+from models import ShopTraveler as TravelerStep  # ถ้ามี
+from schemas import ShopTravelerOut as TravelerStepOut # ถ้ามี
+# routers/traveler_steps.py (ไฟล์เดียวกับ start/finish)
+
+@router.post("/{step_id}/restart", response_model=ShopTravelerStepOut)
+def restart_step(step_id: int, db: Session = Depends(get_db)):
+    s = db.get(ShopTravelerStep, step_id)  # ← ใช้ Step model
+    if not s:
+        raise HTTPException(404, "Step not found")
+
+    # รีเซ็ตฟิลด์ของ "Step" ให้ตรง schema/model คุณ
+    s.status = "pending"          # กลับมาเริ่มใหม่
+    s.result = None               # ถ้ามี field เก็บผล
+    s.qa_result = None
+    s.qa_notes = None
+    s.operator_id = None          # จะเก็บคนเดิมไว้ก็ได้ (ถ้าอยาก)
+    s.started_at = None
+    s.finished_at = None
 
     db.commit()
     db.refresh(s)

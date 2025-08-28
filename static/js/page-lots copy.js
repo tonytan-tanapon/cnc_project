@@ -2,7 +2,6 @@
 // ใช้ jfetch จาก /static/js/api.js โดยตรง (ตัวนั้นจัดการ API Base ให้แล้ว)
 // Autocomplete Part + โหลด revision ปัจจุบัน + Autocomplete PO ด้วย po_number
 // POST /lots พร้อม part_id / part_revision_id / po_id ที่ถูกต้อง
-// ตาราง Reload: แสดง lot_no, part_number, po_number, planned_qty, started_at, finished_at, status
 
 import { jfetch, renderTable, toast, initTopbar } from '/static/js/api.js';
 
@@ -18,18 +17,6 @@ const esc = (s) => String(s ?? '')
   .replaceAll('"','&quot;').replaceAll("'",'&#39;');
 
 const debounce = (fn, ms=200) => { let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms);} };
-const fmtDate = (ts) => {
-  if (!ts) return '';
-  const d = new Date(ts);
-  if (Number.isNaN(d.getTime())) return String(ts);
-  // แสดงเป็น YYYY-MM-DD HH:mm
-  const y = d.getFullYear();
-  const m = String(d.getMonth()+1).padStart(2,'0');
-  const day = String(d.getDate()).padStart(2,'0');
-  const hh = String(d.getHours()).padStart(2,'0');
-  const mm = String(d.getMinutes()).padStart(2,'0');
-  return `${y}-${m}-${day} ${hh}:${mm}`;
-};
 
 // ---------- สร้าง overlay dropdown ----------
 function makeOverlay() {
@@ -339,74 +326,32 @@ async function resolvePoIdFromTyped(){
 }
 
 // ------------------------------------------------------------------
-// Helpers สำหรับตาราง: สร้าง lookup ของ part_no / po_number จาก id
-// ------------------------------------------------------------------
-async function buildLookups(rows){
-  const partIds = [...new Set(rows.map(r => r.part_id).filter(Boolean))];
-  const poIds   = [...new Set(rows.map(r => r.po_id).filter(Boolean))];
-
-  const partMap = {};
-  const poMap = {};
-
-  await Promise.all([
-    Promise.all(partIds.map(id =>
-      jfetch(`/parts/${id}`).then(p => { partMap[id] = p; }).catch(()=>{})
-    )),
-    Promise.all(poIds.map(id =>
-      jfetch(`${PO_PATH}/${id}`).then(po => { poMap[id] = po; }).catch(()=>{})
-    ))
-  ]);
-
-  return { partMap, poMap };
-}
-
-// ------------------------------------------------------------------
-// Lots ops (ตารางคอลัมน์ใหม่)
+// Lots ops
 // ------------------------------------------------------------------
 async function loadLots(){
   const holder = gid('l_table'); if (!holder) return;
   try{
-    const rows = await jfetch('/lots'); // [{id, lot_no, part_id, part_revision_id, po_id, planned_qty, started_at, finished_at, status, ...}]
-    const { partMap, poMap } = await buildLookups(rows);
-
-    // สร้างตารางตามคอลัมน์ที่ต้องการ
-    const thead = `
-      <thead><tr>
-        <th>Lot No</th>
-        <th>Part Number</th>
-        <th>PO Number</th>
-        <th>Travelers</th>   <!-- ✅ เพิ่มคอลัมน์ -->
-        <th>Planned Qty</th>
-        <th>Started At</th>
-        <th>Finished At</th>
-        <th>Status</th>
-        
-      </tr></thead>`;
-
-   const tbody = rows.map(r => {
-  const partNo = partMap[r.part_id]?.part_no || '';
-  const poNo   = poMap[r.po_id]?.po_number || '';
-
-  // ✅ render traveler list เป็นลิงก์
-  const travelers = (r.traveler_ids || []).map(id =>
-    `<a href="/static/traveler-detail.html?id=${id}">#${id}</a>`
-  ).join(', ');
-
-  return `
-    <tr>
-      <td>${esc(r.lot_no || '')}</td>
-      <td>${esc(partNo)}</td>
-      <td>${esc(poNo)}</td>
-      <td>${travelers}</td>   <!-- ✅ cell travelers -->
-      <td>${r.planned_qty ?? 0}</td>
-      <td>${esc(fmtDate(r.started_at))}</td>
-      <td>${esc(fmtDate(r.finished_at))}</td>
-      <td>${esc(r.status || '')}</td>
-      
-    </tr>`;
-}).join('');
-
-    holder.innerHTML = `<table>${thead}<tbody>${tbody}</tbody></table>`;
+    const rows = await jfetch('/lots');
+    if (typeof renderTable === 'function') {
+      renderTable(holder, rows);
+    } else {
+      // fallback ตารางง่าย ๆ
+      const thead = `
+        <thead><tr>
+          <th>ID</th><th>Lot No</th><th>Part ID</th><th>Rev ID</th><th>PO</th><th>Planned</th><th>Status</th>
+        </tr></thead>`;
+      const tbody = rows.map(r => `
+        <tr>
+          <td>${r.id}</td>
+          <td>${esc(r.lot_no || '')}</td>
+          <td>${r.part_id ?? ''}</td>
+          <td>${r.part_revision_id ?? ''}</td>
+          <td>${r.po_id ?? ''}</td>
+          <td>${r.planned_qty ?? 0}</td>
+          <td>${esc(r.status || '')}</td>
+        </tr>`).join('');
+      holder.innerHTML = `<table>${thead}<tbody>${tbody}</tbody></table>`;
+    }
   }catch(e){
     holder.innerHTML = `<div class="hint">โหลดรายการไม่ได้: ${esc(e.message||'error')}</div>`;
   }

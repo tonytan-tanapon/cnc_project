@@ -38,9 +38,15 @@
 
         <div class="card">
           <div class="grid">
-            <div class="col-4"><label>Lot No.</label><input id="l_no" placeholder="LOT-2025-0001" /></div>
-            <div class="col-4"><label>Part No.</label><input id="l_part" /></div>
-            <div class="col-2"><label>PO ID</label><input id="l_poid" type="number" /></div>
+            <div class="col-3"><label>Lot No.</label><input id="l_no" placeholder="LOT-2025-0001" /></div>
+            <div class="col-3"><label>Part No.</label><input id="l_part" /></div>
+            <!-- เพิ่ม Revision (จะถูกเติมรายการอัตโนมัติเมื่อเลือก Part) -->
+            <div class="col-2">
+              <label>Revision</label>
+              <select id="l_rev_id"></select>
+            </div>
+             <div class="col-3"><label>PO ID</label><input id="l_poid" type="text" autocomplete="off" /></div>
+
             <div class="col-2"><label>Planned Qty</label><input id="l_qty" type="number" value="0" /></div>
             <div class="col-4">
               <label>Status</label>
@@ -68,22 +74,6 @@
   <!-- Toast -->
   <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span></div>
 
-  <!-- โหลด nav partial + ทำ active + init topbar -->
-  <!-- <script type="module">
-    // inject sidebar nav
-    const side = document.querySelector('.sidebar[data-include]');
-    if (side) {
-      fetch(side.getAttribute('data-include'))
-        .then(r => r.text())
-        .then(html => {
-          side.innerHTML = html;
-          import('/static/js/nav-active.js?v=1').then(m => m.activateCurrentNav && m.activateCurrentNav());
-        })
-        .catch(()=>{});
-    }
-    // init topbar
-    import('/static/js/api.js?v=4').then(m => m.initTopbar && m.initTopbar());
-  </script> -->
   <script type="module" src="/static/js/nav-loader.js"></script>
   <!-- หน้า Lots -->
   <script type="module" src="/static/js/page-lots.js?v=1"></script>
