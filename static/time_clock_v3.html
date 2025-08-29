@@ -1,0 +1,225 @@
+<!-- 2 step with next button user, time clock-->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Time Clock Kiosk — iPad Friendly</title>
+  <style>
+    :root{
+      --bg:#ffffff; --text:#111; --muted:#6b7280; --line:#e5e7eb; --shadow:0 2px 10px rgba(0,0,0,.07);
+      --ok:#16a34a; --warn:#d97706; --err:#b91c1c; --btn:#111; --btnTxt:#fff;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--text);font:20px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Arial}
+    .wrap{max-width:980px;margin:24px auto;padding:0 14px}
+    h1{margin:0 0 16px;font-size:28px}
+    .muted{color:var(--muted)}
+
+    .view{display:none}
+    .view.active{display:block}
+
+    .panel{background:#fff;border:2px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:16px}
+    .row{display:flex;gap:12px;align-items:center}
+
+    .display{font-size:28px;font-weight:700;border:2px solid var(--line);border-radius:12px;padding:12px 14px;letter-spacing:3px;min-height:56px;display:flex;align-items:center;justify-content:space-between}
+    .display span.value{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace}
+
+    /* Keypad */
+    .keypad{display:grid;grid-template-columns:repeat(3, 1fr);gap:12px;margin-top:16px}
+    .key{font-size:28px;font-weight:700;border:2px solid var(--line);border-radius:14px;padding:18px 0;background:#fff;cursor:pointer}
+    .key:active{transform:scale(.98)}
+    .key.action{font-weight:600}
+
+    .actions{margin-top:16px;display:flex;gap:12px;flex-wrap:wrap}
+    .btn{background:var(--btn);color:var(--btnTxt);border:0;border-radius:14px;padding:14px 18px;font-size:22px;font-weight:700;cursor:pointer}
+    .btn.secondary{background:#f3f4f6;color:#111;border:2px solid var(--line)}
+    .btn:disabled{opacity:.5;cursor:not-allowed}
+
+    /* Status chips */
+    .chip{display:inline-flex;align-items:center;gap:8px;border:2px solid var(--line);border-radius:999px;padding:6px 12px;font-size:16px}
+    .dot{width:14px;height:14px;border-radius:999px;display:inline-block}
+    .dot.off{background:#9ca3af}
+    .dot.in{background:var(--ok)}
+    .dot.break{background:var(--warn)}
+
+    /* Big menu on actions page */
+    .grid-2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+    .bigbtn{display:flex;align-items:center;justify-content:center;border:2px solid var(--line);border-radius:18px;padding:26px 18px;font-size:28px;font-weight:800;background:#fff;cursor:pointer}
+    .bigbtn:active{transform:scale(.98)}
+
+    /* Log table */
+    table{border-collapse:collapse;width:100%;font-size:18px}
+    th,td{padding:10px;border-bottom:1px solid var(--line);text-align:left}
+    th{background:#f9fafb}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Time Clock Kiosk <span class="muted">(iPad-friendly)</span></h1>
+
+    <!-- View 1: Enter User ID -->
+    <section id="view-user" class="view active">
+      <div class="panel">
+        <div class="row" style="justify-content:space-between;gap:16px;flex-wrap:wrap">
+          <div>
+            <div class="muted" style="margin-bottom:6px">Step 1 of 2</div>
+            <div style="font-size:22px;font-weight:700">Enter <u>User ID</u></div>
+          </div>
+          <div class="chip"><span class="dot off"></span><span>Not Signed In</span></div>
+        </div>
+
+        <div class="display" style="margin-top:12px"><span class="value" id="userInput">—</span><button class="btn secondary" onclick="clearUser()">Clear</button></div>
+
+        <div class="keypad" style="margin-top:16px"></div>
+        <div class="actions">
+          <button id="nextToActions" class="btn" disabled onclick="goToActions()">Next</button>
+        </div>
+      </div>
+
+      <div style="margin-top:18px" class="muted">Example User IDs: 101, 102, 103</div>
+    </section>
+
+    <!-- View 2: Actions + Today's Log -->
+    <section id="view-actions" class="view">
+      <div class="panel">
+        <div class="row" style="justify-content:space-between;gap:16px;flex-wrap:wrap">
+          <div>
+            <div class="muted" style="margin-bottom:6px">Step 2 of 2</div>
+            <div style="font-size:22px;font-weight:800">Welcome, <span id="empNameStrong"></span></div>
+          </div>
+          <div class="chip" id="statusChip"><span class="dot off"></span><span>Off Duty</span></div>
+        </div>
+
+        <div class="grid-2" style="margin-top:16px">
+          <button class="bigbtn" onclick="doAction('clock_in')">Clock In</button>
+          <button class="bigbtn" onclick="doAction('clock_out')">Clock Out</button>
+          <button class="bigbtn" onclick="doAction('start_break')">Start Break</button>
+          <button class="bigbtn" onclick="doAction('stop_break')">Stop Break</button>
+        </div>
+
+        <div class="actions" style="justify-content:space-between">
+          <button class="btn secondary" onclick="logout()">Logout</button>
+          <div class="muted">Tap a button to add an entry to today's log.</div>
+        </div>
+      </div>
+
+      <div class="panel" style="margin-top:16px">
+        <div style="font-size:22px;font-weight:700;margin-bottom:8px">Today's Log</div>
+        <table id="logTable">
+          <thead>
+            <tr><th style="width:180px">Time</th><th style="width:160px">Action</th><th>Notes</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const employees = [
+      { id: 101, name: 'Alice Johnson', status: 'off' },
+      { id: 102, name: 'Ben Carter',   status: 'in' },
+      { id: 103, name: 'Chai Sirisak', status: 'break' },
+    ];
+
+    const todayKey = new Date().toISOString().slice(0,10);
+    const logs = {};
+    let currentUserDigits = '';
+    let currentEmp = null;
+
+    const viewUser   = document.getElementById('view-user');
+    const viewAction = document.getElementById('view-actions');
+    const userInput  = document.getElementById('userInput');
+    const nextBtn    = document.getElementById('nextToActions');
+    const empNameStrong = document.getElementById('empNameStrong');
+    const statusChip = document.getElementById('statusChip');
+    const logTableBody = document.querySelector('#logTable tbody');
+
+    const pad = (n)=> String(n).padStart(2,'0');
+    function nowStr(){
+      const d = new Date();
+      return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    }
+    function escapeHtml(s){ return String(s ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;'); }
+    function setView(which){ [viewUser, viewAction].forEach(v=>v.classList.remove('active')); which.classList.add('active'); }
+    function updateDisplay(el, val){ el.textContent = val && val.length ? val : '—'; }
+
+    function renderStatusChip(){
+      const dot = statusChip.querySelector('.dot');
+      const label = statusChip.querySelector('span:last-child');
+      dot.className = 'dot ' + (currentEmp?.status || 'off');
+      label.textContent = currentEmp?.status === 'in' ? 'Clocked In' : currentEmp?.status === 'break' ? 'On Break' : 'Off Duty';
+    }
+
+    function buildKeypad(container){
+      container.innerHTML = '';
+      const keys = ['1','2','3','4','5','6','7','8','9','⌫','0','Clear'];
+      keys.forEach(k=>{
+        const b = document.createElement('button');
+        b.className = 'key' + (isNaN(+k) ? ' action' : '');
+        b.textContent = k;
+        b.onclick = () => {
+          if(!isNaN(+k)) currentUserDigits += k;
+          else if(k==='⌫') currentUserDigits = currentUserDigits.slice(0,-1);
+          else currentUserDigits = '';
+          updateDisplay(userInput, currentUserDigits);
+          nextBtn.disabled = currentUserDigits.length === 0;
+        };
+        container.appendChild(b);
+      });
+    }
+
+    buildKeypad(document.querySelector('#view-user .keypad'));
+
+    window.clearUser = function(){ currentUserDigits=''; updateDisplay(userInput, ''); nextBtn.disabled = true; }
+
+    window.goToActions = function(){
+      const id = parseInt(currentUserDigits, 10);
+      const emp = employees.find(e=> e.id === id);
+      if(!emp){ alert('User ID not found. Try 101, 102, or 103 (demo).'); return; }
+      currentEmp = { ...emp };
+      empNameStrong.textContent = currentEmp.name;
+      renderStatusChip();
+      renderTodayLog();
+      setView(viewAction);
+    }
+
+    window.logout = function(){ currentEmp = null; clearUser(); setView(viewUser); }
+
+    function actionLabel(key){ return key==='clock_in'?'Clock In': key==='clock_out'?'Clock Out': key==='start_break'?'Start Break': key==='stop_break'?'Stop Break': key; }
+
+    window.doAction = function(key){
+      if(!currentEmp) return;
+      const label = actionLabel(key);
+      if(!confirm(`Confirm: ${label} for ${currentEmp.name}?`)) return;
+      if(key==='clock_in') currentEmp.status='in';
+      else if(key==='clock_out') currentEmp.status='off';
+      else if(key==='start_break') currentEmp.status='break';
+      else if(key==='stop_break') currentEmp.status='in';
+      renderStatusChip();
+      logs[currentEmp.id] ||= {};
+      logs[currentEmp.id][todayKey] ||= [];
+      logs[currentEmp.id][todayKey].unshift({ ts: nowStr(), action: label, note: '' });
+      renderTodayLog();
+    }
+
+    function renderTodayLog(){
+      logTableBody.innerHTML = '';
+      const rows = (logs[currentEmp.id]?.[todayKey]) || [];
+      if(rows.length===0){
+        const tr = document.createElement('tr');
+        const td = document.createElement('td');
+        td.colSpan = 3; td.innerHTML = '<span class="muted">No entries yet today</span>';
+        tr.appendChild(td); logTableBody.appendChild(tr);
+        return;
+      }
+      rows.forEach(r=>{
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${escapeHtml(r.ts)}</td><td><b>${escapeHtml(r.action)}</b></td><td>${escapeHtml(r.note||'')}</td>`;
+        logTableBody.appendChild(tr);
+      });
+    }
+  </script>
+</body>
+</html>

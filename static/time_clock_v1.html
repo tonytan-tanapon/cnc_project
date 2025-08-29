@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Clock In / Clock Out — 3×N Grid</title>
+  <style>
+    :root{
+      --bg:#ffffff; --text:#111; --muted:#6b7280; --line:#e5e7eb;
+      --ok:#16a34a; --warn:#d97706; --err:#b91c1c; --card:#fff; --shadow:0 2px 8px rgba(0,0,0,.06);
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--text);font:20px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Arial}
+    .wrap{max-width:1100px;margin:28px auto;padding:0 14px}
+    h1{margin:0 0 16px;font-size:28px}
+    .muted{color:var(--muted)}
+
+    .grid{display:grid;grid-template-columns:repeat(3, minmax(0,1fr));gap:16px;margin:18px 0}
+
+    .card{background:var(--card);border:2px solid var(--line);border-radius:18px;padding:20px;cursor:pointer;box-shadow:var(--shadow);transition:transform .05s ease}
+    .card:active{transform:scale(.97)}
+    .name{font-weight:600;font-size:22px;margin:0 0 10px}
+    .status{font-size:16px;display:inline-flex;align-items:center;gap:10px;padding:6px 12px;border-radius:999px;border:2px solid var(--line)}
+    .dot{width:14px;height:14px;border-radius:999px;display:inline-block}
+    .dot.off{background:#9ca3af}
+    .dot.in{background:var(--ok)}
+    .dot.break{background:var(--warn)}
+
+    /* Super big action menu for iPad */
+    .menu{position:absolute;background:#fff;border:2px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden;min-width:320px;z-index:50}
+    .menu.hidden{display:none}
+    .menu button{display:block;width:100%;text-align:center;background:#fff;border:0;padding:24px;font:inherit;font-size:28px;font-weight:600;cursor:pointer}
+    .menu button:hover{background:#f9fafb}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Clock In / Clock Out <span class="muted">(Tap a name → choose an action)</span></h1>
+
+    <div id="grid" class="grid" aria-live="polite"></div>
+    <div id="menu" class="menu hidden" role="menu" aria-hidden="true"></div>
+  </div>
+
+  <script>
+    const employees = [
+      { id: 1, name: 'Alice Johnson', status: 'off' },
+      { id: 2, name: 'Ben Carter', status: 'in' },
+      { id: 3, name: 'Chai Sirisak', status: 'break' },
+      { id: 4, name: 'Diana Reyes', status: 'off' },
+      { id: 5, name: 'Ethan Park', status: 'off' },
+      { id: 6, name: 'Fiona Zhang', status: 'in' },
+      { id: 7, name: 'Gavin Patel', status: 'off' },
+      { id: 8, name: 'Hana Kim', status: 'off' },
+      { id: 9, name: 'Ivan Petrov', status: 'off' },
+    ];
+
+    const grid = document.getElementById('grid');
+    const menu = document.getElementById('menu');
+
+    function renderGrid(){
+      grid.innerHTML = '';
+      employees.forEach(emp => {
+        const card = document.createElement('button');
+        card.className = 'card';
+        card.setAttribute('data-id', emp.id);
+        card.innerHTML = `
+          <div class="name">${escapeHtml(emp.name)}</div>
+          <div class="status">
+            <span class="dot ${emp.status}"></span>
+            <span>${statusLabel(emp.status)}</span>
+          </div>
+        `;
+        card.addEventListener('click', (e) => openMenuFor(emp, e));
+        grid.appendChild(card);
+      });
+    }
+
+    function statusLabel(s){
+      return s === 'in' ? 'Clocked In'
+        : s === 'break' ? 'On Break'
+        : 'Off Duty';
+    }
+
+    function availableActions(status){
+      if(status === 'off') return [
+        {key:'clock_in', label:'Clock In'}
+      ];
+      if(status === 'in') return [
+        {key:'start_break', label:'Start Break'},
+        {key:'clock_out', label:'Clock Out'}
+      ];
+      if(status === 'break') return [
+        {key:'stop_break', label:'Stop Break'},
+        {key:'clock_out', label:'Clock Out'}
+      ];
+      return [];
+    }
+
+    function openMenuFor(emp, ev){
+      const rect = ev.currentTarget.getBoundingClientRect();
+      const actions = availableActions(emp.status);
+      menu.innerHTML = '';
+      actions.forEach(a => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = a.label;
+        btn.addEventListener('click', () => handleAction(emp, a.key));
+        menu.appendChild(btn);
+      });
+
+      const top = rect.bottom + window.scrollY + 10;
+      const left = rect.left + window.scrollX;
+      menu.style.top = top + 'px';
+      menu.style.left = left + 'px';
+      menu.classList.remove('hidden');
+      menu.setAttribute('aria-hidden', 'false');
+      document.addEventListener('click', dismissOnOutside, { capture: true, once: true });
+    }
+
+    function dismissOnOutside(e){
+      if(!menu.contains(e.target)) hideMenu();
+    }
+
+    function hideMenu(){
+      menu.classList.add('hidden');
+      menu.setAttribute('aria-hidden', 'true');
+    }
+
+    function handleAction(emp, key){
+      const label = actionLabel(key);
+      if(!confirm(`Confirm: ${label} for ${emp.name}?`)) return;
+
+      if(key === 'clock_in'){
+        emp.status = 'in';
+      } else if(key === 'clock_out'){
+        emp.status = 'off';
+      } else if(key === 'start_break'){
+        emp.status = 'break';
+      } else if(key === 'stop_break'){
+        emp.status = 'in';
+      }
+
+      hideMenu();
+      renderGrid();
+    }
+
+    function actionLabel(key){
+      return (
+        key === 'clock_in' ? 'Clock In' :
+        key === 'clock_out' ? 'Clock Out' :
+        key === 'start_break' ? 'Start Break' :
+        key === 'stop_break' ? 'Stop Break' : key
+      );
+    }
+
+    function escapeHtml(s){
+      return String(s ?? '')
+        .replaceAll('&','&amp;')
+        .replaceAll('<','&lt;')
+        .replaceAll('>','&gt;')
+        .replaceAll('"','&quot;')
+        .replaceAll("'",'&#39;');
+    }
+
+    renderGrid();
+  </script>
+</body>
+</html>

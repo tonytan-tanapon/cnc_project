@@ -25,7 +25,7 @@ create Database
 sqlacodegen postgresql://postgres:1234@localhost:5432/mydb --outfile models.py
 
  IPv4 Address. . . . . . . . . . . : 192.168.1.211
-
+ TopEng ............................ 100.73.200.18
  CNC Topcouch 192.168.1.198
 
 
