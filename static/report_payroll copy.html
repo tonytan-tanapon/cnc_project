@@ -41,10 +41,11 @@
 
     
     <div class="row">
-        <div style="min-width:160px">
+      <div style="min-width:160px">
         <label>Employee ID</label>
-        <input id="f_emp" type="text" placeholder="เช่น 1 หรือ 1,2,5">
-        </div>
+        <input id="f_emp" type="text" list="emp_suggest" placeholder="เช่น 1 หรือ 1,2,5">
+        <datalist id="emp_suggest"></datalist>
+      </div>
       <div style="min-width:260px">
         <label>Pay Period (จากตาราง)</label>
         <select id="f_period" onchange="onPeriodChange()">
@@ -69,13 +70,7 @@
         <label>Default Rate (สำรอง)</label>
         <input id="f_rate" type="number" step="0.01" value="100">
       </div>
-      <div style="min-width:140px">
-        <label>สกุลเงิน</label>
-        <select id="f_ccy">
-          <option value="฿">฿ THB</option>
-          <option value="$">$ USD</option>
-        </select>
-      </div>
+      
       <div style="min-width:220px">
         <label>&nbsp;</label>
         <div class="row" style="gap:6px">
@@ -126,6 +121,8 @@
   const PP = "/pay-periods";         // GET /pay-periods
   const PR = "/pay-rates";           // GET /pay-rates?employee_id=...
   const PR_BULK = "/pay-rates/bulk"; // (ออปชัน) GET /pay-rates/bulk?employee_ids=1,2,3
+    // ==== CONFIG (เพิ่ม) ====
+const EMP = "/employees"; // ถ้ามี endpoint นี้; ถ้าไม่มี โค้ดจะ fallback ให้อัตโนมัติ
 
   // ==== HELPERS ====
   const $ = s => document.querySelector(s);
@@ -144,9 +141,11 @@
   function fmtTime(iso){ if(!iso) return ''; const d=new Date(iso); if(isNaN(d)) return ''; return `${pad(d.getHours())}:${pad(d.getMinutes())}`; }
   function durHours(isoStart, isoEnd){ if(!isoStart || !isoEnd) return 0; const s=new Date(isoStart), e=new Date(isoEnd); if(isNaN(s)||isNaN(e)||e<=s) return 0; return (e-s)/3600000; }
   function sum(arr){ return arr.reduce((a,b)=>a+b,0); }
+  const CCY_SYM = '$';  // ใช้ดอลลาร์อย่างเดียว
 
-  function currency(v){ const sym = $('#f_ccy').value || '฿'; return sym + ' ' + Number(v||0).toFixed(2); }
-
+    function currency(v){
+    return CCY_SYM + ' ' + Number(v||0).toFixed(2);
+    }
   function getOverrides(){ try{ return JSON.parse(localStorage.getItem('payroll_rate_overrides')||'{}'); }catch{ return {}; } }
   function setOverrides(map){ localStorage.setItem('payroll_rate_overrides', JSON.stringify(map||{})); }
 
@@ -175,19 +174,25 @@
   }
 
   function onPeriodChange(){
-    const id = $('#f_period').value;
-    if(!id){ return; }
-    const p = PAY_PERIODS.find(x=> String(x.id)===String(id));
-    if(!p) return;
-    // end_at เป็น exclusive → แปลงเป็นรวมวันสุดท้ายใน UI
-    const startStr = toLocalISODate(new Date(p.start_at));
-    const endExclusive = new Date(p.end_at);
-    const endInclusive = new Date(endExclusive); endInclusive.setDate(endExclusive.getDate()-1);
-    const endStr = toLocalISODate(endInclusive);
-    $('#f_start').value = startStr;
-    $('#f_end').value = endStr;
-  }
+  const id = $('#f_period').value;
+  if(!id) return;
 
+  const p = PAY_PERIODS.find(x => String(x.id) === String(id));
+  if(!p) return;
+
+  const start = new Date(p.start_at);
+  const end   = new Date(p.end_at);
+
+  // จำนวนวันของงวด (exclusive/inclusive ก็ครอบได้ด้วย ceil)
+  let days = Math.ceil((end - start) / 86400000); // 86,400,000 ms = 1 day
+  if (!Number.isFinite(days) || days < 1) days = 1;
+
+  const endInclusive = new Date(start);
+  endInclusive.setDate(start.getDate() + days );
+
+  $('#f_start').value = toLocalISODate(start);
+  $('#f_end').value   = toLocalISODate(endInclusive);
+}
   // ==== PAY RATES ====
   // โครงสร้าง: { [empId]: [{effective_from, hourly_rate, ot_multiplier, dt_multiplier}, ...sorted asc] }
   let PAY_RATES = {};
@@ -319,7 +324,7 @@
       entries
     });
   }
-
+  addEmpSuggestionsFromEntries(items);
   render(rows);
 }
 
@@ -409,52 +414,109 @@
   }
 
   function exportCSV(){
-    const rows = [];
-    const tb = document.querySelector('#tblBody');
-    const sym = $('#f_ccy').value || '฿';
+  const rows = [];
+  const tb = document.querySelector('#tblBody');
 
-    // ดึงเฉพาะแถวหลัก (ข้าม details ที่ตามมา) → index คู่ 0,2,4,...
-    const trs = Array.from(tb.querySelectorAll('tr')).filter((_, i) => i % 2 === 0);
+  // ดึงเฉพาะแถวหลัก (ข้าม details ที่ตามมา) → index คู่ 0,2,4,...
+  const trs = Array.from(tb.querySelectorAll('tr')).filter((_, i) => i % 2 === 0);
 
-    for (const tr of trs) {
-      const tds = tr.querySelectorAll('td');
-      const date = (tds[1]?.textContent || '').trim();
-      const emp  = ((tds[2]?.textContent || '').trim()).replace(/^#/, '');
-      const clockIn  = (tds[3]?.textContent || '').trim();
-      const clockOut = (tds[4]?.textContent || '').trim();
-      const breakTxt = (tds[5]?.textContent || '').trim();
-      const hours    = (tds[6]?.textContent || '').trim();
-      const rate     = tr.querySelector('input[type="number"]')?.value || '';
-      const pay      = (tds[8]?.textContent || '').trim();
-      rows.push([date, emp, clockIn, clockOut, breakTxt, hours, rate, pay]);
-    }
-
-    const header = ['date','employee_id','clock_in','clock_out','break_unpaid','net_hours','rate',`amount(${sym})`];
-
-    // Escape ด้วย .replace(/"/g, '""') และคั่นบรรทัดด้วย '\n'
-    const csv = [header, ...rows]
-      .map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
-      .join('\n');
-
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `payroll_${new Date().toISOString().slice(0,10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+  for (const tr of trs) {
+    const tds = tr.querySelectorAll('td');
+    const date = (tds[1]?.textContent || '').trim();
+    const emp  = ((tds[2]?.textContent || '').trim()).replace(/^#/, '');
+    const clockIn  = (tds[3]?.textContent || '').trim();
+    const clockOut = (tds[4]?.textContent || '').trim();
+    const breakTxt = (tds[5]?.textContent || '').trim();
+    const hours    = (tds[6]?.textContent || '').trim();
+    const rate     = tr.querySelector('input[type="number"]')?.value || '';
+    const pay      = (tds[8]?.textContent || '').trim();
+    rows.push([date, emp, clockIn, clockOut, breakTxt, hours, rate, pay]);
   }
 
+  const header = [
+    'date','employee_id','clock_in','clock_out',
+    'break_unpaid','net_hours','rate', `amount(${CCY_SYM})`
+  ];
+
+  const csv = [header, ...rows]
+    .map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
+    .join('\n');
+
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `payroll_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+
   // ==== INIT ====
-  (async function init(){
-    const today = new Date();
-    const ymd = toLocalISODate(today);
-    $('#f_start').value = ymd;
-    $('#f_end').value = ymd;
-    await loadPayPeriods();
-    if(PAY_PERIODS.length){ $('#f_period').value = PAY_PERIODS[0].id; onPeriodChange(); }
-    loadReport();
-  })();
+(async function init(){
+  const today = new Date();
+  const ymd = toLocalISODate(today);
+  $('#f_start').value = ymd;
+  $('#f_end').value = ymd;
+
+  // ⬇️ กด Enter ในช่อง Employee ID เพื่อคำนวนทันที
+  $('#f_emp').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      loadReport();
+    }
+  });
+  // โหลดรายชื่อพนักงานไว้ก่อน (ถ้า endpoint ไม่มี โค้ดจะ fallback หลังจาก loadReport)
+  loadEmployeeDirectory();
+
+  await loadPayPeriods();
+  if(PAY_PERIODS.length){ $('#f_period').value = PAY_PERIODS[0].id; onPeriodChange(); }
+  loadReport();
+})();
+
+
+  ///
+
+
+// ==== EMP SUGGESTIONS ====
+function setEmpSuggestions(arr){
+  // arr: [{id, name?, emp_code?}] หรือ [{id}] ก็ได้
+  const dl = document.querySelector('#emp_suggest');
+  if(!dl) return;
+  dl.innerHTML = ''; // เคลียร์ก่อนเติมใหม่
+  // เก็บค่าเก่าเพื่อ merge (กันหายเวลามีชื่อจาก API แล้วบวก ID จาก entries)
+  const existed = new Map(Array.from(dl.querySelectorAll('option')).map(o => [o.value, o]));
+  for(const e of arr){
+    const idStr = String(e.id ?? e);
+    if(existed.has(idStr)) continue;
+    const opt = document.createElement('option');
+    opt.value = idStr;
+    // label จะโชว์เป็นข้อความใน dropdown; value จะถูกใส่ลง input (เฉพาะ id)
+    const labelBits = [];
+    if(e.name) labelBits.push(e.name);
+    if(e.emp_code) labelBits.push(`(${e.emp_code})`);
+    opt.label = labelBits.length ? `#${idStr} · ${labelBits.join(' ')}` : `#${idStr}`;
+    dl.appendChild(opt);
+  }
+}
+
+async function loadEmployeeDirectory(){
+  try{
+    // ปรับพารามิเตอร์ได้ตาม API จริง เช่น ?status=active
+    const list = await apiGET(`${EMP}?status=active`);
+    // คาดโครง: [{id, emp_code, name, ...}]
+    setEmpSuggestions(list || []);
+  }catch(e){
+    console.warn('No /employees endpoint or fetch failed — will fallback to IDs from entries', e);
+  }
+}
+
+function addEmpSuggestionsFromEntries(items){
+  // ดึงเฉพาะ employee_id ที่โผล่ในช่วงที่โหลดมา
+  const ids = [...new Set((items||[]).map(x => x.employee_id))].map(id => ({id}));
+  setEmpSuggestions(ids);
+}
+
 </script>
 
 </body>
