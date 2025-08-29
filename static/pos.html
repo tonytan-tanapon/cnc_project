@@ -39,15 +39,15 @@
         <div class="card">
           <b>Create PO</b>
           <div class="grid" style="margin-top:8px">
-            <div class="col-4">
+            <div class="col-2">
               <label>PO Number</label>
-              <input id="po_no" placeholder="PO-2025-0001 หรือเว้นว่าง/AUTO เพื่อ autogen" />
+              <input id="po_no" placeholder="Autogen" />
             </div>
             <div class="col-4">
               <label>Description</label>
               <input id="po_desc" />
             </div>
-            <div class="col-4">
+            <div class="col-2">
               <label>Customer</label>
               <!-- พิมพ์เป็น customer_code + มี autocomplete จาก JS -->
               <input
@@ -55,8 +55,8 @@
                 type="text"
                 autocomplete="off"
                 inputmode="latin"
-                placeholder="Customer code (พิมพ์เพื่อค้นหา)"
-                style="text-transform: uppercase"
+                placeholder="Customer code"
+             
               />
             </div>
             <div class="col-12">
