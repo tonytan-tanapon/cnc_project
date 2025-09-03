@@ -24,7 +24,7 @@ class APIBase(BaseModel):
 # =========================================
 # =============== Customers ===============
 # =========================================
-class CustomerBase(APIBase):
+class CustomerBase(APIBase): # (ใช้สืบทอดใน Schema ที่ต้องการ config พิเศษ)
     code: str
     name: str
     contact: Optional[str] = None
@@ -32,7 +32,7 @@ class CustomerBase(APIBase):
     phone: Optional[str] = None
     address: Optional[str] = None
 
-class CustomerCreate(BaseModel):
+class CustomerCreate(BaseModel): # (ใช้เวลาไม่ต้องการ config พิเศษ)
     # เดิมน่าจะเป็น: code: str   # (required)
     # แก้เป็น optional:
     code: Optional[str] = None
@@ -42,7 +42,7 @@ class CustomerCreate(BaseModel):
     phone: Optional[str] = None
     address: Optional[str] = None
 
-class CustomerUpdate(APIBase):
+class CustomerUpdate(BaseModel):
     name: Optional[str] = None
     contact: Optional[str] = None
     email: Optional[str] = None
@@ -55,21 +55,24 @@ class CustomerOut(CustomerBase):
 # =========================================
 # ============ Purchase Orders ============
 # =========================================
-class POCreate(APIBase):
+
+class POBase(APIBase):
+    po_number: str 
+    customer_id: int 
+    description: Optional[str] = None
+
+class POCreate(BaseModel):
     po_number: str
     customer_id: int
     description: Optional[str] = None
 
-class POUpdate(APIBase):
+class POUpdate(BaseModel):
     po_number: Optional[str] = None
     customer_id: Optional[int] = None
     description: Optional[str] = None
 
-class POOut(APIBase):
+class POOut(POBase):
     id: int
-    po_number: str
-    customer_id: int
-    description: Optional[str] = None
 
 # =========================================
 # ================ Employees ==============
@@ -83,7 +86,7 @@ class EmployeeBase(APIBase):
     phone: Optional[str] = None
     status: Optional[str] = "active"
 
-class EmployeeCreate(APIBase):
+class EmployeeCreate(BaseModel):
     emp_code: Optional[str] = None   # ใส่ได้หรือไม่ใส่ก็ได้
     name: str
     position: Optional[str] = None
@@ -92,7 +95,7 @@ class EmployeeCreate(APIBase):
     phone: Optional[str] = None
     status: Optional[str] = "active"
 
-class EmployeeUpdate(APIBase):
+class EmployeeUpdate(BaseModel):
     name: Optional[str] = None
     position: Optional[str] = None
     department: Optional[str] = None
@@ -106,7 +109,7 @@ class EmployeeOut(EmployeeBase):
 # =========================================
 # ================= Suppliers =============
 # =========================================
-class SupplierCreate(APIBase):
+class SupplierBase(APIBase):
     code: str
     name: str
     contact: Optional[str] = None
@@ -115,7 +118,16 @@ class SupplierCreate(APIBase):
     address: Optional[str] = None
     payment_terms: Optional[str] = None
 
-class SupplierUpdate(APIBase):
+class SupplierCreate(BaseModel):
+    code: str
+    name: str
+    contact: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    address: Optional[str] = None
+    payment_terms: Optional[str] = None
+
+class SupplierUpdate(BaseModel):
     name: Optional[str] = None
     contact: Optional[str] = None
     email: Optional[str] = None
@@ -123,68 +135,40 @@ class SupplierUpdate(APIBase):
     address: Optional[str] = None
     payment_terms: Optional[str] = None
 
-class SupplierOut(APIBase):
+class SupplierOut(SupplierBase):
     id: int
-    code: str
-    name: str
-    contact: Optional[str] = None
-    email: Optional[str] = None
-    phone: Optional[str] = None
-    address: Optional[str] = None
-    payment_terms: Optional[str] = None
+    
 
 # =========================================
 # ============== Raw Materials ============
 # =========================================
-class RawMaterialCreate(APIBase):
+class RawMaterialBase(APIBase):
+    code: str
+    name: str
+    spec: Optional[str] = None
+    uom: Optional[str] = None
+    remark: Optional[str] = None
+class RawMaterialCreate(BaseModel):
     code: str
     name: str
     spec: Optional[str] = None
     uom: Optional[str] = "kg"
     remark: Optional[str] = None
 
-class RawMaterialUpdate(APIBase):
+class RawMaterialUpdate(BaseModel):
     name: Optional[str] = None
     spec: Optional[str] = None
     uom: Optional[str] = None
     remark: Optional[str] = None
 
-class RawMaterialOut(APIBase):
+class RawMaterialOut(RawMaterialBase):
     id: int
-    code: str
-    name: str
-    spec: Optional[str] = None
-    uom: Optional[str] = None
-    remark: Optional[str] = None
+  
 
 # =========================================
 # ================= Raw Batches ===========
 # =========================================
-class RawBatchCreate(APIBase):
-    material_id: int
-    batch_no: str
-    supplier_id: Optional[int] = None
-    supplier_batch_no: Optional[str] = None
-    mill_name: Optional[str] = None
-    mill_heat_no: Optional[str] = None
-    received_at: Optional[date] = None
-    qty_received: Decimal = Field(..., gt=Decimal("0"))
-    location: Optional[str] = None
-    cert_file: Optional[str] = None
-
-class RawBatchUpdate(APIBase):
-    batch_no: Optional[str] = None
-    supplier_id: Optional[int] = None
-    supplier_batch_no: Optional[str] = None
-    mill_name: Optional[str] = None
-    mill_heat_no: Optional[str] = None
-    received_at: Optional[date] = None
-    qty_received: Optional[Decimal] = None
-    location: Optional[str] = None
-    cert_file: Optional[str] = None
-
-class RawBatchOut(APIBase):
-    id: int
+class RawBatchBase(APIBase):
     material_id: int
     batch_no: str
     supplier_id: Optional[int] = None
@@ -197,12 +181,40 @@ class RawBatchOut(APIBase):
     location: Optional[str] = None
     cert_file: Optional[str] = None
 
+class RawBatchCreate(BaseModel):
+    material_id: int
+    batch_no: str
+    supplier_id: Optional[int] = None
+    supplier_batch_no: Optional[str] = None
+    mill_name: Optional[str] = None
+    mill_heat_no: Optional[str] = None
+    received_at: Optional[date] = None
+    qty_received: Decimal = Field(..., gt=Decimal("0"))
+    location: Optional[str] = None
+    cert_file: Optional[str] = None
+
+class RawBatchUpdate(BaseModel):
+    batch_no: Optional[str] = None
+    supplier_id: Optional[int] = None
+    supplier_batch_no: Optional[str] = None
+    mill_name: Optional[str] = None
+    mill_heat_no: Optional[str] = None
+    received_at: Optional[date] = None
+    qty_received: Optional[Decimal] = None
+    location: Optional[str] = None
+    cert_file: Optional[str] = None
+
+class RawBatchOut(RawBatchBase):
+    id: int
+    
+
 # =========================
 # ============== Production Lots ==========
 # =========================
 LotStatus = Literal["planned", "in_process", "hold", "completed", "shipped", "canceled"]
 
-class ProductionLotCreate(APIBase):
+
+class ProductionLotCreate(BaseModel):
   
     lot_no: str
     part_id: int
@@ -213,7 +225,7 @@ class ProductionLotCreate(APIBase):
     finished_at: Optional[datetime] = None
     status: Optional[LotStatus] = "in_process"
 
-class ProductionLotUpdate(APIBase):
+class ProductionLotUpdate(BaseModel):
   
     part_id: Optional[int] = None
     part_revision_id: Optional[int] = None
