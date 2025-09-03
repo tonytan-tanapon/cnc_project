@@ -28,6 +28,7 @@ def now_utc() -> datetime:
 def _emp_by_code(db: Session, code: str) -> Employee:
     emp = db.query(Employee).filter(Employee.emp_code == code).first()
     if not emp:
+        # print(401, "Invalid code")
         raise HTTPException(401, "Invalid code")
     return emp
 
