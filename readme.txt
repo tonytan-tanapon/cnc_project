@@ -34,6 +34,7 @@ alembic revision --autogenerate -m "add users and time_entries tables"
 alembic upgrade head
 
 100.76.36.69
+tail scale 100.73.200.18
 fd7a:115c:a1e0::ef01:2452
 
 Initial Database

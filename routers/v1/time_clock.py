@@ -1,6 +1,7 @@
 # routers/time_clock.py
-from datetime import datetime
+
 from typing import Optional, List
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field, constr
@@ -9,12 +10,19 @@ from sqlalchemy.orm import Session
 
 from database import get_db
 from models import TimeEntry, BreakEntry, Employee, User
+# --- add at top ---
+from sqlalchemy.orm import joinedload
 
 # =====================================================================
 # Time Clock API (kiosk-friendly: resolve Employee by 4-digit code)
 # =====================================================================
 timeclock_router = APIRouter(prefix="/time-entries", tags=["time_clock"])
 breaks_router = APIRouter(prefix="/breaks", tags=["time_clock"])
+
+
+def now_utc() -> datetime:
+    # tz-aware
+    return datetime.now(timezone.utc)
 
 # ---------- Helpers ----------
 def _emp_by_code(db: Session, code: str) -> Employee:
@@ -50,9 +58,20 @@ def _serialize_break(b: BreakEntry) -> dict:
     }
 
 def _serialize_time_entry(te: TimeEntry) -> dict:
+    emp = getattr(te, "employee", None)
+    # If Employee has .full_name and (optionally) a .customer relationship with .name
+    employee_name = getattr(emp, "full_name", None)
+    customer = getattr(emp, "customer", None) if emp is not None else None
+    customer_name = getattr(customer, "name", None)
+
     return {
         "id": te.id,
         "employee_id": te.employee_id,
+        "employee_name": employee_name,        # 👈 new
+        "employee_code": getattr(emp, "emp_code", None),  # optional, helpful for kiosk
+        "customer_id": getattr(emp, "customer_id", None), # optional
+        "customer_name": customer_name,        # 👈 new (if you track customers per employee)
+
         "work_user_id": te.work_user_id,
         "clock_in_at": te.clock_in_at,
         "clock_out_at": te.clock_out_at,
@@ -95,29 +114,32 @@ class StopBreakPayload(CodePayload):
 
 @timeclock_router.get("/state/{code}", summary="Get current status via 4-digit code")
 def state_by_code(code: Annotated[str, Field(min_length=4, max_length=4, pattern=r'^\d{4}$')], db: Session = Depends(get_db)):
-
-    print("state")
     emp = _emp_by_code(db, code)
     te = _current_open_time_entry(db, emp.id)
+
+    user = (db.query(User)
+              .filter(User.employee_id == emp.id)
+              .order_by(User.id.asc())
+              .first())
+    display_name = getattr(user, "name", None) or getattr(emp, "name", None) or f"Emp {emp.id}"
+
+    payload = {
+        "employee_id": emp.id,
+        "name": display_name,
+        "customer_name": getattr(getattr(emp, "customer", None), "name", None),  # 👈 optional
+    }
+
     if not te:
-        # name from related user if you have it
-        user = db.query(User).filter(User.employee_id == emp.id).order_by(User.id.asc()).first()
-        return {
-            "status": "off",
-            "time_entry_id": None,
-            "break_id": None,
-            "employee_id": emp.id,
-            "name": getattr(user, "full_name", None) or getattr(emp, "full_name", None) or f"Emp {emp.id}"
-        }
+        payload.update({"status": "off", "time_entry_id": None, "break_id": None})
+        return payload
+
     br = _current_open_break(db, te.id)
-    user = db.query(User).filter(User.employee_id == emp.id).order_by(User.id.asc()).first()
-    return {
+    payload.update({
         "status": "break" if br else "in",
         "time_entry_id": te.id,
         "break_id": br.id if br else None,
-        "employee_id": emp.id,
-        "name": getattr(user, "full_name", None) or getattr(emp, "full_name", None) or f"Emp {emp.id}"
-    }
+    })
+    return payload
 
 @timeclock_router.post("/start")
 def start_time_entry(payload: StartPayload, db: Session = Depends(get_db)):
@@ -126,7 +148,7 @@ def start_time_entry(payload: StartPayload, db: Session = Depends(get_db)):
     # Close any existing open entry (avoid overlaps)
     open_te = _current_open_time_entry(db, emp.id)
     if open_te:
-        open_te.clock_out_at = datetime.utcnow()
+        open_te.clock_out_at = now_utc()
         open_te.status = "closed"
         db.flush()
 
@@ -137,7 +159,7 @@ def start_time_entry(payload: StartPayload, db: Session = Depends(get_db)):
         employee_id=emp.id,
         created_by_user_id=None,
         work_user_id=pay_user.id if pay_user else None,
-        clock_in_at=datetime.utcnow(),
+        clock_in_at=now_utc(),
         clock_in_method=payload.method or "web",
         clock_in_location=payload.location,
         status="open",
@@ -160,7 +182,7 @@ def stop_time_entry_no_id(payload: StopPayload, db: Session = Depends(get_db)):
     if not te:
         raise HTTPException(400, "No open time entry to stop")
 
-    now = datetime.utcnow()
+    now = now_utc()
 
     # Close any open breaks under this entry
     open_breaks = (db.query(BreakEntry)
@@ -206,7 +228,7 @@ def stop_time_entry_by_id(
     if te.status != "open":
         raise HTTPException(400, "TimeEntry already closed or cancelled")
 
-    now = datetime.utcnow()
+    now = now_utc()
 
     open_breaks = (db.query(BreakEntry)
                      .filter(and_(BreakEntry.time_entry_id == te.id, BreakEntry.end_at.is_(None)))
@@ -249,7 +271,7 @@ def start_break(payload: StartBreakPayload, db: Session = Depends(get_db)):
     br = BreakEntry(
         time_entry_id=te.id,
         break_type=payload.break_type or "lunch",
-        start_at=datetime.utcnow(),
+        start_at=now_utc(),
         end_at=None,
         method=payload.method or "web",
         location=payload.location,
@@ -277,7 +299,7 @@ def stop_break_no_id(payload: StopBreakPayload, db: Session = Depends(get_db)):
     if not br:
         raise HTTPException(400, "No break in progress")
 
-    br.end_at = datetime.utcnow()
+    br.end_at = now_utc()
     db.commit(); db.refresh(br)
     return {
         "id": br.id,
@@ -295,12 +317,21 @@ def list_time_entries_range(
     start_at: datetime = Query(..., description="inclusive"),
     end_at: datetime = Query(..., description="exclusive"),
 ) -> List[dict]:
-    q = db.query(TimeEntry).filter(
-        TimeEntry.clock_in_at >= start_at,
-        TimeEntry.clock_in_at < end_at
-    )
+    q = (db.query(TimeEntry)
+           .options(
+               joinedload(TimeEntry.employee)   # 👈 load employee for names
+               # .joinedload(Employee.customer) # 👈 uncomment if Employee.customer exists
+               ,
+               joinedload(TimeEntry.breaks)     # nice to have
+           )
+           .filter(
+               TimeEntry.clock_in_at >= start_at,
+               TimeEntry.clock_in_at < end_at
+           )
+         )
     if employee_id is not None:
         q = q.filter(TimeEntry.employee_id == employee_id)
+
     q = q.order_by(TimeEntry.clock_in_at.asc(), TimeEntry.id.asc())
     rows = q.all()
     return [_serialize_time_entry(te) for te in rows]

@@ -700,12 +700,14 @@ class RolePermission(Base):
 # =========================================
 # ============== Time Tracking ============
 # =========================================
-
 from sqlalchemy import (
-    Column, Integer, String, Text, DateTime, ForeignKey, Index
+    Column, Integer, String, Text, DateTime, ForeignKey, Index, Boolean
 )
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, timezone
+
+def now_utc():
+    return datetime.now(timezone.utc)
 
 class TimeEntry(Base):
     __tablename__ = "time_entries"
@@ -714,21 +716,20 @@ class TimeEntry(Base):
 
     employee_id = Column(Integer, ForeignKey("employees.id"), nullable=False, index=True)
     created_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
-
-    # ✅ account ที่รับ payroll (แยกสลิปตามผู้ใช้)
     work_user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
 
-    clock_in_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    clock_in_method = Column(String, nullable=True)     # web/ipad/qr/badge
+    # 👇 tz-aware & UTC
+    clock_in_at = Column(DateTime(timezone=True), default=now_utc, nullable=False)
+    clock_in_method = Column(String, nullable=True)
     clock_in_location = Column(String, nullable=True)
-    clock_out_at = Column(DateTime, nullable=True)
+
+    clock_out_at = Column(DateTime(timezone=True), nullable=True)
     clock_out_method = Column(String, nullable=True)
     clock_out_location = Column(String, nullable=True)
 
-    status = Column(String, nullable=False, default="open")  # open/closed/cancelled
+    status = Column(String, nullable=False, default="open")
     notes = Column(Text, nullable=True)
 
-    # --- relationships ---
     employee = relationship("Employee")
     created_by_user = relationship("User", foreign_keys=[created_by_user_id])
     payroll_user = relationship("User", foreign_keys=[work_user_id])
@@ -738,7 +739,6 @@ class TimeEntry(Base):
         Index("ix_time_entries_in", "clock_in_at"),
         Index("ix_time_entries_out", "clock_out_at"),
         Index("ix_time_entries_work_user", "work_user_id"),
-        # ช่วยสรุป payroll แยกตาม account + ช่วงเวลา
         Index("ix_time_entries_emp_work_week", "employee_id", "work_user_id", "clock_in_at"),
     )
 
@@ -748,17 +748,21 @@ class TimeEntry(Base):
 
 class BreakEntry(Base):
     __tablename__ = "break_entries"
+
     id = Column(Integer, primary_key=True)
     time_entry_id = Column(Integer, ForeignKey("time_entries.id"), nullable=False, index=True)
     break_type = Column(String, nullable=False, default="lunch")
-    start_at = Column(DateTime, nullable=False, default=datetime.utcnow)  # ✅ ใส่ default
-    end_at   = Column(DateTime, nullable=True)
+
+    # 👇 tz-aware & UTC
+    start_at = Column(DateTime(timezone=True), nullable=False, default=now_utc)
+    end_at   = Column(DateTime(timezone=True), nullable=True)
 
     method = Column(String, nullable=True)
     location = Column(String, nullable=True)
     notes = Column(Text, nullable=True)
 
     is_paid = Column(Boolean, nullable=False, default=False)
+
     time_entry = relationship("TimeEntry", backref="breaks")
 
     __table_args__ = (
@@ -766,6 +770,7 @@ class BreakEntry(Base):
         Index("ix_break_entries_start", "start_at"),
         Index("ix_break_entries_end", "end_at"),
     )
+
 
 class LeaveEntry(Base):
     __tablename__ = "leave_entries"

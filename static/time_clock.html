@@ -25,7 +25,19 @@
     .panel{ background:#fff; border:2px solid var(--line); border-radius:16px; box-shadow:var(--shadow); padding:16px }
     .row{ display:flex; gap:12px; align-items:center }
 
-    .display{ font-size:28px; font-weight:700; border:2px solid var(--line); border-radius:12px; padding:12px 14px; letter-spacing:3px; min-height:56px; display:flex; align-items:center; justify-content:space-between }
+    .display {
+  font-size: 28px;
+  font-weight: 700;
+  border: 2px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 14px;
+  min-height: 56px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
     .display span.value{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace }
 
     .keypad{ display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-top:16px }
@@ -54,30 +66,61 @@
     th{ background:#f9fafb }
     .badge{ display:inline-block; padding:4px 8px; border-radius:999px; font-size:14px; color:#fff }
     .b-in{ background:var(--in) } .b-out{ background:var(--out) } .b-sbr{ background:var(--sbr) } .b-ebr{ background:var(--ebr) }
+
+    .passdots{
+    display:flex; gap:14px; align-items:center; justify-content:center; width:100%;
+  }
+  .passdot{
+    width:16px; height:16px; border-radius:999px;
+    border:2px solid var(--line);
+    display:inline-block;
+  }
+  .passdot.filled{
+    background:#111;
+    border-color:#111;
+  }
+
+
+  .topbar{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:12px 14px; margin:0 0 12px;
+  border:2px solid var(--line); border-radius:12px; background:#fff; box-shadow:var(--shadow);
+  font-weight:700; font-size:22px;
+}
+
+#top_title {
+  font-weight: 700;
+  font-size: 22px;
+}
+
+/* Only the passcode dots get tracking */
+#id_val {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  letter-spacing: 3px;   /* moved here */
+}
+
+/* Keep the clock on one line and sized nicely */
+#clock {
+  font-size: 20px;
+  font-weight: 600;
+  white-space: nowrap;
+}
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <h1>Time Clock Kiosk <span class="muted">(PIN → actions)</span></h1>
+    
 
     <!-- View 1: 4‑digit User ID -->
     <section id="v_id" class="view active">
       <div class="panel">
-        <div class="row" style="justify-content:space-between;gap:16px;flex-wrap:wrap">
-          <div>
-            <div class="muted" style="margin-bottom:6px">Step 1 of 2</div>
-            <div style="font-size:22px;font-weight:700">Enter <u>User ID</u> (4 digits)</div>
-          </div>
-          <div class="chip"><span class="dot off"></span><span>Not Signed In</span></div>
-        </div>
-
         <div class="display" style="margin-top:12px">
-          <span class="value" id="id_val">—</span>
-          <button class="key action" id="id_clear" style="padding:10px 14px">Clear</button>
-        </div>
-
+  <span id="top_title">TopNotch v1.0</span>
+  <span id="id_val" class="passdots" aria-label="Enter 4-digit code" aria-live="polite"></span>
+  <span id="clock" aria-live="polite"></span>
+</div>
         <div class="keypad" id="id_pad" style="margin-top:16px"></div>
-        <div class="muted" style="margin-top:10px">Validated by server using <code>/time-entries/state/{code}</code></div>
       </div>
     </section>
 
@@ -86,29 +129,35 @@
       <div class="panel">
         <div class="row" style="justify-content:space-between;gap:16px;flex-wrap:wrap">
           <div>
-            <div class="muted" style="margin-bottom:6px">Step 2 of 2</div>
+            <!-- <div class="muted" style="margin-bottom:6px">Step 2 of 2</div> -->
             <div style="font-size:22px;font-weight:800">Welcome, <span id="emp_name"></span></div>
           </div>
-          <div class="chip" id="chip"><span class="dot off"></span><span>Off Duty</span></div>
+          <div class="chip" id="chip">
+  <span class="dot off"></span>
+  <span id="chip_status">Off Duty</span>
+  <span id="chip_time" style="margin-left:8px; font-weight:600; font-size:16px;"></span>
+</div>
         </div>
 
         <div class="grid-2" style="margin-top:16px">
           <button class="bigbtn btn-in"  id="btn_in">Clock In</button>
-          <button class="bigbtn btn-out" id="btn_out">Clock Out</button>
+          
           <button class="bigbtn btn-sbr" id="btn_sbr">Start Break</button>
           <button class="bigbtn btn-ebr" id="btn_ebr">Stop Break</button>
+          <button class="bigbtn btn-out" id="btn_out">Clock Out</button>
         </div>
 
         <div class="row" style="justify-content:space-between;margin-top:16px">
           <button class="key action" id="btn_logout" style="padding:12px 16px">Logout</button>
-          <div class="muted">Calling: <code>/time-entries/start|stop</code> & <code>/breaks/start|stop</code></div>
+          <!-- <div class="muted">Calling: <code>/time-entries/start|stop</code> & <code>/breaks/start|stop</code></div> -->
         </div>
       </div>
 
       <div class="panel" style="margin-top:16px">
         <div style="font-size:22px;font-weight:700;margin-bottom:8px">Last 4 Activities Today</div>
         <table>
-          <thead><tr><th style="width:150px">Time</th><th style="width:160px">Action</th><th>Notes</th></tr></thead>
+          <thead><tr><th style="width:220px">Time</th>
+            <th style="width:160px">Action</th><th>Notes</th></tr></thead>
           <tbody id="log"></tbody>
         </table>
       </div>
@@ -128,12 +177,24 @@
     const startOfTodayISO = ()=>{ const d=new Date(); d.setHours(0,0,0,0); return d.toISOString(); };
     const startOfTomorrowISO = ()=>{ const d=new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()+1); return d.toISOString(); };
     const setView = (id)=>{ ['v_id','v_act'].forEach(v=>$(v).classList.remove('active')); $(id).classList.add('active'); };
-    const setChip = (status)=>{
-      const dot = document.querySelector('#chip .dot');
-      const txt = document.querySelector('#chip span:last-child');
-      dot.className = 'dot ' + (status||'off');
-      txt.textContent = status==='in'?'Clocked In': status==='break'?'On Break':'Off Duty';
-    };
+   function setChip(status){
+  const dot = document.querySelector('#chip .dot');
+  const txt = document.getElementById('chip_status');
+  const timeEl = document.getElementById('chip_time');
+
+  dot.className = 'dot ' + (status || 'off');
+  txt.textContent = status==='in' ? 'Clocked In' :
+                    status==='break' ? 'On Break' : 'Off Duty';
+
+  // Show current local time when status is set
+  const now = new Date();
+  timeEl.textContent = now.toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true
+  });
+}
     const confirmAction = (label, name)=> window.confirm(`Confirm: ${label} for ${name}?`);
 
     /* ----------------- state ----------------- */
@@ -159,15 +220,21 @@
 
     /* ----------------- log renderer ----------------- */
     function renderLog(rows){
-      const tb = $('log');
-      if(!rows || rows.length===0){ tb.innerHTML = `<tr><td colspan="3"><span class="muted">No entries yet today</span></td></tr>`; return; }
-      tb.innerHTML = rows.map(r=>{
-        const badgeCls = r.kind==='in'?'b-in': r.kind==='out'?'b-out': r.kind==='sbr'?'b-sbr':'b-ebr';
-        const label = r.kind==='in'?'Clock In': r.kind==='out'?'Clock Out': r.kind==='sbr'?'Start Break':'Stop Break';
-        return `<tr><td>${fmtTime(r.ts)}</td><td><span class="badge ${badgeCls}">${label}</span></td><td>${r.note||''}</td></tr>`;
-      }).join('');
-    }
-
+  const tb = $('log');
+  if(!rows || rows.length===0){
+    tb.innerHTML = `<tr><td colspan="3"><span class="muted">No entries yet today</span></td></tr>`;
+    return;
+  }
+  tb.innerHTML = rows.map(r=>{
+    const badgeCls = r.kind==='in'?'b-in': r.kind==='out'?'b-out': r.kind==='sbr'?'b-sbr':'b-ebr';
+    const label = r.kind==='in'?'Clock In': r.kind==='out'?'Clock Out': r.kind==='sbr'?'Start Break':'Stop Break';
+    return `<tr>
+              <td>${fmtDateTime(r.ts)}</td>
+              <td><span class="badge ${badgeCls}">${label}</span></td>
+              <td>${r.note||''}</td>
+            </tr>`;
+  }).join('');
+}
     async function fetchTodayLog(){
       if(!state.employeeId) { renderLog([]); return; }
       const qs = new URLSearchParams({
@@ -194,9 +261,9 @@
           }
           if(te.clock_out_at) events.push({ kind:'out', ts: te.clock_out_at });
         }
-        events.sort((a,b)=> new Date(a.ts) - new Date(b.ts));
-        const last4 = events.slice(-4);
-        renderLog(last4);
+        events.sort((a,b)=> new Date(b.ts) - new Date(a.ts)); // newest first
+const last4 = events.slice(0,4); // just take first 4
+renderLog(last4);
       }catch(e){ renderLog([]); toast(e.message || 'Load log failed', false); }
     }
 
@@ -209,6 +276,9 @@
       state.employeeId = data.employee_id || null;
       state.empName = data.name || state.empName || 'Employee';
       $('emp_name').textContent = state.empName;
+      // also reflect name in the top title while on the Actions view
+const title = document.getElementById('top_title');
+if (title) title.textContent = `TopNotch v1.0 — ${state.empName}`;
       setChip(state.status);
       updateButtons();
       await fetchTodayLog();
@@ -268,7 +338,7 @@
         if(!isNaN(+k)) state.idDigits = (state.idDigits + k).slice(0,4);
         else if(k==='⌫') state.idDigits = state.idDigits.slice(0,-1);
         else state.idDigits='';
-        $('id_val').textContent = state.idDigits || '—';
+        renderIdDots();
         if(state.idDigits.length === 4){ await handleFourDigits(state.idDigits); }
       });
     }
@@ -281,19 +351,82 @@
       }catch(e){ toast(e.message || 'Invalid code', false); clearId(); }
     }
 
-    function clearId(){ state.idDigits=''; $('id_val').textContent='—'; }
+    function clearId(){ state.idDigits=''; renderIdDots(); }
 
     /* ----------------- boot ----------------- */
     document.addEventListener('DOMContentLoaded', () => {
       renderPad($('id_pad'));
-      $('id_clear').addEventListener('click', clearId);
+      renderIdDots();
+       startClock(); // <— start the clock
+       
+      // $('id_clear').addEventListener('click', clearId);
       $('btn_in').addEventListener('click', clockIn);
       $('btn_out').addEventListener('click', clockOut);
       $('btn_sbr').addEventListener('click', startBreak);
       $('btn_ebr').addEventListener('click', stopBreak);
-      $('btn_logout').addEventListener('click', () => { setView('v_id'); clearId(); toast('Logged out'); state.code=''; state.empName=''; state.employeeId=null; state.timeEntryId=null; state.breakId=null; state.status='off'; setChip('off'); updateButtons(); renderLog([]); });
+      $('btn_logout').addEventListener('click', () => { setView('v_id'); clearId(); 
+      const title = document.getElementById('top_title');
+if (title) title.textContent = 'TopNotch v1.0';
+      // toast('Logged out'); 
+      state.code=''; state.empName=''; state.employeeId=null; state.timeEntryId=null; state.breakId=null; state.status='off'; setChip('off'); updateButtons(); renderLog([]); });
       updateButtons();
+
+      startChipClock();
     });
+
+
+    function renderIdDots(){
+  const n = state.idDigits.length;
+  const dots = Array.from({length:4}, (_,i)=>
+    `<span class="passdot${i < n ? ' filled' : ''}"></span>`
+  ).join('');
+  $('id_val').innerHTML = dots;
+}
+
+
+function startClock() {
+  const el = document.getElementById("clock");
+  const tick = () => {
+    const now = new Date();
+    let hh = now.getHours();
+    const ampm = hh >= 12 ? "PM" : "AM";
+    hh = hh % 12 || 12; // convert 0 → 12
+    const mm = String(now.getMinutes()).padStart(2, '0');
+    const ss = String(now.getSeconds()).padStart(2, '0');
+    el.textContent = `${hh}:${mm}:${ss} ${ampm}`;
+  };
+  tick();
+  return setInterval(tick, 1000);
+}
+
+
+
+function fmtDateTime(ts){
+  if(!ts) return '';
+  const d = new Date(ts);
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth()+1).padStart(2,'0');
+  const dd = String(d.getDate()).padStart(2,'0');
+  const hh = String(d.getHours()).padStart(2,'0');
+  const mi = String(d.getMinutes()).padStart(2,'0');
+  const ss = String(d.getSeconds()).padStart(2,'0');
+  return `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss}`;
+}
+
+function startChipClock(){
+  const timeEl = document.getElementById('chip_time');
+  if(!timeEl) return;
+  setInterval(()=>{
+    const now = new Date();
+    timeEl.textContent = now.toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true
+    });
+  }, 1000);
+}
+
   </script>
 </body>
 </html>
