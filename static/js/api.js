@@ -46,6 +46,39 @@ export async function jfetch(path, init = {}) {
   return isJSON(res) ? res.json() : res.text();
 }
 
+// export async function jfetch(url, opts = {}) {
+//   const res = await fetch(url, {
+//     method: opts.method || 'GET',
+//     headers: {
+//       'Content-Type': 'application/json',
+//       ...(opts.headers || {}),
+//     },
+//     body: opts.body,
+//     credentials: 'include', // if you use cookies/sessions; remove if not
+//   });
+
+//   if (res.status === 401 || res.status === 403) {
+//     // DO NOT redirect on kiosk. Just throw so the page stays put.
+//     const text = await res.text().catch(() => '');
+//     const err = new Error(text || 'Unauthorized');
+//     err.status = res.status;
+//     throw err;
+//   }
+
+//   if (!res.ok) {
+//     const text = await res.text().catch(() => '');
+//     const err = new Error(text || res.statusText);
+//     err.status = res.status;
+//     throw err;
+//   }
+
+//   // 204 no content
+//   if (res.status === 204) return null;
+
+//   const ct = res.headers.get('content-type') || '';
+//   return ct.includes('application/json') ? res.json() : res.text();
+// }
+
 export function showToast(msg, ok = true) {
   let t = document.getElementById("toast");
   if (!t) {

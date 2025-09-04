@@ -35,7 +35,29 @@
     .mono{font-family:ui-monospace,Menlo,Consolas,monospace}
     .actions{display:flex;gap:6px;flex-wrap:wrap}
     .cellwrap{display:flex;gap:8px;align-items:center}
-    .hidden { display:none; }
+    .hidden{display:none}
+
+
+  /* keep 4 columns; align controls to the bottom */
+.align-end { align-items: end; }
+
+/* Notes cell becomes a small horizontal row */
+.notes-add .hrow {
+  display: flex;
+  gap: 8px;
+  align-items: end;          /* button bottoms align with input */
+}
+
+/* override the global input width=100% inside this row */
+.notes-add input {
+  width: auto;               /* stop stretching to 100% */
+  flex: 1;                   /* take remaining space */
+}
+
+.notes-add #btnCreate {
+  white-space: nowrap;       /* keep label intact */
+  margin: 0;
+}
   </style>
 </head>
 <body>
@@ -43,68 +65,60 @@
   <h1>Pay Periods</h1>
 
   <!-- Create -->
-  <div class="card">
-    <div class="grid g4">
-      <div>
-        <label>Name (optional)</label>
-        <input id="c_name" placeholder="เช่น 2025-PP-17" />
-      </div>
-      <div>
-        <label>Start period (date)</label>
-        <input id="c_start" type="date" />
-      </div>
-      <div>
-        <label>End period (exclusive, date)</label>
-        <input id="c_end" type="date" />
-      </div>
-      <div>
-        <label>Status</label>
-        <select id="c_status">
-          <option value="open">open</option>
-          <option value="locked">locked</option>
-          <option value="paid">paid</option>
-        </select>
-      </div>
+<div class="card">
+  <div class="grid g4 align-end">
+    <div>
+      <label>Start period</label>
+      <input id="c_start" type="date" />
     </div>
-    <div class="grid g3" style="margin-top:10px">
-      <div>
-        <label>Anchor</label>
-        <input id="c_anchor" placeholder="biweekly / weekly / monthly" />
-      </div>
-      <div>
-        <label>Notes</label>
-        <input id="c_notes" placeholder="รายละเอียดเพิ่มเติม" />
-      </div>
-      <div class="right" style="align-items:end">
-        <button class="btn acc" onclick="createPeriod()">+ เพิ่มงวด</button>
-      </div>
+    <div>
+      <label>End period</label>
+      <input id="c_end" type="date" />
     </div>
-    <small>ช่วงแนะนำใช้แบบ <span class="mono">[start_at, end_at)</span> (ขวาเปิด)</small>
-    <div id="errCreate" class="error"></div>
-  </div>
-
-  <!-- List + Inline edit -->
-  <div class="card">
-    <div class="row" style="margin-bottom:8px">
-      <label>กรองสถานะ:</label>
-      <select id="filterStatus" onchange="loadPeriods()">
-        <option value="">ทั้งหมด</option>
+    <div>
+      <label>Status</label>
+      <select id="c_status">
         <option value="open">open</option>
         <option value="locked">locked</option>
         <option value="paid">paid</option>
       </select>
-      <button class="btn" onclick="loadPeriods()">รีเฟรช</button>
+    </div>
+
+    <!-- Notes + Add on the same line (same column) -->
+    <div class="notes-add">
+      <label>Notes</label>
+      <div class="hrow">
+        <input id="c_notes" placeholder="Add detail" />
+        <button class="btn acc" id="btnCreate">+ Add</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="errCreate" class="error"></div>
+</div>
+
+  <!-- List + Inline edit -->
+  <div class="card">
+    <div class="row" style="margin-bottom:8px">
+      <label>Status:</label>
+      <select id="filterStatus">
+        <option value="">all</option>
+        <option value="open">open</option>
+        <option value="locked">locked</option>
+        <option value="paid">paid</option>
+      </select>
+      <button class="btn" id="btnRefresh">รีเฟรช</button>
     </div>
 
     <table>
       <thead>
         <tr>
           <th style="width:60px">ID</th>
-          <th>Name</th>
+        
           <th>Start period</th>
           <th>End period</th>
           <th style="width:150px">Status</th>
-          <th>Anchor</th>
+        
           <th>Notes</th>
           <th style="width:360px">Actions</th>
         </tr>
@@ -114,90 +128,96 @@
   </div>
 </div>
 
-<script>
-  // ==== CONFIG ====
-  const API_BASE = "http://127.0.0.1:8000/api/v1";
-  const RESOURCE = "/pay-periods"; // ตรงกับ backend
+<!-- Use a module so we can import jfetch -->
+<script type="module">
+  import { $ as _$, jfetch, toast } from "/static/js/api.js?v=1";
 
-  // ==== HELPERS ====
-  const $ = s => document.querySelector(s);
-  const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  const toISODate = d => d ? d + "T00:00:00" : null; // แปลง <input type="date"> -> ISO datetime
-  const fromISODate = iso => (iso || '').slice(0,10);
-  const badge = st => `<span class="badge ${st==='paid'?'b-paid':st==='locked'?'b-locked':'b-open'}">${st}</span>`;
+  // ---- Local DOM helper (keep our own $ for selectors) ----
+  const $ = (sel) => document.querySelector(sel);
 
-  async function api(path, opts = {}) {
-    const res = await fetch(API_BASE + path, { headers: { "Content-Type": "application/json" }, ...opts });
-    if (!res.ok) throw new Error((await res.text().catch(()=>res.statusText)) || `HTTP ${res.status}`);
-    return res.json();
-  }
+  // ================= API CONFIG (jfetch) =================
+  const API_BASE = "";                          // same-origin; set to '/api/v1' if you mount there
+  const url = (p) => `${API_BASE}${p}`;
+  const RESOURCE = "/pay-periods";
 
-  // ===== helper สำหรับ default start/end =====
-  function nextMondayDateStr() {
+  const GET    = (p)         => jfetch(url(p));
+  const POST   = (p, body)   => jfetch(url(p), { method: "POST", body: JSON.stringify(body) });
+  const PATCH  = (p, body)   => jfetch(url(p), { method: "PATCH", body: JSON.stringify(body) });
+  const DELETE = (p)         => jfetch(url(p), { method: "DELETE" });
+
+  // ================= Helpers =================
+  const esc = (s) => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  const fromISODate = (iso) => (iso || "").slice(0,10);
+  const toISODate   = (d) => (d ? `${d}T00:00:00` : null); // keep naive/local style if your backend expects that
+
+  const pad = (n) => String(n).padStart(2,"0");
+  const toLocalYMD = (dt) => `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}`;
+  function nextMondayDateStr(){
     const d = new Date();
-    const day = d.getDay(); // 0=Sun..6=Sat
-    const add = (8 - day) % 7 || 7; // days until next Monday
+    const day = d.getDay(); // 0..6
+    const add = (8 - day) % 7 || 7;
     d.setDate(d.getDate() + add);
-    return d.toISOString().slice(0,10);
+    return toLocalYMD(d);
   }
-  function addDaysStr(yyyy_mm_dd, days) {
-    const d = new Date(yyyy_mm_dd + "T00:00:00Z");
-    d.setUTCDate(d.getUTCDate() + days);
-    return d.toISOString().slice(0,10);
+  function addDaysStr(yyyy_mm_dd, days){
+    const d = new Date(`${yyyy_mm_dd}T00:00:00`);
+    d.setDate(d.getDate() + days);
+    return toLocalYMD(d);
   }
-  function setDefaultCreateDates(items) {
-  if (Array.isArray(items) && items.length > 0) {
-    // หา period ล่าสุดโดยดู end_at ที่มากที่สุด
-    const latest = items.reduce((acc, cur) =>
-      (!acc || new Date(cur.end_at) > new Date(acc.end_at)) ? cur : acc, null);
 
-    // start = end ของงวดล่าสุด + 1 วัน
-    const startStr = addDaysStr(fromISODate(latest.end_at), 1);
-    // end = start + 14 วัน
-    const endStr   = addDaysStr(startStr, 13);
-
-    document.getElementById('c_start').value = startStr;
-    document.getElementById('c_end').value   = endStr;
-  } else {
-    // ยังไม่มีงวด: เริ่มวันจันทร์ถัดไป + 14 วัน
-    const startStr = nextMondayDateStr();
-    const endStr   = addDaysStr(startStr, 13);
-    document.getElementById('c_start').value = startStr;
-    document.getElementById('c_end').value   = endStr;
+  // ใช้ period ล่าสุดเป็นฐาน; ไม่มีของเก่าให้เริ่มวันจันทร์หน้า; biweekly: end = start + 14 (exclusive)
+  function setDefaultCreateDates(items){
+    if (Array.isArray(items) && items.length){
+      const latest = items.reduce((acc,cur)=> (!acc || new Date(cur.end_at) > new Date(acc.end_at)) ? cur : acc, null);
+      const startStr = addDaysStr(fromISODate(latest.end_at), 0); // ต่อเนื่องทันที (latest.end_at เป็น exclusive)
+      const endStr   = addDaysStr(startStr, 14);                  // half-open window 14 วัน
+      $('#c_start').value = startStr;
+      $('#c_end').value   = endStr;
+    }else{
+      const startStr = nextMondayDateStr();
+      const endStr   = addDaysStr(startStr, 14);
+      $('#c_start').value = startStr;
+      $('#c_end').value   = endStr;
+    }
   }
-}
 
-
-  // ==== CREATE ====
+  // ================= CREATE =================
   async function createPeriod(){
     $('#errCreate').textContent = '';
     try{
       const payload = {
-        name:   $('#c_name').value || null,
         start_at: toISODate($('#c_start').value),
         end_at:   toISODate($('#c_end').value),
-        status: $('#c_status').value || 'open',
-        anchor: $('#c_anchor').value || null,
-        notes:  $('#c_notes').value || null,
+        status:  $('#c_status').value || 'open',
+        notes:   $('#c_notes').value || null,
       };
-      if(!payload.start_at || !payload.end_at) throw new Error('กรุณาใส่วันเริ่ม/สิ้นสุด');
-      await api(RESOURCE, { method:'POST', body: JSON.stringify(payload) });
+      if(!payload.start_at || !payload.end_at) throw new Error('Please enter star/end period date');
+
+      await POST(RESOURCE, payload);
+
       // clear form
-      $('#c_name').value=''; $('#c_start').value=''; $('#c_end').value='';
-      $('#c_status').value='open'; $('#c_anchor').value=''; $('#c_notes').value='';
+      $('#c_status').value='open';    
+      $('#c_notes').value='';
+
       await loadPeriods();
-    //   alert('เพิ่มงวดสำเร็จ');
-    }catch(e){ $('#errCreate').textContent = e.message || e; }
+      toast?.('Added');
+    }catch(e){
+      $('#errCreate').textContent = e?.message || String(e);
+      toast?.(e?.message || 'Create failed');
+    }
   }
 
-  // ==== LIST ====
+  // ================= LIST =================
   async function loadPeriods(){
     const st = $('#filterStatus')?.value || '';
     const qs = st ? `?status=${encodeURIComponent(st)}` : '';
-    const items = await api(RESOURCE + qs);
+    const items = await GET(`${RESOURCE}${qs}`);
     render(items);
-    // ตั้งค่า default ของฟอร์มสร้างงวดทุกครั้งหลังโหลดรายการ
     setDefaultCreateDates(items);
+  }
+
+  function badge(st){
+    return `<span class="badge ${st==='paid'?'b-paid':st==='locked'?'b-locked':'b-open'}">${st}</span>`;
   }
 
   function render(items){
@@ -209,10 +229,7 @@
       tr.innerHTML = `
         <td class="mono">${it.id}</td>
 
-        <td>
-          <input type="text" value="${esc(it.name || '')}" data-field="name" disabled />
-        </td>
-
+       
         <td>
           <input type="date" value="${esc(fromISODate(it.start_at))}" data-field="start_at" disabled />
         </td>
@@ -230,48 +247,56 @@
           <div style="margin-top:6px">${badge(it.status)}</div>
         </td>
 
-        <td>
-          <input type="text" value="${esc(it.anchor || '')}" data-field="anchor" disabled />
-        </td>
+
 
         <td>
           <input type="text" value="${esc(it.notes || '')}" data-field="notes" disabled />
         </td>
 
         <td class="actions">
-          <button class="btn" onclick="toggleEdit(${it.id}, true)">Edit</button>
-          <button class="btn acc hidden" onclick="saveRow(${it.id})">Save</button>
-          <button class="btn hidden" onclick="toggleEdit(${it.id}, false)">Cancel</button>
-          <button class="btn err" onclick="deleteRow(${it.id})">Delete</button>
-          ${it.status==='open'   ? `<button class="btn warn" onclick="lockRow(${it.id})">Lock</button>` : ``}
-          ${it.status==='locked' ? `<button class="btn ok"   onclick="markPaid(${it.id})">Mark paid</button>` : ``}
-          ${it.status==='locked' ? `<button class="btn"      onclick="unlockRow(${it.id})">Unlock</button>` : ``}
+          <button class="btn"      data-action="edit"   onclick="toggleEdit(${it.id}, true)">Edit</button>
+          <button class="btn acc hidden" data-action="save"   onclick="saveRow(${it.id})">Save</button>
+          <button class="btn hidden"     data-action="cancel" onclick="toggleEdit(${it.id}, false)">Cancel</button>
+          <button class="btn err"  data-action="delete" onclick="deleteRow(${it.id})">Delete</button>
+          ${it.status==='open'   ? `<button class="btn warn" data-action="lock"     onclick="lockRow(${it.id})">Lock</button>` : ``}
+          ${it.status==='locked' ? `<button class="btn ok"   data-action="paid"     onclick="markPaid(${it.id})">Mark paid</button>` : ``}
+          ${it.status==='locked' ? `<button class="btn"      data-action="unlock"   onclick="unlockRow(${it.id})">Unlock</button>` : ``}
         </td>
       `;
-      $('#tblBody').appendChild(tr);
+      tb.appendChild(tr);
     }
   }
 
-  // ==== INLINE EDIT (ซ่อน Save/Cancel จนกว่าจะ Edit) ====
+  // ================= INLINE EDIT =================
   function toggleEdit(id, enable){
     const tr = document.querySelector(`tr[data-id="${id}"]`);
     if(!tr) return;
+
     tr.querySelectorAll('input,select').forEach(el=>{
       if(el.dataset.field) el.disabled = !enable;
     });
-    const [btnEdit, btnSave, btnCancel] = tr.querySelectorAll('button');
+
+    const btnEdit   = tr.querySelector('button[data-action="edit"]');
+    const btnSave   = tr.querySelector('button[data-action="save"]');
+    const btnCancel = tr.querySelector('button[data-action="cancel"]');
+
     if(enable){
-      btnEdit.classList.add('hidden');
-      btnSave.classList.remove('hidden');
-      btnCancel.classList.remove('hidden');
-      tr._snapshot = snapshotRow(tr); // เก็บค่าเดิมสำหรับ Cancel
+      btnEdit?.classList.add('hidden');
+      btnSave?.classList.remove('hidden');
+      btnCancel?.classList.remove('hidden');
+      tr._snapshot = snapshotRow(tr);
     }else{
-      btnEdit.classList.remove('hidden');
-      btnSave.classList.add('hidden');
-      btnCancel.classList.add('hidden');
+      btnEdit?.classList.remove('hidden');
+      btnSave?.classList.add('hidden');
+      btnCancel?.classList.add('hidden');
       if(tr._snapshot){ restoreSnapshot(tr, tr._snapshot); delete tr._snapshot; }
+      // และปิด input กลับ
+      tr.querySelectorAll('input,select').forEach(el=>{
+        if(el.dataset.field) el.disabled = true;
+      });
     }
   }
+
   function snapshotRow(tr){
     const snap = {};
     tr.querySelectorAll('[data-field]').forEach(el=>{
@@ -279,6 +304,7 @@
     });
     return snap;
   }
+
   function restoreSnapshot(tr, snap){
     tr.querySelectorAll('[data-field]').forEach(el=>{
       if(Object.prototype.hasOwnProperty.call(snap, el.dataset.field)){
@@ -297,49 +323,57 @@
       let v = el.value;
       if(k === 'start_at' || k === 'end_at'){
         v = toISODate(v);
-      }else if(k === 'name' || k === 'anchor' || k === 'notes'){
+      }else if( k === 'notes'){
         v = v || null;
       }
       payload[k] = v;
     });
 
     try{
-      await api(`${RESOURCE}/${id}`, { method:'PATCH', body: JSON.stringify(payload) });
+      await PATCH(`${RESOURCE}/${id}`, payload);
       await loadPeriods();
-      alert('บันทึกสำเร็จ');
+      toast?.('Saved');
     }catch(e){
-      alert('บันทึกไม่สำเร็จ: ' + (e.message || e));
+      toast?.('Cannot save: ' + (e?.message || e));
     }
   }
 
-  // ==== ROW ACTIONS ====
+  // ================= ROW ACTIONS =================
   async function deleteRow(id){
-    if(!confirm('ลบงวดนี้ถาวร?')) return;
+    if(!confirm('Delete period?')) return;
     try{
-      await api(`${RESOURCE}/${id}`, { method:'DELETE' }); // ต้องมี DELETE endpoint ใน backend
+      await DELETE(`${RESOURCE}/${id}`);
       await loadPeriods();
-    }catch(e){ alert('ลบไม่สำเร็จ: ' + (e.message || e)); }
+      toast?.('Deleted');
+    }catch(e){
+      toast?.('Connect delete: ' + (e?.message || e));
+    }
   }
   async function lockRow(id){
-    if(!confirm('ล็อคงวดนี้?')) return;
-    try{ await api(`${RESOURCE}/${id}/lock`, { method:'POST' }); await loadPeriods(); }
-    catch(e){ alert(e.message || e); }
+    if(!confirm('Lock period?')) return;
+    try{ await POST(`${RESOURCE}/${id}/lock`); await loadPeriods(); }
+    catch(e){ toast?.(e?.message || e); }
   }
   async function unlockRow(id){
-    if(!confirm('ปลดล็อคงวดนี้?')) return;
-    try{ await api(`${RESOURCE}/${id}/unlock`, { method:'POST' }); await loadPeriods(); }
-    catch(e){ alert(e.message || e); }
+    if(!confirm('Unlock period?')) return;
+    try{ await POST(`${RESOURCE}/${id}/unlock`); await loadPeriods(); }
+    catch(e){ toast?.(e?.message || e); }
   }
   async function markPaid(id){
-    if(!confirm('ยืนยัน Mark paid?')) return;
-    try{ await api(`${RESOURCE}/${id}/mark-paid`, { method:'POST' }); await loadPeriods(); }
-    catch(e){ alert(e.message || e); }
+    if(!confirm('Confirm mark paid?')) return;
+    try{ await POST(`${RESOURCE}/${id}/mark-paid`); await loadPeriods(); }
+    catch(e){ toast?.(e?.message || e); }
   }
 
-  // ==== INIT ====
-  // เพิ่มคลาส .hidden ใน <style> ของคุณ:
-  // .hidden { display: none; }
+  // ================= INIT =================
+  $('#btnCreate')?.addEventListener('click', createPeriod);
+  $('#btnRefresh')?.addEventListener('click', loadPeriods);
+  $('#filterStatus')?.addEventListener('change', loadPeriods);
+
   loadPeriods();
+
+  // expose to window for inline handlers
+  Object.assign(window, { toggleEdit, saveRow, deleteRow, lockRow, unlockRow, markPaid });
 </script>
 
 </body>

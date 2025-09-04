@@ -364,15 +364,22 @@ if (title) title.textContent = `TopNotch v1.0 — ${state.empName}`;
       $('btn_out').addEventListener('click', clockOut);
       $('btn_sbr').addEventListener('click', startBreak);
       $('btn_ebr').addEventListener('click', stopBreak);
-      $('btn_logout').addEventListener('click', () => { setView('v_id'); clearId(); 
-      const title = document.getElementById('top_title');
-if (title) title.textContent = 'TopNotch v1.0';
-      // toast('Logged out'); 
-      state.code=''; state.empName=''; state.employeeId=null; state.timeEntryId=null; state.breakId=null; state.status='off'; setChip('off'); updateButtons(); renderLog([]); });
-      updateButtons();
-
-      startChipClock();
-    });
+      $('btn_logout').addEventListener('click', () => { 
+        setView('v_id'); clearId(); 
+        const title = document.getElementById('top_title');
+        if (title) title.textContent = 'TopNotch v1.0';
+          toast('Logged out'); 
+          state.code=''; 
+          state.empName=''; 
+          state.employeeId=null; 
+          state.timeEntryId=null; 
+          state.breakId=null; 
+          state.status='off'; 
+          setChip('off'); updateButtons(); renderLog([]); 
+        });
+        updateButtons();
+        startChipClock();
+        });
 
 
     function renderIdDots(){
