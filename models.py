@@ -52,14 +52,12 @@ class PO(Base):
     description = Column(String, nullable=True)
     customer_id = Column(Integer, ForeignKey("customers.id"), nullable=False)
 
-    customer = relationship("Customer", back_populates="pos")
+    customer = relationship("Customer", back_populates="pos", foreign_keys=[customer_id])
 
-    # ✅ เพิ่ม 3 บรรทัดนี้
     lines = relationship("POLine", back_populates="po", cascade="all, delete-orphan")
     shipments = relationship("CustomerShipment", back_populates="po", cascade="all, delete-orphan")
     invoices = relationship("CustomerInvoice", back_populates="po", cascade="all, delete-orphan")
-
-    lots = relationship("ProductionLot", back_populates="po", cascade="all, delete-orphan")
+    lots = relationship("ProductionLot", back_populates="po", cascade="all, delete-orphan", foreign_keys="ProductionLot.po_id")
 
     def __repr__(self):
         return f"<PO(po_number={self.po_number}, customer_id={self.customer_id})>"
@@ -146,6 +144,13 @@ class Part(Base):
 
     revisions = relationship("PartRevision", back_populates="part", cascade="all, delete-orphan")
 
+    # NEW: inverse side for ProductionLot.part
+    production_lots = relationship(
+        "ProductionLot",
+        back_populates="part",
+        foreign_keys="ProductionLot.part_id",
+    )
+
     def __repr__(self):
         return f"<Part(part_no={self.part_no})>"
 
@@ -159,7 +164,7 @@ class PartRevision(Base):
     spec = Column(String)
     is_current = Column(Boolean, default=False)
 
-    part = relationship("Part", back_populates="revisions")
+    part = relationship("Part", back_populates="revisions", foreign_keys=[part_id])
 
     __table_args__ = (UniqueConstraint("part_id", "rev", name="uq_part_rev"),)
 
@@ -167,12 +172,26 @@ class PartRevision(Base):
     fair_record_id = Column(Integer, ForeignKey("inspection_records.id", ondelete="SET NULL"), nullable=True, unique=True)
     fair_record = relationship("InspectionRecord", foreign_keys=[fair_record_id])
 
-    # cache ไว้เผื่อแสดงผลเร็ว ๆ (ไม่บังคับ)
     fair_no_cache = Column(String, nullable=True)
     fair_date_cache = Column(Date, nullable=True)
 
+    # NEW: inverse side for ProductionLot.part_revision
+    production_lots = relationship(
+        "ProductionLot",
+        back_populates="part_revision",
+        foreign_keys="ProductionLot.part_revision_id",
+    )
+
+    # NEW: inverse side for InspectionRecord.part_revision
+    inspection_records = relationship(
+        "InspectionRecord",
+        back_populates="part_revision",
+        foreign_keys="InspectionRecord.part_revision_id",
+    )
+
     def __repr__(self):
         return f"<PartRevision(part_id={self.part_id}, rev={self.rev})>"
+
 
 # =========================================
 # ======== Production / Lot / Traveler ====
@@ -190,31 +209,33 @@ class ProductionLot(Base):
     part_revision_id = Column(Integer, ForeignKey("part_revisions.id"), nullable=True, index=True)
     po_id = Column(Integer, ForeignKey("purchase_orders.id"), nullable=True, index=True)
 
-
     planned_qty = Column(Integer, nullable=False, default=0)
     started_at = Column(DateTime, nullable=True)
     finished_at = Column(DateTime, nullable=True)
     status = Column(String, nullable=False, default="in_process")
 
-    part = relationship("Part")
-    part_revision = relationship("PartRevision")
-    po = relationship("PO", back_populates="lots")
+    # CHANGED: add foreign_keys + back_populates
+    part = relationship("Part", foreign_keys=[part_id], back_populates="production_lots")
+    part_revision = relationship("PartRevision", foreign_keys=[part_revision_id], back_populates="production_lots")
+    po = relationship("PO", back_populates="lots", foreign_keys=[po_id])
 
     material_uses = relationship("LotMaterialUse", back_populates="lot", cascade="all, delete-orphan")
     travelers = relationship("ShopTraveler", back_populates="lot", cascade="all, delete-orphan",
                              order_by="ShopTraveler.created_at.asc()")
 
     # --- FAIR link per lot (optional) ---
-    fair_required = Column(Boolean, nullable=False, default=False)  # flag: lot นี้ต้องทำ FAIR
+    fair_required = Column(Boolean, nullable=False, default=False)
     fair_record_id = Column(Integer, ForeignKey("inspection_records.id", ondelete="SET NULL"), nullable=True, index=True)
-    fair_record = relationship("InspectionRecord", foreign_keys=[fair_record_id])
-
-    # (ถ้าคุณเพิ่ม po_line_id ก็วางไว้บริเวณนี้ได้เลย)
-    # po_line_id = Column(Integer, ForeignKey("po_lines.id"), index=True, nullable=True)
-    # po_line = relationship("POLine")
+    fair_record = relationship(
+        "InspectionRecord",
+        foreign_keys=[fair_record_id],
+        back_populates="fair_for_lot",   # NEW inverse
+        uselist=False
+    )
 
     def __repr__(self):
         return f"<ProductionLot(lot_no={self.lot_no}, status={self.status})>"
+
 
 class LotMaterialUse(Base):
     __tablename__ = "lot_material_use"
@@ -551,33 +572,46 @@ class InspectionRecord(Base):
     id = Column(Integer, primary_key=True)
     traveler_step_id = Column(Integer, ForeignKey("shop_traveler_steps.id"), nullable=False)
 
-    # --- FAIR fields (source of truth) ---
-    is_fair = Column(Boolean, nullable=False, default=False)   # ใช้ระบุว่า record นี้เป็น FAIR
-    fair_no = Column(String, nullable=True)                    # หมายเลข FAIR/AS9102 pkg
-    fair_doc_file = Column(String, nullable=True)              # path/filename ของไฟล์ FAIR (ถ้ามีแนบ)
-    fair_date = Column(Date, nullable=True)                    # วันที่ทำ FAIR (ต่างจาก started/finished)
+    is_fair = Column(Boolean, nullable=False, default=False)
+    fair_no = Column(String, nullable=True)
+    fair_doc_file = Column(String, nullable=True)
+    fair_date = Column(Date, nullable=True)
 
-    # อ้างอิง PartRevision ที่ FAIR นี้ validate (บางโรงงานอาจต้องระบุให้ชัด)
     part_revision_id = Column(
         Integer,
-        ForeignKey("part_revisions.id", ondelete="SET NULL"),  # ← ใส่ถ้าอยากลบ rev แล้วไม่ error
+        ForeignKey("part_revisions.id", ondelete="SET NULL"),
         nullable=True,
         index=True
     )
-    part_revision = relationship("PartRevision", passive_deletes=True)
+
+    # CHANGED: explicitly bind the FK and make it bidirectional
+    part_revision = relationship(
+        "PartRevision",
+        foreign_keys=[part_revision_id],
+        back_populates="inspection_records",
+        passive_deletes=True,
+    )
 
     inspector_id = Column(Integer, ForeignKey("employees.id"), nullable=True)
     device_id = Column(Integer, ForeignKey("measurement_devices.id"), nullable=True)
     started_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     finished_at = Column(DateTime, nullable=True)
 
-    overall_result = Column(String, nullable=True)   # pass / fail / partial
+    overall_result = Column(String, nullable=True)
     notes = Column(Text, nullable=True)
 
     traveler_step = relationship("ShopTravelerStep", backref="inspection_records")
     inspector = relationship("Employee")
     device = relationship("MeasurementDevice")
     items = relationship("InspectionItem", back_populates="record", cascade="all, delete-orphan")
+
+    # NEW: inverse of ProductionLot.fair_record (FK lives on ProductionLot)
+    fair_for_lot = relationship(
+        "ProductionLot",
+        back_populates="fair_record",
+        uselist=False,
+        primaryjoin="InspectionRecord.id == ProductionLot.fair_record_id",
+    )
 
     __table_args__ = (
         Index("ix_inspection_records_step", "traveler_step_id"),
@@ -587,6 +621,7 @@ class InspectionRecord(Base):
 
     def __repr__(self):
         return f"<InspectionRecord(step_id={self.traveler_step_id}, FAIR={self.is_fair}, result={self.overall_result})>"
+
     
 
 class InspectionItem(Base):
@@ -737,11 +772,10 @@ class TimeEntry(Base):
     id = Column(Integer, primary_key=True)
 
     employee_id = Column(Integer, ForeignKey("employees.id"), nullable=False, index=True)
-    payroll_emp_id = Column( Integer, ForeignKey("employees.id", ondelete="SET NULL"),nullable=True, index=True, )
+    payroll_emp_id = Column(Integer, ForeignKey("employees.id", ondelete="SET NULL"), nullable=True, index=True)
     created_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     work_user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
 
-    # 👇 tz-aware & UTC
     clock_in_at = Column(DateTime(timezone=True), default=now_utc, nullable=False)
     clock_in_method = Column(String, nullable=True)
     clock_in_location = Column(String, nullable=True)
@@ -753,10 +787,10 @@ class TimeEntry(Base):
     status = Column(String, nullable=False, default="open")
     notes = Column(Text, nullable=True)
 
-    
+    # CHANGED: make both Employee relationships explicit
+    employee = relationship("Employee", foreign_keys=[employee_id])
     payroll_employee = relationship("Employee", foreign_keys=[payroll_emp_id])
 
-    employee = relationship("Employee")
     created_by_user = relationship("User", foreign_keys=[created_by_user_id])
     payroll_user = relationship("User", foreign_keys=[work_user_id])
 
@@ -766,11 +800,12 @@ class TimeEntry(Base):
         Index("ix_time_entries_out", "clock_out_at"),
         Index("ix_time_entries_work_user", "work_user_id"),
         Index("ix_time_entries_emp_work_week", "employee_id", "work_user_id", "clock_in_at"),
-        Index("ix_time_entries_payroll_emp", "payroll_emp_id"),  # ← เพิ่มบรรทัดนี้ (ให้ตรงกับ migration)
+        Index("ix_time_entries_payroll_emp", "payroll_emp_id"),
     )
 
     def __repr__(self):
         return f"<TimeEntry(emp_id={self.employee_id}, work_user_id={self.work_user_id}, status={self.status})>"
+
 
 
 class BreakEntry(Base):
@@ -876,11 +911,11 @@ class POLine(Base):
     due_date = Column(Date, nullable=True)
     notes = Column(Text)
 
-    po   = relationship("PO",back_populates="lines")
-    part = relationship("Part")
-    rev  = relationship("PartRevision")
-    __table_args__ = (Index("ix_po_lines_po", "po_id"),)
+    po   = relationship("PO", back_populates="lines", foreign_keys=[po_id])
+    part = relationship("Part", foreign_keys=[part_id])
+    rev  = relationship("PartRevision", foreign_keys=[revision_id])
 
+    __table_args__ = (Index("ix_po_lines_po", "po_id"),)
 # ให้ lot อ้างบรรทัด PO ได้ (optional แต่ดีมาก)
 # ProductionLot.po_line_id = Column(Integer, ForeignKey("po_lines.id"), nullable=True, index=True)
 

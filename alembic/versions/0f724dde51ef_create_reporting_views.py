@@ -31,9 +31,8 @@ def read_sql(name: str) -> str:
 
 def upgrade():
     # สร้าง/อัปเดตวิวตามไฟล์ .sql
-    op.execute(read_sql("v_po_summary.sql"))
-    op.execute(read_sql("v_po_sum2.sql"))
+    pass
 
 def downgrade():
     # ลบวิวตอน rollback
-    op.execute("DROP VIEW IF EXISTS v_po_summary;")
+    pass

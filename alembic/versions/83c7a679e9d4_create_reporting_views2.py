@@ -20,27 +20,8 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade():
-    op.execute("""
-    CREATE OR REPLACE VIEW v_test_c AS
-    SELECT
-        
-        c.id               AS customer_id,
-        c.name             AS customer_name
-        
-    FROM customers c          
-    """)
-
-    op.execute("""
-    CREATE OR REPLACE VIEW v_test_c2 AS
-    SELECT
-        
-        c.id               AS customer_id,
-        c.name             AS customer_name
-        
-    FROM customers c          
-    """)
+    pass
 
 
 def downgrade():
-    op.execute("DROP VIEW IF EXISTS v_test_c;")
-    op.execute("DROP VIEW IF EXISTS v_test_c2;")
+    pass
