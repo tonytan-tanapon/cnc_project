@@ -1,0 +1,74 @@
+const MENU = [
+  { key: 'dashboard', title: 'Dashboard', href: '/dashboard', icon: 'home' },
+
+  { key: 'sales', title: 'Sales / Customer Orders', icon: 'shopping-bag', children: [
+    { title: 'Customers', href: '/customers' },
+    { title: 'Customer POs', href: '/pos' },
+    { title: 'Shipments', href: '/sales/shipments' },
+    { title: 'Invoices', href: '/sales/invoices' },
+  ]},
+
+  { key: 'production', title: 'Production', icon: 'factory', children: [
+    { title: 'Work Queue', href: '/production/work-queue' },
+    { title: 'Lots', href: '/lots' },
+    { title: 'Travelers', href: '/travelers' },
+    { title: 'Parts', href: '/parts' },
+    { title: 'Part Revisions', href: '/parts/revisions' },
+  ]},
+
+  { key: 'inventory', title: 'Materials & Inventory', icon: 'boxes', children: [
+    { title: 'Materials', href: '/materials' },
+    { title: 'Raw Batches', href: '/materials/batches' },
+    { title: 'Stock on Hand', href: '/inventory/stock' },
+    { title: 'Lot Material Use', href: '/inventory/lot-uses' },
+  ]},
+
+  { key: 'subcon', title: 'Subcontracting', icon: 'truck', children: [
+    { title: 'Subcon Orders', href: '/subcon/orders' },
+    { title: 'Shipments', href: '/subcon/shipments' },
+    { title: 'Receipts', href: '/subcon/receipts' },
+  ]},
+
+  { key: 'qa', title: 'Quality (QA / FAIR)', icon: 'badge-check', children: [
+    { title: 'Inspection Records', href: '/qa/inspections' },
+    { title: 'FAIR Index', href: '/qa/fair' },
+    { title: 'Measurement Devices', href: '/qa/devices' },
+    { title: 'Calibrations Due', href: '/qa/calibrations' },
+  ]},
+
+  { key: 'machines', title: 'Machines & Scheduling', icon: 'cpu', children: [
+    { title: 'Machines', href: '/machines' },
+    { title: 'Machine Schedule', href: '/machines/schedule' },
+    // { title: 'Maintenance', href: '/machines/maintenance' },
+  ]},
+
+  { key: 'people', title: 'People & Time', icon: 'users', children: [
+    { title: 'Employees', href: '/employees' },
+    { title: 'Time Clock', href: '/time/clock' },
+    { title: 'Breaks', href: '/time/breaks' },
+    { title: 'Pay Rates', href: '/pay/rates' },
+    { title: 'Pay Periods', href: '/pay/periods' },
+    { title: 'Payroll', href: '/pay/payroll' },
+  ]},
+
+  { key: 'partners', title: 'Partners & Vendors', icon: 'handshake', children: [
+    { title: 'Suppliers', href: '/suppliers' },
+  ]},
+
+  { key: 'reports', title: 'Reports & Analytics', icon: 'bar-chart-2', children: [
+    { title: 'WIP & Lots', href: '/reports/wip' },
+    { title: 'Sales / PO', href: '/reports/sales' },
+    { title: 'Inventory', href: '/reports/inventory' },
+    { title: 'Subcontracting', href: '/reports/subcon' },
+    { title: 'QA / FAIR', href: '/reports/qa' },
+    { title: 'Time / Payroll', href: '/reports/payroll' },
+  ]},
+
+  { key: 'admin', title: 'Admin', icon: 'settings', children: [
+    { title: 'Users', href: '/admin/users' },
+    { title: 'Roles & Permissions', href: '/admin/rbac' },
+    { title: 'Settings', href: '/admin/settings' },
+    { title: 'Refresh Materialized Views', href: '/admin/refresh-mv' },
+    { title: 'Audit Logs', href: '/admin/audit-logs' },
+  ]},
+];

@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Sidebar</title>
+<style>
+  :root{
+    --bg:#0f172a; --bg2:#111827; --text:#e5e7eb; --muted:#94a3b8;
+    --acc:#60a5fa; --hover:#1f2937; --active:#0ea5e9; --ring:#22d3ee;
+    --radius:14px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0; font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Arial; background:#0b1020}
+  .sidebar{width:280px; min-height:100vh; background:var(--bg); color:var(--text); padding:14px}
+  .brand{display:flex; align-items:center; gap:10px; margin:4px 6px 16px}
+  .brand-badge{width:34px; height:34px; border-radius:10px; background:#2563eb; display:grid; place-items:center; font-weight:700}
+  .brand-title{font-weight:700; letter-spacing:.2px}
+  nav[role="navigation"]{display:block}
+  .group{margin:10px 6px}
+  .group-toggle{
+    width:100%; display:flex; align-items:center; gap:10px; padding:10px 12px; border:0; background:transparent; color:var(--text);
+    border-radius:10px; cursor:pointer; text-align:left; font-weight:600; outline:none;
+  }
+  .group-toggle:hover{background:var(--hover)}
+  .group-toggle:focus{box-shadow:0 0 0 2px var(--ring)}
+  .chev{margin-left:auto; transition:transform .18s ease}
+  .group[aria-expanded="true"] .chev{transform:rotate(90deg)}
+  .submenu{margin:6px 0 8px 10px; padding-left:6px; border-left:1px solid #223; display:none}
+  .group[aria-expanded="true"] .submenu{display:block}
+  .item{
+    display:flex; align-items:center; gap:10px; color:var(--text); text-decoration:none;
+    padding:9px 12px; margin:4px 0; border-radius:10px;
+  }
+  .item:hover{background:var(--hover)}
+  .item.active{background:rgba(14,165,233,.15); outline:1px solid rgba(14,165,233,.4)}
+  .icon{opacity:.9; width:18px; display:inline-grid; place-items:center}
+  /* optional collapsed mode */
+  .sidebar.collapsed{width:84px}
+  .sidebar.collapsed .brand-title,
+  .sidebar.collapsed .group-toggle .title,
+  .sidebar.collapsed .submenu{display:none}
+</style>
+</head>
+<body>
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <div class="brand-badge">TN</div>
+      <div class="brand-title">Topnotch — MFG</div>
+    </div>
+    <nav role="navigation" aria-label="Main menu" id="sidebar-nav"></nav>
+  </aside>
+
+<script>
+/* ----------------- CONFIG (ปรับตามของจริง) ----------------- */
+const basePath = ''; // e.g. '/app' ถ้ามี base
+const USER_PERMS = [
+  // ใส่โค้ด permission ของผู้ใช้ปัจจุบัน เช่น 'VIEW_PAYROLL', 'ADMIN'
+  // เว้นว่างได้ถ้ายังไม่ใช้ RBAC ที่เมนู
+];
+const MENU = [
+  { key:'dashboard', title:'Dashboard', href:'/dashboard', icon:'home' },
+  { key:'sales', title:'Sales / Customer Orders', icon:'bag', children:[
+    { title:'Customers', href:'/customers' },
+    { title:'Customer POs', href:'/pos' },
+    { title:'Shipments', href:'/sales/shipments' },
+    { title:'Invoices', href:'/sales/invoices' },
+  ]},
+  { key:'production', title:'Production', icon:'factory', children:[
+    { title:'Work Queue', href:'/production/work-queue' },
+    { title:'Lots', href:'/lots' },
+    { title:'Travelers', href:'/travelers' },
+    { title:'Parts', href:'/parts' },
+    { title:'Part Revisions', href:'/parts/revisions' },
+  ]},
+  { key:'inventory', title:'Materials & Inventory', icon:'boxes', children:[
+    { title:'Materials', href:'/materials' },
+    { title:'Raw Batches', href:'/materials/batches' },
+    { title:'Stock on Hand', href:'/inventory/stock' },
+    { title:'Lot Material Use', href:'/inventory/lot-uses' },
+  ]},
+  { key:'subcon', title:'Subcontracting', icon:'truck', children:[
+    { title:'Subcon Orders', href:'/subcon/orders' },
+    { title:'Shipments', href:'/subcon/shipments' },
+    { title:'Receipts', href:'/subcon/receipts' },
+  ]},
+  { key:'qa', title:'Quality (QA / FAIR)', icon:'shield', children:[
+    { title:'Inspection Records', href:'/qa/inspections' },
+    { title:'FAIR Index', href:'/qa/fair' },
+    { title:'Measurement Devices', href:'/qa/devices' },
+    { title:'Calibrations Due', href:'/qa/calibrations' },
+  ]},
+  { key:'machines', title:'Machines & Scheduling', icon:'cpu', children:[
+    { title:'Machines', href:'/machines' },
+    { title:'Machine Schedule', href:'/machines/schedule' },
+  ]},
+  { key:'people', title:'People & Time', icon:'users', children:[
+    { title:'Employees', href:'/employees' },
+    { title:'Time Clock', href:'/time/clock' },
+    { title:'Breaks', href:'/time/breaks' },
+    { title:'Pay Rates', href:'/pay/rates', perms:['VIEW_PAY'] },
+    { title:'Pay Periods', href:'/pay/periods', perms:['VIEW_PAY'] },
+    { title:'Payroll', href:'/pay/payroll', perms:['VIEW_PAY'] },
+  ]},
+  { key:'partners', title:'Partners & Vendors', icon:'handshake', children:[
+    { title:'Suppliers', href:'/suppliers' },
+  ]},
+  { key:'reports', title:'Reports & Analytics', icon:'chart', children:[
+    { title:'WIP & Lots', href:'/reports/wip' },
+    { title:'Sales / PO', href:'/reports/sales' },
+    { title:'Inventory', href:'/reports/inventory' },
+    { title:'Subcontracting', href:'/reports/subcon' },
+    { title:'QA / FAIR', href:'/reports/qa' },
+    { title:'Time / Payroll', href:'/reports/payroll', perms:['VIEW_PAY'] },
+  ]},
+  { key:'admin', title:'Admin', icon:'settings', children:[
+    { title:'Users', href:'/admin/users' },
+    { title:'Roles & Permissions', href:'/admin/rbac' },
+    { title:'Settings', href:'/admin/settings' },
+    { title:'Refresh Materialized Views', href:'/admin/refresh-mv', perms:['ADMIN'] },
+    { title:'Audit Logs', href:'/admin/audit-logs', perms:['ADMIN'] },
+  ]},
+];
+
+/* ----------------- RENDERER ----------------- */
+const $nav = document.getElementById('sidebar-nav');
+const LS_KEY = 'tn.sidebar.openGroups';
+
+function hasPerm(node){
+  if (!node.perms || node.perms.length === 0) return true;
+  return node.perms.some(p => USER_PERMS.includes(p));
+}
+function filterMenuByPerms(nodes){
+  return nodes.reduce((acc, n) => {
+    if (!hasPerm(n)) return acc;
+    if (n.children) {
+      const kids = filterMenuByPerms(n.children);
+      if (kids.length) acc.push({...n, children:kids});
+      else acc.push({...n, children:[]});
+    } else acc.push(n);
+    return acc;
+  }, []);
+}
+
+function normPath(p){ // normalize path & basePath
+  const full = (basePath + (p||'')).replace(/\/+$/,'');
+  return full || '/';
+}
+const currentPath = normPath(location.pathname);
+
+function isActive(href){
+  const hp = normPath(href);
+  if (currentPath === hp) return true;
+  // treat parent as active if current is under it (e.g. /parts/123 under /parts)
+  if (hp !== '/' && currentPath.startsWith(hp + '/')) return true;
+  return false;
+}
+
+function iconEl(kind){
+  // minimal inline icons (แทนที่ด้วยไลบรารีได้ภายหลัง)
+  const map = {
+    home:'🏠', bag:'🧾', factory:'🏭', boxes:'📦', truck:'🚚', shield:'🛡️',
+    cpu:'🖥️', users:'👥', handshake:'🤝', chart:'📊', settings:'⚙️'
+  };
+  const span = document.createElement('span');
+  span.className = 'icon';
+  span.textContent = map[kind] || '•';
+  return span;
+}
+
+function loadOpenSet(){
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    return new Set(JSON.parse(raw||'[]'));
+  } catch { return new Set(); }
+}
+function saveOpenSet(set){
+  localStorage.setItem(LS_KEY, JSON.stringify(Array.from(set)));
+}
+
+function render(){
+  const openSet = loadOpenSet();
+  $nav.innerHTML = '';
+  const menu = filterMenuByPerms(MENU);
+
+  for (const node of menu){
+    if (node.children && node.children.length){
+      const g = document.createElement('div');
+      g.className = 'group';
+      g.setAttribute('role','group');
+      const expanded = openSet.has(node.key) ? 'true':'false';
+      g.setAttribute('aria-expanded', expanded);
+
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'group-toggle';
+      btn.setAttribute('aria-controls', `sub-${node.key}`);
+      btn.setAttribute('aria-expanded', expanded);
+      btn.innerHTML = '';
+      btn.appendChild(iconEl(node.icon));
+      const t = document.createElement('span');
+      t.className = 'title';
+      t.textContent = node.title;
+      btn.appendChild(t);
+      const chev = document.createElementNS('http://www.w3.org/2000/svg','svg');
+      chev.setAttribute('viewBox','0 0 24 24'); chev.setAttribute('width','18'); chev.setAttribute('height','18');
+      chev.classList.add('chev');
+      chev.innerHTML = '<path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>';
+      btn.appendChild(chev);
+
+      btn.addEventListener('click', ()=>{
+        const will = g.getAttribute('aria-expanded') !== 'true';
+        g.setAttribute('aria-expanded', String(will));
+        btn.setAttribute('aria-expanded', String(will));
+        if (will) openSet.add(node.key); else openSet.delete(node.key);
+        saveOpenSet(openSet);
+      });
+      // keyboard support
+      btn.addEventListener('keydown', (e)=>{
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); btn.click(); }
+      });
+
+      const ul = document.createElement('div');
+      ul.id = `sub-${node.key}`;
+      ul.className = 'submenu';
+
+      let hasActiveChild = false;
+      for (const ch of node.children){
+        const a = document.createElement('a');
+        a.className = 'item';
+        a.href = normPath(ch.href || '#');
+        a.appendChild(iconEl(ch.icon));
+        const s = document.createElement('span'); s.textContent = ch.title; a.appendChild(s);
+        if (isActive(ch.href)) { a.classList.add('active'); hasActiveChild = true; }
+        ul.appendChild(a);
+      }
+
+      // auto open group if has active child
+      if (hasActiveChild) {
+        g.setAttribute('aria-expanded','true');
+        btn.setAttribute('aria-expanded','true');
+        openSet.add(node.key); saveOpenSet(openSet);
+      }
+
+      g.appendChild(btn);
+      g.appendChild(ul);
+      $nav.appendChild(g);
+
+    } else {
+      // single item (no children)
+      const a = document.createElement('a');
+      a.className = 'item';
+      a.href = normPath(node.href || '#');
+      a.appendChild(iconEl(node.icon));
+      const s = document.createElement('span'); s.textContent = node.title; a.appendChild(s);
+      if (isActive(node.href)) a.classList.add('active');
+      $nav.appendChild(a);
+    }
+  }
+}
+render();
+
+/* ------------- Optional: toggle collapsed sidebar ------------- */
+// Example:
+// document.getElementById('sidebar').classList.toggle('collapsed');
+</script>
+</body>
+</html>
