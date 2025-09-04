@@ -1,0 +1,930 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Simple ERP CRUD Mock (White, No Backend)</title>
+  <style>
+    :root{
+      --bg:#fff; --text:#111; --muted:#6b7280; --line:#e5e7eb; --acc:#2563eb; --ok:#16a34a; --warn:#d97706; --err:#b91c1c;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Arial}
+    .app{display:grid;grid-template-columns:260px 1fr;min-height:100vh}
+    aside{border-right:1px solid var(--line);padding:16px;position:sticky;top:0;height:100vh;overflow:auto}
+    h1{font-size:18px;margin:0 0 8px}
+    .group{margin:16px 0}
+    .group h2{font-size:12px;color:var(--muted);text-transform:uppercase;margin:0 0 6px}
+    nav a{display:block;padding:8px;border-radius:8px;color:inherit;text-decoration:none}
+    nav a:hover{background:#f8fafc}
+    nav a.active{background:#eef2ff;color:#1d4ed8}
+    main{padding:18px 18px 60px}
+
+    .toolbar{display:flex;gap:8px;align-items:center;margin:8px 0 12px}
+    .toolbar input[type="text"], .toolbar select{padding:6px 8px;border:1px solid var(--line);border-radius:8px}
+    .btn{padding:8px 10px;border:1px solid var(--line);background:#f8fafc;border-radius:10px;cursor:pointer}
+    .btn.primary{background:#eef2ff;border-color:#c7d2fe}
+    .btn.ok{background:#ecfdf5;border-color:#bbf7d0}
+    .btn.warn{background:#fff7ed;border-color:#fed7aa}
+    .btn.err{background:#fef2f2;border-color:#fecaca}
+
+    .card{border:1px solid var(--line);border-radius:12px;padding:12px;margin:10px 0;box-shadow:0 2px 10px rgba(0,0,0,.04)}
+    .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:8px}
+    .field{display:flex;flex-direction:column;gap:4px}
+    .field label{font-size:12px;color:var(--muted)}
+    .field input, .field select, .field textarea{padding:8px;border:1px solid var(--line);border-radius:10px;width:100%}
+    .field textarea{min-height:68px}
+
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+    th{font-size:12px;color:var(--muted);text-transform:uppercase}
+    tr:hover{background:#fafafa}
+    .row-actions{display:flex;gap:6px}
+    .subtable{background:#fafafa;border-radius:12px;padding:8px;margin:6px 0}
+
+    .hidden{display:none!important}
+    .tag{display:inline-block;padding:2px 6px;border-radius:999px;border:1px solid var(--line);font-size:12px;color:var(--muted)}
+    .muted{color:var(--muted)}
+    .help{font-size:12px;color:var(--muted)}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside>
+      <h1>ERP CRUD Mock</h1>
+      <div class="help">Pure HTML/JS. Data saved to <b>localStorage</b>. No backend.</div>
+      <div class="group">
+        <h2>Dashboard</h2>
+        <nav>
+          <a href="#home" data-route>Home</a>
+        </nav>
+      </div>
+      <div class="group">
+        <h2>Master</h2>
+        <nav>
+          <a href="#customers" data-route>Customers</a>
+          <a href="#suppliers" data-route>Suppliers</a>
+          <a href="#parts" data-route>Parts & Revisions</a>
+          <a href="#materials" data-route>Raw Materials & Batches</a>
+        </nav>
+      </div>
+      <div class="group">
+        <h2>Sales</h2>
+        <nav>
+          <a href="#pos" data-route>Purchase Orders & Lines</a>
+        </nav>
+      </div>
+      <div class="group">
+        <h2>Production</h2>
+        <nav>
+          <a href="#lots" data-route>Production Lots & Travelers</a>
+        </nav>
+      </div>
+      <div class="group">
+        <h2>Utilities</h2>
+        <nav>
+          <a href="#reset" data-route>Reset Sample Data</a>
+        </nav>
+      </div>
+    </aside>
+
+    <main>
+      <div id="view"></div>
+    </main>
+  </div>
+
+<script>
+/********************
+ * Tiny Store Layer *
+ ********************/
+const Store = {
+  key: 'erp-mock-v1',
+  _data: null,
+  defaults(){
+    return {
+      customers: [
+        {id:1, code:'CUST-ACME', name:'ACME Aerospace', contact:'Dana', email:'ops@acme.test', phone:'555-0100', address:'100 Flight Way, SD, CA'},
+        {id:2, code:'CUST-ORBIT', name:'Orbit Dynamics', contact:'Leo', email:'buyer@orbit.test', phone:'555-0123', address:'77 Lift Rd, LA, CA'}
+      ],
+      suppliers: [
+        {id:1, code:'SUP-ALCO', name:'Alloy Co.', contact:'Mia', email:'sales@alloy.test', phone:'555-0200', address:'200 Metal St, LA, CA', payment_terms:'NET30'},
+        {id:2, code:'SUP-TOOL', name:'ToolSource', contact:'Jay', email:'team@tool.test', phone:'555-0201', address:'22 Gear Ave, Irvine, CA', payment_terms:'NET15'}
+      ],
+      parts: [
+        {id:1, part_no:'PN-1001', name:'Bracket A', description:'Al6061 bracket', default_uom:'ea', status:'active'},
+        {id:2, part_no:'PN-2001', name:'Shaft B', description:'SS shaft', default_uom:'ea', status:'active'}
+      ],
+      partRevisions: [
+        {id:1, part_id:1, rev:'A', drawing_file:'BRKT-A.pdf', spec:'AMS-QQ-A-250', is_current:true},
+        {id:2, part_id:1, rev:'B', drawing_file:'BRKT-A-revB.pdf', spec:'AMS-QQ-A-250', is_current:false},
+        {id:3, part_id:2, rev:'A', drawing_file:'SHAFT-B.pdf', spec:'ASTM A276', is_current:true}
+      ],
+      materials: [
+        {id:1, code:'AL6061-RND-20', name:'Al 6061 Round Ø20', spec:'AMS-QQ-A-225/8', uom:'kg', remark:''},
+        {id:2, code:'SS304-RND-10', name:'SS304 Round Ø10', spec:'ASTM A276', uom:'kg', remark:''}
+      ],
+      batches: [
+        {id:1, material_id:1, supplier_id:1, batch_no:'B-AL-0001', supplier_batch_no:'S-1', mill_name:'Kobe', mill_heat_no:'H101', received_at:'2025-08-01', qty_received:100, qty_used:0, cert_file:'cert1.pdf', location:'R1-A1'},
+        {id:2, material_id:2, supplier_id:1, batch_no:'B-SS-0005', supplier_batch_no:'S-9', mill_name:'Aperam', mill_heat_no:'H802', received_at:'2025-08-10', qty_received:60, qty_used:5, cert_file:'cert5.pdf', location:'R1-B2'}
+      ],
+      pos: [
+        {id:1, po_number:'PO-2025-001', customer_id:1, description:'First order'},
+        {id:2, po_number:'PO-2025-002', customer_id:2, description:'Spare parts'}
+      ],
+      poLines: [
+        {id:1, po_id:1, part_id:1, revision_id:1, qty_ordered:50, unit_price:12.5, due_date:'2025-09-30', notes:''},
+        {id:2, po_id:2, part_id:2, revision_id:3, qty_ordered:20, unit_price:45.0, due_date:'2025-10-15', notes:'expedite'}
+      ],
+      lots: [
+        {id:1, lot_no:'LOT-1001', part_id:1, part_revision_id:1, po_id:1, planned_qty:50, started_at:'2025-09-01T08:00', finished_at:'', status:'in_process'},
+        {id:2, lot_no:'LOT-2001', part_id:2, part_revision_id:3, po_id:2, planned_qty:20, started_at:'2025-09-02T08:30', finished_at:'', status:'queued'}
+      ],
+      travelers: [
+        {id:1, lot_id:1, created_at:'2025-09-01T08:05', created_by:'system', status:'open', notes:''}
+      ],
+      steps: [
+        {id:1, traveler_id:1, seq:10, step_code:'CUT', step_name:'Cutting', station:'SAW-01', status:'pending', started_at:'', finished_at:'', qa_required:false, qa_result:'', qa_notes:'', qty_receive:50, qty_accept:0, qty_reject:0}
+      ],
+      _seq: { customers:3, suppliers:3, parts:3, partRevisions:4, materials:3, batches:3, pos:3, poLines:3, lots:3, travelers:2, steps:2 }
+    }
+  },
+  ensure(){ if(!this._data){ const raw=localStorage.getItem(this.key); this._data = raw? JSON.parse(raw) : this.defaults(); } },
+  save(){ localStorage.setItem(this.key, JSON.stringify(this._data)); },
+  all(col){ this.ensure(); return this._data[col]??[]; },
+  nextId(col){ this.ensure(); const cur=this._data._seq[col]||1; this._data._seq[col]=cur+1; return cur; },
+  insert(col,obj){ this.ensure(); obj.id=this.nextId(col); this._data[col].push(obj); this.save(); return obj; },
+  update(col,id,patch){ this.ensure(); const arr=this._data[col]; const i=arr.findIndex(x=>x.id==id); if(i>-1){ arr[i] = {...arr[i], ...patch, id:arr[i].id}; this.save(); return arr[i]; } return null; },
+  remove(col,id){ this.ensure(); const arr=this._data[col]; const i=arr.findIndex(x=>x.id==id); if(i>-1){ arr.splice(i,1); this.save(); return true; } return false; },
+  reset(){ this._data = this.defaults(); this.save(); }
+};
+
+/****************
+ * Helpers/DOM  *
+ ****************/
+const $ = (q, root=document) => root.querySelector(q);
+const $$ = (q, root=document) => Array.from(root.querySelectorAll(q));
+const fmtMoney = n => (n==null||n==='')?'' : Number(n).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtQty = n => (n==null||n==='')?'' : Number(n).toLocaleString(undefined,{minimumFractionDigits:3,maximumFractionDigits:3});
+const byId = (arr,id) => arr.find(x=>x.id==id);
+const escape = s => String(s??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
+function setActive(route){ $$('a[data-route]').forEach(a=>{ a.classList.toggle('active', a.getAttribute('href')===route); }); }
+
+/****************
+ * Views (SPA)  *
+ ****************/
+const View = {
+  mount(v){ const el = $('#view'); el.innerHTML=''; el.appendChild(v); },
+  h(tag, attrs={}, ...kids){ const e=document.createElement(tag); for(const [k,v] of Object.entries(attrs||{})){ if(k==='class') e.className=v; else if(k==='html') e.innerHTML=v; else e.setAttribute(k,v); } kids.flat().forEach(k=>{ if(k==null) return; if(k instanceof Node) e.appendChild(k); else e.appendChild(document.createTextNode(k)); }); return e; },
+  field(label, input){ const wrap=this.h('div',{class:'field'}, this.h('label',{},label), input); return wrap; },
+  input(type,name,placeholder=''){ const i=this.h(type==='textarea'?'textarea':'input',{name,placeholder}); if(type!=='textarea') i.type=type; return i; },
+  select(name, options){ const s=this.h('select',{name}); options.forEach(o=>{ const opt=this.h('option',{value:o.value}, o.label); s.appendChild(opt); }); return s; },
+  button(label, cls='btn'){ return this.h('button',{class:cls,type:'button'},label); },
+  // Generic table
+  table(columns, rows){
+    const tbl=this.h('table');
+    const thead=this.h('thead'); const trh=this.h('tr');
+    columns.forEach(c=> trh.appendChild(this.h('th',{}, c.label)) );
+    trh.appendChild(this.h('th',{}, 'Actions'));
+    thead.appendChild(trh); tbl.appendChild(thead);
+    const tbody=this.h('tbody');
+    rows.forEach(r=>{
+      const tr=this.h('tr'); tr.dataset.id=r.id;
+      columns.forEach(c=>{
+        let val = typeof c.render==='function'? c.render(r): (r[c.key] ?? '');
+        tr.appendChild(this.h('td',{html: val}))
+      });
+      const actions=this.h('td',{},
+        this.h('div',{class:'row-actions'},
+          this.button('Edit','btn'),
+          this.button('Delete','btn err'),
+          cHasChildren(r)? this.button('Toggle Details','btn'):''
+        )
+      );
+      tbody.appendChild(tr);
+      tr.appendChild(actions);
+    });
+    tbl.appendChild(tbody);
+    return tbl;
+
+    function cHasChildren(row){return !!row._hasChildren}
+  }
+};
+
+/***********************
+ * Section: Dashboard  *
+ ***********************/
+function pageHome(){
+  const wrap = View.h('div');
+  wrap.append(
+    View.h('h2',{},'Welcome'),
+    View.h('div',{class:'card'},
+      View.h('p',{},'This is a minimal, white, no-backend CRUD mock for your ERP schema.'),
+      View.h('ul',{},
+        View.h('li',{},'Use the left navigation to open each module.'),
+        View.h('li',{},'Click ', View.h('span',{class:'tag'},'Add New'), ' to create records. Click a row to edit, or use Delete.'),
+        View.h('li',{},'Child entities (like PO Lines, Part Revisions, Batches, Traveler Steps) appear in expandable details per row.'),
+        View.h('li',{},'Data persists in your browser localStorage. Use "Reset Sample Data" to start fresh.')
+      )
+    )
+  );
+  return wrap;
+}
+
+/***********************
+ * Section: Customers  *
+ ***********************/
+function pageCustomers(){
+  const state = { rows: Store.all('customers') };
+  const wrap = View.h('div');
+  wrap.append(View.h('h2',{},'Customers'));
+
+  // Form
+  const form = View.h('form',{class:'card'});
+  form.append(
+    View.h('div',{class:'grid'},
+      View.field('Code', View.input('text','code','CUST-XXXX')),
+      View.field('Name', View.input('text','name','ACME Inc.')),
+      View.field('Contact', View.input('text','contact','Buyer name')),
+      View.field('Email', View.input('email','email','buyer@example.com')),
+      View.field('Phone', View.input('text','phone','555-0123')),
+      View.field('Address', View.input('text','address','Address')),
+    ),
+    View.h('div',{class:'toolbar'},
+      View.button('Add New','btn ok'),
+      View.button('Clear','btn')
+    )
+  );
+
+  const addBtn = form.querySelector('.btn.ok');
+  const clrBtn = form.querySelector('.btn:not(.ok)');
+  let editingId = null;
+  addBtn.onclick = () => {
+    const f = Object.fromEntries(new FormData(form));
+    if(!f.code || !f.name){ alert('Code & Name required'); return; }
+    if(editingId){ Store.update('customers', editingId, f); editingId=null; addBtn.textContent='Add New'; }
+    else { Store.insert('customers', f); }
+    renderTable(); form.reset();
+  };
+  clrBtn.onclick = ()=>{ form.reset(); editingId=null; addBtn.textContent='Add New'; };
+
+  wrap.append(form);
+
+  // Table
+  const tableWrap = View.h('div',{class:'card'});
+  wrap.append(tableWrap);
+
+  function renderTable(){
+    state.rows = Store.all('customers');
+    tableWrap.innerHTML='';
+    const columns = [
+      {key:'id', label:'ID'},
+      {key:'code', label:'Code'},
+      {key:'name', label:'Name'},
+      {key:'contact', label:'Contact'},
+      {key:'phone', label:'Phone'},
+    ];
+    const tbl = View.table(columns, state.rows);
+    tableWrap.append(tbl);
+
+    // Row actions
+    tbl.querySelectorAll('tbody tr').forEach(tr=>{
+      const id = Number(tr.dataset.id);
+      const [btnEdit, btnDel] = tr.querySelectorAll('.row-actions .btn');
+      btnEdit.onclick = ()=>{
+        const row = byId(state.rows, id);
+        editingId = id; addBtn.textContent='Update';
+        ['code','name','contact','email','phone','address'].forEach(k=> form.elements[k].value = row[k]??'');
+        window.scrollTo({top:0,behavior:'smooth'});
+      };
+      btnDel.onclick = ()=>{ if(confirm('Delete this customer?')){ Store.remove('customers', id); renderTable(); } };
+    });
+  }
+  renderTable();
+  return wrap;
+}
+
+/***********************
+ * Section: Suppliers  *
+ ***********************/
+function pageSuppliers(){
+  const state = { rows: Store.all('suppliers') };
+  const wrap = View.h('div');
+  wrap.append(View.h('h2',{},'Suppliers'));
+
+  const form = View.h('form',{class:'card'});
+  form.append(
+    View.h('div',{class:'grid'},
+      View.field('Code', View.input('text','code','SUP-XXXX')),
+      View.field('Name', View.input('text','name','Supplier name')),
+      View.field('Contact', View.input('text','contact','Sales name')),
+      View.field('Email', View.input('email','email','sales@example.com')),
+      View.field('Phone', View.input('text','phone','555-0101')),
+      View.field('Address', View.input('text','address','Address')),
+      View.field('Payment Terms', View.input('text','payment_terms','NET30')),
+    ),
+    View.h('div',{class:'toolbar'}, View.button('Add New','btn ok'), View.button('Clear','btn'))
+  );
+  const addBtn=form.querySelector('.btn.ok');
+  const clrBtn=form.querySelector('.btn:not(.ok)');
+  let editingId=null;
+  addBtn.onclick = ()=>{
+    const f=Object.fromEntries(new FormData(form));
+    if(!f.code || !f.name){ alert('Code & Name required'); return; }
+    if(editingId){ Store.update('suppliers', editingId, f); editingId=null; addBtn.textContent='Add New'; }
+    else { Store.insert('suppliers', f); }
+    renderTable(); form.reset();
+  };
+  clrBtn.onclick = ()=>{ form.reset(); editingId=null; addBtn.textContent='Add New'; };
+
+  const tableWrap=View.h('div',{class:'card'}); wrap.append(tableWrap);
+  function renderTable(){
+    state.rows=Store.all('suppliers');
+    tableWrap.innerHTML='';
+    const columns=[{key:'id',label:'ID'},{key:'code',label:'Code'},{key:'name',label:'Name'},{key:'contact',label:'Contact'},{key:'payment_terms',label:'Terms'}];
+    const tbl=View.table(columns,state.rows);
+    tableWrap.append(tbl);
+    tbl.querySelectorAll('tbody tr').forEach(tr=>{
+      const id=Number(tr.dataset.id);
+      const [btnEdit, btnDel] = tr.querySelectorAll('.row-actions .btn');
+      btnEdit.onclick=()=>{
+        const r=byId(state.rows,id); editingId=id; addBtn.textContent='Update';
+        ['code','name','contact','email','phone','address','payment_terms'].forEach(k=> form.elements[k].value = r[k]??'');
+        window.scrollTo({top:0,behavior:'smooth'});
+      };
+      btnDel.onclick=()=>{ if(confirm('Delete supplier?')){ Store.remove('suppliers',id); renderTable(); } };
+    });
+  }
+  renderTable();
+  return wrap;
+}
+
+/*******************************
+ * Section: Parts & Revisions  *
+ *******************************/
+function pageParts(){
+  const wrap = View.h('div'); wrap.append(View.h('h2',{},'Parts & Revisions'));
+
+  // Part form
+  const form = View.h('form',{class:'card'});
+  form.append(
+    View.h('div',{class:'grid'},
+      View.field('Part No', View.input('text','part_no','PN-XXXX')),
+      View.field('Name', View.input('text','name','Part name')),
+      View.field('Default UOM', View.select('default_uom',[{value:'ea',label:'ea'},{value:'kg',label:'kg'},{value:'m',label:'m'}])),
+      View.field('Status', View.select('status',[{value:'active',label:'active'},{value:'inactive',label:'inactive'}])),
+      View.field('Description', View.input('text','description','Short description')),
+    ),
+    View.h('div',{class:'toolbar'}, View.button('Add New','btn ok'), View.button('Clear','btn'))
+  );
+  let editingId=null; const addBtn=form.querySelector('.btn.ok'); const clrBtn=form.querySelector('.btn:not(.ok)');
+  addBtn.onclick=()=>{
+    const f=Object.fromEntries(new FormData(form)); if(!f.part_no){alert('Part No required'); return;}
+    if(editingId){ Store.update('parts', editingId, f); editingId=null; addBtn.textContent='Add New'; }
+    else { Store.insert('parts', f); }
+    render(); form.reset();
+  };
+  clrBtn.onclick=()=>{ form.reset(); editingId=null; addBtn.textContent='Add New'; };
+  wrap.append(form);
+
+  const listWrap = View.h('div',{class:'card'}); wrap.append(listWrap);
+
+  function render(){
+    const parts = Store.all('parts'); const revs = Store.all('partRevisions');
+    listWrap.innerHTML='';
+    const tbl = View.table([
+      {key:'id',label:'ID'},
+      {key:'part_no',label:'Part No'},
+      {key:'name',label:'Name'},
+      {key:'default_uom',label:'UOM'},
+      {key:'status',label:'Status'},
+    ], parts.map(p=>({...p,_hasChildren:true})));
+    listWrap.append(tbl);
+
+    // expand rows with revisions
+    tbl.querySelectorAll('tbody tr').forEach(tr=>{
+      const id=Number(tr.dataset.id);
+      const [btnEdit, btnDel, btnToggle] = tr.querySelectorAll('.row-actions .btn');
+      btnEdit.onclick=()=>{
+        const p=byId(parts,id); editingId=id; addBtn.textContent='Update';
+        ['part_no','name','description','default_uom','status'].forEach(k=> form.elements[k].value = p[k]??'');
+        window.scrollTo({top:0,behavior:'smooth'});
+      };
+      btnDel.onclick=()=>{ if(confirm('Delete part? (revisions will remain orphaned in this mock)')){ Store.remove('parts',id); render(); } };
+      btnToggle.onclick=()=> toggleRow(tr, id);
+    });
+
+    function toggleRow(tr, partId){
+      let next = tr.nextElementSibling; if(next && next.classList.contains('details')){ next.remove(); return; }
+      // build details
+      const dtr = document.createElement('tr'); dtr.className='details';
+      const td=document.createElement('td'); td.colSpan=7; dtr.appendChild(td);
+      const box=View.h('div',{class:'subtable'});
+      td.appendChild(box);
+      box.append(View.h('div',{class:'muted'},`Revisions for Part #${partId}`));
+
+      // Revision form
+      const rf = View.h('form',{class:'grid'});
+      rf.append(
+        View.field('Rev', View.input('text','rev','A')),
+        View.field('Drawing File', View.input('text','drawing_file','drawing.pdf')),
+        View.field('Spec', View.input('text','spec','AMS/ASTM')),
+        View.field('Is Current?', (()=>{ const s=View.select('is_current',[{value:'false',label:'false'},{value:'true',label:'true'}]); s.value='false'; return s; })() ),
+        View.button('Add Revision','btn ok')
+      );
+      box.append(rf);
+      rf.querySelector('.btn.ok').onclick = ()=>{
+        const f=Object.fromEntries(new FormData(rf));
+        const obj = { part_id:partId, rev:f.rev, drawing_file:f.drawing_file, spec:f.spec, is_current:(f.is_current==='true') };
+        if(obj.is_current){ // enforce single current per part
+          Store.all('partRevisions').filter(x=>x.part_id==partId).forEach(r=> Store.update('partRevisions', r.id, {is_current:false}) );
+        }
+        Store.insert('partRevisions', obj); render();
+      };
+
+      // Revision table
+      const revTblWrap = View.h('div',{}); box.append(revTblWrap);
+      function renderRevs(){
+        const rows = Store.all('partRevisions').filter(r=>r.part_id==partId);
+        revTblWrap.innerHTML='';
+        const tbl = View.table([
+          {key:'id',label:'ID'},
+          {key:'rev',label:'Rev'},
+          {key:'drawing_file',label:'Drawing'},
+          {key:'spec',label:'Spec'},
+          {label:'Current', render:r=> r.is_current? '<span class="tag">current</span>':''}
+        ], rows);
+        revTblWrap.append(tbl);
+        tbl.querySelectorAll('tbody tr').forEach(tr2=>{
+          const rid = Number(tr2.dataset.id);
+          const [btnEdit, btnDel] = tr2.querySelectorAll('.row-actions .btn');
+          btnEdit.onclick=()=>{
+            const r=byId(rows,rid);
+            rf.elements.rev.value=r.rev||'';
+            rf.elements.drawing_file.value=r.drawing_file||'';
+            rf.elements.spec.value=r.spec||'';
+            rf.elements.is_current.value= String(!!r.is_current);
+            // convert add->update temporary
+            rf.querySelector('.btn.ok').textContent='Save Revision';
+            rf.querySelector('.btn.ok').onclick = ()=>{
+              const f=Object.fromEntries(new FormData(rf));
+              const patch={ rev:f.rev, drawing_file:f.drawing_file, spec:f.spec, is_current:(f.is_current==='true') };
+              if(patch.is_current){ Store.all('partRevisions').filter(x=>x.part_id==partId && x.id!==rid).forEach(r=> Store.update('partRevisions', r.id, {is_current:false})); }
+              Store.update('partRevisions', rid, patch); render();
+            };
+          };
+          btnDel.onclick=()=>{ if(confirm('Delete revision?')){ Store.remove('partRevisions', rid); render(); } };
+        });
+      }
+      renderRevs();
+      tr.after(dtr);
+    }
+  }
+  render();
+  return wrap;
+}
+
+/*******************************************
+ * Section: Raw Materials & Raw Batches     *
+ *******************************************/
+function pageMaterials(){
+  const wrap=View.h('div'); wrap.append(View.h('h2',{},'Raw Materials & Batches'));
+
+  const form = View.h('form',{class:'card'});
+  form.append(
+    View.h('div',{class:'grid'},
+      View.field('Code', View.input('text','code','AL6061-RND-20')),
+      View.field('Name', View.input('text','name','Al 6061 Round Ø20')),
+      View.field('Spec', View.input('text','spec','AMS/ASTM')),
+      View.field('UOM', View.select('uom',[{value:'kg',label:'kg'},{value:'ea',label:'ea'}])),
+      View.field('Remark', View.input('text','remark','')),
+    ),
+    View.h('div',{class:'toolbar'}, View.button('Add New','btn ok'), View.button('Clear','btn'))
+  );
+  let editingId=null; const addBtn=form.querySelector('.btn.ok'); const clrBtn=form.querySelector('.btn:not(.ok)');
+  addBtn.onclick=()=>{ const f=Object.fromEntries(new FormData(form)); if(!f.code){ alert('Code required'); return; } if(editingId){ Store.update('materials',editingId,f); editingId=null; addBtn.textContent='Add New'; } else { Store.insert('materials', f); } render(); form.reset(); };
+  clrBtn.onclick=()=>{ form.reset(); editingId=null; addBtn.textContent='Add New'; };
+  wrap.append(form);
+
+  const listWrap = View.h('div',{class:'card'}); wrap.append(listWrap);
+  function render(){
+    const mats=Store.all('materials'); const batches=Store.all('batches'); const suppliers=Store.all('suppliers');
+    listWrap.innerHTML='';
+    const tbl = View.table([
+      {key:'id',label:'ID'}, {key:'code',label:'Code'}, {key:'name',label:'Name'}, {key:'uom',label:'UOM'}
+    ], mats.map(m=>({...m,_hasChildren:true})));
+    listWrap.append(tbl);
+    tbl.querySelectorAll('tbody tr').forEach(tr=>{
+      const id=Number(tr.dataset.id); const [btnEdit,btnDel,btnTgl]= tr.querySelectorAll('.row-actions .btn');
+      btnEdit.onclick=()=>{ const r=byId(mats,id); editingId=id; addBtn.textContent='Update'; ['code','name','spec','uom','remark'].forEach(k=> form.elements[k].value=r[k]||''); window.scrollTo({top:0,behavior:'smooth'}); };
+      btnDel.onclick=()=>{ if(confirm('Delete material?')){ Store.remove('materials',id); render(); } };
+      btnTgl.onclick=()=> toggle(tr,id);
+    });
+
+    function toggle(tr, materialId){
+      let next=tr.nextElementSibling; if(next && next.classList.contains('details')){ next.remove(); return; }
+      const dtr=document.createElement('tr'); dtr.className='details'; const td=document.createElement('td'); td.colSpan=7; dtr.appendChild(td);
+      const box=View.h('div',{class:'subtable'}); td.appendChild(box);
+      box.append(View.h('div',{class:'muted'},`Batches for material #${materialId}`));
+
+      const rf=View.h('form',{class:'grid'});
+      const supOpts = suppliers.map(s=>({value:String(s.id), label:`${s.code} — ${s.name}`}));
+      rf.append(
+        View.field('Batch No', View.input('text','batch_no','B-XXXX')),
+        View.field('Supplier', View.select('supplier_id',[{value:'',label:'(none)'}, ...supOpts])),
+        View.field('Supplier Batch No', View.input('text','supplier_batch_no','S-...')),
+        View.field('Mill Name', View.input('text','mill_name','')),
+        View.field('Mill Heat No', View.input('text','mill_heat_no','')),
+        View.field('Received At', View.input('date','received_at','')),
+        View.field('Qty Received', View.input('number','qty_received','100')),
+        View.field('Location', View.input('text','location','R1-A1')),
+        View.field('Cert File', View.input('text','cert_file','cert.pdf')),
+        View.button('Add Batch','btn ok')
+      );
+      box.append(rf);
+
+      rf.querySelector('.btn.ok').onclick = ()=>{
+        const f=Object.fromEntries(new FormData(rf));
+        const obj={ material_id:materialId, batch_no:f.batch_no, supplier_id: f.supplier_id? Number(f.supplier_id):null, supplier_batch_no:f.supplier_batch_no, mill_name:f.mill_name, mill_heat_no:f.mill_heat_no, received_at:f.received_at||'', qty_received:Number(f.qty_received||0), qty_used:0, cert_file:f.cert_file, location:f.location };
+        Store.insert('batches', obj); render();
+      };
+
+      const tblWrap=View.h('div',{}); box.append(tblWrap);
+      function renderB(){
+        const rows=Store.all('batches').filter(b=>b.material_id==materialId);
+        tblWrap.innerHTML='';
+        const tbl=View.table([
+          {key:'id',label:'ID'},
+          {key:'batch_no',label:'Batch'},
+          {label:'Supplier', render:r=>{ const s=byId(suppliers,r.supplier_id); return s?escape(s.code):''; }},
+          {key:'received_at',label:'Received'},
+          {label:'Qty', render:r=> fmtQty(r.qty_received) },
+          {key:'location',label:'Loc'}
+        ], rows);
+        tblWrap.append(tbl);
+        tbl.querySelectorAll('tbody tr').forEach(tr2=>{
+          const rid=Number(tr2.dataset.id); const [btnEdit,btnDel]=tr2.querySelectorAll('.row-actions .btn');
+          btnEdit.onclick=()=>{
+            const r=byId(rows,rid);
+            rf.elements.batch_no.value=r.batch_no||'';
+            rf.elements.supplier_id.value = r.supplier_id? String(r.supplier_id):'';
+            rf.elements.supplier_batch_no.value=r.supplier_batch_no||'';
+            rf.elements.mill_name.value=r.mill_name||'';
+            rf.elements.mill_heat_no.value=r.mill_heat_no||'';
+            rf.elements.received_at.value=r.received_at||'';
+            rf.elements.qty_received.value=r.qty_received||0;
+            rf.elements.location.value=r.location||'';
+            rf.elements.cert_file.value=r.cert_file||'';
+            rf.querySelector('.btn.ok').textContent='Save Batch';
+            rf.querySelector('.btn.ok').onclick = ()=>{
+              const f=Object.fromEntries(new FormData(rf));
+              const patch={ batch_no:f.batch_no, supplier_id: f.supplier_id? Number(f.supplier_id):null, supplier_batch_no:f.supplier_batch_no, mill_name:f.mill_name, mill_heat_no:f.mill_heat_no, received_at:f.received_at||'', qty_received:Number(f.qty_received||0), cert_file:f.cert_file, location:f.location };
+              Store.update('batches', rid, patch); render();
+            };
+          };
+          btnDel.onclick=()=>{ if(confirm('Delete batch?')){ Store.remove('batches', rid); render(); } };
+        });
+      }
+      renderB(); tr.after(dtr);
+    }
+  }
+  render();
+  return wrap;
+}
+
+/*******************************************
+ * Section: Purchase Orders & PO Lines     *
+ *******************************************/
+function pagePOs(){
+  const wrap=View.h('div'); wrap.append(View.h('h2',{},'Purchase Orders & Lines'));
+  const customers = Store.all('customers'); const parts=Store.all('parts'); const revs=Store.all('partRevisions');
+
+  // PO form
+  const form = View.h('form',{class:'card'});
+  const custOpts = customers.map(c=>({value:String(c.id), label:`${c.code} — ${c.name}`}));
+  form.append(
+    View.h('div',{class:'grid'},
+      View.field('PO Number', View.input('text','po_number','PO-YYYY-XXX')),
+      View.field('Customer', View.select('customer_id', custOpts)),
+      View.field('Description', View.input('text','description','')),
+    ),
+    View.h('div',{class:'toolbar'}, View.button('Add New','btn ok'), View.button('Clear','btn'))
+  );
+  let editingId=null; const addBtn=form.querySelector('.btn.ok'); const clrBtn=form.querySelector('.btn:not(.ok)');
+  addBtn.onclick=()=>{ const f=Object.fromEntries(new FormData(form)); if(!f.po_number){alert('PO Number required');return;} const obj={po_number:f.po_number, customer_id:Number(f.customer_id), description:f.description||''}; if(editingId){ Store.update('pos',editingId,obj); editingId=null; addBtn.textContent='Add New'; } else { Store.insert('pos',obj); } render(); form.reset(); };
+  clrBtn.onclick=()=>{ form.reset(); editingId=null; addBtn.textContent='Add New'; };
+  wrap.append(form);
+
+  const listWrap=View.h('div',{class:'card'}); wrap.append(listWrap);
+  function render(){
+    const pos=Store.all('pos'); const lines=Store.all('poLines');
+    listWrap.innerHTML='';
+    const tbl = View.table([
+      {key:'id',label:'ID'},
+      {key:'po_number',label:'PO#'},
+      {label:'Customer', render:r=>{ const c=byId(customers,r.customer_id); return c?escape(c.code):'';}},
+      {key:'description',label:'Description'},
+    ], pos.map(p=>({...p,_hasChildren:true})));
+    listWrap.append(tbl);
+
+    tbl.querySelectorAll('tbody tr').forEach(tr=>{
+      const id=Number(tr.dataset.id); const [btnEdit,btnDel,btnTgl]=tr.querySelectorAll('.row-actions .btn');
+      btnEdit.onclick=()=>{ const p=byId(pos,id); editingId=id; addBtn.textContent='Update'; form.elements.po_number.value=p.po_number; form.elements.customer_id.value=String(p.customer_id); form.elements.description.value=p.description||''; window.scrollTo({top:0,behavior:'smooth'}); };
+      btnDel.onclick=()=>{ if(confirm('Delete PO? (lines will remain in this mock)')){ Store.remove('pos',id); render(); } };
+      btnTgl.onclick=()=> toggle(tr,id);
+    });
+
+    function toggle(tr, poId){
+      let next=tr.nextElementSibling; if(next && next.classList.contains('details')){ next.remove(); return; }
+      const dtr=document.createElement('tr'); dtr.className='details'; const td=document.createElement('td'); td.colSpan=7; dtr.appendChild(td);
+      const box=View.h('div',{class:'subtable'}); td.appendChild(box);
+      box.append(View.h('div',{class:'muted'},`PO Lines for PO #${poId}`));
+
+      // Lines form
+      const lf=View.h('form',{class:'grid'});
+      const partOpts = parts.map(p=>({value:String(p.id), label:`${p.part_no} — ${p.name}`}));
+      const revSelect = View.select('revision_id', []);
+      const partSelect = View.select('part_id', partOpts);
+      partSelect.onchange = ()=> refreshRevs();
+      function refreshRevs(){
+        const pid = Number(partSelect.value); const related = Store.all('partRevisions').filter(r=>r.part_id==pid);
+        revSelect.innerHTML=''; related.forEach(r=> revSelect.appendChild(new Option(`${r.rev}${r.is_current?' (current)':''}`, String(r.id))) );
+      }
+      // init
+      setTimeout(refreshRevs,0);
+
+      lf.append(
+        View.field('Part', partSelect),
+        View.field('Revision', revSelect),
+        View.field('Qty Ordered', View.input('number','qty_ordered','10')),
+        View.field('Unit Price', View.input('number','unit_price','0')),
+        View.field('Due Date', View.input('date','due_date','')),
+        View.field('Notes', View.input('text','notes','')),
+        View.button('Add Line','btn ok')
+      );
+      box.append(lf);
+      lf.querySelector('.btn.ok').onclick = ()=>{
+        const f=Object.fromEntries(new FormData(lf));
+        const obj={ po_id:poId, part_id:Number(f.part_id), revision_id:Number(f.revision_id||0)||null, qty_ordered:Number(f.qty_ordered||0), unit_price:Number(f.unit_price||0), due_date:f.due_date||'', notes:f.notes||'' };
+        Store.insert('poLines', obj); render();
+      };
+
+      const tblWrap=View.h('div',{}); box.append(tblWrap);
+      function renderLines(){
+        const rows=Store.all('poLines').filter(l=>l.po_id==poId);
+        tblWrap.innerHTML='';
+        const tbl=View.table([
+          {key:'id',label:'ID'},
+          {label:'Part', render:r=>{ const p=byId(parts,r.part_id); return p?escape(p.part_no):'';}},
+          {label:'Rev', render:r=>{ const rv=byId(revs,r.revision_id); return rv?escape(rv.rev):'';}},
+          {label:'Qty', render:r=>fmtQty(r.qty_ordered)},
+          {label:'Unit', render:r=>fmtMoney(r.unit_price)},
+          {key:'due_date',label:'Due'}
+        ], rows);
+        tblWrap.append(tbl);
+        tbl.querySelectorAll('tbody tr').forEach(tr2=>{
+          const rid=Number(tr2.dataset.id); const [btnEdit,btnDel]= tr2.querySelectorAll('.row-actions .btn');
+          btnEdit.onclick=()=>{
+            const l=byId(rows,rid); partSelect.value=String(l.part_id); refreshRevs(); revSelect.value=l.revision_id?String(l.revision_id):''; lf.elements.qty_ordered.value=l.qty_ordered; lf.elements.unit_price.value=l.unit_price; lf.elements.due_date.value=l.due_date||''; lf.elements.notes.value=l.notes||''; lf.querySelector('.btn.ok').textContent='Save Line'; lf.querySelector('.btn.ok').onclick=()=>{ const f=Object.fromEntries(new FormData(lf)); const patch={ part_id:Number(f.part_id), revision_id:Number(f.revision_id||0)||null, qty_ordered:Number(f.qty_ordered||0), unit_price:Number(f.unit_price||0), due_date:f.due_date||'', notes:f.notes||''}; Store.update('poLines', rid, patch); render(); };
+          };
+          btnDel.onclick=()=>{ if(confirm('Delete line?')){ Store.remove('poLines', rid); render(); } };
+        });
+      }
+      renderLines(); tr.after(dtr);
+    }
+  }
+  render(); return wrap;
+}
+
+/***************************************************
+ * Section: Production Lots & Travelers & Steps     *
+ ***************************************************/
+function pageLots(){
+  const wrap=View.h('div'); wrap.append(View.h('h2',{},'Production Lots & Travelers'));
+  const parts=Store.all('parts'); const revs=Store.all('partRevisions'); const pos=Store.all('pos');
+
+  const form=View.h('form',{class:'card'});
+  const partSel = View.select('part_id', parts.map(p=>({value:String(p.id), label:`${p.part_no} — ${p.name}`})) );
+  const revSel = View.select('part_revision_id', []);
+  const poSel = View.select('po_id', [{value:'',label:'(none)'}].concat(pos.map(p=>({value:String(p.id), label:p.po_number}))) );
+  partSel.onchange = ()=> refreshRevs();
+  function refreshRevs(){ const pid=Number(partSel.value); const r=revs.filter(x=>x.part_id==pid); revSel.innerHTML=''; r.forEach(x=> revSel.appendChild(new Option(`${x.rev}${x.is_current?' (current)':''}`, String(x.id))) ); }
+  setTimeout(refreshRevs,0);
+  form.append(
+    View.h('div',{class:'grid'},
+      View.field('Lot No', View.input('text','lot_no','LOT-XXXX')),
+      View.field('Part', partSel),
+      View.field('Revision', revSel),
+      View.field('PO (optional)', poSel),
+      View.field('Planned Qty', View.input('number','planned_qty','0')),
+      View.field('Started At', View.input('datetime-local','started_at','')),
+      View.field('Finished At', View.input('datetime-local','finished_at','')),
+      View.field('Status', View.select('status',[{value:'queued',label:'queued'},{value:'in_process',label:'in_process'},{value:'done',label:'done'}]))
+    ),
+    View.h('div',{class:'toolbar'}, View.button('Add New','btn ok'), View.button('Clear','btn'))
+  );
+  let editingId=null; const addBtn=form.querySelector('.btn.ok'); const clrBtn=form.querySelector('.btn:not(.ok)');
+  addBtn.onclick=()=>{ const f=Object.fromEntries(new FormData(form)); if(!f.lot_no){ alert('Lot No required'); return; } const obj={ lot_no:f.lot_no, part_id:Number(f.part_id), part_revision_id:Number(f.part_revision_id||0)||null, po_id: f.po_id? Number(f.po_id):null, planned_qty:Number(f.planned_qty||0), started_at:f.started_at||'', finished_at:f.finished_at||'', status:f.status||'queued' }; if(editingId){ Store.update('lots', editingId, obj); editingId=null; addBtn.textContent='Add New'; } else { Store.insert('lots', obj); } render(); form.reset(); };
+  clrBtn.onclick=()=>{ form.reset(); editingId=null; addBtn.textContent='Add New'; };
+  wrap.append(form);
+
+  const listWrap=View.h('div',{class:'card'}); wrap.append(listWrap);
+  function render(){
+    const lots=Store.all('lots');
+    listWrap.innerHTML='';
+    const tbl = View.table([
+      {key:'id',label:'ID'},
+      {key:'lot_no',label:'Lot'},
+      {label:'Part', render:r=>{ const p=byId(parts,r.part_id); return p?escape(p.part_no):'';}},
+      {label:'Rev', render:r=>{ const rv=byId(revs,r.part_revision_id); return rv?escape(rv.rev):'';}},
+      {label:'PO', render:r=>{ const po=byId(pos,r.po_id); return po?escape(po.po_number):'';}},
+      {label:'Qty', render:r=>fmtQty(r.planned_qty)},
+      {key:'status',label:'Status'}
+    ], lots.map(l=>({...l,_hasChildren:true})));
+    listWrap.append(tbl);
+
+    tbl.querySelectorAll('tbody tr').forEach(tr=>{
+      const id=Number(tr.dataset.id); const [btnEdit,btnDel,btnTgl]=tr.querySelectorAll('.row-actions .btn');
+      btnEdit.onclick=()=>{ const l=byId(lots,id); editingId=id; addBtn.textContent='Update'; form.elements.lot_no.value=l.lot_no||''; partSel.value=String(l.part_id); refreshRevs(); revSel.value=l.part_revision_id?String(l.part_revision_id):''; poSel.value=l.po_id?String(l.po_id):''; form.elements.planned_qty.value=l.planned_qty||0; form.elements.started_at.value=l.started_at||''; form.elements.finished_at.value=l.finished_at||''; form.elements.status.value=l.status||'in_process'; window.scrollTo({top:0,behavior:'smooth'}); };
+      btnDel.onclick=()=>{ if(confirm('Delete lot?')){ Store.remove('lots', id); render(); } };
+      btnTgl.onclick=()=> toggle(tr, id);
+    });
+
+    function toggle(tr, lotId){
+      let next=tr.nextElementSibling; if(next && next.classList.contains('details')){ next.remove(); return; }
+      const dtr=document.createElement('tr'); dtr.className='details'; const td=document.createElement('td'); td.colSpan=7; dtr.appendChild(td);
+      const box=View.h('div',{class:'subtable'}); td.appendChild(box);
+      box.append(View.h('div',{class:'muted'},`Travelers for lot #${lotId}`));
+
+      // Traveler form
+      const tf=View.h('form',{class:'grid'});
+      tf.append(
+        View.field('Created By', View.input('text','created_by','system')),
+        View.field('Status', View.select('status',[{value:'open',label:'open'},{value:'closed',label:'closed'}])),
+        View.field('Notes', View.input('text','notes','')),
+        View.button('Add Traveler','btn ok')
+      );
+      box.append(tf);
+      tf.querySelector('.btn.ok').onclick=()=>{
+        const f=Object.fromEntries(new FormData(tf));
+        const obj={ lot_id:lotId, created_at: new Date().toISOString().slice(0,16), created_by:f.created_by||'system', status:f.status||'open', notes:f.notes||'' };
+        Store.insert('travelers', obj); render();
+      };
+
+      const travWrap=View.h('div',{}); box.append(travWrap);
+      function renderTravelers(){
+        const travelers = Store.all('travelers').filter(t=>t.lot_id==lotId);
+        travWrap.innerHTML='';
+        const tbl=View.table([
+          {key:'id',label:'ID'}, {key:'created_at',label:'Created At'}, {key:'created_by',label:'By'}, {key:'status',label:'Status'}
+        ], travelers.map(t=>({...t,_hasChildren:true})));
+        travWrap.append(tbl);
+        tbl.querySelectorAll('tbody tr').forEach(tr2=>{
+          const tid=Number(tr2.dataset.id); const [btnEdit,btnDel,btnTgl]=tr2.querySelectorAll('.row-actions .btn');
+          btnEdit.onclick=()=>{ const t=byId(travelers,tid); tf.elements.created_by.value=t.created_by||''; tf.elements.status.value=t.status||'open'; tf.elements.notes.value=t.notes||''; tf.querySelector('.btn.ok').textContent='Save Traveler'; tf.querySelector('.btn.ok').onclick=()=>{ const f=Object.fromEntries(new FormData(tf)); Store.update('travelers', tid, { created_by:f.created_by||'system', status:f.status||'open', notes:f.notes||'' }); render(); } };
+          btnDel.onclick=()=>{ if(confirm('Delete traveler?')){ Store.remove('travelers', tid); render(); } };
+          btnTgl.onclick=()=> toggleSteps(tr2, tid);
+        });
+      }
+
+      function toggleSteps(trvTr, travelerId){
+        let next=trvTr.nextElementSibling; if(next && next.classList.contains('details')){ next.remove(); return; }
+        const dtr=document.createElement('tr'); dtr.className='details'; const td=document.createElement('td'); td.colSpan=7; dtr.appendChild(td);
+        const box=View.h('div',{class:'subtable'}); td.appendChild(box);
+        box.append(View.h('div',{class:'muted'},`Steps for traveler #${travelerId}`));
+
+        const sf=View.h('form',{class:'grid'});
+        sf.append(
+          View.field('Seq', View.input('number','seq','10')),
+          View.field('Step Code', View.input('text','step_code','CUT')),
+          View.field('Step Name', View.input('text','step_name','Cutting')),
+          View.field('Station', View.input('text','station','SAW-01')),
+          View.field('Status', View.select('status',[{value:'pending',label:'pending'},{value:'in_progress',label:'in_progress'},{value:'done',label:'done'}])),
+          View.field('Started At', View.input('datetime-local','started_at','')),
+          View.field('Finished At', View.input('datetime-local','finished_at','')),
+          View.field('QA Required?', View.select('qa_required',[{value:'false',label:'false'},{value:'true',label:'true'}])),
+          View.field('QA Result', View.input('text','qa_result','')),
+          View.field('QA Notes', View.input('text','qa_notes','')),
+          View.field('Qty Receive', View.input('number','qty_receive','0')),
+          View.field('Qty Accept', View.input('number','qty_accept','0')),
+          View.field('Qty Reject', View.input('number','qty_reject','0')),
+          View.button('Add Step','btn ok')
+        );
+        box.append(sf);
+        sf.querySelector('.btn.ok').onclick=()=>{
+          const f=Object.fromEntries(new FormData(sf));
+          const obj={ traveler_id:travelerId, seq:Number(f.seq||0), step_code:f.step_code||'', step_name:f.step_name||'', station:f.station||'', status:f.status||'pending', started_at:f.started_at||'', finished_at:f.finished_at||'', qa_required:(f.qa_required==='true'), qa_result:f.qa_result||'', qa_notes:f.qa_notes||'', qty_receive:Number(f.qty_receive||0), qty_accept:Number(f.qty_accept||0), qty_reject:Number(f.qty_reject||0) };
+          Store.insert('steps', obj); render();
+        };
+
+        const stepWrap=View.h('div',{}); box.append(stepWrap);
+        function renderSteps(){
+          const rows=Store.all('steps').filter(s=>s.traveler_id==travelerId).sort((a,b)=>a.seq-b.seq);
+          stepWrap.innerHTML='';
+          const tbl=View.table([
+            {key:'id',label:'ID'}, {key:'seq',label:'Seq'}, {key:'step_code',label:'Code'}, {key:'step_name',label:'Name'}, {key:'status',label:'Status'}, {label:'Recv/Acc/Rej', render:r=> `${fmtQty(r.qty_receive)} / ${fmtQty(r.qty_accept)} / ${fmtQty(r.qty_reject)}`}
+          ], rows);
+          stepWrap.append(tbl);
+          tbl.querySelectorAll('tbody tr').forEach(tr3=>{
+            const sid=Number(tr3.dataset.id); const [btnEdit,btnDel]=tr3.querySelectorAll('.row-actions .btn');
+            btnEdit.onclick=()=>{
+              const s=byId(rows,sid);
+              ['seq','step_code','step_name','station','status','started_at','finished_at','qa_result','qa_notes','qty_receive','qty_accept','qty_reject'].forEach(k=>{ if(sf.elements[k]) sf.elements[k].value=s[k]??''; });
+              sf.elements.qa_required.value = String(!!s.qa_required);
+              sf.querySelector('.btn.ok').textContent='Save Step';
+              sf.querySelector('.btn.ok').onclick=()=>{
+                const f=Object.fromEntries(new FormData(sf));
+                const patch={ seq:Number(f.seq||0), step_code:f.step_code||'', step_name:f.step_name||'', station:f.station||'', status:f.status||'pending', started_at:f.started_at||'', finished_at:f.finished_at||'', qa_required:(f.qa_required==='true'), qa_result:f.qa_result||'', qa_notes:f.qa_notes||'', qty_receive:Number(f.qty_receive||0), qty_accept:Number(f.qty_accept||0), qty_reject:Number(f.qty_reject||0) };
+                Store.update('steps', sid, patch); render();
+              };
+            };
+            btnDel.onclick=()=>{ if(confirm('Delete step?')){ Store.remove('steps', sid); render(); } };
+          });
+        }
+        renderSteps();
+        trvTr.after(dtr);
+      }
+
+      renderTravelers(); tr.after(dtr);
+    }
+  }
+  render();
+  return wrap;
+}
+
+/****************
+ * Reset data   *
+ ****************/
+function pageReset(){
+  const wrap=View.h('div'); wrap.append(View.h('h2',{},'Reset Sample Data'));
+  wrap.append(View.h('div',{class:'card'},
+    View.h('p',{},'This will wipe current localStorage data and reload sample data.'),
+    View.button('Reset Now','btn err')
+  ));
+  wrap.querySelector('button').onclick=()=>{ if(confirm('Reset sample data?')){ Store.reset(); alert('Reset complete.'); location.hash='#home'; route(); } };
+  return wrap;
+}
+
+/****************
+ * Router       *
+ ****************/
+const routes = {
+  '#home': pageHome,
+  '#customers': pageCustomers,
+  '#suppliers': pageSuppliers,
+  '#parts': pageParts,
+  '#materials': pageMaterials,
+  '#pos': pagePOs,
+  '#lots': pageLots,
+  '#reset': pageReset,
+};
+function route(){
+  const hash = location.hash || '#home';
+  setActive(hash);
+  const view = routes[hash]? routes[hash]() : View.h('div',{},'Not found');
+  View.mount(view);
+}
+window.addEventListener('hashchange', route);
+Store.ensure();
+route();
+</script>
+
+<!--
+Minimal endpoint sketch (for wiring later):
+
+Pattern (CRUD):
+  GET    /api/v1/{resource}            # list (q, page, page_size)
+  GET    /api/v1/{resource}/{id}       # detail
+  POST   /api/v1/{resource}            # create
+  PUT    /api/v1/{resource}/{id}       # full update
+  PATCH  /api/v1/{resource}/{id}       # partial update
+  DELETE /api/v1/{resource}/{id}       # delete
+
+Examples (Master):
+  /customers, /suppliers, /parts, /part-revisions, /raw-materials, /raw-batches
+  Nested: /parts/{id}/revisions (list/create), /raw-materials/{id}/batches
+
+Sales:
+  /purchase-orders, /po-lines
+  Nested: /purchase-orders/{id}/lines
+
+Production:
+  /production-lots, /shop-travelers, /shop-traveler-steps, /lot-material-use
+  Nested: /production-lots/{id}/travelers, /shop-travelers/{id}/steps
+
+QA:
+  /measurement-devices, /device-calibrations, /inspection-records, /inspection-items
+
+Time & Payroll:
+  /time-entries, /break-entries, /pay-rates, /pay-periods, /holidays, /leave-entries
+
+Auth/RBAC:
+  /users, /roles, /permissions, /user-roles, /role-permissions
+
+Payload example (Supplier):
+  POST /api/v1/suppliers
+  {"code":"SUP-ALCO","name":"Alloy Co.","contact":"Mia","email":"sales@alloy.test","phone":"555-0200","address":"200 Metal St","payment_terms":"NET30"}
+-->
+
+</body>
+</html>
