@@ -3,8 +3,9 @@ from sqlalchemy import (
     Numeric, Boolean, CheckConstraint
 )
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, date, timezone
 from database import Base
+
 
 # =========================================
 # =============== Master ==================
@@ -52,6 +53,12 @@ class PO(Base):
     customer_id = Column(Integer, ForeignKey("customers.id"), nullable=False)
 
     customer = relationship("Customer", back_populates="pos")
+
+    # ✅ เพิ่ม 3 บรรทัดนี้
+    lines = relationship("POLine", back_populates="po", cascade="all, delete-orphan")
+    shipments = relationship("CustomerShipment", back_populates="po", cascade="all, delete-orphan")
+    invoices = relationship("CustomerInvoice", back_populates="po", cascade="all, delete-orphan")
+
     lots = relationship("ProductionLot", back_populates="po", cascade="all, delete-orphan")
 
     def __repr__(self):
@@ -156,9 +163,16 @@ class PartRevision(Base):
 
     __table_args__ = (UniqueConstraint("part_id", "rev", name="uq_part_rev"),)
 
+    # --- FAIR quick link/cache ---
+    fair_record_id = Column(Integer, ForeignKey("inspection_records.id", ondelete="SET NULL"), nullable=True, unique=True)
+    fair_record = relationship("InspectionRecord", foreign_keys=[fair_record_id])
+
+    # cache ไว้เผื่อแสดงผลเร็ว ๆ (ไม่บังคับ)
+    fair_no_cache = Column(String, nullable=True)
+    fair_date_cache = Column(Date, nullable=True)
+
     def __repr__(self):
         return f"<PartRevision(part_id={self.part_id}, rev={self.rev})>"
-
 
 # =========================================
 # ======== Production / Lot / Traveler ====
@@ -173,9 +187,10 @@ class ProductionLot(Base):
     lot_no = Column(String, unique=True, index=True, nullable=False)
 
     part_id = Column(Integer, ForeignKey("parts.id"), nullable=False)
-    part_revision_id = Column(Integer, ForeignKey("part_revisions.id"), nullable=True)
+    part_revision_id = Column(Integer, ForeignKey("part_revisions.id"), nullable=True, index=True)
+    po_id = Column(Integer, ForeignKey("purchase_orders.id"), nullable=True, index=True)
 
-    po_id = Column(Integer, ForeignKey("purchase_orders.id"), nullable=True)
+
     planned_qty = Column(Integer, nullable=False, default=0)
     started_at = Column(DateTime, nullable=True)
     finished_at = Column(DateTime, nullable=True)
@@ -186,27 +201,20 @@ class ProductionLot(Base):
     po = relationship("PO", back_populates="lots")
 
     material_uses = relationship("LotMaterialUse", back_populates="lot", cascade="all, delete-orphan")
-   
-    travelers = relationship(
-        "ShopTraveler",
-        back_populates="lot",
-        cascade="all, delete-orphan",
-        order_by="ShopTraveler.created_at.asc()"
-    )
+    travelers = relationship("ShopTraveler", back_populates="lot", cascade="all, delete-orphan",
+                             order_by="ShopTraveler.created_at.asc()")
 
-    @property
-    def traveler_ids(self) -> list[int]:
-        return [t.id for t in self.travelers]
+    # --- FAIR link per lot (optional) ---
+    fair_required = Column(Boolean, nullable=False, default=False)  # flag: lot นี้ต้องทำ FAIR
+    fair_record_id = Column(Integer, ForeignKey("inspection_records.id", ondelete="SET NULL"), nullable=True, index=True)
+    fair_record = relationship("InspectionRecord", foreign_keys=[fair_record_id])
 
-    @property
-    def traveler_ids_str(self) -> str:
-        return ",".join(str(t.id) for t in self.travelers)
-    @property
-    def part_no(self) -> str | None:
-        return self.part.part_no if self.part else None
+    # (ถ้าคุณเพิ่ม po_line_id ก็วางไว้บริเวณนี้ได้เลย)
+    # po_line_id = Column(Integer, ForeignKey("po_lines.id"), index=True, nullable=True)
+    # po_line = relationship("POLine")
 
-   
-
+    def __repr__(self):
+        return f"<ProductionLot(lot_no={self.lot_no}, status={self.status})>"
 
 class LotMaterialUse(Base):
     __tablename__ = "lot_material_use"
@@ -543,6 +551,21 @@ class InspectionRecord(Base):
     id = Column(Integer, primary_key=True)
     traveler_step_id = Column(Integer, ForeignKey("shop_traveler_steps.id"), nullable=False)
 
+    # --- FAIR fields (source of truth) ---
+    is_fair = Column(Boolean, nullable=False, default=False)   # ใช้ระบุว่า record นี้เป็น FAIR
+    fair_no = Column(String, nullable=True)                    # หมายเลข FAIR/AS9102 pkg
+    fair_doc_file = Column(String, nullable=True)              # path/filename ของไฟล์ FAIR (ถ้ามีแนบ)
+    fair_date = Column(Date, nullable=True)                    # วันที่ทำ FAIR (ต่างจาก started/finished)
+
+    # อ้างอิง PartRevision ที่ FAIR นี้ validate (บางโรงงานอาจต้องระบุให้ชัด)
+    part_revision_id = Column(
+        Integer,
+        ForeignKey("part_revisions.id", ondelete="SET NULL"),  # ← ใส่ถ้าอยากลบ rev แล้วไม่ error
+        nullable=True,
+        index=True
+    )
+    part_revision = relationship("PartRevision", passive_deletes=True)
+
     inspector_id = Column(Integer, ForeignKey("employees.id"), nullable=True)
     device_id = Column(Integer, ForeignKey("measurement_devices.id"), nullable=True)
     started_at = Column(DateTime, default=datetime.utcnow, nullable=False)
@@ -559,11 +582,12 @@ class InspectionRecord(Base):
     __table_args__ = (
         Index("ix_inspection_records_step", "traveler_step_id"),
         Index("ix_inspection_records_result", "overall_result"),
+        Index("ix_inspection_records_fair_rev", "part_revision_id", "is_fair"),
     )
 
     def __repr__(self):
-        return f"<InspectionRecord(step_id={self.traveler_step_id}, result={self.overall_result})>"
-
+        return f"<InspectionRecord(step_id={self.traveler_step_id}, FAIR={self.is_fair}, result={self.overall_result})>"
+    
 
 class InspectionItem(Base):
     __tablename__ = "inspection_items"
@@ -700,11 +724,9 @@ class RolePermission(Base):
 # =========================================
 # ============== Time Tracking ============
 # =========================================
-from sqlalchemy import (
-    Column, Integer, String, Text, DateTime, ForeignKey, Index, Boolean
-)
-from sqlalchemy.orm import relationship
-from datetime import datetime, timezone
+
+
+
 
 def now_utc():
     return datetime.now(timezone.utc)
@@ -715,6 +737,7 @@ class TimeEntry(Base):
     id = Column(Integer, primary_key=True)
 
     employee_id = Column(Integer, ForeignKey("employees.id"), nullable=False, index=True)
+    payroll_emp_id = Column( Integer, ForeignKey("employees.id", ondelete="SET NULL"),nullable=True, index=True, )
     created_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     work_user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
 
@@ -730,6 +753,9 @@ class TimeEntry(Base):
     status = Column(String, nullable=False, default="open")
     notes = Column(Text, nullable=True)
 
+    
+    payroll_employee = relationship("Employee", foreign_keys=[payroll_emp_id])
+
     employee = relationship("Employee")
     created_by_user = relationship("User", foreign_keys=[created_by_user_id])
     payroll_user = relationship("User", foreign_keys=[work_user_id])
@@ -740,6 +766,7 @@ class TimeEntry(Base):
         Index("ix_time_entries_out", "clock_out_at"),
         Index("ix_time_entries_work_user", "work_user_id"),
         Index("ix_time_entries_emp_work_week", "employee_id", "work_user_id", "clock_in_at"),
+        Index("ix_time_entries_payroll_emp", "payroll_emp_id"),  # ← เพิ่มบรรทัดนี้ (ให้ตรงกับ migration)
     )
 
     def __repr__(self):
@@ -835,3 +862,78 @@ class PayPeriod(Base):
         UniqueConstraint("start_at", "end_at", name="uq_pay_periods_range"),
         CheckConstraint("end_at > start_at", name="ck_pay_periods_valid"),
     )
+
+
+# ===== Sales PO Lines =====
+class POLine(Base):
+    __tablename__ = "po_lines"
+    id = Column(Integer, primary_key=True)
+    po_id = Column(Integer, ForeignKey("purchase_orders.id"), nullable=False, index=True)
+    part_id = Column(Integer, ForeignKey("parts.id"), nullable=False)
+    revision_id = Column(Integer, ForeignKey("part_revisions.id"), nullable=True)
+    qty_ordered = Column(Numeric(18,3), nullable=False)
+    unit_price = Column(Numeric(18,2), nullable=True)
+    due_date = Column(Date, nullable=True)
+    notes = Column(Text)
+
+    po   = relationship("PO",back_populates="lines")
+    part = relationship("Part")
+    rev  = relationship("PartRevision")
+    __table_args__ = (Index("ix_po_lines_po", "po_id"),)
+
+# ให้ lot อ้างบรรทัด PO ได้ (optional แต่ดีมาก)
+# ProductionLot.po_line_id = Column(Integer, ForeignKey("po_lines.id"), nullable=True, index=True)
+
+# ===== Customer Shipment =====
+class CustomerShipment(Base):
+    __tablename__ = "customer_shipments"
+    id = Column(Integer, primary_key=True)
+    po_id = Column(Integer, ForeignKey("purchase_orders.id"), nullable=False, index=True)
+    shipped_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    ship_to = Column(String, nullable=True)
+    carrier = Column(String, nullable=True)
+    tracking_no = Column(String, nullable=True)
+    notes = Column(Text)
+
+    po = relationship("PO", back_populates="shipments")
+    items = relationship("CustomerShipmentItem", back_populates="shipment", cascade="all, delete-orphan")
+
+class CustomerShipmentItem(Base):
+    __tablename__ = "customer_shipment_items"
+    id = Column(Integer, primary_key=True)
+    shipment_id = Column(Integer, ForeignKey("customer_shipments.id"), nullable=False, index=True)
+    po_line_id = Column(Integer, ForeignKey("po_lines.id"), nullable=False, index=True)
+    lot_id = Column(Integer, ForeignKey("production_lots.id"), nullable=True, index=True)  # ถ้าผูกกับ lot โดยตรง
+    qty = Column(Numeric(18,3), nullable=False)
+
+    shipment = relationship("CustomerShipment", back_populates="items")
+    po_line  = relationship("POLine")
+    lot      = relationship("ProductionLot")
+
+
+# ===== Customer Invoice =====
+class CustomerInvoice(Base):
+    __tablename__ = "customer_invoices"
+    id = Column(Integer, primary_key=True)
+    invoice_no = Column(String, unique=True, index=True, nullable=False)
+    po_id = Column(Integer, ForeignKey("purchase_orders.id"), nullable=False, index=True)
+    invoice_date = Column(Date, nullable=False, default=date.today)
+    status = Column(String, nullable=False, default="open")  # open/paid/void
+    notes = Column(Text)
+
+    po = relationship("PO", back_populates="invoices")
+    lines = relationship("CustomerInvoiceLine", back_populates="invoice", cascade="all, delete-orphan")
+
+class CustomerInvoiceLine(Base):
+    __tablename__ = "customer_invoice_lines"
+    id = Column(Integer, primary_key=True)
+    invoice_id = Column(Integer, ForeignKey("customer_invoices.id"), nullable=False, index=True)
+    po_line_id = Column(Integer, ForeignKey("po_lines.id"), nullable=False)
+    shipment_item_id = Column(Integer, ForeignKey("customer_shipment_items.id"), nullable=True)  # ถ้าวางบิลตามของที่ส่ง
+    qty = Column(Numeric(18,3), nullable=False)
+    unit_price = Column(Numeric(18,2), nullable=True)
+    amount = Column(Numeric(18,2), nullable=True)  # เก็บหรือคำนวณก็ได้
+
+    invoice = relationship("CustomerInvoice", back_populates="lines")
+    po_line = relationship("POLine")
+    shipment_item = relationship("CustomerShipmentItem")
