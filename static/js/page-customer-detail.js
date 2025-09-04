@@ -43,10 +43,10 @@ async function loadCustomer() {
   }
   setBusy(true);
   try {
-    const c = await jfetch(`/customers/${encodeURIComponent(customerId)}`);
+    const c = await jfetch(`/customers/${encodeURIComponent(customerId)}`);  //get data by id
     initial = c;
-    fillForm(c);
-    $('subTitle').textContent = `#${c.id} — ${c.name ?? c.code ?? ''}`;
+    fillForm(c);  //add data to form
+   
     document.title = `Customer · ${c.name ?? c.code ?? c.id}`;
   } catch (e) {
     $('errorBox').style.display = '';
@@ -60,6 +60,7 @@ async function loadCustomer() {
 
 async function saveCustomer() {
   const payload = readForm();
+  console.log(payload);
   if (!payload.name) {
     toast('กรอก Name ก่อน', false);
     $('c_name').focus();
@@ -79,7 +80,7 @@ async function saveCustomer() {
     });
     initial = updated;
     fillForm(updated);
-    $('subTitle').textContent = `#${updated.id} — ${updated.name ?? updated.code ?? ''}`;
+    
     toast('Saved');
   } catch (e) {
     // ตัวอย่าง error เด่น ๆ ที่เจอจาก backend:

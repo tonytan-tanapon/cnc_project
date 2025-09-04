@@ -43,6 +43,7 @@ class CustomerCreate(BaseModel): # (ใช้เวลาไม่ต้อง�
     address: Optional[str] = None
 
 class CustomerUpdate(BaseModel):
+    code: Optional[str] = None 
     name: Optional[str] = None
     contact: Optional[str] = None
     email: Optional[str] = None

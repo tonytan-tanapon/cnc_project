@@ -69,6 +69,7 @@ def update_customer(customer_id: int, payload: CustomerUpdate, db: Session = Dep
     if not c:
         raise HTTPException(404, "Customer not found")
     for k, v in payload.dict(exclude_unset=True).items():
+        print(k,v)
         setattr(c, k, v)
     db.commit(); db.refresh(c)
     return c
