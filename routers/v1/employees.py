@@ -1,12 +1,13 @@
 # routers/employees.py
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 
 from database import get_db
 from models import Employee
 from schemas import EmployeeCreate, EmployeeUpdate, EmployeeOut
 from utils.code_generator import next_code_yearly
+
 
 router = APIRouter(prefix="/employees", tags=["employees"])
 
@@ -37,9 +38,35 @@ def create_employee(payload: EmployeeCreate, db: Session = Depends(get_db)):
 
 
 @router.get("", response_model=List[EmployeeOut])
-def list_employees(db: Session = Depends(get_db)):
-    return db.query(Employee).order_by(Employee.id.desc()).all()
+def list_employees(
+    status: Optional[List[str]] = Query(None, description="Filter by one or more statuses, e.g. ?status=active&status=on_leave"),
+    q: Optional[str] = Query(None, description="Search by name or code"),
+    limit: int = Query(100, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+):
+    query = db.query(Employee)
 
+    # filter by 1+ statuses
+    if status:
+        # normalize to lowercase if you store lowercase
+        statuses = [s.lower() for s in status]
+        query = query.filter(Employee.status.in_(statuses))
+
+    # optional search
+    if q:
+        ql = f"%{q}%"
+        # adjust field names to your model (emp_code/name)
+        query = query.filter((Employee.emp_code.ilike(ql)) | (Employee.name.ilike(ql)))
+
+
+
+    return (
+        query.order_by(Employee.name.asc())
+             .offset(offset)
+             .limit(limit)
+             .all()
+    )
 
 @router.get("/{emp_id}", response_model=EmployeeOut)
 def get_employee(emp_id: int, db: Session = Depends(get_db)):

@@ -61,7 +61,7 @@ def _serialize_break(b: BreakEntry) -> dict:
 def _serialize_time_entry(te: TimeEntry) -> dict:
     emp = getattr(te, "employee", None)
     # If Employee has .full_name and (optionally) a .customer relationship with .name
-    employee_name = getattr(emp, "full_name", None)
+    employee_name = getattr(emp, "name", None)
     customer = getattr(emp, "customer", None) if emp is not None else None
     customer_name = getattr(customer, "name", None)
 
@@ -311,29 +311,46 @@ def stop_break_no_id(payload: StopBreakPayload, db: Session = Depends(get_db)):
 # Keep your manual/backfill + listing endpoints exactly as-is (no auth)
 # (paste your existing ManualTimeEntry*, ManualBreak*, list_time_entries, range, get_time_entry, upsert_break here unchanged)
 
+from sqlalchemy.orm import joinedload
+from models import TimeEntry, Employee
+
 @timeclock_router.get("/range", summary="List time entries by range (alias)")
 def list_time_entries_range(
     db: Session = Depends(get_db),
     employee_id: Optional[int] = Query(default=None),
+    status: Optional[List[str]] = Query(
+        None,
+        description="Filter by one or more statuses, e.g. ?status=active&status=on_leave"
+    ),
     start_at: datetime = Query(..., description="inclusive"),
     end_at: datetime = Query(..., description="exclusive"),
 ) -> List[dict]:
-    q = (db.query(TimeEntry)
-           .options(
-               joinedload(TimeEntry.employee)   # 👈 load employee for names
-               # .joinedload(Employee.customer) # 👈 uncomment if Employee.customer exists
-               ,
-               joinedload(TimeEntry.breaks)     # nice to have
-           )
-           .filter(
-               TimeEntry.clock_in_at >= start_at,
-               TimeEntry.clock_in_at < end_at
-           )
-         )
+    q = (
+        db.query(TimeEntry)
+          .join(TimeEntry.employee)   # 👈 important: join Employee for filtering
+          .options(
+              joinedload(TimeEntry.employee),  # preload employee
+              joinedload(TimeEntry.breaks)
+          )
+          .filter(
+              TimeEntry.clock_in_at >= start_at,
+              TimeEntry.clock_in_at < end_at
+          )
+    )
+
+    
+
+    # filter by status
+    if status:
+        statuses = [s.lower() for s in status]  # normalize if stored lowercase
+        q = q.filter(Employee.status.in_(statuses))
+
+    # filter by employee id
     if employee_id is not None:
         q = q.filter(TimeEntry.employee_id == employee_id)
 
     q = q.order_by(TimeEntry.clock_in_at.asc(), TimeEntry.id.asc())
     rows = q.all()
-    return [_serialize_time_entry(te) for te in rows]
 
+   
+    return [_serialize_time_entry(te) for te in rows]

@@ -31,9 +31,10 @@
     .num{text-align:right}
     .chip{display:inline-block;padding:2px 8px;border-radius:999px;background:#eef2ff;border:1px solid #e5e7eb;font-size:12px}
     tr.details{background:#fbfbff}
-    /* Employee control (select only) */
+    /* Hybrid employee controls */
     .emp-wrap{display:flex;gap:8px;align-items:center}
-    .emp-wrap > select{min-width:260px;flex:1}
+    .emp-wrap > input{min-width:220px;flex:1}
+    .emp-wrap > select{min-width:220px;flex:1}
   </style>
 </head>
 <body>
@@ -43,13 +44,18 @@
   <!-- Filters -->
   <div class="card">
     <div class="row">
-      <div style="min-width:360px">
+      <div style="min-width:480px">
         <label>Employee</label>
         <div class="emp-wrap">
-          <!-- Select only -->
+          <!-- 1) Type to search with autocomplete -->
+          <input id="f_emp_search" type="text" list="emp_suggest" placeholder="Type name or code…" autocomplete="off">
+          <datalist id="emp_suggest"></datalist>
+
+          <!-- 2) Or pick from a full select -->
           <select id="f_emp_select">
             <option value="">— Select employee —</option>
           </select>
+
           <!-- Hidden ID used by calculations -->
           <input id="f_emp_id" type="hidden">
         </div>
@@ -165,9 +171,11 @@
 
   /* Employee directory storage */
   const EMP_MAP_BY_ID = new Map();   // id -> {id,name,emp_code}
+  const EMP_LIST = [];               // ordered list for select/datalist
 
   /* Display formats */
-  const labelForSelect = (e) => e.emp_code ? `${e.name||''}`.trim() : (e.name||`#${e.id}`);
+  const labelForSelect = (e) => e.emp_code ? `${e.emp_code} — ${e.name||''}`.trim() : (e.name||`#${e.id}`);
+  const labelForDatalist = (e) => e.name ? `${e.name}${e.emp_code?` (${e.emp_code})`:''}` : (e.emp_code||`#${e.id}`);
   const displayEmpHeader = (e) => e.name || '';
 
   /* ==== PAY PERIOD ==== */
@@ -246,17 +254,29 @@
     return { regHours: reg, ot1Hours: ot };
   }
 
-  /* ==== EMPLOYEE (SELECT ONLY) ==== */
+  /* ==== EMPLOYEE HYBRID CONTROLS ==== */
+
+  // Populate both the datalist (for typing) and the select (for picking)
   function populateEmployeeControls(list){
+    const dl = $('#emp_suggest');
     const sel = $('#f_emp_select');
+    dl.innerHTML = '';
     sel.innerHTML = '<option value="">— Select employee —</option>';
 
     EMP_MAP_BY_ID.clear();
+    EMP_LIST.length = 0;
 
     for(const e of (list||[])){
       const entry = { id:String(e.id), name:e.name||'', emp_code:e.emp_code||'' };
       EMP_MAP_BY_ID.set(entry.id, entry);
+      EMP_LIST.push(entry);
 
+      // datalist option (shows Name (Code))
+      const optDL = document.createElement('option');
+      optDL.value = labelForDatalist(entry);
+      dl.appendChild(optDL);
+
+      // select option (shows CODE — Name)
       const optSel = document.createElement('option');
       optSel.value = entry.id;
       optSel.textContent = labelForSelect(entry);
@@ -264,29 +284,73 @@
     }
   }
 
-  function setEmployeeSelection(id){
+  // Given either an id or a text, set the hidden id + display text
+  function setEmployeeSelection(by){
+    const inp = $('#f_emp_search');
     const hid = $('#f_emp_id');
     const sel = $('#f_emp_select');
-    const picked = EMP_MAP_BY_ID.get(String(id)) || null;
+
+    let picked = null;
+
+    if (by && by.id){
+      picked = EMP_MAP_BY_ID.get(String(by.id)) || null;
+    } else if (by && by.text){
+      const t = String(by.text).trim().toLowerCase();
+      // try exact datalist label match: Name (Code)
+      picked = EMP_LIST.find(e => labelForDatalist(e).toLowerCase() === t)
+            || EMP_LIST.find(e => e.name.toLowerCase() === t)
+            || EMP_LIST.find(e => e.emp_code && e.emp_code.toLowerCase() === t)
+            || null;
+    }
 
     if (picked){
       hid.value = picked.id;
+      inp.value = labelForDatalist(picked);
+      // sync <select>
       sel.value = picked.id;
+      // update header preview (optional, final will be set in loadReport)
       $('#emp_info').textContent = displayEmpHeader(picked);
     }else{
       hid.value = '';
+      sel.value = '';
     }
   }
 
+  // Input handlers (typing path)
+  function attachInputHandlers(){
+    const inp = $('#f_emp_search');
+    // Enter → resolve & (optionally) run report
+    inp.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter'){
+        e.preventDefault();
+        setEmployeeSelection({ text: inp.value });
+        if (!$('#f_emp_id').value){
+          toast?.('No matching employee');
+          return;
+        }
+        loadReport();
+      }
+    });
+    // On blur, try to resolve softly (don’t auto-run report)
+    inp.addEventListener('blur', () => {
+      if (!$('#f_emp_id').value && inp.value.trim()){
+        setEmployeeSelection({ text: inp.value });
+      }
+    });
+    // Any typing clears the current selection id (re-validate on enter/blur)
+    inp.addEventListener('input', () => { $('#f_emp_id').value = ''; $('#f_emp_select').value=''; });
+  }
+
+  // Select handlers (picklist path)
   function attachSelectHandlers(){
     const sel = $('#f_emp_select');
-    sel.addEventListener('change', async () => {
+    sel.addEventListener('change', () => {
       const id = sel.value;
       if (id){
-        setEmployeeSelection(id);
+        setEmployeeSelection({ id });
       }else{
         $('#f_emp_id').value = '';
-        $('#emp_info').textContent = '';
+        // don’t clear the text for convenience
       }
     });
   }
@@ -317,9 +381,9 @@
     let qs = `${TE}/range?start_at=${encodeURIComponent(toISODate(s))}&end_at=${encodeURIComponent(toISODateEndExclusive(e))}`;
     qs += `&employee_id=${encodeURIComponent(empId)}`;
     qs += `&status=active`;
-    console.log(qs)
+
     let items = await apiGET(qs);
-    console.log(items)
+
     const closedOnly = $('#f_closed_only').checked;
     if (closedOnly) { items = items.filter(x => x.status === 'closed' && x.clock_in_at && x.clock_out_at); }
 
@@ -440,19 +504,6 @@
     else { dtr.classList.remove('hidden'); btn.textContent = '▼'; }
   }
 
-  function renderBreaks(breaks){
-    const arr = Array.isArray(breaks)? breaks.filter(Boolean): [];
-    if(!arr.length) return '<div class="small muted">— no breaks —</div>';
-    let html = '<div class="small">';
-    for(const b of arr){
-      const d = durHours(b.start_at, b.end_at);
-      const tag = b.is_paid ? 'paid' : 'unpaid';
-      html += `<div>• [${esc(b.break_type||'break')}/${tag}] ${esc(fmtTime(b.start_at))} - ${esc(fmtTime(b.end_at))} (${isNaN(d)?'0.00':d.toFixed(2)} h)</div>`;
-    }
-    html += '</div>';
-    return html;
-  }
-
   function renderDetails(r){
     let html = '';
     for(const te of r.entries.sort((a,b)=> (a.clock_in_at||'').localeCompare(b.clock_in_at||''))){
@@ -470,6 +521,19 @@
          + `Rate ${currency(r.rate)}, OT Rate ${currency(r.otRate)} · `
          + `Pay ${currency(r.payTot)}</div>`;
     return html || '<span class="muted">ไม่มีรายละเอียด</span>';
+  }
+
+  function renderBreaks(breaks){
+    const arr = Array.isArray(breaks)? breaks.filter(Boolean): [];
+    if(!arr.length) return '<div class="small muted">— no breaks —</div>';
+    let html = '<div class="small">';
+    for(const b of arr){
+      const d = durHours(b.start_at, b.end_at);
+      const tag = b.is_paid ? 'paid' : 'unpaid';
+      html += `<div>• [${esc(b.break_type||'break')}/${tag}] ${esc(fmtTime(b.start_at))} - ${esc(fmtTime(b.end_at))} (${isNaN(d)?'0.00':d.toFixed(2)} h)</div>`;
+    }
+    html += '</div>';
+    return html;
   }
 
   function setRate(empId, v){
@@ -527,6 +591,7 @@
     $('#f_start').value = ymd;
     $('#f_end').value = ymd;
 
+    attachInputHandlers();
     attachSelectHandlers();
 
     await loadEmployeeDirectory();

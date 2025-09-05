@@ -31,9 +31,6 @@
     .num{text-align:right}
     .chip{display:inline-block;padding:2px 8px;border-radius:999px;background:#eef2ff;border:1px solid #e5e7eb;font-size:12px}
     tr.details{background:#fbfbff}
-    /* Employee control (select only) */
-    .emp-wrap{display:flex;gap:8px;align-items:center}
-    .emp-wrap > select{min-width:260px;flex:1}
   </style>
 </head>
 <body>
@@ -43,18 +40,12 @@
   <!-- Filters -->
   <div class="card">
     <div class="row">
-      <div style="min-width:360px">
+      <div style="min-width:160px">
         <label>Employee</label>
-        <div class="emp-wrap">
-          <!-- Select only -->
-          <select id="f_emp_select">
-            <option value="">— Select employee —</option>
-          </select>
-          <!-- Hidden ID used by calculations -->
-          <input id="f_emp_id" type="hidden">
-        </div>
+        <input id="f_emp" type="text" list="emp_suggest" placeholder="Name or id or code">
+        <input id="f_emp_id" type="hidden">   <!-- ← keeps the selected employee ID -->
+        <datalist id="emp_suggest"></datalist>
       </div>
-
       <div style="min-width:260px">
         <label>Pay Period</label>
         <select id="f_period" onchange="onPeriodChange()">
@@ -70,7 +61,9 @@
         <input id="f_end" type="date">
       </div>
 
+      <!-- !!!!!!!! -->
       <div style="min-width:180px">
+        <!-- <label>Rate from database</label> -->
         <label class="small muted" style="display:flex;align-items:center;gap:8px">
           <input id="f_use_rate_db" type="checkbox" checked>Rate from database
         </label>
@@ -80,7 +73,8 @@
         <input id="f_rate" type="number" step="0.01" value="10">
       </div>
 
-      <div style="min-width:260px">
+
+      <div style="min-width:220px">
         <label>&nbsp;</label>
         <div class="row" style="gap:6px">
           <label class="small muted" style="display:flex;align-items:center;gap:8px">
@@ -90,13 +84,21 @@
           <button class="btn ok" onclick="exportCSV()">Export CSV</button>
         </div>
       </div>
-    </div>
+      <!-- <div class="right small muted">
+        อ้างอิงข้อมูลจาก <span class="mono">GET /time-entries/range</span>, <span class="mono">GET /pay-periods</span>, <span class="mono">GET /pay-rates</span>
+      </div> -->
+    <!-- </div>
+    <div class="small muted">หมายเหตุ: PayPeriod.end_at เป็นแบบ exclusive ใน DB — หน้านี้จะแปลงเป็นรวมวันสุดท้ายโดยอัตโนมัติ</div>
+   -->
+  
+  
   </div>
 
   <!-- Table -->
   <div class="card">
-    <div><div id="emp_info"></div></div>
+  <div><div id = emp_info></div></div>
     <div class="row small muted">
+     
       <div class="right">Total hour: <span id="sumHours" class="sum">0.00</span> h · Total pay: <span id="sumPay" class="sum">0.00</span></div>
     </div>
     <table id="tbl">
@@ -122,55 +124,102 @@
   </div>
 </div>
 
-<!-- App -->
+<!-- Switch to module to allow imports -->
 <script type="module">
   import { $ as _$, jfetch, toast } from "/static/js/api.js?v=1";
+
+  // Local DOM helper: CSS selector (e.g. '#f_start')
   const $ = (sel) => document.querySelector(sel);
 
-  /* API base */
-  const API_BASE = ''; // same-origin
+  /* ----------------- API base ----------------- */
+  const API_BASE = '';//'http://127.0.0.1:8000/api/v1'; // change to '' if served from same origin
   const api = (p) => `${API_BASE}${p}`;
+
+  // Wrapper to keep existing call sites the same
   async function apiGET(path){
-    try{ return await jfetch(api(path)); }
-    catch(e){ console.error('API error', e); toast?.(e?.message || 'API error'); throw e; }
+    try{
+      return await jfetch(api(path));
+    }catch(e){
+      console.error('API error', e);
+      if (typeof toast === 'function') toast(e?.message || 'API error');
+      throw e;
+    }
   }
 
-  /* Endpoints */
-  const TE = "/time-entries";        // /time-entries/range
-  const PP = "/pay-periods";
-  const PR = "/pay-rates";
-  const PR_BULK = "/pay-rates/bulk";
-  const EMP = "/employees";
+  // ==== CONFIG ==== (endpoints)
+  const TE = "/time-entries";        // ใช้ /time-entries/range
+  const PP = "/pay-periods";         // GET /pay-periods
+  const PR = "/pay-rates";           // GET /pay-rates?employee_id=...
+  const PR_BULK = "/pay-rates/bulk"; // (ออปชัน) GET /pay-rates/bulk?employee_ids=1,2,3
+  const EMP = "/employees"; // (ถ้ามี)
 
-  /* OT rules */
+  // ---- OVERTIME RULE (OT-only) ----
+  // 0-8 = Regular, >8 = OT at 1.5x (or from DB multiplier)
   const DAILY_OT1_THRESHOLD = 8;
   const DEFAULT_OT_MULTIPLIER = 1.5;
 
-  /* Utils */
+  // ==== HELPERS ====
   const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const pad = n => String(n).padStart(2,'0');
-  const sum = arr => arr.reduce((a,b)=>a+b,0);
-  const CCY_SYM = '$';
-  const currency = v => CCY_SYM + ' ' + Number(v||0).toFixed(2);
-  function toLocalISODate(dt){ const y=dt.getFullYear(), m=pad(dt.getMonth()+1), d=pad(dt.getDate()); return `${y}-${m}-${d}`; }
   function toISODate(d){ return d ? d + "T00:00:00" : null; }
-  function addDaysStr(yyyy_mm_dd, days){ const dt = new Date(yyyy_mm_dd+"T00:00:00"); dt.setDate(dt.getDate()+days); return toLocalISODate(dt); }
   function toISODateEndExclusive(d){ return d ? addDaysStr(d,1) + "T00:00:00" : null; }
-  function localDateKey(iso){ const d=new Date(iso); if(isNaN(d)) return ''; return toLocalISODate(d); }
+  function addDaysStr(yyyy_mm_dd, days){ const dt = new Date(yyyy_mm_dd+"T00:00:00"); dt.setDate(dt.getDate()+days); return toLocalISODate(dt); }
+  function toLocalISODate(dt){ const y = dt.getFullYear(), m = pad(dt.getMonth()+1), d = pad(dt.getDate()); return `${y}-${m}-${d}`; }
+  function localDateKey(iso){ const d = new Date(iso); if(isNaN(d)) return ''; return toLocalISODate(d); }
   function fmtTime(iso){ if(!iso) return ''; const d=new Date(iso); if(isNaN(d)) return ''; return `${pad(d.getHours())}:${pad(d.getMinutes())}`; }
   function durHours(isoStart, isoEnd){ if(!isoStart || !isoEnd) return 0; const s=new Date(isoStart), e=new Date(isoEnd); if(isNaN(s)||isNaN(e)||e<=s) return 0; return (e-s)/3600000; }
+  function sum(arr){ return arr.reduce((a,b)=>a+b,0); }
+  const CCY_SYM = '$';
+  function currency(v){ return CCY_SYM + ' ' + Number(v||0).toFixed(2); }
 
   function getOverrides(){ try{ return JSON.parse(localStorage.getItem('payroll_rate_overrides')||'{}'); }catch{ return {}; } }
   function setOverrides(map){ localStorage.setItem('payroll_rate_overrides', JSON.stringify(map||{})); }
 
-  /* Employee directory storage */
-  const EMP_MAP_BY_ID = new Map();   // id -> {id,name,emp_code}
 
-  /* Display formats */
-  const labelForSelect = (e) => e.emp_code ? `${e.name||''}`.trim() : (e.name||`#${e.id}`);
-  const displayEmpHeader = (e) => e.name || '';
+  // ---- EMP DIRECTORY MAP ----
+// label -> { id, name, emp_code }
+const EMP_MAP = new Map();
 
-  /* ==== PAY PERIOD ==== */
+const empLabel = (e) => {
+  // what appears in the dropdown while searching
+  // (you can tweak order if you prefer code first)
+  const parts = [];
+  if (e.name) parts.push(e.name);
+  if (e.emp_code) parts.push(`(${e.emp_code})`);
+  return parts.join(' ').trim() || `#${e.id}`;
+};
+
+// When user selects/changes the text box, resolve to an employee id.
+// After selecting, we set the textbox to show emp_code (as requested)
+// and store the true id in hidden #f_emp_id.
+function resolveEmployeeSelection() {
+  const $emp = $('#f_emp');
+  const $empId = $('#f_emp_id');
+  const typed = ($emp.value || '').trim();
+
+  // 1) exact label match from datalist
+  const meta1 = EMP_MAP.get(typed);
+  if (meta1) {
+    $empId.value = meta1.id;
+    if (meta1.emp_code) $emp.value = meta1.emp_code; // show code in the box
+    return;
+  }
+
+  // 2) user typed an id or a code directly
+  let meta2 = null;
+  for (const v of EMP_MAP.values()) {
+    if (String(v.id) === typed || (v.emp_code && v.emp_code === typed)) { meta2 = v; break; }
+  }
+  if (meta2) {
+    $empId.value = meta2.id;
+    if (meta2.emp_code) $('#f_emp').value = meta2.emp_code;
+    return;
+  }
+
+  // 3) unknown text -> clear selection
+  $empId.value = '';
+}
+  // ==== PAY PERIOD ====
   let PAY_PERIODS = [];
   async function loadPayPeriods(){
     try{
@@ -191,17 +240,23 @@
     if(!id) return;
     const p = PAY_PERIODS.find(x => String(x.id) === String(id));
     if(!p) return;
+
     const start = new Date(p.start_at);
     const end   = new Date(p.end_at);
+
     let days = Math.ceil((end - start) / 86400000);
     if (!Number.isFinite(days) || days < 1) days = 1;
-    const endInclusive = new Date(start); endInclusive.setDate(start.getDate() + days);
+
+    const endInclusive = new Date(start);
+    endInclusive.setDate(start.getDate() + days );
+
     $('#f_start').value = toLocalISODate(start);
     $('#f_end').value   = toLocalISODate(endInclusive);
   }
 
-  /* ==== RATES ==== */
+  // ==== PAY RATES ====
   let PAY_RATES = {};
+
   async function loadRatesForEmployees(empIds){
     const ids = Array.from(empIds||[]).map(x=>String(x));
     if(!ids.length){ PAY_RATES = {}; return; }
@@ -214,11 +269,9 @@
         if(!PAY_RATES[eid]) PAY_RATES[eid] = [];
         PAY_RATES[eid].push(row);
       }
-      for(const k in PAY_RATES){
-        PAY_RATES[k].sort((a,b)=> (a.effective_from||'').localeCompare(b.effective_from||''));
-      }
+      for(const k in PAY_RATES){ PAY_RATES[k].sort((a,b)=> (a.effective_from||'').localeCompare(b.effective_from||'')); }
       return;
-    }catch(e){ /* fallback */ }
+    }catch(e){ /* fallback ต่อไป */ }
 
     PAY_RATES = {};
     for(const eid of ids){
@@ -228,6 +281,7 @@
       }catch(err){ console.warn('loadRates emp failed', eid, err); PAY_RATES[eid] = []; }
     }
   }
+
   function effectiveRateFor(empId, atIso){
     const arr = PAY_RATES[empId]||[];
     if(!arr.length) return null;
@@ -238,88 +292,40 @@
       const eff = new Date(r.effective_from);
       if(!at || eff <= at){ chosen = r; } else { break; }
     }
-    return chosen;
+    return chosen; // {hourly_rate, ot_multiplier, ...}
   }
+
+  // ---- Split daily hours into Reg/OT ----
   function splitDailyHours(net){
     const reg = Math.max(0, Math.min(net, DAILY_OT1_THRESHOLD));
     const ot  = Math.max(0, net - DAILY_OT1_THRESHOLD);
     return { regHours: reg, ot1Hours: ot };
   }
 
-  /* ==== EMPLOYEE (SELECT ONLY) ==== */
-  function populateEmployeeControls(list){
-    const sel = $('#f_emp_select');
-    sel.innerHTML = '<option value="">— Select employee —</option>';
-
-    EMP_MAP_BY_ID.clear();
-
-    for(const e of (list||[])){
-      const entry = { id:String(e.id), name:e.name||'', emp_code:e.emp_code||'' };
-      EMP_MAP_BY_ID.set(entry.id, entry);
-
-      const optSel = document.createElement('option');
-      optSel.value = entry.id;
-      optSel.textContent = labelForSelect(entry);
-      sel.appendChild(optSel);
-    }
-  }
-
-  function setEmployeeSelection(id){
-    const hid = $('#f_emp_id');
-    const sel = $('#f_emp_select');
-    const picked = EMP_MAP_BY_ID.get(String(id)) || null;
-
-    if (picked){
-      hid.value = picked.id;
-      sel.value = picked.id;
-      $('#emp_info').textContent = displayEmpHeader(picked);
-    }else{
-      hid.value = '';
-    }
-  }
-
-  function attachSelectHandlers(){
-    const sel = $('#f_emp_select');
-    sel.addEventListener('change', async () => {
-      const id = sel.value;
-      if (id){
-        setEmployeeSelection(id);
-      }else{
-        $('#f_emp_id').value = '';
-        $('#emp_info').textContent = '';
-      }
-    });
-  }
-
-  async function loadEmployeeDirectory(){
-    try{
-      const list = await apiGET(`${EMP}?status=active`);
-      populateEmployeeControls(list || []);
-    }catch(e){
-      console.warn('No /employees endpoint or fetch failed — fallback', e);
-      populateEmployeeControls([]);
-    }
-  }
-
-  /* ==== CORE ==== */
+  // ==== CORE ====
   async function loadReport(){
-    const s = $('#f_start').value, e = $('#f_end').value;
-    if (!s || !e) { toast?.('Select pay period'); return; }
+  const s = $('#f_start').value, e = $('#f_end').value;
+  if (!s || !e) { toast?.('Select pay period'); return; }
 
-    const empId = ($('#f_emp_id').value || '').trim();
-    if (!empId) { toast?.('Select employee'); return; }
+  // ← use the hidden ID, not whatever text is in the box
+  const empId = ($('#f_emp_id').value || '').trim();
+  if (!empId) { toast?.('Select employee'); return; }
 
-    // fetch employee by id (for header)
-    const emp = await apiGET(`${EMP}/${empId}`);
-    $('#emp_info').textContent = emp ? (emp.name || '') : '';
+  // fetch employee by id
+  let empUrl = `${EMP}/${empId}`;
+  const emp = await apiGET(empUrl);
+  emp_info.innerHTML = `${esc(emp.name)} ${emp.emp_code ? '('+esc(emp.emp_code)+')' : ''}`;
 
-    // build TE query
-    let qs = `${TE}/range?start_at=${encodeURIComponent(toISODate(s))}&end_at=${encodeURIComponent(toISODateEndExclusive(e))}`;
-    qs += `&employee_id=${encodeURIComponent(empId)}`;
-    qs += `&status=active`;
-    console.log(qs)
-    let items = await apiGET(qs);
-    console.log(items)
+  // build the TE query
+  let qs = `${TE}/range?start_at=${encodeURIComponent(toISODate(s))}&end_at=${encodeURIComponent(toISODateEndExclusive(e))}`;
+  qs += `&employee_id=${encodeURIComponent(empId)}`;
+  qs += `&status=active`;
+
+  let items = await apiGET(qs);
+
+  
+    if (empSet) { items = items.filter(x => empSet.has(String(x.employee_id))); }
+
     const closedOnly = $('#f_closed_only').checked;
     if (closedOnly) { items = items.filter(x => x.status === 'closed' && x.clock_in_at && x.clock_out_at); }
 
@@ -327,6 +333,7 @@
     if ($('#f_use_rate_db').checked) { await loadRatesForEmployees(empSetForRates); }
 
     const groups = new Map();
+    
     for (const te of items) {
       const key = `${te.employee_id}|${localDateKey(te.clock_in_at)}`;
       if (!groups.has(key)) groups.set(key, { employee_id: te.employee_id, date: localDateKey(te.clock_in_at), entries: [] });
@@ -346,8 +353,9 @@
       const netHours = Math.max(0, grossHours - unpaidBreakHours);
 
       let rateVal = null, otMult = DEFAULT_OT_MULTIPLIER;
+      let er = null;
       if ($('#f_use_rate_db').checked) {
-        const er = effectiveRateFor(g.employee_id, earliestIn || (g.date ? `${g.date}T00:00:00` : null));
+        er = effectiveRateFor(g.employee_id, earliestIn || (g.date ? `${g.date}T00:00:00` : null));
         if (er && er.hourly_rate != null) { rateVal = parseFloat(er.hourly_rate); }
         if (er && er.ot_multiplier != null) otMult = parseFloat(er.ot_multiplier) || otMult;
       }
@@ -376,12 +384,13 @@
         entries
       });
     }
-
+    
     render(rows);
   }
 
   function render(rows){
     const tb = $('#tblBody'); tb.innerHTML='';
+
     let totalNet=0,totalReg=0,totalOT=0,totalPayReg=0,totalPayOT=0,grand=0;
 
     for(const r of rows.sort((a,b)=> (a.date===b.date? a.employee_id-b.employee_id : a.date.localeCompare(b.date)))){
@@ -392,6 +401,7 @@
       tr.innerHTML = `
         <td><button class="btn" style="padding:4px 8px" onclick="toggleDetails(this)">▶</button></td>
         <td class="nowrap">${esc(r.date)}</td>
+     
         <td>${esc(fmtTime(r.earliestIn))}</td>
         <td>${esc(fmtTime(r.latestOut))}</td>
         <td>
@@ -418,7 +428,8 @@
     $('#sumHours').textContent = totalNet.toFixed(2);
     $('#sumPay').textContent   = currency(grand);
 
-    $('#tblFoot').innerHTML = `
+    const tf = $('#tblFoot');
+    tf.innerHTML = `
       <tr>
         <td colspan="5" class="num">Total</td>
         <td class="num">${totalReg.toFixed(2)}</td>
@@ -440,19 +451,6 @@
     else { dtr.classList.remove('hidden'); btn.textContent = '▼'; }
   }
 
-  function renderBreaks(breaks){
-    const arr = Array.isArray(breaks)? breaks.filter(Boolean): [];
-    if(!arr.length) return '<div class="small muted">— no breaks —</div>';
-    let html = '<div class="small">';
-    for(const b of arr){
-      const d = durHours(b.start_at, b.end_at);
-      const tag = b.is_paid ? 'paid' : 'unpaid';
-      html += `<div>• [${esc(b.break_type||'break')}/${tag}] ${esc(fmtTime(b.start_at))} - ${esc(fmtTime(b.end_at))} (${isNaN(d)?'0.00':d.toFixed(2)} h)</div>`;
-    }
-    html += '</div>';
-    return html;
-  }
-
   function renderDetails(r){
     let html = '';
     for(const te of r.entries.sort((a,b)=> (a.clock_in_at||'').localeCompare(b.clock_in_at||''))){
@@ -472,6 +470,19 @@
     return html || '<span class="muted">ไม่มีรายละเอียด</span>';
   }
 
+  function renderBreaks(breaks){
+    const arr = Array.isArray(breaks)? breaks.filter(Boolean): [];
+    if(!arr.length) return '<div class="small muted">— no breaks —</div>';
+    let html = '<div class="small">';
+    for(const b of arr){
+      const d = durHours(b.start_at, b.end_at);
+      const tag = b.is_paid ? 'paid' : 'unpaid';
+      html += `<div>• [${esc(b.break_type||'break')}/${tag}] ${esc(fmtTime(b.start_at))} - ${esc(fmtTime(b.end_at))} (${isNaN(d)?'0.00':d.toFixed(2)} h)</div>`;
+    }
+    html += '</div>';
+    return html;
+  }
+
   function setRate(empId, v){
     const ov = getOverrides();
     const num = parseFloat(v);
@@ -488,17 +499,18 @@
     for (const tr of trs) {
       const tds = tr.querySelectorAll('td');
       const date = (tds[1]?.textContent || '').trim();
-      const clockIn  = (tds[2]?.textContent || '').trim();
-      const clockOut = (tds[3]?.textContent || '').trim();
-      const breakTxt = (tds[4]?.textContent || '').trim();
-      const regH     = (tds[5]?.textContent || '').trim();
-      const otH      = (tds[6]?.textContent || '').trim();
+      const emp  = ((tds[2]?.textContent || '').trim()).replace(/^#/, '');
+      const clockIn  = (tds[3]?.textContent || '').trim();
+      const clockOut = (tds[4]?.textContent || '').trim();
+      const breakTxt = (tds[5]?.textContent || '').trim();
+      const regH     = (tds[6]?.textContent || '').trim();
+      const otH      = (tds[7]?.textContent || '').trim();
       const rate     = tr.querySelector('input[type="number"]')?.value || '';
-      const otRate   = (tds[8]?.textContent || '').trim();
-      const payReg   = (tds[9]?.textContent || '').trim();
-      const payOT    = (tds[10]?.textContent || '').trim();
-      const payTotal = (tds[11]?.textContent || '').trim();
-      rows.push([date, clockIn, clockOut, breakTxt, regH, otH, rate, otRate, payReg, payOT, payTotal]);
+      const otRate   = (tds[9]?.textContent || '').trim();
+      const payReg   = (tds[10]?.textContent || '').trim();
+      const payOT    = (tds[11]?.textContent || '').trim();
+      const payTotal = (tds[12]?.textContent || '').trim();
+      rows.push([date, emp, clockIn, clockOut, breakTxt, regH, otH, rate, otRate, payReg, payOT, payTotal]);
     }
 
     const header = [
@@ -520,22 +532,74 @@
     URL.revokeObjectURL(url);
   }
 
-  /* ==== INIT ==== */
+  // ==== INIT ====
   (async function init(){
     const today = new Date();
     const ymd = toLocalISODate(today);
     $('#f_start').value = ymd;
     $('#f_end').value = ymd;
 
-    attachSelectHandlers();
+    $('#f_emp').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); loadReport(); }
+    });
 
-    await loadEmployeeDirectory();
+    loadEmployeeDirectory();
     await loadPayPeriods();
     if(PAY_PERIODS.length){ $('#f_period').value = PAY_PERIODS[0].id; onPeriodChange(); }
+    // loadReport();
+
+
+    // When typing, clear the hidden id (so a new choice can be made)
+$('#f_emp').addEventListener('input', () => { $('#f_emp_id').value = ''; });
+
+// Resolve selection when user picks from datalist or leaves the field
+$('#f_emp').addEventListener('change', resolveEmployeeSelection);
+$('#f_emp').addEventListener('blur', resolveEmployeeSelection);
+
+// Allow Enter to confirm & calculate
+$('#f_emp').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    resolveEmployeeSelection();
+    loadReport();
+  }
+});
   })();
 
-  // Expose inline handlers
+  // ==== EMP SUGGESTIONS ====
+  function setEmpSuggestions(arr){
+  const dl = document.querySelector('#emp_suggest');
+  if (!dl) return;
+
+  dl.innerHTML = '';
+  EMP_MAP.clear();
+
+  for (const e of (arr || [])) {
+    const label = empLabel(e);
+    const opt = document.createElement('option');
+    opt.value = label;           // what the user sees/types to select
+    opt.dataset.id = e.id;       // (not required but nice to have)
+    dl.appendChild(opt);
+    EMP_MAP.set(label, { id: String(e.id), name: e.name, emp_code: e.emp_code });
+  }
+}
+
+  async function loadEmployeeDirectory(){
+    try{
+      const list = await apiGET(`${EMP}?status=active`);
+      
+      setEmpSuggestions(list || []);
+    }catch(e){ console.warn('No /employees endpoint or fetch failed — fallback', e); }
+  }
+
+  function addEmpSuggestionsFromEntries(items){
+    const ids = [...new Set((items||[]).map(x => x.employee_id))].map(id => ({id}));
+    setEmpSuggestions(ids);
+  }
+
+  // Expose functions for inline HTML handlers
   Object.assign(window, { loadReport, exportCSV, onPeriodChange, toggleDetails, setRate });
 </script>
+
 </body>
 </html>

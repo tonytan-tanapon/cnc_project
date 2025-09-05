@@ -31,9 +31,6 @@
     .num{text-align:right}
     .chip{display:inline-block;padding:2px 8px;border-radius:999px;background:#eef2ff;border:1px solid #e5e7eb;font-size:12px}
     tr.details{background:#fbfbff}
-    /* Employee control (select only) */
-    .emp-wrap{display:flex;gap:8px;align-items:center}
-    .emp-wrap > select{min-width:260px;flex:1}
   </style>
 </head>
 <body>
@@ -43,15 +40,12 @@
   <!-- Filters -->
   <div class="card">
     <div class="row">
-      <div style="min-width:360px">
+      <div style="min-width:240px">
         <label>Employee</label>
-        <div class="emp-wrap">
-          <!-- Select only -->
-          <select id="f_emp_select">
-            <option value="">— Select employee —</option>
-          </select>
-          <!-- Hidden ID used by calculations -->
+        <div style="display:flex; gap:6px; align-items:center">
+          <input id="f_emp" type="text" list="emp_suggest" placeholder="Name or id or code" autocomplete="off">
           <input id="f_emp_id" type="hidden">
+          <datalist id="emp_suggest"></datalist>
         </div>
       </div>
 
@@ -122,55 +116,105 @@
   </div>
 </div>
 
-<!-- App -->
+<!-- Switch to module to allow imports -->
 <script type="module">
   import { $ as _$, jfetch, toast } from "/static/js/api.js?v=1";
+
+  // Local DOM helper
   const $ = (sel) => document.querySelector(sel);
 
-  /* API base */
-  const API_BASE = ''; // same-origin
+  /* ----------------- API base ----------------- */
+  const API_BASE = ''; // change to '' if same origin
   const api = (p) => `${API_BASE}${p}`;
+
   async function apiGET(path){
-    try{ return await jfetch(api(path)); }
-    catch(e){ console.error('API error', e); toast?.(e?.message || 'API error'); throw e; }
+    try{
+      return await jfetch(api(path));
+    }catch(e){
+      console.error('API error', e);
+      if (typeof toast === 'function') toast(e?.message || 'API error');
+      throw e;
+    }
   }
 
-  /* Endpoints */
+  // ==== CONFIG ==== (endpoints)
   const TE = "/time-entries";        // /time-entries/range
-  const PP = "/pay-periods";
-  const PR = "/pay-rates";
-  const PR_BULK = "/pay-rates/bulk";
-  const EMP = "/employees";
+  const PP = "/pay-periods";         // GET /pay-periods
+  const PR = "/pay-rates";           // GET /pay-rates?employee_id=...
+  const PR_BULK = "/pay-rates/bulk"; // GET /pay-rates/bulk?employee_ids=1,2,3
+  const EMP = "/employees";          // GET /employees, GET /employees/:id
 
-  /* OT rules */
+  // ---- OVERTIME RULE ----
   const DAILY_OT1_THRESHOLD = 8;
   const DEFAULT_OT_MULTIPLIER = 1.5;
 
-  /* Utils */
+  // ==== HELPERS ====
   const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const pad = n => String(n).padStart(2,'0');
-  const sum = arr => arr.reduce((a,b)=>a+b,0);
-  const CCY_SYM = '$';
-  const currency = v => CCY_SYM + ' ' + Number(v||0).toFixed(2);
-  function toLocalISODate(dt){ const y=dt.getFullYear(), m=pad(dt.getMonth()+1), d=pad(dt.getDate()); return `${y}-${m}-${d}`; }
   function toISODate(d){ return d ? d + "T00:00:00" : null; }
-  function addDaysStr(yyyy_mm_dd, days){ const dt = new Date(yyyy_mm_dd+"T00:00:00"); dt.setDate(dt.getDate()+days); return toLocalISODate(dt); }
   function toISODateEndExclusive(d){ return d ? addDaysStr(d,1) + "T00:00:00" : null; }
-  function localDateKey(iso){ const d=new Date(iso); if(isNaN(d)) return ''; return toLocalISODate(d); }
+  function addDaysStr(yyyy_mm_dd, days){ const dt = new Date(yyyy_mm_dd+"T00:00:00"); dt.setDate(dt.getDate()+days); return toLocalISODate(dt); }
+  function toLocalISODate(dt){ const y = dt.getFullYear(), m = pad(dt.getMonth()+1), d = pad(dt.getDate()); return `${y}-${m}-${d}`; }
+  function localDateKey(iso){ const d = new Date(iso); if(isNaN(d)) return ''; return toLocalISODate(d); }
   function fmtTime(iso){ if(!iso) return ''; const d=new Date(iso); if(isNaN(d)) return ''; return `${pad(d.getHours())}:${pad(d.getMinutes())}`; }
   function durHours(isoStart, isoEnd){ if(!isoStart || !isoEnd) return 0; const s=new Date(isoStart), e=new Date(isoEnd); if(isNaN(s)||isNaN(e)||e<=s) return 0; return (e-s)/3600000; }
+  function sum(arr){ return arr.reduce((a,b)=>a+b,0); }
+  const CCY_SYM = '$';
+  function currency(v){ return CCY_SYM + ' ' + Number(v||0).toFixed(2); }
 
   function getOverrides(){ try{ return JSON.parse(localStorage.getItem('payroll_rate_overrides')||'{}'); }catch{ return {}; } }
   function setOverrides(map){ localStorage.setItem('payroll_rate_overrides', JSON.stringify(map||{})); }
+  function openDatalist(inp){
+  // Prefer native picker if available
+  if (typeof inp.showPicker === 'function') {
+    try { inp.showPicker(); } catch {}
+    setTimeout(() => { try { inp.showPicker(); } catch {} }, 0);
+    return;
+  }
+  // Fallback: clear and nudge with ArrowDown so ALL options show
+  const ev = new KeyboardEvent('keydown', {key:'ArrowDown', bubbles:true});
+  inp.dispatchEvent(ev);
+  setTimeout(() => inp.dispatchEvent(ev), 0);
+}
+  // ---- EMP DIRECTORY MAP ----
+  // label -> { id, name, emp_code }
+  const EMP_MAP = new Map();
 
-  /* Employee directory storage */
-  const EMP_MAP_BY_ID = new Map();   // id -> {id,name,emp_code}
+  const empLabel = (e) => {
+    const parts = [];
+    if (e.name) parts.push(e.name);
+    // if (e.emp_code) parts.push(`(${e.emp_code})`);
+    return parts.join(' ').trim() ;
+  };
 
-  /* Display formats */
-  const labelForSelect = (e) => e.emp_code ? `${e.name||''}`.trim() : (e.name||`#${e.id}`);
-  const displayEmpHeader = (e) => e.name || '';
+  function resolveEmployeeSelection() {
+    const $emp = $('#f_emp');
+    const $empId = $('#f_emp_id');
+    const typed = ($emp.value || '').trim();
 
-  /* ==== PAY PERIOD ==== */
+    // exact label match
+    const meta1 = EMP_MAP.get(typed);
+    console.log(meta1)
+    if (meta1) {
+      $empId.value = meta1.id;
+      if (meta1.emp_code) $emp.value = meta1.name; // show code
+      return;
+    }
+    // user typed id or code
+    let meta2 = null;
+    for (const v of EMP_MAP.values()) {
+      if (String(v.id) === typed || (v.emp_code && v.emp_code === typed)) { meta2 = v; break; }
+    }
+    if (meta2) {
+      $empId.value = meta2.id;
+      if (meta2.emp_code) $emp.value = meta2.emp_code;
+      return;
+    }
+    // unknown
+    $empId.value = '';
+  }
+
+  // ==== PAY PERIOD ====
   let PAY_PERIODS = [];
   async function loadPayPeriods(){
     try{
@@ -191,17 +235,23 @@
     if(!id) return;
     const p = PAY_PERIODS.find(x => String(x.id) === String(id));
     if(!p) return;
+
     const start = new Date(p.start_at);
     const end   = new Date(p.end_at);
+
     let days = Math.ceil((end - start) / 86400000);
     if (!Number.isFinite(days) || days < 1) days = 1;
-    const endInclusive = new Date(start); endInclusive.setDate(start.getDate() + days);
+
+    const endInclusive = new Date(start);
+    endInclusive.setDate(start.getDate() + days );
+
     $('#f_start').value = toLocalISODate(start);
     $('#f_end').value   = toLocalISODate(endInclusive);
   }
 
-  /* ==== RATES ==== */
+  // ==== PAY RATES ====
   let PAY_RATES = {};
+
   async function loadRatesForEmployees(empIds){
     const ids = Array.from(empIds||[]).map(x=>String(x));
     if(!ids.length){ PAY_RATES = {}; return; }
@@ -228,6 +278,7 @@
       }catch(err){ console.warn('loadRates emp failed', eid, err); PAY_RATES[eid] = []; }
     }
   }
+
   function effectiveRateFor(empId, atIso){
     const arr = PAY_RATES[empId]||[];
     if(!arr.length) return null;
@@ -240,68 +291,14 @@
     }
     return chosen;
   }
+
   function splitDailyHours(net){
     const reg = Math.max(0, Math.min(net, DAILY_OT1_THRESHOLD));
     const ot  = Math.max(0, net - DAILY_OT1_THRESHOLD);
     return { regHours: reg, ot1Hours: ot };
   }
 
-  /* ==== EMPLOYEE (SELECT ONLY) ==== */
-  function populateEmployeeControls(list){
-    const sel = $('#f_emp_select');
-    sel.innerHTML = '<option value="">— Select employee —</option>';
-
-    EMP_MAP_BY_ID.clear();
-
-    for(const e of (list||[])){
-      const entry = { id:String(e.id), name:e.name||'', emp_code:e.emp_code||'' };
-      EMP_MAP_BY_ID.set(entry.id, entry);
-
-      const optSel = document.createElement('option');
-      optSel.value = entry.id;
-      optSel.textContent = labelForSelect(entry);
-      sel.appendChild(optSel);
-    }
-  }
-
-  function setEmployeeSelection(id){
-    const hid = $('#f_emp_id');
-    const sel = $('#f_emp_select');
-    const picked = EMP_MAP_BY_ID.get(String(id)) || null;
-
-    if (picked){
-      hid.value = picked.id;
-      sel.value = picked.id;
-      $('#emp_info').textContent = displayEmpHeader(picked);
-    }else{
-      hid.value = '';
-    }
-  }
-
-  function attachSelectHandlers(){
-    const sel = $('#f_emp_select');
-    sel.addEventListener('change', async () => {
-      const id = sel.value;
-      if (id){
-        setEmployeeSelection(id);
-      }else{
-        $('#f_emp_id').value = '';
-        $('#emp_info').textContent = '';
-      }
-    });
-  }
-
-  async function loadEmployeeDirectory(){
-    try{
-      const list = await apiGET(`${EMP}?status=active`);
-      populateEmployeeControls(list || []);
-    }catch(e){
-      console.warn('No /employees endpoint or fetch failed — fallback', e);
-      populateEmployeeControls([]);
-    }
-  }
-
-  /* ==== CORE ==== */
+  // ==== CORE ====
   async function loadReport(){
     const s = $('#f_start').value, e = $('#f_end').value;
     if (!s || !e) { toast?.('Select pay period'); return; }
@@ -309,17 +306,17 @@
     const empId = ($('#f_emp_id').value || '').trim();
     if (!empId) { toast?.('Select employee'); return; }
 
-    // fetch employee by id (for header)
+    // fetch employee by id
     const emp = await apiGET(`${EMP}/${empId}`);
-    $('#emp_info').textContent = emp ? (emp.name || '') : '';
-
+    // emp_info.innerHTML = `${esc(emp.name)} ${emp.emp_code ? '('+esc(emp.emp_code)+')' : ''}`;
+    emp_info.innerHTML = esc(emp.name||'');
     // build TE query
     let qs = `${TE}/range?start_at=${encodeURIComponent(toISODate(s))}&end_at=${encodeURIComponent(toISODateEndExclusive(e))}`;
     qs += `&employee_id=${encodeURIComponent(empId)}`;
     qs += `&status=active`;
-    console.log(qs)
+
     let items = await apiGET(qs);
-    console.log(items)
+
     const closedOnly = $('#f_closed_only').checked;
     if (closedOnly) { items = items.filter(x => x.status === 'closed' && x.clock_in_at && x.clock_out_at); }
 
@@ -346,8 +343,9 @@
       const netHours = Math.max(0, grossHours - unpaidBreakHours);
 
       let rateVal = null, otMult = DEFAULT_OT_MULTIPLIER;
+      let er = null;
       if ($('#f_use_rate_db').checked) {
-        const er = effectiveRateFor(g.employee_id, earliestIn || (g.date ? `${g.date}T00:00:00` : null));
+        er = effectiveRateFor(g.employee_id, earliestIn || (g.date ? `${g.date}T00:00:00` : null));
         if (er && er.hourly_rate != null) { rateVal = parseFloat(er.hourly_rate); }
         if (er && er.ot_multiplier != null) otMult = parseFloat(er.ot_multiplier) || otMult;
       }
@@ -382,6 +380,7 @@
 
   function render(rows){
     const tb = $('#tblBody'); tb.innerHTML='';
+
     let totalNet=0,totalReg=0,totalOT=0,totalPayReg=0,totalPayOT=0,grand=0;
 
     for(const r of rows.sort((a,b)=> (a.date===b.date? a.employee_id-b.employee_id : a.date.localeCompare(b.date)))){
@@ -418,7 +417,8 @@
     $('#sumHours').textContent = totalNet.toFixed(2);
     $('#sumPay').textContent   = currency(grand);
 
-    $('#tblFoot').innerHTML = `
+    const tf = $('#tblFoot');
+    tf.innerHTML = `
       <tr>
         <td colspan="5" class="num">Total</td>
         <td class="num">${totalReg.toFixed(2)}</td>
@@ -440,19 +440,6 @@
     else { dtr.classList.remove('hidden'); btn.textContent = '▼'; }
   }
 
-  function renderBreaks(breaks){
-    const arr = Array.isArray(breaks)? breaks.filter(Boolean): [];
-    if(!arr.length) return '<div class="small muted">— no breaks —</div>';
-    let html = '<div class="small">';
-    for(const b of arr){
-      const d = durHours(b.start_at, b.end_at);
-      const tag = b.is_paid ? 'paid' : 'unpaid';
-      html += `<div>• [${esc(b.break_type||'break')}/${tag}] ${esc(fmtTime(b.start_at))} - ${esc(fmtTime(b.end_at))} (${isNaN(d)?'0.00':d.toFixed(2)} h)</div>`;
-    }
-    html += '</div>';
-    return html;
-  }
-
   function renderDetails(r){
     let html = '';
     for(const te of r.entries.sort((a,b)=> (a.clock_in_at||'').localeCompare(b.clock_in_at||''))){
@@ -470,6 +457,19 @@
          + `Rate ${currency(r.rate)}, OT Rate ${currency(r.otRate)} · `
          + `Pay ${currency(r.payTot)}</div>`;
     return html || '<span class="muted">ไม่มีรายละเอียด</span>';
+  }
+
+  function renderBreaks(breaks){
+    const arr = Array.isArray(breaks)? breaks.filter(Boolean): [];
+    if(!arr.length) return '<div class="small muted">— no breaks —</div>';
+    let html = '<div class="small">';
+    for(const b of arr){
+      const d = durHours(b.start_at, b.end_at);
+      const tag = b.is_paid ? 'paid' : 'unpaid';
+      html += `<div>• [${esc(b.break_type||'break')}/${tag}] ${esc(fmtTime(b.start_at))} - ${esc(fmtTime(b.end_at))} (${isNaN(d)?'0.00':d.toFixed(2)} h)</div>`;
+    }
+    html += '</div>';
+    return html;
   }
 
   function setRate(empId, v){
@@ -520,22 +520,109 @@
     URL.revokeObjectURL(url);
   }
 
-  /* ==== INIT ==== */
+  // ==== EMP SUGGESTIONS ====
+  function setEmpSuggestions(arr){
+    const dl = document.querySelector('#emp_suggest');
+    if (!dl) return;
+
+    dl.innerHTML = '';
+    EMP_MAP.clear();
+
+    for (const e of (arr || [])) {
+      const label = empLabel(e);
+      const opt = document.createElement('option');
+      opt.value = label;     // what the user sees/types to select
+      opt.dataset.id = e.id; // optional
+      dl.appendChild(opt);
+      EMP_MAP.set(label, { id: String(e.id), name: e.name, emp_code: e.emp_code });
+    }
+  }
+
+  async function loadEmployeeDirectory(){
+    try{
+      const list = await apiGET(`${EMP}?status=active`);
+      setEmpSuggestions(list || []);
+    }catch(e){ console.warn('No /employees endpoint or fetch failed — fallback', e); }
+  }
+
+  function addEmpSuggestionsFromEntries(items){
+    const ids = [...new Set((items||[]).map(x => x.employee_id))].map(id => ({id}));
+    setEmpSuggestions(ids);
+  }
+
+  // ==== INIT ====
   (async function init(){
     const today = new Date();
     const ymd = toLocalISODate(today);
     $('#f_start').value = ymd;
     $('#f_end').value = ymd;
 
-    attachSelectHandlers();
+    // key handlers
+    $('#f_emp').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); resolveEmployeeSelection(); loadReport(); }
+    });
 
+    let _listOpen = false;
+
+const empInput = $('#f_emp');
+
+empInput.addEventListener('pointerdown', (e) => {
+  if (document.activeElement === empInput) {
+    if (_listOpen) {
+      // prevent the browser from reopening it
+      e.preventDefault();
+      empInput.blur();        // close
+      _listOpen = false;
+      return;                 // stop here
+    }
+  }
+  // if not open, let it open normally
+  _listOpen = true;
+});
+
+empInput.addEventListener('blur', () => {
+  _listOpen = false;
+});
+
+    // typing: if it matches a known label, resolve; else clear id
+    $('#f_emp').addEventListener('input', () => {
+      const val = ($('#f_emp').value || '');
+      if (EMP_MAP.has(val.trim())) {
+        resolveEmployeeSelection();
+      } else {
+        $('#f_emp_id').value = '';
+      }
+    });
+
+    // resolve on change/blur
+    $('#f_emp').addEventListener('change', resolveEmployeeSelection);
+    $('#f_emp').addEventListener('blur', (e) => {
+      // if nothing selected, restore the last shown value
+      if (!$('#f_emp_id').value && _empPrevText) {
+        e.target.value = _empPrevText;
+      }
+    });
+
+    // show all options on focus by inserting a single space (Chrome shows all)
+    let _empPrevText = '';
+    $('#f_emp').addEventListener('focus', (e) => {
+      _empPrevText = e.target.value;      // remember what was shown
+      $('#f_emp_id').value = '';          // clear selected id so you can re-select
+      e.target.value = '';                // IMPORTANT: clear so list isn't filtered to 1 item
+      // open the list with all options
+      openDatalist(e.target);
+    });
+
+
+    // load data
     await loadEmployeeDirectory();
     await loadPayPeriods();
     if(PAY_PERIODS.length){ $('#f_period').value = PAY_PERIODS[0].id; onPeriodChange(); }
   })();
 
-  // Expose inline handlers
+  // Expose for inline handlers
   Object.assign(window, { loadReport, exportCSV, onPeriodChange, toggleDetails, setRate });
 </script>
+
 </body>
 </html>
