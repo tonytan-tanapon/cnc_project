@@ -104,6 +104,7 @@ class RawBatch(Base):
     id = Column(Integer, primary_key=True)
     material_id = Column(Integer, ForeignKey("raw_materials.id"), nullable=False)
     supplier_id = Column(Integer, ForeignKey("suppliers.id"), nullable=True)
+    material_po_line_id = Column(Integer, ForeignKey("material_po_lines.id"), nullable=True)  # ✅
 
     batch_no = Column(String, index=True, nullable=False)            # หมายเลขล็อตจาก supplier
     supplier_batch_no = Column(String, nullable=True)
@@ -972,3 +973,56 @@ class CustomerInvoiceLine(Base):
     invoice = relationship("CustomerInvoice", back_populates="lines")
     po_line = relationship("POLine")
     shipment_item = relationship("CustomerShipmentItem")
+
+
+class MaterialPO(Base):
+    __tablename__ = "material_pos"
+    id = Column(Integer, primary_key=True)
+    po_number = Column(String, unique=True, index=True, nullable=False)
+    supplier_id = Column(Integer, ForeignKey("suppliers.id"), nullable=False)
+    order_date = Column(Date, default=date.today, nullable=False)
+    status = Column(String, default="open")  # open/confirmed/received/closed
+    notes = Column(Text)
+
+    supplier = relationship("Supplier")
+    lines = relationship("MaterialPOLine", back_populates="po", cascade="all, delete-orphan")
+
+class MaterialPOLine(Base):
+    __tablename__ = "material_po_lines"
+    id = Column(Integer, primary_key=True)
+    po_id = Column(Integer, ForeignKey("material_pos.id"), nullable=False, index=True)
+    material_id = Column(Integer, ForeignKey("raw_materials.id"), nullable=False)
+    qty_ordered = Column(Numeric(18,3), nullable=False)
+    unit_price = Column(Numeric(18,2), nullable=True)
+    due_date = Column(Date, nullable=True)
+
+    po = relationship("MaterialPO", back_populates="lines")
+    material = relationship("RawMaterial")
+
+
+class CustomerReturn(Base):
+    __tablename__ = "customer_returns"
+    id = Column(Integer, primary_key=True)
+    po_id = Column(Integer, ForeignKey("purchase_orders.id"), nullable=False, index=True)
+    rma_no = Column(String, unique=True, index=True, nullable=True)   # ถ้ามีเลข RMA
+    returned_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    reason = Column(Text)
+    status = Column(String, default="received")  # received/inspected/closed
+    po = relationship("PO")
+
+class CustomerReturnItem(Base):
+    __tablename__ = "customer_return_items"
+    id = Column(Integer, primary_key=True)
+    return_id = Column(Integer, ForeignKey("customer_returns.id"), nullable=False, index=True)
+    shipment_item_id = Column(Integer, ForeignKey("customer_shipment_items.id"), nullable=True, index=True)
+    po_line_id = Column(Integer, ForeignKey("po_lines.id"), nullable=False, index=True)
+    lot_id = Column(Integer, ForeignKey("production_lots.id"), nullable=True, index=True)
+
+    qty = Column(Numeric(18,3), nullable=False)
+    reason_code = Column(String, nullable=True)   # DEFECT, WRONG_PART, DAMAGE, ...
+    disposition = Column(String, nullable=True)   # REWORK, SCRAP, RETURN_TO_STOCK, CREDIT
+
+    ret = relationship("CustomerReturn", backref="items")
+    shipment_item = relationship("CustomerShipmentItem")
+    po_line = relationship("POLine")
+    lot = relationship("ProductionLot")
