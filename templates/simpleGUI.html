@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Simple Table GUI — Vanilla JS</title>
+  <style>
+    :root{
+      --bg:#ffffff; --text:#0f172a; --muted:#64748b; --line:#e2e8f0;
+      --accent:#2563eb; --accent-2:#f1f5f9; --shadow:0 6px 24px rgba(2,6,23,.06);
+    }
+    *{ box-sizing:border-box }
+    body{ margin:0; background:var(--bg); color:var(--text); font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Arial }
+    .wrap{ max-width:1100px; margin:32px auto; padding:0 16px }
+    h1{ font-size:clamp(20px, 3vw, 28px); margin:0 0 12px }
+    .sub{ color:var(--muted); margin-bottom:20px }
+
+    .controls{ display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin:14px 0 16px }
+    .controls input[type="search"]{ flex:1 1 260px; padding:10px 12px; border:1px solid var(--line); border-radius:10px }
+    .controls .sel, .controls button{ padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:#fff }
+    .controls button{ cursor:pointer }
+    .controls button:hover{ background:var(--accent-2) }
+
+    .card{ background:#fff; border:1px solid var(--line); border-radius:16px; box-shadow:var(--shadow); overflow:hidden }
+    .table-wrap{ overflow:auto }
+
+    table{ width:100%; border-collapse:collapse; font-size:14px }
+    thead th{ position:sticky; top:0; background:#f8fafc; color:#0f172a; text-align:left; border-bottom:1px solid var(--line); padding:10px 12px; white-space:nowrap; user-select:none }
+    thead th.sortable{ cursor:pointer }
+    thead th .arrow{ opacity:.65; font-size:12px; margin-left:6px }
+    tbody td{ border-top:1px solid var(--line); padding:10px 12px; vertical-align:top }
+    tbody tr:nth-child(odd){ background:#fcfdff }
+    tbody tr:hover{ background:#eef2ff }
+    tbody tr[role="row"]{ cursor:default }
+
+    .empty{ padding:20px; color:var(--muted) }
+
+    .pager{ display:flex; gap:8px; align-items:center; justify-content:flex-end; padding:10px; border-top:1px solid var(--line); background:#fff }
+    .pager button{ padding:8px 10px; border:1px solid var(--line); background:#fff; border-radius:10px; cursor:pointer }
+    .pager button[disabled]{ opacity:.5; cursor:not-allowed }
+    .pager .info{ color:var(--muted) }
+
+    .pill{ display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; border:1px solid var(--line) }
+    .pill.active{ background:#ecfeff; border-color:#06b6d4 }
+    .pill.inactive{ background:#fff7ed; border-color:#f59e0b }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Simple Table GUI</h1>
+    <div class="sub">Lightweight grid with search, sort, and pagination. No frameworks.</div>
+
+    <div class="controls">
+      <input id="q" type="search" placeholder="Search (ID, Code, Name, Dept, Position, Status)" />
+      <select id="pageSize" class="sel" title="Rows per page">
+        <option value="10">10 / page</option>
+        <option value="15" selected>15 / page</option>
+        <option value="25">25 / page</option>
+        <option value="50">50 / page</option>
+      </select>
+      <button id="resetBtn" title="Reset filters">Reset</button>
+    </div>
+
+    <div class="card">
+      <div class="table-wrap">
+        <table id="grid" aria-label="Sample data table">
+          <thead>
+            <tr>
+              <th class="sortable" data-key="id">ID <span class="arrow">↕</span></th>
+              <th class="sortable" data-key="code">Code <span class="arrow">↕</span></th>
+              <th class="sortable" data-key="name">Name <span class="arrow">↕</span></th>
+              <th class="sortable" data-key="department">Department <span class="arrow">↕</span></th>
+              <th class="sortable" data-key="position">Position <span class="arrow">↕</span></th>
+              <th class="sortable" data-key="status">Status <span class="arrow">↕</span></th>
+              <th class="sortable" data-key="hourly">Hourly ($) <span class="arrow">↕</span></th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+      <div id="empty" class="empty" hidden>No matching records.</div>
+      <div class="pager">
+        <button id="first">« First</button>
+        <button id="prev">‹ Prev</button>
+        <span class="info" id="pageInfo">Page 1 of 1 (0 items)</span>
+        <button id="next">Next ›</button>
+        <button id="last">Last »</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ======== Sample Data (edit freely) ========
+    const DATA = [
+      { id:1001, code:'EMP-001', name:'Alice Nguyen', department:'Production', position:'CNC Operator', status:'active',   hourly:24.50 },
+      { id:1002, code:'EMP-002', name:'Bruno Silva',   department:'QC',         position:'Inspector',     status:'active',   hourly:26.00 },
+      { id:1003, code:'EMP-003', name:'Chloe Park',    department:'Production', position:'Machinist',     status:'inactive', hourly:23.25 },
+      { id:1004, code:'EMP-004', name:'Diego Ramos',   department:'Logistics',  position:'Forklift Op.',  status:'active',   hourly:21.00 },
+      { id:1005, code:'EMP-005', name:'Emma Johnson',  department:'Admin',      position:'Coordinator',   status:'active',   hourly:27.75 },
+      { id:1006, code:'EMP-006', name:'Fahad Khan',    department:'Production', position:'Tool Setter',   status:'active',   hourly:24.00 },
+      { id:1007, code:'EMP-007', name:'Grace Liu',     department:'R&D',        position:'Engineer',      status:'active',   hourly:39.00 },
+      { id:1008, code:'EMP-008', name:'Hiro Tanaka',   department:'Maintenance',position:'Tech',          status:'active',   hourly:28.50 },
+      { id:1009, code:'EMP-009', name:'Isla Murphy',   department:'QC',         position:'Analyst',       status:'inactive', hourly:25.00 },
+      { id:1010, code:'EMP-010', name:'Jack Carter',   department:'Production', position:'Assembler',     status:'active',   hourly:20.50 },
+      { id:1011, code:'EMP-011', name:'Kira Patel',    department:'Admin',      position:'HR Generalist', status:'active',   hourly:30.00 },
+      { id:1012, code:'EMP-012', name:'Leo Martin',    department:'Logistics',  position:'Driver',        status:'inactive', hourly:22.75 },
+      { id:1013, code:'EMP-013', name:'Mina Cho',      department:'R&D',        position:'Designer',      status:'active',   hourly:34.00 },
+      { id:1014, code:'EMP-014', name:'Noah Brown',    department:'Production', position:'CNC Operator',  status:'active',   hourly:24.90 },
+      { id:1015, code:'EMP-015', name:'Olivia Chen',   department:'QC',         position:'Inspector',     status:'active',   hourly:26.10 },
+      { id:1016, code:'EMP-016', name:'Pavel Ivanov',  department:'Production', position:'Machinist',     status:'active',   hourly:23.95 },
+      { id:1017, code:'EMP-017', name:'Quinn Davis',   department:'Maintenance',position:'Tech',          status:'inactive', hourly:27.25 },
+      { id:1018, code:'EMP-018', name:'Rita Gomez',    department:'Admin',      position:'Accountant',    status:'active',   hourly:33.50 },
+      { id:1019, code:'EMP-019', name:'Samir Ali',     department:'Logistics',  position:'Warehouse',     status:'active',   hourly:21.75 },
+      { id:1020, code:'EMP-020', name:'Tara Singh',    department:'Production', position:'Assembler',     status:'active',   hourly:20.75 },
+      { id:1021, code:'EMP-021', name:'Uma Kapoor',    department:'QC',         position:'Analyst',       status:'active',   hourly:25.20 },
+      { id:1022, code:'EMP-022', name:'Victor Lee',    department:'R&D',        position:'Engineer',      status:'active',   hourly:40.00 },
+      { id:1023, code:'EMP-023', name:'Wendy Zhou',    department:'Admin',      position:'Receptionist',  status:'inactive', hourly:19.75 },
+      { id:1024, code:'EMP-024', name:'Xavier King',   department:'Production', position:'CNC Operator',  status:'active',   hourly:24.10 },
+      { id:1025, code:'EMP-025', name:'Yara Haddad',   department:'QC',         position:'Inspector',     status:'active',   hourly:26.30 },
+      { id:1026, code:'EMP-026', name:'Zane Brooks',   department:'Production', position:'Tool Setter',   status:'active',   hourly:24.40 },
+    ];
+
+    // ======== Grid State ========
+    let state = { sortKey:'id', sortDir:'asc', page:1, pageSize:15, q:'' };
+
+    const $ = (sel, root=document) => root.querySelector(sel);
+    const $$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
+    const elRows = $('#rows');
+    const elEmpty = $('#empty');
+    const elPageInfo = $('#pageInfo');
+
+    // ======== Utilities ========
+    const byKey = (obj, key) => obj[key];
+    const fmtMoney = (n)=> Number(n).toFixed(2);
+
+    function filterData(data){
+      const q = state.q.trim().toLowerCase();
+      if(!q) return data;
+      return data.filter(r => {
+        return [r.id, r.code, r.name, r.department, r.position, r.status]
+          .join(' ').toLowerCase().includes(q);
+      });
+    }
+
+    function sortData(data){
+      const {sortKey:k, sortDir:d} = state;
+      const mul = d === 'asc' ? 1 : -1;
+      return [...data].sort((a,b)=>{
+        const va = byKey(a,k), vb = byKey(b,k);
+        if(typeof va === 'number' && typeof vb === 'number') return (va - vb) * mul;
+        return String(va).localeCompare(String(vb)) * mul;
+      });
+    }
+
+    function paginate(data){
+      const {page, pageSize} = state;
+      const totalPages = Math.max(1, Math.ceil(data.length / pageSize));
+      const p = Math.min(Math.max(1, page), totalPages);
+      const start = (p-1)*pageSize;
+      const items = data.slice(start, start+pageSize);
+      return {items, totalPages, totalItems:data.length, page:p};
+    }
+
+    function render(){
+      let view = filterData(DATA);
+      view = sortData(view);
+      const {items, totalPages, totalItems, page} = paginate(view);
+      state.page = page; // clamp
+
+      // Body rows
+      elRows.innerHTML = items.map(r => `
+        <tr role="row" data-id="${r.id}">
+          <td>${r.id}</td>
+          <td>${r.code}</td>
+          <td>${r.name}</td>
+          <td>${r.department}</td>
+          <td>${r.position}</td>
+          <td>${pill(r.status)}</td>
+          <td style="text-align:right">${fmtMoney(r.hourly)}</td>
+        </tr>
+      `).join('');
+
+      // Empty state
+      elEmpty.hidden = totalItems !== 0;
+
+      // Pager & info
+      elPageInfo.textContent = `Page ${page} of ${totalPages} (${totalItems} item${totalItems===1?'':'s'})`;
+      $('#first').disabled = $('#prev').disabled = (page<=1);
+      $('#next').disabled = $('#last').disabled = (page>=totalPages);
+
+      // Sort indicators
+      $$('.sortable').forEach(th => th.setAttribute('aria-sort','none'));
+      const activeTh = $(`th[data-key="${state.sortKey}"]`);
+      if(activeTh) activeTh.setAttribute('aria-sort', state.sortDir==='asc'?'ascending':'descending');
+
+      // Row click (demo)
+      $$('#rows tr').forEach(tr => tr.addEventListener('click', () => {
+        const id = tr.getAttribute('data-id');
+        alert(`Row clicked: ID ${id}`);
+      }));
+    }
+
+    function pill(status){
+      const cls = status==='active' ? 'active' : 'inactive';
+      return `<span class="pill ${cls}">${status}</span>`;
+    }
+
+    // ======== Events ========
+    $('#q').addEventListener('input', (e)=>{ state.q = e.target.value; state.page = 1; render(); });
+    $('#pageSize').addEventListener('change', (e)=>{ state.pageSize = parseInt(e.target.value,10); state.page = 1; render(); });
+    $('#resetBtn').addEventListener('click', ()=>{ state = { sortKey:'id', sortDir:'asc', page:1, pageSize:15, q:'' }; $('#q').value=''; $('#pageSize').value='15'; render(); });
+
+    $$('.sortable').forEach(th => th.addEventListener('click', ()=>{
+      const key = th.getAttribute('data-key');
+      if(state.sortKey === key){ state.sortDir = state.sortDir==='asc' ? 'desc' : 'asc'; }
+      else { state.sortKey = key; state.sortDir = 'asc'; }
+      render();
+    }));
+
+    $('#first').addEventListener('click', ()=>{ state.page=1; render(); });
+    $('#prev').addEventListener('click', ()=>{ state.page=Math.max(1, state.page-1); render(); });
+    $('#next').addEventListener('click', ()=>{ state.page=state.page+1; render(); });
+    $('#last').addEventListener('click', ()=>{
+      const total = Math.max(1, Math.ceil(filterData(DATA).length / state.pageSize));
+      state.page = total; render();
+    });
+
+    // ======== Init ========
+    render();
+  </script>
+</body>
+</html>
