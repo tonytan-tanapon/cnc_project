@@ -2,6 +2,9 @@ from sqlalchemy import (
     Column, Integer, String, Text, Date, DateTime, ForeignKey, UniqueConstraint, Index,
     Numeric, Boolean, CheckConstraint
 )
+from sqlalchemy.sql import func
+from sqlalchemy.orm import validates, object_session
+from sqlalchemy import ForeignKeyConstraint
 from sqlalchemy.orm import relationship
 from datetime import datetime, date, timezone
 from database import Base
@@ -158,6 +161,7 @@ class Part(Base):
 
 class PartRevision(Base):
     __tablename__ = "part_revisions"
+
     id = Column(Integer, primary_key=True)
     part_id = Column(Integer, ForeignKey("parts.id"), nullable=False)
     rev = Column(String, nullable=False)
@@ -167,23 +171,31 @@ class PartRevision(Base):
 
     part = relationship("Part", back_populates="revisions", foreign_keys=[part_id])
 
-    __table_args__ = (UniqueConstraint("part_id", "rev", name="uq_part_rev"),)
+    __table_args__ = (
+        # ป้องกัน rev ซ้ำใน part เดียวกัน
+        UniqueConstraint("part_id", "rev", name="uq_part_rev"),
+        # ต้องมี (part_id, id) เป็น unique เพื่อรองรับ composite FK
+        UniqueConstraint("part_id", "id", name="uq_part_id_id"),
+    )
 
     # --- FAIR quick link/cache ---
-    fair_record_id = Column(Integer, ForeignKey("inspection_records.id", ondelete="SET NULL"), nullable=True, unique=True)
+    fair_record_id = Column(
+        Integer,
+        ForeignKey("inspection_records.id", ondelete="SET NULL"),
+        nullable=True,
+        unique=True
+    )
     fair_record = relationship("InspectionRecord", foreign_keys=[fair_record_id])
 
     fair_no_cache = Column(String, nullable=True)
     fair_date_cache = Column(Date, nullable=True)
 
-    # NEW: inverse side for ProductionLot.part_revision
     production_lots = relationship(
         "ProductionLot",
         back_populates="part_revision",
         foreign_keys="ProductionLot.part_revision_id",
     )
 
-    # NEW: inverse side for InspectionRecord.part_revision
     inspection_records = relationship(
         "InspectionRecord",
         back_populates="part_revision",
@@ -192,6 +204,7 @@ class PartRevision(Base):
 
     def __repr__(self):
         return f"<PartRevision(part_id={self.part_id}, rev={self.rev})>"
+
 
 
 # =========================================
@@ -211,8 +224,9 @@ class ProductionLot(Base):
     po_id = Column(Integer, ForeignKey("purchase_orders.id"), nullable=True, index=True)
 
     planned_qty = Column(Integer, nullable=False, default=0)
-    started_at = Column(DateTime, nullable=True)
-    finished_at = Column(DateTime, nullable=True)
+    started_at  = Column(DateTime(timezone=True), nullable=True)
+    finished_at = Column(DateTime(timezone=True), nullable=True)
+
     status = Column(String, nullable=False, default="in_process")
 
     # CHANGED: add foreign_keys + back_populates
@@ -264,7 +278,7 @@ class ShopTraveler(Base):
     id = Column(Integer, primary_key=True)
     lot_id = Column(Integer, ForeignKey("production_lots.id"), nullable=False)
 
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     created_by_id = Column(Integer, ForeignKey("employees.id"), nullable=True)
     status = Column(String, nullable=False, default="open")
     notes = Column(Text, nullable=True)
@@ -296,8 +310,8 @@ class ShopTravelerStep(Base):
     station = Column(String, nullable=True)
 
     status = Column(String, nullable=False, default="pending")
-    started_at = Column(DateTime, nullable=True)
-    finished_at = Column(DateTime, nullable=True)
+    started_at  = Column(DateTime(timezone=True), nullable=True)
+    finished_at = Column(DateTime(timezone=True), nullable=True)
 
     operator_id = Column(Integer, ForeignKey("employees.id"), nullable=True)
     machine_id = Column(Integer, ForeignKey("machines.id"), nullable=True)
@@ -336,7 +350,8 @@ class SubconOrder(Base):
     supplier_id = Column(Integer, ForeignKey("suppliers.id"), nullable=False)
     ref_no = Column(String, nullable=True)
     status = Column(String, nullable=False, default="open")  # open/confirmed/shipped/received/closed/cancelled
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
     due_date = Column(Date, nullable=True)
     notes = Column(Text, nullable=True)
 
@@ -377,7 +392,8 @@ class SubconShipment(Base):
     id = Column(Integer, primary_key=True)
     order_id = Column(Integer, ForeignKey("subcon_orders.id"), nullable=False)
 
-    shipped_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    shipped_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
     shipped_by = Column(String, nullable=True)
     package_no = Column(String, nullable=True)
     carrier = Column(String, nullable=True)
@@ -413,7 +429,7 @@ class SubconReceipt(Base):
     id = Column(Integer, primary_key=True)
     order_id = Column(Integer, ForeignKey("subcon_orders.id"), nullable=False)
 
-    received_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    received_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     received_by = Column(String, nullable=True)
     doc_no = Column(String, nullable=True)
     status = Column(String, nullable=False, default="received")  # received/partial/rejected
@@ -504,8 +520,8 @@ class MachineSchedule(Base):
     machine_id = Column(Integer, ForeignKey("machines.id"), nullable=False)
     traveler_step_id = Column(Integer, ForeignKey("shop_traveler_steps.id"), nullable=False)
 
-    planned_start = Column(DateTime, nullable=True)
-    planned_end = Column(DateTime, nullable=True)
+    planned_start = Column(DateTime(timezone=True), nullable=True)
+    planned_end   = Column(DateTime(timezone=True), nullable=True)
     status = Column(String, nullable=False, default="scheduled")  # scheduled/started/completed/cancelled
 
     machine = relationship("Machine", back_populates="schedules")
@@ -595,8 +611,9 @@ class InspectionRecord(Base):
 
     inspector_id = Column(Integer, ForeignKey("employees.id"), nullable=True)
     device_id = Column(Integer, ForeignKey("measurement_devices.id"), nullable=True)
-    started_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    finished_at = Column(DateTime, nullable=True)
+    started_at  = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    finished_at = Column(DateTime(timezone=True), nullable=True)
+
 
     overall_result = Column(String, nullable=True)
     notes = Column(Text, nullable=True)
@@ -682,8 +699,8 @@ class User(Base):
         passive_deletes=True,
     )
 
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    last_login_at = Column(DateTime, nullable=True)
+    created_at    = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    last_login_at = Column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (Index("ix_users_active", "is_active"),)
 
@@ -764,8 +781,8 @@ class RolePermission(Base):
 
 
 
-def now_utc():
-    return datetime.now(timezone.utc)
+# def now_utc():
+#     return datetime.now(timezone.utc)
 
 class TimeEntry(Base):
     __tablename__ = "time_entries"
@@ -777,7 +794,8 @@ class TimeEntry(Base):
     created_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     work_user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
 
-    clock_in_at = Column(DateTime(timezone=True), default=now_utc, nullable=False)
+    # clock_in_at = Column(DateTime(timezone=True), default=now_utc, nullable=False)
+    clock_in_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     clock_in_method = Column(String, nullable=True)
     clock_in_location = Column(String, nullable=True)
 
@@ -795,6 +813,10 @@ class TimeEntry(Base):
     created_by_user = relationship("User", foreign_keys=[created_by_user_id])
     payroll_user = relationship("User", foreign_keys=[work_user_id])
 
+
+    # ...ฟิลด์เดิม...
+    pay_period_id = Column(Integer, ForeignKey("pay_periods.id"), index=True, nullable=True)
+    pay_period    = relationship("PayPeriod", backref="time_entries")
     __table_args__ = (
         Index("ix_time_entries_emp_status", "employee_id", "status"),
         Index("ix_time_entries_in", "clock_in_at"),
@@ -809,45 +831,58 @@ class TimeEntry(Base):
 
 
 
-class BreakEntry(Base):
-    __tablename__ = "break_entries"
+# class BreakEntry(Base):
+#     __tablename__ = "time_breaks"   # <-- เปลี่ยนชื่อใหม่
+#     id = Column(Integer, primary_key=True)
+#     time_entry_id = Column(Integer, ForeignKey("time_entries.id"), nullable=False, index=True)
+#     break_type = Column(String, nullable=False, default="lunch")
+#     start_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+#     end_at   = Column(DateTime(timezone=True))
+#     method = Column(String)
+#     location = Column(String)
+#     notes = Column(Text)
+#     is_paid = Column(Boolean, default=False, nullable=False)
 
-    id = Column(Integer, primary_key=True)
-    time_entry_id = Column(Integer, ForeignKey("time_entries.id"), nullable=False, index=True)
-    break_type = Column(String, nullable=False, default="lunch")
+#     time_entry = relationship("TimeEntry", backref="time_breaks")
 
-    # 👇 tz-aware & UTC
-    start_at = Column(DateTime(timezone=True), nullable=False, default=now_utc)
-    end_at   = Column(DateTime(timezone=True), nullable=True)
-
-    method = Column(String, nullable=True)
-    location = Column(String, nullable=True)
-    notes = Column(Text, nullable=True)
-
-    is_paid = Column(Boolean, nullable=False, default=False)
-
-    time_entry = relationship("TimeEntry", backref="breaks")
-
-    __table_args__ = (
-        Index("ix_break_entries_parent", "time_entry_id"),
-        Index("ix_break_entries_start", "start_at"),
-        Index("ix_break_entries_end", "end_at"),
+#     __table_args__ = (
+#         Index("ix_time_breaks_parent", "time_entry_id"),
+#         Index("ix_time_breaks_start", "start_at"),
+#         Index("ix_time_breaks_end", "end_at"),
+#     )
+class BreakEntry(Base): 
+    __tablename__ = "break_entries" 
+    id = Column(Integer, primary_key=True) 
+    time_entry_id = Column(Integer, ForeignKey("time_entries.id"), nullable=False, index=True) 
+    break_type = Column(String, nullable=False, default="lunch") # 👇 tz-aware & UTC 
+    # start_at = Column(DateTime(timezone=True), nullable=False, default=now_utc) 
+    start_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    end_at = Column(DateTime(timezone=True), nullable=True) 
+    method = Column(String, nullable=True) 
+    location = Column(String, nullable=True) 
+    notes = Column(Text, nullable=True) 
+    is_paid = Column(Boolean, nullable=False, default=False) 
+    time_entry = relationship("TimeEntry", backref="breaks") 
+    __table_args__ = ( Index("ix_break_entries_parent", "time_entry_id"), 
+                      Index("ix_break_entries_start", "start_at"), 
+                      Index("ix_break_entries_end", "end_at"), 
     )
 
-
-class LeaveEntry(Base):
-    __tablename__ = "leave_entries"
+class TimeLeave(Base):
+    __tablename__ = "time_leaves"   # <-- ชื่อใหม่
     id = Column(Integer, primary_key=True)
     employee_id = Column(Integer, ForeignKey("employees.id"), nullable=False, index=True)
-    leave_type = Column(String, nullable=False)  # vacation/sick/personal/etc.
-    start_at = Column(DateTime, nullable=False)
-    end_at   = Column(DateTime, nullable=False)
-    hours    = Column(Numeric(5,2), nullable=True)  # เผื่อกรณีลาครึ่งวัน
+    leave_type = Column(String, nullable=False)  # vacation/sick/...
+    start_at = Column(DateTime(timezone=True), nullable=False)
+    end_at   = Column(DateTime(timezone=True), nullable=False)
+    hours    = Column(Numeric(5,2), nullable=True)
     is_paid  = Column(Boolean, nullable=False, default=True)
-    status   = Column(String, nullable=False, default="approved")  # draft/pending/approved/rejected
+    status   = Column(String, nullable=False, default="approved")
     notes    = Column(Text)
+
     employee = relationship("Employee")
-    __table_args__ = (Index("ix_leave_emp_date", "employee_id", "start_at", "end_at"),)
+
+    __table_args__ = (Index("ix_time_leaves_emp_date", "employee_id", "start_at", "end_at"),)
 
 class Holiday(Base):
     __tablename__ = "holidays"
@@ -880,16 +915,25 @@ class PayPeriod(Base):
     __tablename__ = "pay_periods"
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=True)            # eg. "2025-W17", "2025-PP-08A"
-    start_at = Column(DateTime, nullable=False)     # ช่วงงวดที่บริษัทกำหนด
-    end_at   = Column(DateTime, nullable=False)     # แนะนำให้เป็น exclusive: [start, end)
+    start_at = Column(DateTime(timezone=True), nullable=False)   # [start, end)
+    end_at   = Column(DateTime(timezone=True), nullable=False)
     status   = Column(String, nullable=False, default="open")   # open/locked/paid
     anchor   = Column(String, nullable=True)        # optional: biweekly, weekly, monthly
     notes    = Column(Text, nullable=True)
 
     created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     locked_by  = Column(Integer, ForeignKey("users.id"), nullable=True)
-    locked_at  = Column(DateTime, nullable=True)
-    paid_at    = Column(DateTime, nullable=True)
+    locked_at = Column(DateTime(timezone=True), nullable=True)
+    paid_at   = Column(DateTime(timezone=True), nullable=True)
+
+     # ...ฟิลด์เดิม...
+    created_by_emp_id = Column(Integer, ForeignKey("employees.id"), nullable=True)
+    locked_by_emp_id  = Column(Integer, ForeignKey("employees.id"), nullable=True)
+    paid_by_emp_id    = Column(Integer, ForeignKey("employees.id"), nullable=True)
+
+    created_by_emp = relationship("Employee", foreign_keys=[created_by_emp_id])
+    locked_by_emp  = relationship("Employee", foreign_keys=[locked_by_emp_id])
+    paid_by_emp    = relationship("Employee", foreign_keys=[paid_by_emp_id])
 
     __table_args__ = (
         # กันช่วงงวดซ้อนกัน
@@ -899,24 +943,55 @@ class PayPeriod(Base):
         CheckConstraint("end_at > start_at", name="ck_pay_periods_valid"),
     )
 
-
-# ===== Sales PO Lines =====
 class POLine(Base):
     __tablename__ = "po_lines"
+
     id = Column(Integer, primary_key=True)
     po_id = Column(Integer, ForeignKey("purchase_orders.id"), nullable=False, index=True)
-    part_id = Column(Integer, ForeignKey("parts.id"), nullable=False)
-    revision_id = Column(Integer, ForeignKey("part_revisions.id"), nullable=True)
-    qty_ordered = Column(Numeric(18,3), nullable=False)
-    unit_price = Column(Numeric(18,2), nullable=True)
-    due_date = Column(Date, nullable=True)
+    part_id = Column(Integer, ForeignKey("parts.id"), nullable=False, index=True)
+    # เอา FK เดี่ยวออก ใช้ composite FK คู่ด้านล่างแทน
+    revision_id = Column(Integer, nullable=True, index=True)
+
+    qty_ordered = Column(Numeric(18, 3), nullable=False)
+    unit_price = Column(Numeric(18, 2))
+    due_date = Column(Date)
     notes = Column(Text)
 
     po   = relationship("PO", back_populates="lines", foreign_keys=[po_id])
     part = relationship("Part", foreign_keys=[part_id])
     rev  = relationship("PartRevision", foreign_keys=[revision_id])
 
-    __table_args__ = (Index("ix_po_lines_po", "po_id"),)
+    __table_args__ = (
+        Index("ix_po_lines_po", "po_id"),
+        Index("ix_po_lines_part_rev", "part_id", "revision_id"),
+        # Composite FK: บังคับ revision_id ต้องเป็นของ part_id นั้นจริง ๆ
+        ForeignKeyConstraint(
+            ["part_id", "revision_id"],
+            ["part_revisions.part_id", "part_revisions.id"],
+            name="fk_poline_part_rev_pair",
+        ),
+    )
+
+    @validates("revision_id")
+    def _validate_revision(self, key, rev_id):
+        if rev_id is None:
+            return rev_id  # อนุญาต legacy
+        if not self.part_id:
+            return rev_id  # จะตรวจอีกครั้งตอนตั้ง part_id
+        sess = object_session(self)
+        pr = sess.get(PartRevision, rev_id) if sess else None
+        if pr and pr.part_id != self.part_id:
+            raise ValueError("revision_id does not belong to part_id")
+        return rev_id
+
+    @validates("part_id")
+    def _validate_part(self, key, part_id):
+        if self.revision_id:
+            sess = object_session(self)
+            pr = sess.get(PartRevision, self.revision_id) if sess else None
+            if pr and pr.part_id != part_id:
+                raise ValueError("revision_id does not belong to part_id")
+        return part_id
 # ให้ lot อ้างบรรทัด PO ได้ (optional แต่ดีมาก)
 # ProductionLot.po_line_id = Column(Integer, ForeignKey("po_lines.id"), nullable=True, index=True)
 
@@ -1005,7 +1080,7 @@ class CustomerReturn(Base):
     id = Column(Integer, primary_key=True)
     po_id = Column(Integer, ForeignKey("purchase_orders.id"), nullable=False, index=True)
     rma_no = Column(String, unique=True, index=True, nullable=True)   # ถ้ามีเลข RMA
-    returned_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    returned_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     reason = Column(Text)
     status = Column(String, default="received")  # received/inspected/closed
     po = relationship("PO")
