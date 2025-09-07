@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Employee Timesheet</title>
+  <style>
+    :root{ --line:#e5e7eb; --muted:#6b7280 }
+    body{ font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Arial; margin:0; padding:20px }
+    h1{ margin:0 0 8px; font-size:22px }
+    .muted{ color:var(--muted); font-size:13px; margin-bottom:4px }
+    .bar{ display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap; margin:12px 0 }
+    input[type="number"]{ width:110px; text-align:right; padding:6px 8px; border:1px solid var(--line); border-radius:8px }
+    button{ padding:8px 12px; border:1px solid var(--line); border-radius:8px; background:#111; color:#fff; cursor:pointer }
+    table{ border-collapse:collapse; width:100%; margin-top:12px }
+    th,td{ border:1px solid var(--line); padding:6px 8px; text-align:center; vertical-align:top }
+    th{ background:#f8fafc }
+    .num{ text-align:right }
+    .nowrap{ white-space:nowrap }
+    .mono{ font-variant-numeric: tabular-nums }
+    .empty{ color:var(--muted); padding:10px }
+
+    .page-header{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  margin:0 0 8px;
+}
+.back-link{
+  margin-left:left;           /* ดันไปชิดขวา */
+  text-decoration:none;
+  color:#2563eb;
+  font-weight:600;
+}
+.back-link:hover{ text-decoration:underline; }
+.bar{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  flex-wrap:wrap;
+  margin:12px 0;
+  justify-content:flex-end;   /* <-- right align */
+}
+  </style>
+</head>
+<body>
+  
+  <div class="page-header">
+  <h1 id="header">Timesheet</h1>
+  <a class="back-link" href="payroll_period_employees.html">← Back</a>
+</div>
+
+
+  
+
+  <table>
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Clock In</th>
+        <th>Clock Out</th>
+        <th>Break (unpaid h)</th>
+        <th>Reg (h)</th>
+        <th>OT (h)</th>
+        <th>Rate</th>
+        <th>OT Rate</th>
+        <th>Pay (Reg)</th>
+        <th>Pay (OT)</th>
+        <th>Total Pay</th>
+      </tr>
+    </thead>
+    <tbody id="tblBody"><tr><td colspan="11" class="empty">Loading…</td></tr></tbody>
+    <tfoot id="tblFoot"></tfoot>
+  </table>
+  <div class="bar">
+    <label>Rate: <input id="rate" type="number" step="0.01" placeholder="e.g. 18.00"></label>
+    <label>OT Rate: <input id="ot_rate" type="number" step="0.01" placeholder="default 1.5×"></label>
+    <button id="recalc">Recalculate</button>
+    <button id="exportCsv">Export CSV</button>
+  </div>
+  <script type="module">
+  import { $ as _$$, jfetch, toast } from "/static/js/api.js?v=1";
+  const $ = (sel)=>document.querySelector(sel);
+
+  const API_BASE = '';
+  const api = (p) => `${API_BASE}${p}`;
+  async function apiGET(path){ try{ return await jfetch(api(path)); }catch(e){ console.error(e); toast?.(e?.message||'API error'); throw e; } }
+
+  const PP  = "/pay-periods";
+  const EMP = "/employees";
+  const DEFAULT_OT_MULTIPLIER = 1.5;
+
+  const pad = n=>String(n).padStart(2,'0');
+  const fmtDate = iso => iso ? new Date(iso).toISOString().slice(0,10) : '';
+  const fmtTime = iso => { if(!iso) return ''; const d=new Date(iso); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+  const currency = v => '$ ' + Number(v||0).toFixed(2);
+  const getQS = k => new URL(location.href).searchParams.get(k);
+
+  async function safeGetPayPeriod(pp_id){
+    try{ const pp = await apiGET(`${PP}/${pp_id}`); if(pp) return pp; }catch{}
+    const all = await apiGET(PP);
+    const found = (all||[]).find(x=>String(x.id)===String(pp_id));
+    if(!found) throw new Error(`PayPeriod id=${pp_id} not found`); return found;
+  }
+
+  function effectiveRates(){
+    const r = Number($('#rate').value || 0);
+    const otField = $('#ot_rate').value;
+    const ot = (otField === '' ? r * DEFAULT_OT_MULTIPLIER : Number(otField || 0));
+    return { rate: r, otRate: ot };
+  }
+
+  function render(summary){
+    const tb = $('#tblBody'); tb.innerHTML = '';
+    const { rate, otRate } = effectiveRates();
+
+    let sumReg=0, sumOT=0, sumPayReg=0, sumPayOT=0;
+
+    for(const row of (summary.rows || [])){
+      const reg = Number(row.reg_hours || 0);
+      const ot  = Number(row.ot_hours || 0);
+      const payReg = reg * rate;
+      const payOT  = ot  * otRate;
+      sumReg+=reg; sumOT+=ot; sumPayReg+=payReg; sumPayOT+=payOT;
+
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="nowrap mono">${row.date}</td>
+        <td class="mono">${fmtTime(row.earliest_in)}</td>
+        <td class="mono">${fmtTime(row.latest_out)}</td>
+        <td class="num mono">${Number(row.unpaid_break_hours||0).toFixed(2)}</td>
+        <td class="num mono">${reg.toFixed(2)}</td>
+        <td class="num mono">${ot.toFixed(2)}</td>
+        <td class="num mono">${rate?currency(rate):''}</td>
+        <td class="num mono">${otRate?currency(otRate):''}</td>
+        <td class="num mono">${currency(payReg)}</td>
+        <td class="num mono">${currency(payOT)}</td>
+        <td class="num mono">${currency(payReg+payOT)}</td>`;
+      tb.appendChild(tr);
+    }
+
+    $('#tblFoot').innerHTML = `
+      <tr>
+        <td colspan="4" class="num">Total</td>
+        <td class="num mono">${sumReg.toFixed(2)}</td>
+        <td class="num mono">${sumOT.toFixed(2)}</td>
+        <td></td><td></td>
+        <td class="num mono">${currency(sumPayReg)}</td>
+        <td class="num mono">${currency(sumPayOT)}</td>
+        <td class="num mono">${currency(sumPayReg+sumPayOT)}</td>
+      </tr>`;
+  }
+
+  function exportCSV(){
+    const header = [
+      'date','clock_in','clock_out','break_unpaid_h',
+      'reg_h','ot_h','rate','ot_rate','pay_reg','pay_ot','pay_total'
+    ];
+    const rows = [];
+    document.querySelectorAll('#tblBody tr').forEach(tr=>{
+      const tds = tr.querySelectorAll('td');
+      rows.push([
+        (tds[0]?.textContent||'').trim(),
+        (tds[1]?.textContent||'').trim(),
+        (tds[2]?.textContent||'').trim(),
+        (tds[3]?.textContent||'').trim(),
+        (tds[4]?.textContent||'').trim(),
+        (tds[5]?.textContent||'').trim(),
+        (tds[6]?.textContent||'').trim(),
+        (tds[7]?.textContent||'').trim(),
+        (tds[8]?.textContent||'').trim(),
+        (tds[9]?.textContent||'').trim(),
+        (tds[10]?.textContent||'').trim(),
+      ]);
+    });
+    const csv = [header, ...rows]
+      .map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(','))
+      .join('\n');
+    const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `timesheet_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function loadPage(){
+    const pp_id = getQS('pp_id');
+    const employee_id = getQS('employee_id');
+    if(!pp_id || !employee_id){
+      $('#tblBody').innerHTML = `<tr><td colspan="11" class="empty">pp_id and employee_id are required</td></tr>`;
+      return;
+    }
+
+    let pp;
+    try{ pp = await safeGetPayPeriod(pp_id); }
+    catch(e){ $('#tblBody').innerHTML = `<tr><td colspan="11" class="empty">${e.message}</td></tr>`; return; }
+
+    let emp=null; try{ emp = await apiGET(`${EMP}/${employee_id}`);}catch{}
+    document.getElementById('header').textContent = `Timesheet — ${emp?.name ?? ('Emp #'+employee_id)} (${fmtDate(pp.start_at)} → ${fmtDate(pp.end_at)})`;
+    // document.getElementById('emp_info').textContent = emp ? `Employee: ${emp.emp_code || emp.id} — ${emp.name}` : '';
+    // document.getElementById('pp_info').textContent  = `Period: ${fmtDate(pp.start_at)} → ${fmtDate(pp.end_at)} (${pp.status||''})`;
+
+    // server-side daily summary (no client aggregation)
+    const summary = await apiGET(`/payroll/pay-periods/${pp_id}/employees/${employee_id}/daily-summary?closed_only=false&ot_daily_threshold=8`);
+    render(summary);
+  }
+
+  // keep placeholder OT rate synced to 1.5× if empty
+  document.getElementById('rate').addEventListener('input', ()=>{
+    const r = Number(document.getElementById('rate').value || 0);
+    const ot = document.getElementById('ot_rate');
+    if (ot.value === '' || Number(ot.value) === 0){
+      ot.placeholder = r ? (r * 1.5).toFixed(2) : 'default 1.5×';
+    }
+  });
+
+  document.getElementById('recalc').addEventListener('click', loadPage);
+  document.getElementById('exportCsv').addEventListener('click', exportCSV);
+  document.addEventListener('DOMContentLoaded', loadPage);
+</script>
+</body>
+</html>

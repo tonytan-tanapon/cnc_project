@@ -5,7 +5,7 @@ from fastapi import APIRouter
 from . import (
     auth,customers, pos, employees, materials, batches,
     lots,lot_uses,travelers, traveler_steps,suppliers, subcon, payroll, time_clock,
-    parts, users, pay_periods
+    parts, users, pay_periods,payroll_extras
 )
 
 api_v1 = APIRouter()
@@ -31,4 +31,5 @@ api_v1.include_router(pay_periods.router)
 api_v1.include_router(payroll.router)          # เส้นเดิม /payroll/...
 api_v1.include_router(payroll.periods_router)  # ใหม่ /pay-periods/...
 api_v1.include_router(payroll.rates_router)    # ใหม่ /pay-rates/...
+api_v1.include_router(payroll_extras.router)
 __all__ = ["api_v1"]
