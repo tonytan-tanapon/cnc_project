@@ -8,14 +8,6 @@ from datetime import timezone
 from database import get_db
 from models import PayPeriod, TimeEntry, BreakEntry, Employee
 
-
-# ใช้กับ 3 endpoint ของคุณ
-
-# /pay-periods/{pp_id}/employees (สรุปทั้งงวด) → ให้ DB aggregate (pure SQL หรือ ORM expression)
-
-# /time-entries/by-employee (รายละเอียดคนเดียว) → ใช้ ORM ได้ (เลือกเฉพาะคอลัมน์, eager load แบบเหมาะสม)
-
-# /pay-periods/{pp_id}/employees/{employee_id}/daily-summary → ไฮบริด: ให้ DB คิด gross/unpaid/net ต่อแถว แล้วกติกา OT ทำใน Python (ยืดหยุ่นกว่า)
 router = APIRouter(
     prefix="/payroll",
     tags=["payroll"],
