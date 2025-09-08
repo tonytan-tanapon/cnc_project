@@ -547,3 +547,25 @@ def upsert_break(time_entry_id: int, payload: UpsertBreakPayload, db: Session = 
 
     db.commit(); db.refresh(br)
     return _serialize_break(br)
+
+
+@timeclock_router.delete("/manual/{time_entry_id}", tags=["time_clock"], summary="(Backfill) ลบ TimeEntry")
+def delete_time_entry_manual(time_entry_id: int, db: Session = Depends(get_db)):
+    te = db.get(TimeEntry, time_entry_id)
+    if not te:
+        raise HTTPException(404, "TimeEntry not found")
+    # ถ้าไม่ตั้ง cascade ที่ relationship ให้ลบ breaks ก่อน
+    for br in list(getattr(te, "breaks", [])):
+        db.delete(br)
+    db.delete(te)
+    db.commit()
+    return {"status": "deleted", "id": time_entry_id}
+
+@breaks_router.delete("/manual/{break_id}", tags=["time_clock"], summary="(Backfill) ลบ Break")
+def delete_break_manual(break_id: int, db: Session = Depends(get_db)):
+    br = db.get(BreakEntry, break_id)
+    if not br:
+        raise HTTPException(404, "Break not found")
+    db.delete(br)
+    db.commit()
+    return {"status": "deleted", "id": break_id}

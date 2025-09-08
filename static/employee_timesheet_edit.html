@@ -1,0 +1,393 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Edit Day — Employee Timesheet</title>
+  <style>
+    :root{ --line:#e5e7eb; --muted:#6b7280 }
+    body{ font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Arial; margin:0; padding:20px }
+    h1{ margin:0 0 8px; font-size:22px }
+    .muted{ color:var(--muted) }
+    .page-header{ display:flex; align-items:center; gap:12px; margin:0 0 12px; }
+    .spacer{ flex:1 }
+    a{ color:#2563eb; text-decoration:none } a:hover{ text-decoration:underline }
+    table{ border-collapse:collapse; width:100%; margin:12px 0 }
+    th,td{ border:1px solid var(--line); padding:6px 8px; text-align:center; vertical-align:middle }
+    th{ background:#f8fafc }
+    .left{ text-align:left }
+    .num{ text-align:right }
+    .mono{ font-variant-numeric: tabular-nums }
+    .controls{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:8px }
+    button{ padding:6px 10px; border:1px solid var(--line); border-radius:8px; background:#111; color:#fff; cursor:pointer }
+    button.secondary{ background:#fff; color:#111 }
+    input[type="datetime-local"], input[type="text"], input[type="number"], select{
+      padding:6px 8px; border:1px solid var(--line); border-radius:8px;
+    }
+    .empty{ color:var(--muted); padding:10px; text-align:center }
+    .row-select{ cursor:pointer }
+  </style>
+</head>
+<body>
+  <div class="page-header">
+    <h1 id="header">Edit Day</h1>
+    <div class="spacer"></div>
+    <a id="backLink" href="#" onclick="history.back(); return false;">← Back</a>
+  </div>
+  <div class="muted" id="subHeader"></div>
+
+  <!-- Shifts (Time Entries) -->
+  <div class="controls">
+    <strong>Shifts</strong>
+    <button id="addShift">+ Add shift</button>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>No</th>
+        <th>Clock In</th>
+        <th>Clock Out</th>
+        <th>Status</th>
+        <th>Notes</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+    <tbody id="shiftBody"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody>
+  </table>
+
+  <!-- Breaks for Selected Shift -->
+  <div class="controls">
+    <strong>Breaks</strong>
+    <span id="breaksFor" class="muted">(select a shift)</span>
+    <button id="addBreak" disabled>+ Add break</button>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>No</th>
+        <th>Type</th>
+        <th>Start</th>
+        <th>End</th>
+        <th>Paid?</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+    <tbody id="breakBody"><tr><td colspan="6" class="empty">No shift selected</td></tr></tbody>
+  </table>
+
+  <script type="module">
+  import { $ as _$$, jfetch, toast } from "/static/js/api.js?v=1";
+  const $ = (sel)=>document.querySelector(sel);
+
+  const API_BASE = '';
+  const api = (p)=>`${API_BASE}${p}`;
+
+  async function apiGET(p){ try{ return await jfetch(api(p)); }catch(e){ console.error(e); toast?.(e?.message||'API error'); throw e; } }
+  async function apiPOST(p, body){ try{ return await jfetch(api(p), { method:'POST', body: JSON.stringify(body) }); }catch(e){ console.error(e); toast?.(e?.message||'API error'); throw e; } }
+  async function apiPATCH(p, body){ try{ return await jfetch(api(p), { method:'PATCH', body: JSON.stringify(body) }); }catch(e){ console.error(e); toast?.(e?.message||'API error'); throw e; } }
+  async function apiDELETE(p){ try{ return await jfetch(api(p), { method:'DELETE' }); }catch(e){ throw e; } }
+
+  const PP  = "/pay-periods";
+  const EMP = "/employees";
+  const TE_LIST   = "/time-entries";        // GET range
+  const TE_MANUAL = "/time-entries/manual"; // POST/PATCH/DELETE (if available)
+  const BR_MANUAL = "/breaks/manual";       // POST/PATCH/DELETE (if available)
+
+  const pad = n=>String(n).padStart(2,'0');
+  const fmtDate = iso => iso ? new Date(iso).toISOString().slice(0,10) : '';
+  const getQS = k => new URL(location.href).searchParams.get(k);
+  const utcDateKey = iso => iso ? new Date(iso).toISOString().slice(0,10) : null;
+
+  // datetime-local helpers (local input string <-> ISO)
+  function toLocalInput(iso){
+    if(!iso) return '';
+    const d = new Date(iso);
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+  function fromLocalInput(s){
+    if(!s) return null;
+    const d = new Date(s);
+    return d.toISOString();
+  }
+
+  let pp = null, emp = null, details = [];
+  let selectedShiftId = null;
+  let currentEmployeeId = null, currentPpId = null, targetDate = null;
+
+  async function reloadDetails(){
+    // สร้างช่วงวันแบบ UTC [dateT00:00Z, nextDateT00:00Z)
+    const start = new Date(`${targetDate}T00:00:00Z`).toISOString();
+    const end   = new Date(new Date(start).getTime() + 24*60*60*1000).toISOString();
+    details = await apiGET(`${TE_LIST}/range?employee_id=${currentEmployeeId}&start_at=${encodeURIComponent(start)}&end_at=${encodeURIComponent(end)}`);
+  }
+
+  function rowActionButtons(saveHandler, cancelHandler){
+    const wrap = document.createElement('div');
+    const bSave = document.createElement('button'); bSave.textContent = 'Save';
+    const bCancel = document.createElement('button'); bCancel.textContent = 'Cancel'; bCancel.className = 'secondary';
+    bSave.addEventListener('click', saveHandler);
+    bCancel.addEventListener('click', cancelHandler);
+    wrap.appendChild(bSave); wrap.appendChild(bCancel);
+    return wrap;
+  }
+
+  function renderShifts(){
+    const tb = $('#shiftBody'); tb.innerHTML = '';
+    const filtered = details
+      .filter(te => utcDateKey(te.clock_in_at || te.clock_out_at) === targetDate)
+      .sort((a,b)=> new Date(a.clock_in_at||0) - new Date(b.clock_in_at||0));
+
+    if (!filtered.length){
+      tb.innerHTML = `<tr><td colspan="6" class="empty">No shifts</td></tr>`;
+      $('#breakBody').innerHTML = `<tr><td colspan="6" class="empty">No shift selected</td></tr>`;
+      selectedShiftId = null;
+      $('#addBreak').disabled = true;
+      $('#breaksFor').textContent = '(select a shift)';
+      return;
+    }
+
+    filtered.forEach((te, i)=>{
+      const tr = document.createElement('tr'); tr.className = 'row-select';
+      tr.dataset.id = te.id;
+      const ci = toLocalInput(te.clock_in_at);
+      const co = toLocalInput(te.clock_out_at);
+
+      tr.innerHTML = `
+        <td class="num mono">${i+1}</td>
+        <td><span class="view">${ci?ci.replace('T',' '):''}</span><input class="edit" type="datetime-local" value="${ci}" style="display:none"></td>
+        <td><span class="view">${co?co.replace('T',' '):''}</span><input class="edit" type="datetime-local" value="${co}" style="display:none"></td>
+        <td><span class="view">${te.status||''}</span><input class="edit" type="text" value="${te.status||''}" style="display:none"></td>
+        <td class="left"><span class="view">${te.notes?String(te.notes).replace(/"/g,'&quot;'):''}</span><input class="edit" type="text" value="${te.notes||''}" style="display:none"></td>
+        <td data-actions></td>
+      `;
+
+      // default actions
+      const tdAct = tr.querySelector('[data-actions]');
+      const btnEdit = document.createElement('button'); btnEdit.textContent = 'Edit';
+      const btnDel  = document.createElement('button'); btnDel.textContent  = 'Delete'; btnDel.className = 'secondary';
+      tdAct.appendChild(btnEdit); tdAct.appendChild(btnDel);
+
+      // select row to show breaks
+      tr.addEventListener('click', (ev)=>{
+        if(ev.target.tagName === 'BUTTON' || ev.target.classList.contains('edit')) return;
+        selectedShiftId = te.id;
+        $('#breaksFor').textContent = `for Shift #${i+1}`;
+        $('#addBreak').disabled = false;
+        renderBreaks();
+      });
+
+      // edit shift
+      btnEdit.addEventListener('click', (ev)=>{
+        ev.stopPropagation();
+        const inEdit = tr.classList.toggle('editing');
+        tr.querySelectorAll('.view').forEach(el=> el.style.display = inEdit ? 'none':'');
+        tr.querySelectorAll('.edit').forEach(el=> el.style.display = inEdit ? '' : 'none');
+        tdAct.innerHTML = '';
+        if(inEdit){
+          const save = async ()=>{
+            const inputs = tr.querySelectorAll('.edit');
+            const [ciInput, coInput, stInput, notesInput] = inputs;
+            const payload = {
+              clock_in_at: fromLocalInput(ciInput.value),
+              clock_out_at: coInput.value ? fromLocalInput(coInput.value) : null,
+              status: stInput.value || null,
+              notes: notesInput.value || null,
+            };
+            await apiPATCH(`${TE_MANUAL}/${te.id}`, payload);
+            toast?.('Saved');
+            await reloadDetails();
+            renderShifts();
+            if(selectedShiftId === te.id) renderBreaks();
+          };
+          const cancel = ()=>{
+            tr.classList.remove('editing');
+            tr.querySelectorAll('.view').forEach(el=> el.style.display = '');
+            tr.querySelectorAll('.edit').forEach(el=> el.style.display = 'none');
+            tdAct.innerHTML = ''; tdAct.appendChild(btnEdit); tdAct.appendChild(btnDel);
+          };
+          tdAct.appendChild(rowActionButtons(save, cancel));
+        }else{
+          tdAct.appendChild(btnEdit); tdAct.appendChild(btnDel);
+        }
+      });
+
+      // delete shift (try DELETE, fallback to soft-delete)
+      btnDel.addEventListener('click', async (ev)=>{
+        ev.stopPropagation();
+        if(!confirm('Delete this shift?')) return;
+        try{
+          await apiDELETE(`${TE_MANUAL}/${te.id}`);
+        }catch(e){
+          // fallback: soft-delete if DELETE not supported
+          try{
+            await apiPATCH(`${TE_MANUAL}/${te.id}`, { status: 'cancelled', notes: (te.notes||'') + ' [deleted]' });
+          }catch(err){
+            toast?.(err?.message || 'Delete failed');
+            return;
+          }
+        }
+        toast?.('Deleted');
+        await reloadDetails();
+        renderShifts();
+        if(selectedShiftId === te.id){
+          selectedShiftId = null;
+          $('#breakBody').innerHTML = `<tr><td colspan="6" class="empty">No shift selected</td></tr>`;
+          $('#addBreak').disabled = true;
+          $('#breaksFor').textContent = '(select a shift)';
+        }
+      });
+
+      tb.appendChild(tr);
+    });
+
+    // auto-select first shift
+    if(!selectedShiftId && filtered.length){
+      selectedShiftId = filtered[0].id;
+      $('#breaksFor').textContent = `for Shift #1`;
+      $('#addBreak').disabled = false;
+      renderBreaks();
+    }
+  }
+
+  function renderBreaks(){
+    const tb = $('#breakBody'); tb.innerHTML = '';
+    if(!selectedShiftId){
+      tb.innerHTML = `<tr><td colspan="6" class="empty">No shift selected</td></tr>`;
+      return;
+    }
+    const te = details.find(x=> x.id === selectedShiftId);
+    const list = (te?.breaks || []).slice().sort((a,b)=> new Date(a.start_at||0) - new Date(b.start_at||0));
+
+    if(!list.length){
+      tb.innerHTML = `<tr><td colspan="6" class="empty">No breaks</td></tr>`;
+      return;
+    }
+
+    list.forEach((b, i)=>{
+      const tr = document.createElement('tr'); tr.dataset.id = b.id;
+      const s = toLocalInput(b.start_at); const e = toLocalInput(b.end_at);
+
+      tr.innerHTML = `
+        <td class="num mono">${i+1}</td>
+        <td><span class="view">${b.break_type||''}</span><input class="edit" type="text" value="${b.break_type||''}" style="display:none"></td>
+        <td><span class="view">${s?s.replace('T',' '):''}</span><input class="edit" type="datetime-local" value="${s}" style="display:none"></td>
+        <td><span class="view">${e?e.replace('T',' '):''}</span><input class="edit" type="datetime-local" value="${e}" style="display:none"></td>
+        <td>
+          <span class="view">${b.is_paid? 'Yes':'No'}</span>
+          <label class="edit" style="display:none"><input type="checkbox" ${b.is_paid?'checked':''}> Paid</label>
+        </td>
+        <td data-actions></td>
+      `;
+
+      const tdAct = tr.querySelector('[data-actions]');
+      const btnEdit = document.createElement('button'); btnEdit.textContent = 'Edit';
+      const btnDel  = document.createElement('button'); btnDel.textContent  = 'Delete'; btnDel.className = 'secondary';
+      tdAct.appendChild(btnEdit); tdAct.appendChild(btnDel);
+
+      btnEdit.addEventListener('click', ()=>{
+        const inEdit = tr.classList.toggle('editing');
+        tr.querySelectorAll('.view').forEach(el=> el.style.display = inEdit ? 'none':'');
+        tr.querySelectorAll('.edit').forEach(el=> el.style.display = inEdit ? '' : 'none');
+        tdAct.innerHTML = '';
+        if(inEdit){
+          const save = async ()=>{
+            const [typeInput, sInput, eInput] = tr.querySelectorAll('.edit');
+            const paidChk = tr.querySelector('input[type="checkbox"]');
+            const payload = {
+              break_type: typeInput.value || null,
+              start_at: fromLocalInput(sInput.value),
+              end_at: eInput.value ? fromLocalInput(eInput.value) : null,
+              is_paid: !!paidChk.checked,
+            };
+            await apiPATCH(`${BR_MANUAL}/${b.id}`, payload);
+            toast?.('Saved');
+            await reloadDetails(); renderBreaks();
+          };
+          const cancel = ()=>{
+            tr.classList.remove('editing');
+            tr.querySelectorAll('.view').forEach(el=> el.style.display = '');
+            tr.querySelectorAll('.edit').forEach(el=> el.style.display = 'none');
+            tdAct.innerHTML = ''; tdAct.appendChild(btnEdit); tdAct.appendChild(btnDel);
+          };
+          tdAct.appendChild(rowActionButtons(save, cancel));
+        }else{
+          tdAct.appendChild(btnEdit); tdAct.appendChild(btnDel);
+        }
+      });
+
+      btnDel.addEventListener('click', async ()=>{
+        if(!confirm('Delete this break?')) return;
+        try{
+          await apiDELETE(`${BR_MANUAL}/${b.id}`);
+        }catch(e){
+          toast?.('Backend has no DELETE /breaks/manual/{id}. Please add it.');
+          return;
+        }
+        toast?.('Deleted');
+        await reloadDetails(); renderBreaks();
+      });
+
+      tb.appendChild(tr);
+    });
+  }
+
+  // ----- Add shift / break -----
+  document.getElementById('addShift').addEventListener('click', async ()=>{
+    const s = `${targetDate}T09:00`;
+    const e = `${targetDate}T18:00`;
+    const payload = {
+      employee_id: Number(currentEmployeeId),
+      clock_in_at: fromLocalInput(s),
+      clock_out_at: fromLocalInput(e),
+      clock_in_method: 'manual',
+      clock_out_method: 'manual',
+      status: 'closed',
+      notes: ''
+    };
+    await apiPOST(TE_MANUAL, payload);
+    toast?.('Shift added');
+    await reloadDetails(); renderShifts();
+  });
+
+  document.getElementById('addBreak').addEventListener('click', async ()=>{
+    if(!selectedShiftId) return;
+    const s = `${targetDate}T12:00`;
+    const e = `${targetDate}T12:30`;
+    const payload = {
+      time_entry_id: selectedShiftId,
+      break_type: 'lunch',
+      start_at: fromLocalInput(s),
+      end_at: fromLocalInput(e),
+      method: 'manual',
+      is_paid: false
+    };
+    await apiPOST(BR_MANUAL, payload);
+    toast?.('Break added');
+    await reloadDetails(); renderBreaks();
+  });
+
+  // ----- Load page -----
+  async function loadPage(){
+    currentPpId = getQS('pp_id');
+    currentEmployeeId = getQS('employee_id');
+    targetDate = getQS('date');
+
+    if(!currentPpId || !currentEmployeeId || !targetDate){
+      document.getElementById('header').textContent = 'Edit Day — Missing params';
+      return;
+    }
+
+    try{ pp  = await apiGET(`${PP}/${currentPpId}`); }catch{}
+    try{ emp = await apiGET(`${EMP}/${currentEmployeeId}`); }catch{}
+    document.getElementById('header').textContent = `Edit Day — ${emp?.name ?? ('Emp #'+currentEmployeeId)}`;
+    document.getElementById('subHeader').textContent = `Pay Period: ${fmtDate(pp?.start_at)} → ${fmtDate(pp?.end_at)} | Date: ${targetDate}`;
+    // กลับไปหน้า summary ของคุณ (แก้ชื่อไฟล์ตามจริง)
+    document.getElementById('backLink').href = `timesheet.html?pp_id=${encodeURIComponent(currentPpId)}&employee_id=${encodeURIComponent(currentEmployeeId)}`;
+
+    await reloadDetails(); renderShifts();
+  }
+
+  document.addEventListener('DOMContentLoaded', loadPage);
+  </script>
+</body>
+</html>

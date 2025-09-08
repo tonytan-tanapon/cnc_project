@@ -9,7 +9,6 @@
     body{ font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Arial; margin:0; padding:20px }
     h1{ margin:0 0 8px; font-size:22px }
     .muted{ color:var(--muted); font-size:13px; margin-bottom:4px }
-    .bar{ display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap; margin:12px 0 }
     input[type="number"]{ width:110px; text-align:right; padding:6px 8px; border:1px solid var(--line); border-radius:8px }
     button{ padding:8px 12px; border:1px solid var(--line); border-radius:8px; background:#111; color:#fff; cursor:pointer }
     table{ border-collapse:collapse; width:100%; margin-top:12px }
@@ -20,32 +19,15 @@
     .nowrap{ white-space:nowrap }
     .mono{ font-variant-numeric: tabular-nums }
     .empty{ color:var(--muted); padding:10px }
-
-    .page-header{
-      display:flex;
-      align-items:center;
-      gap:12px;
-      margin:0 0 8px;
-    }
-    .back-link{
-      margin-left:auto;          /* ดันไปชิดขวา */
-      text-decoration:none;
-      color:#2563eb;
-      font-weight:600;
-    }
+    .page-header{ display:flex; align-items:center; gap:12px; margin:0 0 8px; }
+    .back-link{ margin-left:auto; text-decoration:none; color:#2563eb; font-weight:600; }
     .back-link:hover{ text-decoration:underline; }
-    .bar{
-      display:flex;
-      align-items:center;
-      gap:12px;
-      flex-wrap:wrap;
-      margin:12px 0;
-      justify-content:flex-end;  /* right align controls */
-    }
+    .bar{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin:12px 0; justify-content:flex-end; }
+    .link{ color:#2563eb; text-decoration:none; font-weight:600 }
+    .link:hover{ text-decoration:underline }
   </style>
 </head>
 <body>
-
   <div class="page-header">
     <h1 id="header">Payroll</h1>
     <a class="back-link" href="payroll_period_employees.html">← Back</a>
@@ -54,10 +36,10 @@
   <table>
     <thead>
       <tr>
-        <th>No.</th>              <!-- NEW -->
+        <th>No</th>                <!-- NEW: clickable -->
         <th>Date</th>
-        <th>Shifts</th>            <!-- NEW (รวม Clock In/Out หลายรอบของวันเดียว) -->
-        <th>Breaks</th>            <!-- แสดงทุกช่วง พร้อม tag (unpaid) -->
+        <th>Shifts</th>
+        <th>Breaks</th>
         <th>Break (unpaid h)</th>
         <th>Reg (h)</th>
         <th>OT (h)</th>
@@ -87,10 +69,7 @@
 
   const API_BASE = '';
   const api = (p) => `${API_BASE}${p}`;
-  async function apiGET(path){
-    try{ return await jfetch(api(path)); }
-    catch(e){ console.error(e); toast?.(e?.message||'API error'); throw e; }
-  }
+  async function apiGET(path){ try{ return await jfetch(api(path)); }catch(e){ console.error(e); toast?.(e?.message||'API error'); throw e; } }
 
   const PP  = "/pay-periods";
   const EMP = "/employees";
@@ -101,12 +80,11 @@
   const fmtTime = iso => { if(!iso) return ''; const d=new Date(iso); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
   const currency = v => '$ ' + Number(v||0).toFixed(2);
   const getQS = k => new URL(location.href).searchParams.get(k);
-  const utcDateKey = iso => iso ? new Date(iso).toISOString().slice(0,10) : null; // match server grouping
+  const utcDateKey = iso => iso ? new Date(iso).toISOString().slice(0,10) : null;
 
-  // cache เพื่อไม่ต้องยิง API ใหม่เวลาคลิก recalc
-  let lastSummary = null;
-  let lastBreaksByDate = {};
-  let lastShiftsByDate = {};
+  // cache
+  let lastSummary = null, lastBreaksByDate = {}, lastShiftsByDate = {};
+  let currentEmployeeId = null, currentPpId = null;
 
   async function safeGetPayPeriod(pp_id){
     try{ const pp = await apiGET(`${PP}/${pp_id}`); if(pp) return pp; }catch{}
@@ -122,18 +100,16 @@
     return { rate: r, otRate: ot };
   }
 
-  // แสดงหลายช่วง clock in/out ในวันเดียว เช่น "08:00–12:00<br>13:00–17:15"
   function formatShiftsCell(list){
     if(!list || !list.length) return '';
     const sorted = [...list].sort((a,b)=>new Date(a.start_at||0) - new Date(b.start_at||0));
     return sorted.map(s=>{
       const si = fmtTime(s.start_at);
-      const so = s.end_at ? fmtTime(s.end_at) : '…'; // ถ้ายังไม่ clock out
+      const so = s.end_at ? fmtTime(s.end_at) : '…';
       return `${si}–${so}`;
     }).join('<br>');
   }
 
-  // แสดง break แต่ละช่วง เช่น "09:45–10:00 (unpaid)"
   function formatBreaksCell(list){
     if(!list || !list.length) return '';
     const sorted = [...list].sort((a,b)=>new Date(a.start_at||0) - new Date(b.start_at||0));
@@ -149,8 +125,7 @@
     const tb = $('#tblBody'); tb.innerHTML = '';
     const { rate, otRate } = effectiveRates();
 
-    let sumReg=0, sumOT=0, sumPayReg=0, sumPayOT=0;
-    let idx = 0;
+    let sumReg=0, sumOT=0, sumPayReg=0, sumPayOT=0, idx=0;
 
     for(const row of (summary.rows || [])){
       idx += 1;
@@ -165,9 +140,11 @@
       const breaksTxt = formatBreaksCell(breaksByDate[row.date] || []);
       const shiftsTxt = formatShiftsCell(shiftsByDate[row.date] || []);
 
+      // const editUrl = `employee_timesheet_edit.html?pp_id=${encodeURIComponent(currentPpId)}&employee_id=${encodeURIComponent(currentEmployeeId)}&date=${row.date}`;
+      const editUrl = `employee_timesheet_edit.html?pp_id=${encodeURIComponent(currentPpId)}&employee_id=${encodeURIComponent(currentEmployeeId)}&date=${row.date}&return=${encodeURIComponent(location.href)}`;
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td class="num mono">${idx}</td>
+        <td class="num mono"><a class="link" href="${editUrl}" title="Edit this day">${idx}</a></td>
         <td class="nowrap mono">${row.date}</td>
         <td class="left mono">${shiftsTxt}</td>
         <td class="left mono">${breaksTxt}</td>
@@ -182,7 +159,6 @@
       tb.appendChild(tr);
     }
 
-    // Total row: รวมลำดับ+Date+Shifts+Breaks+Break-unpaid = 5 คอลัมน์แรก
     $('#tblFoot').innerHTML = `
       <tr>
         <td colspan="5" class="num">Total</td>
@@ -204,18 +180,18 @@
     document.querySelectorAll('#tblBody tr').forEach(tr=>{
       const tds = tr.querySelectorAll('td');
       rows.push([
-        (tds[0]?.textContent||'').trim(),   // no
-        (tds[1]?.textContent||'').trim(),   // date
-        (tds[2]?.textContent||'').trim(),   // shifts
-        (tds[3]?.textContent||'').trim(),   // breaks
-        (tds[4]?.textContent||'').trim(),   // break_unpaid_h
-        (tds[5]?.textContent||'').trim(),   // reg_h
-        (tds[6]?.textContent||'').trim(),   // ot_h
-        (tds[7]?.textContent||'').trim(),   // rate
-        (tds[8]?.textContent||'').trim(),   // ot_rate
-        (tds[9]?.textContent||'').trim(),   // pay_reg
-        (tds[10]?.textContent||'').trim(),  // pay_ot
-        (tds[11]?.textContent||'').trim(),  // pay_total
+        (tds[0]?.textContent||'').trim(),
+        (tds[1]?.textContent||'').trim(),
+        (tds[2]?.textContent||'').trim(),
+        (tds[3]?.textContent||'').trim(),
+        (tds[4]?.textContent||'').trim(),
+        (tds[5]?.textContent||'').trim(),
+        (tds[6]?.textContent||'').trim(),
+        (tds[7]?.textContent||'').trim(),
+        (tds[8]?.textContent||'').trim(),
+        (tds[9]?.textContent||'').trim(),
+        (tds[10]?.textContent||'').trim(),
+        (tds[11]?.textContent||'').trim(),
       ]);
     });
     const csv = [header, ...rows]
@@ -223,22 +199,21 @@
       .join('\n');
     const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
+    const a = document.createElement('a'); a.href = url;
     a.download = `timesheet_${new Date().toISOString().slice(0,10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    a.click(); URL.revokeObjectURL(url);
   }
 
   async function loadPage(fetchFromApi = true){
     const pp_id = getQS('pp_id');
     const employee_id = getQS('employee_id');
+    currentPpId = pp_id; currentEmployeeId = employee_id;
+
     if(!pp_id || !employee_id){
       $('#tblBody').innerHTML = `<tr><td colspan="12" class="empty">pp_id and employee_id are required</td></tr>`;
       return;
     }
 
-    // หัวกระดาน
     let pp;
     try{ pp = await safeGetPayPeriod(pp_id); }
     catch(e){ $('#tblBody').innerHTML = `<tr><td colspan="12" class="empty">${e.message}</td></tr>`; return; }
@@ -252,33 +227,19 @@
         apiGET(`/payroll/pay-periods/${pp_id}/employees/${employee_id}/daily-summary?closed_only=false&ot_daily_threshold=8`),
         apiGET(`/payroll/time-entries/by-employee?employee_id=${employee_id}&pp_id=${pp_id}`)
       ]);
-
-      // map วันที่ (UTC key) -> shifts / breaks
       const breaksByDate = {};
       const shiftsByDate = {};
       for(const te of (details || [])){
         const dayKey = utcDateKey(te.clock_in_at || te.clock_out_at);
         if(!dayKey) continue;
-
-        (shiftsByDate[dayKey] ??= []).push({
-          start_at: te.clock_in_at,
-          end_at: te.clock_out_at
-        });
-
-        for(const b of (te.breaks || [])){
-          (breaksByDate[dayKey] ??= []).push(b);
-        }
+        (shiftsByDate[dayKey] ??= []).push({ start_at: te.clock_in_at, end_at: te.clock_out_at });
+        for(const b of (te.breaks || [])){ (breaksByDate[dayKey] ??= []).push(b); }
       }
-
-      lastSummary = summary;
-      lastBreaksByDate = breaksByDate;
-      lastShiftsByDate = shiftsByDate;
+      lastSummary = summary; lastBreaksByDate = breaksByDate; lastShiftsByDate = shiftsByDate;
     }
-
     render(lastSummary, lastBreaksByDate, lastShiftsByDate);
   }
 
-  // sync OT rate placeholder กับ rate
   document.getElementById('rate').addEventListener('input', ()=>{
     const r = Number(document.getElementById('rate').value || 0);
     const ot = document.getElementById('ot_rate');
@@ -288,7 +249,6 @@
   });
 
   document.getElementById('recalc').addEventListener('click', ()=>{
-    // ไม่ต้องยิง API ใหม่ แค่ re-render ด้วยค่า rate/ot rate ล่าสุด
     render(lastSummary, lastBreaksByDate, lastShiftsByDate);
   });
   document.getElementById('exportCsv').addEventListener('click', exportCSV);
