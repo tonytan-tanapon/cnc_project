@@ -31,7 +31,6 @@
       <label for="f_period">Pay Period:
         <select id="f_period"><option value="">— Select Pay Period —</option></select>
       </label>
-    
     </div>
 
     <div class="card">
@@ -45,86 +44,103 @@
   </div>
 
   <script type="module">
-  import { $ as _$$, jfetch, toast } from "/static/js/api.js?v=1";
-  const $ = (s)=>document.querySelector(s);
+    import { $ as _$$, jfetch, toast } from "/static/js/api.js?v=1";
+    const $ = (s)=>document.querySelector(s);
 
-  const API_BASE = '';
-  const api = (p) => `${API_BASE}${p}`;
-  async function apiGET(path){ try{ return await jfetch(api(path)); }catch(e){ console.error(e); toast?.(e?.message||'API error'); throw e; } }
+    const API_BASE = '';   // set '/api/v1' if needed
+    const api = (p) => `${API_BASE}${p}`;
+    async function apiGET(path){ try{ return await jfetch(api(path)); }catch(e){ console.error(e); toast?.(e?.message||'API error'); throw e; } }
 
-  const PP  = "/pay-periods";
-  const EMP = "/employees";
+    const PP  = "/pay-periods";
+    const EMP = "/employees";
 
-  const pad=(n)=>String(n).padStart(2,'0');
-  const toLocalISODate=(dt)=>`${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}`;
+    const pad=(n)=>String(n).padStart(2,'0');
+    const toLocalISODate=(dt)=>`${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}`;
 
-  const selPeriod = document.getElementById('f_period');
+    const selPeriod = document.getElementById('f_period');
+    const listBox   = document.getElementById('rows');
+    const EMP_MAP = new Map();
 
-  const listBox   = document.getElementById('rows');
-  const EMP_MAP = new Map();
+    // รองรับทั้ง array และ {items,...}
+    const toItems = (res) => Array.isArray(res) ? res : (res?.items || []);
 
-  async function preloadEmployees(){
-    try{
-      const list = await apiGET(`${EMP}?status=active`);
-      EMP_MAP.clear();
-      for(const e of (list||[])) EMP_MAP.set(String(e.id), e);
-    }catch{ EMP_MAP.clear(); }
-  }
-
-  async function loadPayPeriods(){
-    const periods = await apiGET(PP);
-    periods.sort((a,b)=> (b.start_at||'').localeCompare(a.start_at||''));
-    selPeriod.innerHTML = '<option value="">— Select Pay Period —</option>';
-    for(const p of periods){
-      const opt = document.createElement('option');
-      opt.value = p.id;
-      opt.textContent = `${toLocalISODate(new Date(p.start_at))} → ${toLocalISODate(new Date(p.end_at))}`;
-      opt.dataset.start = p.start_at; opt.dataset.end = p.end_at;
-      selPeriod.appendChild(opt);
+    async function preloadEmployees(){
+      try{
+        const list = await apiGET(`${EMP}?status=active`);
+        EMP_MAP.clear();
+        for(const e of (list||[])) EMP_MAP.set(String(e.id), e);
+      }catch{ EMP_MAP.clear(); }
     }
-    return periods;
-  }
 
-  function updateRangeLabel(){
-    const opt = selPeriod.options[selPeriod.selectedIndex];
-    // infoRange.textContent = opt ? `Range: ${toLocalISODate(new Date(opt.dataset.start))} to ${toLocalISODate(new Date(opt.dataset.end))}` : '';
-  }
-
-  async function loadEmployeesForSelectedPeriod(){
-    const opt = selPeriod.options[selPeriod.selectedIndex];
-    if(!opt){ listBox.innerHTML = `<div class="empty">No pay period</div>`; return; }
-    const ppId = opt.value;
-
-    // server-side aggregated endpoint
-    const rows = await apiGET(`/payroll/pay-periods/${ppId}/employees`);
-    listBox.innerHTML = '';
-    if(!rows.length){ listBox.innerHTML = `<div class="empty">No employees with entries in this pay period.</div>`; return; }
-
-    for(const r of rows){
-      const emp = EMP_MAP.get(String(r.employee_id)) || {};
-      const name = r.name ?? emp.name ?? `Employee #${r.employee_id}`;
-      const code = r.emp_code ?? emp.emp_code ?? r.employee_id;
-      const link = `employee_timesheet.html?pp_id=${encodeURIComponent(ppId)}&employee_id=${encodeURIComponent(r.employee_id)}`;
-
-      const row = document.createElement('div');
-      row.className = 'row';
-      row.innerHTML = `
-        <div><span class="pill">${code}</span></div>
-        <div><a href="${link}">${name}</a></div>
-        <div>${(r.total_hours ?? 0).toFixed(2)} h</div>
-        <div>${r.entry_count ?? 0}</div>`;
-      listBox.appendChild(row);
+    // ดึง pay periods ทั้งหมดแบบทีละหน้า (max limit=200 ให้ตรงกับ backend)
+    async function fetchAllPayPeriods(limitPerPage = 200){
+      let page = 1, all = [], total = Infinity;
+      while(true){
+        const res = await apiGET(`${PP}?page=${page}&limit=${limitPerPage}`);
+        const items = toItems(res);
+        all.push(...items);
+        const t = Array.isArray(res) ? all.length : (res?.total ?? all.length);
+        total = t;
+        if(items.length < limitPerPage || all.length >= total) break;
+        page++;
+      }
+      return all;
     }
-  }
 
-  selPeriod.addEventListener('change', async ()=>{ updateRangeLabel(); await loadEmployeesForSelectedPeriod(); });
+    async function loadPayPeriods(){
+      const periods = await fetchAllPayPeriods(200);   // ทั้งหมดเพื่อทำ dropdown
+      selPeriod.innerHTML = '<option value="">— Select Pay Period —</option>';
+      for(const p of periods){
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.textContent = `${toLocalISODate(new Date(p.start_at))} → ${toLocalISODate(new Date(p.end_at))}`;
+        opt.dataset.start = p.start_at; opt.dataset.end = p.end_at;
+        selPeriod.appendChild(opt);
+      }
+      return periods;
+    }
 
-  document.addEventListener('DOMContentLoaded', async ()=>{
-    await preloadEmployees();
-    const periods = await loadPayPeriods();
-    if(periods.length){ selPeriod.value = periods[0].id; updateRangeLabel(); await loadEmployeesForSelectedPeriod(); }
-    else listBox.innerHTML = `<div class="empty">No pay periods</div>`;
-  });
-</script>
+    async function loadEmployeesForSelectedPeriod(){
+      const opt = selPeriod.options[selPeriod.selectedIndex];
+      if(!opt || !opt.value){ listBox.innerHTML = `<div class="empty">No pay period</div>`; return; }
+      const ppId = opt.value;
+
+      const rows = await apiGET(`/payroll/pay-periods/${ppId}/employees`);
+      listBox.innerHTML = '';
+      if(!rows?.length){
+        listBox.innerHTML = `<div class="empty">No employees with entries in this pay period.</div>`;
+        return;
+      }
+
+      for(const r of rows){
+        const emp = EMP_MAP.get(String(r.employee_id)) || {};
+        const name = r.name ?? emp.name ?? `Employee #${r.employee_id}`;
+        const code = r.emp_code ?? emp.emp_code ?? r.employee_id;
+        const link = `employee_timesheet.html?pp_id=${encodeURIComponent(ppId)}&employee_id=${encodeURIComponent(r.employee_id)}`;
+
+        const row = document.createElement('div');
+        row.className = 'row';
+        row.innerHTML = `
+          <div><span class="pill">${code}</span></div>
+          <div><a href="${link}" target="_blank" rel="noopener noreferrer">${name}</a></div>
+          <div>${Number(r.total_hours ?? 0).toFixed(2)} h</div>
+          <div>${r.entry_count ?? 0}</div>`;
+        listBox.appendChild(row);
+      }
+    }
+
+    selPeriod.addEventListener('change', async ()=>{ await loadEmployeesForSelectedPeriod(); });
+
+    document.addEventListener('DOMContentLoaded', async ()=>{
+      await preloadEmployees();
+      const periods = await loadPayPeriods();
+      if(periods.length){
+        selPeriod.value = String(periods[0].id); // ล่าสุดอยู่บนสุดจาก backend (start_at desc)
+        await loadEmployeesForSelectedPeriod();
+      }else{
+        listBox.innerHTML = `<div class="empty">No pay periods</div>`;
+      }
+    });
+  </script>
 </body>
 </html>

@@ -2,7 +2,7 @@
 <html lang="th">
 <head>
   <meta charset="utf-8" />
-  <title>Pay Periods (Inline Edit)</title>
+  <title>Pay Periods (Server-side Pagination)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
     :root{--text:#111;--muted:#6b7280;--line:#e5e7eb;--btn:#374151;--acc:#2563eb;--ok:#16a34a;--warn:#d97706;--err:#b91c1c}
@@ -16,9 +16,7 @@
     input:focus,select:focus,textarea:focus{outline:2px solid #c7d2fe;border-color:#c7d2fe}
     .grid{display:grid;gap:10px}
     .g4{grid-template-columns:repeat(4,minmax(0,1fr))}
-    .g3{grid-template-columns:repeat(3,minmax(0,1fr))}
     .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-    .right{display:flex;justify-content:flex-end;gap:8px}
     .btn{border:none;border-radius:10px;padding:8px 12px;cursor:pointer;font-weight:700;color:#fff;background:var(--btn)}
     .btn.acc{background:var(--acc)} .btn.ok{background:var(--ok)} .btn.warn{background:var(--warn)} .btn.err{background:var(--err)}
     .btn:disabled{opacity:.5;cursor:not-allowed}
@@ -30,12 +28,18 @@
     .b-open{border-color:#93c5fd;color:#1d4ed8}
     .b-locked{border-color:#fbbf24;color:#b45309}
     .b-paid{border-color:#86efac;color:#166534}
-    small{color:var(--muted)}
     .error{color:#b91c1c;margin-top:8px}
     .mono{font-family:ui-monospace,Menlo,Consolas,monospace}
     .actions{display:flex;gap:6px;flex-wrap:wrap}
-    .cellwrap{display:flex;gap:8px;align-items:center}
-    .hidden { display:none; }
+    .hidden{display:none}
+    .align-end{align-items:end}
+    .notes-add .hrow{display:flex;gap:8px;align-items:end}
+    .notes-add input{width:auto;flex:1}
+    .notes-add #btnCreate{white-space:nowrap;margin:0}
+    .pager{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin-top:10px}
+    .pager .btn{padding:6px 10px}
+    .pager .stat{color:var(--muted)}
+    .spacer{flex:1 1 auto}
   </style>
 </head>
 <body>
@@ -44,303 +48,243 @@
 
   <!-- Create -->
   <div class="card">
-    <div class="grid g4">
-      <div>
-        <label>Name (optional)</label>
-        <input id="c_name" placeholder="เช่น 2025-PP-17" />
-      </div>
-      <div>
-        <label>Start period (date)</label>
-        <input id="c_start" type="date" />
-      </div>
-      <div>
-        <label>End period (exclusive, date)</label>
-        <input id="c_end" type="date" />
-      </div>
+    <div class="grid g4 align-end">
+      <div><label>Start period</label><input id="c_start" type="date" /></div>
+      <div><label>End period (Exclusive)</label><input id="c_end" type="date" /></div>
       <div>
         <label>Status</label>
         <select id="c_status">
-          <option value="open">open</option>
-          <option value="locked">locked</option>
-          <option value="paid">paid</option>
+          <option value="open">open</option><option value="locked">locked</option><option value="paid">paid</option>
         </select>
       </div>
-    </div>
-    <div class="grid g3" style="margin-top:10px">
-      <div>
-        <label>Anchor</label>
-        <input id="c_anchor" placeholder="biweekly / weekly / monthly" />
-      </div>
-      <div>
+      <div class="notes-add">
         <label>Notes</label>
-        <input id="c_notes" placeholder="รายละเอียดเพิ่มเติม" />
-      </div>
-      <div class="right" style="align-items:end">
-        <button class="btn acc" onclick="createPeriod()">+ เพิ่มงวด</button>
+        <div class="hrow">
+          <input id="c_notes" placeholder="Add detail" />
+          <button class="btn acc" id="btnCreate">+ Add</button>
+        </div>
       </div>
     </div>
-    <small>ช่วงแนะนำใช้แบบ <span class="mono">[start_at, end_at)</span> (ขวาเปิด)</small>
     <div id="errCreate" class="error"></div>
   </div>
 
-  <!-- List + Inline edit -->
+  <!-- List -->
   <div class="card">
     <div class="row" style="margin-bottom:8px">
-      <label>กรองสถานะ:</label>
-      <select id="filterStatus" onchange="loadPeriods()">
-        <option value="">ทั้งหมด</option>
-        <option value="open">open</option>
-        <option value="locked">locked</option>
-        <option value="paid">paid</option>
-      </select>
-      <button class="btn" onclick="loadPeriods()">รีเฟรช</button>
+      <label>Status:
+        <select id="filterStatus" style="width:auto">
+          <option value="">all</option><option value="open">open</option><option value="locked">locked</option><option value="paid">paid</option>
+        </select>
+      </label>
+
+      <label style="margin-left:12px">Page size:
+        <select id="pageSize" style="width:auto">
+          <option value="10" selected>10</option><option value="20">20</option><option value="50">50</option><option value="100">100</option><option value="200">200</option>
+        </select>
+      </label>
+
+      <button class="btn" id="btnRefresh">รีเฟรช</button>
+      <div class="spacer"></div>
+      <div id="pagerTop" class="pager"></div>
     </div>
 
     <table>
       <thead>
         <tr>
           <th style="width:60px">ID</th>
-          <th>Name</th>
           <th>Start period</th>
           <th>End period</th>
           <th style="width:150px">Status</th>
-          <th>Anchor</th>
           <th>Notes</th>
           <th style="width:360px">Actions</th>
         </tr>
       </thead>
-      <tbody id="tblBody"></tbody>
+      <tbody id="tblBody"><tr><td colspan="6" style="color:#999">Loading…</td></tr></tbody>
     </table>
+
+    <div id="pagerBottom" class="pager"></div>
   </div>
 </div>
 
-<script>
-  // ==== CONFIG ====
-  const API_BASE = "http://127.0.0.1:8000/api/v1";
-  const RESOURCE = "/pay-periods"; // ตรงกับ backend
+<script type="module">
+  import { $ as _$, jfetch, toast } from "/static/js/api.js?v=1";
+  const $ = (sel) => document.querySelector(sel);
 
-  // ==== HELPERS ====
-  const $ = s => document.querySelector(s);
-  const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  const toISODate = d => d ? d + "T00:00:00" : null; // แปลง <input type="date"> -> ISO datetime
-  const fromISODate = iso => (iso || '').slice(0,10);
-  const badge = st => `<span class="badge ${st==='paid'?'b-paid':st==='locked'?'b-locked':'b-open'}">${st}</span>`;
+  const API_BASE = "";  // set '/api/v1' if mounted there
+  const url = (p) => `${API_BASE}${p}`;
+  const RESOURCE = "/pay-periods";
 
-  async function api(path, opts = {}) {
-    const res = await fetch(API_BASE + path, { headers: { "Content-Type": "application/json" }, ...opts });
-    if (!res.ok) throw new Error((await res.text().catch(()=>res.statusText)) || `HTTP ${res.status}`);
-    return res.json();
+  const GET    = (p)       => jfetch(url(p));
+  const POST   = (p, body) => jfetch(url(p), { method: "POST", body: JSON.stringify(body) });
+  const PATCH  = (p, body) => jfetch(url(p), { method: "PATCH", body: JSON.stringify(body) });
+  const DELETE = (p)       => jfetch(url(p), { method: "DELETE" });
+
+  const state = { page: 1, perPage: 10, total: 0, lastPage: 1, status: "" };
+
+  const esc = (s) => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  const fromISODate = (iso) => (iso || "").slice(0,10);
+  const toISODate   = (d) => (d ? `${d}T00:00:00` : null);
+  const pad = (n)=>String(n).padStart(2,"0");
+  const toLocalYMD = (dt)=>`${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}`;
+  function nextMondayDateStr(){ const d=new Date(); const day=d.getDay(); const add=(8-day)%7||7; d.setDate(d.getDate()+add); return toLocalYMD(d); }
+  function addDaysStr(yyyy_mm_dd, days){ const d=new Date(`${yyyy_mm_dd}T00:00:00`); d.setDate(d.getDate()+days); return toLocalYMD(d); }
+
+  function setDefaultCreateDates(list){
+    const items = Array.isArray(list) ? list : (list?.items || []);
+    if (items.length){
+      // list ของหน้านี้เรียงใหม่ไปเก่า -> อิงแถวแรกได้
+      const top = items[0];
+      const startStr = fromISODate(top.end_at);
+      const endStr = addDaysStr(startStr, 14);
+      $('#c_start').value = startStr; $('#c_end').value = endStr;
+    } else {
+      const s = nextMondayDateStr(), e = addDaysStr(s,14);
+      $('#c_start').value = s; $('#c_end').value = e;
+    }
   }
 
-  // ===== helper สำหรับ default start/end =====
-  function nextMondayDateStr() {
-    const d = new Date();
-    const day = d.getDay(); // 0=Sun..6=Sat
-    const add = (8 - day) % 7 || 7; // days until next Monday
-    d.setDate(d.getDate() + add);
-    return d.toISOString().slice(0,10);
+  function buildQS(params){
+    const usp = new URLSearchParams();
+    Object.entries(params).forEach(([k,v])=>{ if(v!==undefined && v!==null && v!=="") usp.set(k, v); });
+    const s = usp.toString(); return s ? `?${s}` : "";
   }
-  function addDaysStr(yyyy_mm_dd, days) {
-    const d = new Date(yyyy_mm_dd + "T00:00:00Z");
-    d.setUTCDate(d.getUTCDate() + days);
-    return d.toISOString().slice(0,10);
-  }
-  function setDefaultCreateDates(items) {
-  if (Array.isArray(items) && items.length > 0) {
-    // หา period ล่าสุดโดยดู end_at ที่มากที่สุด
-    const latest = items.reduce((acc, cur) =>
-      (!acc || new Date(cur.end_at) > new Date(acc.end_at)) ? cur : acc, null);
 
-    // start = end ของงวดล่าสุด + 1 วัน
-    const startStr = addDaysStr(fromISODate(latest.end_at), 1);
-    // end = start + 14 วัน
-    const endStr   = addDaysStr(startStr, 13);
-
-    document.getElementById('c_start').value = startStr;
-    document.getElementById('c_end').value   = endStr;
-  } else {
-    // ยังไม่มีงวด: เริ่มวันจันทร์ถัดไป + 14 วัน
-    const startStr = nextMondayDateStr();
-    const endStr   = addDaysStr(startStr, 13);
-    document.getElementById('c_start').value = startStr;
-    document.getElementById('c_end').value   = endStr;
-  }
-}
-
-
-  // ==== CREATE ====
   async function createPeriod(){
     $('#errCreate').textContent = '';
     try{
       const payload = {
-        name:   $('#c_name').value || null,
         start_at: toISODate($('#c_start').value),
-        end_at:   toISODate($('#c_end').value),
+        end_at: toISODate($('#c_end').value),
         status: $('#c_status').value || 'open',
-        anchor: $('#c_anchor').value || null,
-        notes:  $('#c_notes').value || null,
+        notes: $('#c_notes').value || null,
       };
-      if(!payload.start_at || !payload.end_at) throw new Error('กรุณาใส่วันเริ่ม/สิ้นสุด');
-      await api(RESOURCE, { method:'POST', body: JSON.stringify(payload) });
-      // clear form
-      $('#c_name').value=''; $('#c_start').value=''; $('#c_end').value='';
-      $('#c_status').value='open'; $('#c_anchor').value=''; $('#c_notes').value='';
+      if(!payload.start_at || !payload.end_at) throw new Error('Please enter start/end period date');
+
+      await POST(RESOURCE, payload);
+      $('#c_status').value='open'; $('#c_notes').value='';
+      state.page = 1; // กลับมาหน้าแรก (รายการใหม่สุด)
       await loadPeriods();
-    //   alert('เพิ่มงวดสำเร็จ');
-    }catch(e){ $('#errCreate').textContent = e.message || e; }
+      toast?.('Added');
+    }catch(e){
+      $('#errCreate').textContent = e?.message || String(e);
+      toast?.(e?.message || 'Create failed');
+    }
   }
 
-  // ==== LIST ====
   async function loadPeriods(){
-    const st = $('#filterStatus')?.value || '';
-    const qs = st ? `?status=${encodeURIComponent(st)}` : '';
-    const items = await api(RESOURCE + qs);
+    const qs = buildQS({ status: state.status, page: state.page, limit: state.perPage });
+    const res = await GET(`${RESOURCE}${qs}`); // {items,total,page,limit}
+    const items = res?.items || [];
+    state.total = Number(res?.total || 0);
+    state.lastPage = Math.max(1, Math.ceil(state.total / state.perPage));
+
     render(items);
-    // ตั้งค่า default ของฟอร์มสร้างงวดทุกครั้งหลังโหลดรายการ
+    renderPager();
     setDefaultCreateDates(items);
+  }
+
+  function badge(st){
+    return `<span class="badge ${st==='paid'?'b-paid':st==='locked'?'b-locked':'b-open'}">${st}</span>`;
   }
 
   function render(items){
     const tb = $('#tblBody'); tb.innerHTML = '';
+    if(!items.length){ tb.innerHTML = `<tr><td colspan="6" style="color:#999">No data</td></tr>`; return; }
     for(const it of items){
       const tr = document.createElement('tr');
       tr.dataset.id = it.id;
-
       tr.innerHTML = `
         <td class="mono">${it.id}</td>
-
-        <td>
-          <input type="text" value="${esc(it.name || '')}" data-field="name" disabled />
-        </td>
-
-        <td>
-          <input type="date" value="${esc(fromISODate(it.start_at))}" data-field="start_at" disabled />
-        </td>
-
-        <td>
-          <input type="date" value="${esc(fromISODate(it.end_at))}" data-field="end_at" disabled />
-        </td>
-
+        <td><input type="date" value="${esc(fromISODate(it.start_at))}" data-field="start_at" disabled /></td>
+        <td><input type="date" value="${esc(fromISODate(it.end_at))}" data-field="end_at" disabled /></td>
         <td>
           <select data-field="status" disabled>
-            <option value="open" ${it.status==='open'?'selected':''}>open</option>
+            <option value="open"   ${it.status==='open'?'selected':''}>open</option>
             <option value="locked" ${it.status==='locked'?'selected':''}>locked</option>
-            <option value="paid" ${it.status==='paid'?'selected':''}>paid</option>
+            <option value="paid"   ${it.status==='paid'?'selected':''}>paid</option>
           </select>
           <div style="margin-top:6px">${badge(it.status)}</div>
         </td>
-
-        <td>
-          <input type="text" value="${esc(it.anchor || '')}" data-field="anchor" disabled />
-        </td>
-
-        <td>
-          <input type="text" value="${esc(it.notes || '')}" data-field="notes" disabled />
-        </td>
-
+        <td><input type="text" value="${esc(it.notes || '')}" data-field="notes" disabled /></td>
         <td class="actions">
-          <button class="btn" onclick="toggleEdit(${it.id}, true)">Edit</button>
-          <button class="btn acc hidden" onclick="saveRow(${it.id})">Save</button>
-          <button class="btn hidden" onclick="toggleEdit(${it.id}, false)">Cancel</button>
-          <button class="btn err" onclick="deleteRow(${it.id})">Delete</button>
-          ${it.status==='open'   ? `<button class="btn warn" onclick="lockRow(${it.id})">Lock</button>` : ``}
-          ${it.status==='locked' ? `<button class="btn ok"   onclick="markPaid(${it.id})">Mark paid</button>` : ``}
-          ${it.status==='locked' ? `<button class="btn"      onclick="unlockRow(${it.id})">Unlock</button>` : ``}
-        </td>
-      `;
-      $('#tblBody').appendChild(tr);
+          <button class="btn"            data-action="edit"   onclick="toggleEdit(${it.id}, true)">Edit</button>
+          <button class="btn acc hidden" data-action="save"   onclick="saveRow(${it.id})">Save</button>
+          <button class="btn hidden"     data-action="cancel" onclick="toggleEdit(${it.id}, false)">Cancel</button>
+          <button class="btn err"        data-action="delete" onclick="deleteRow(${it.id})">Delete</button>
+          ${it.status==='open'   ? `<button class="btn warn" data-action="lock"   onclick="lockRow(${it.id})">Lock</button>` : ``}
+          ${it.status==='locked' ? `<button class="btn ok"   data-action="paid"   onclick="markPaid(${it.id})">Mark paid</button>` : ``}
+          ${it.status==='locked' ? `<button class="btn"      data-action="unlock" onclick="unlockRow(${it.id})">Unlock</button>` : ``}
+        </td>`;
+      tb.appendChild(tr);
     }
   }
 
-  // ==== INLINE EDIT (ซ่อน Save/Cancel จนกว่าจะ Edit) ====
   function toggleEdit(id, enable){
-    const tr = document.querySelector(`tr[data-id="${id}"]`);
-    if(!tr) return;
-    tr.querySelectorAll('input,select').forEach(el=>{
-      if(el.dataset.field) el.disabled = !enable;
-    });
-    const [btnEdit, btnSave, btnCancel] = tr.querySelectorAll('button');
+    const tr = document.querySelector(`tr[data-id="${id}"]`); if(!tr) return;
+    tr.querySelectorAll('input,select').forEach(el=>{ if(el.dataset.field) el.disabled = !enable; });
+    const btnEdit=tr.querySelector('button[data-action="edit"]');
+    const btnSave=tr.querySelector('button[data-action="save"]');
+    const btnCancel=tr.querySelector('button[data-action="cancel"]');
+
     if(enable){
-      btnEdit.classList.add('hidden');
-      btnSave.classList.remove('hidden');
-      btnCancel.classList.remove('hidden');
-      tr._snapshot = snapshotRow(tr); // เก็บค่าเดิมสำหรับ Cancel
+      btnEdit?.classList.add('hidden'); btnSave?.classList.remove('hidden'); btnCancel?.classList.remove('hidden');
+      tr._snapshot = snapshotRow(tr);
     }else{
-      btnEdit.classList.remove('hidden');
-      btnSave.classList.add('hidden');
-      btnCancel.classList.add('hidden');
+      btnEdit?.classList.remove('hidden'); btnSave?.classList.add('hidden'); btnCancel?.classList.add('hidden');
       if(tr._snapshot){ restoreSnapshot(tr, tr._snapshot); delete tr._snapshot; }
+      tr.querySelectorAll('input,select').forEach(el=>{ if(el.dataset.field) el.disabled = true; });
     }
   }
-  function snapshotRow(tr){
-    const snap = {};
-    tr.querySelectorAll('[data-field]').forEach(el=>{
-      snap[el.dataset.field] = el.value ?? '';
-    });
-    return snap;
-  }
-  function restoreSnapshot(tr, snap){
-    tr.querySelectorAll('[data-field]').forEach(el=>{
-      if(Object.prototype.hasOwnProperty.call(snap, el.dataset.field)){
-        el.value = snap[el.dataset.field];
-      }
-    });
-  }
+  function snapshotRow(tr){ const snap={}; tr.querySelectorAll('[data-field]').forEach(el=>{ snap[el.dataset.field]=el.value??''; }); return snap; }
+  function restoreSnapshot(tr, snap){ tr.querySelectorAll('[data-field]').forEach(el=>{ if(snap.hasOwnProperty(el.dataset.field)) el.value=snap[el.dataset.field]; }); }
 
   async function saveRow(id){
-    const tr = document.querySelector(`tr[data-id="${id}"]`);
-    if(!tr) return;
-
+    const tr = document.querySelector(`tr[data-id="${id}"]`); if(!tr) return;
     const payload = {};
     tr.querySelectorAll('[data-field]').forEach(el=>{
-      const k = el.dataset.field;
-      let v = el.value;
-      if(k === 'start_at' || k === 'end_at'){
-        v = toISODate(v);
-      }else if(k === 'name' || k === 'anchor' || k === 'notes'){
-        v = v || null;
-      }
-      payload[k] = v;
+      const k = el.dataset.field; let v = el.value;
+      if(k==='start_at' || k==='end_at') v = toISODate(v);
+      if(k==='notes') v = v || null;
+      payload[k]=v;
     });
+    try{ await PATCH(`${RESOURCE}/${id}`, payload); await loadPeriods(); toast?.('Saved'); }
+    catch(e){ toast?.('Cannot save: ' + (e?.message || e)); }
+  }
 
-    try{
-      await api(`${RESOURCE}/${id}`, { method:'PATCH', body: JSON.stringify(payload) });
-      await loadPeriods();
-      alert('บันทึกสำเร็จ');
-    }catch(e){
-      alert('บันทึกไม่สำเร็จ: ' + (e.message || e));
+  async function deleteRow(id){
+    if(!confirm('Delete period?')) return;
+    try{ await DELETE(`${RESOURCE}/${id}`); await loadPeriods(); toast?.('Deleted'); }
+    catch(e){ toast?.('Delete failed: ' + (e?.message || e)); }
+  }
+  async function lockRow(id){ if(!confirm('Lock period?')) return; try{ await POST(`${RESOURCE}/${id}/lock`); await loadPeriods(); }catch(e){ toast?.(e?.message||e); } }
+  async function unlockRow(id){ if(!confirm('Unlock period?')) return; try{ await POST(`${RESOURCE}/${id}/unlock`); await loadPeriods(); }catch(e){ toast?.(e?.message||e); } }
+  async function markPaid(id){ if(!confirm('Confirm mark paid?')) return; try{ await POST(`${RESOURCE}/${id}/mark-paid`); await loadPeriods(); }catch(e){ toast?.(e?.message||e); } }
+
+  function renderPager(){
+    const bars = [$('#pagerTop'), $('#pagerBottom')];
+    const makeBtn=(label,fn,disabled)=>{ const b=document.createElement('button'); b.className='btn'; b.textContent=label; b.disabled=!!disabled; b.addEventListener('click',fn); return b; };
+    const statText=()=>{ const start=state.total===0?0:((state.page-1)*state.perPage)+1; const end=Math.min(state.total,state.page*state.perPage); return `Showing ${start}-${end} of ${state.total} | Page ${state.page}/${state.lastPage}`; };
+
+    for(const bar of bars){
+      if(!bar) continue; bar.innerHTML='';
+      const stat=document.createElement('div'); stat.className='stat'; stat.textContent=statText();
+      const first=makeBtn('« First', ()=>{ if(state.page!==1){ state.page=1; loadPeriods(); } }, state.page===1);
+      const prev =makeBtn('‹ Prev',  ()=>{ if(state.page>1){ state.page--; loadPeriods(); } }, state.page===1);
+      const next =makeBtn('Next ›', ()=>{ if(state.page<state.lastPage){ state.page++; loadPeriods(); } }, state.page===state.lastPage);
+      const last =makeBtn('Last »', ()=>{ if(state.page!==state.lastPage){ state.page=state.lastPage; loadPeriods(); } }, state.page===state.lastPage);
+      bar.append(stat, first, prev, next, last);
     }
   }
 
-  // ==== ROW ACTIONS ====
-  async function deleteRow(id){
-    if(!confirm('ลบงวดนี้ถาวร?')) return;
-    try{
-      await api(`${RESOURCE}/${id}`, { method:'DELETE' }); // ต้องมี DELETE endpoint ใน backend
-      await loadPeriods();
-    }catch(e){ alert('ลบไม่สำเร็จ: ' + (e.message || e)); }
-  }
-  async function lockRow(id){
-    if(!confirm('ล็อคงวดนี้?')) return;
-    try{ await api(`${RESOURCE}/${id}/lock`, { method:'POST' }); await loadPeriods(); }
-    catch(e){ alert(e.message || e); }
-  }
-  async function unlockRow(id){
-    if(!confirm('ปลดล็อคงวดนี้?')) return;
-    try{ await api(`${RESOURCE}/${id}/unlock`, { method:'POST' }); await loadPeriods(); }
-    catch(e){ alert(e.message || e); }
-  }
-  async function markPaid(id){
-    if(!confirm('ยืนยัน Mark paid?')) return;
-    try{ await api(`${RESOURCE}/${id}/mark-paid`, { method:'POST' }); await loadPeriods(); }
-    catch(e){ alert(e.message || e); }
-  }
-
-  // ==== INIT ====
-  // เพิ่มคลาส .hidden ใน <style> ของคุณ:
-  // .hidden { display: none; }
+  // INIT
+  $('#btnCreate')?.addEventListener('click', createPeriod);
+  $('#btnRefresh')?.addEventListener('click', loadPeriods);
+  $('#filterStatus')?.addEventListener('change', (e)=>{ state.status = e.target.value || ""; state.page=1; loadPeriods(); });
+  $('#pageSize')?.addEventListener('change', (e)=>{ state.perPage = Number(e.target.value||10); state.page=1; loadPeriods(); });
+  state.perPage = Number($('#pageSize')?.value || 10);
   loadPeriods();
-</script>
 
+  Object.assign(window, { toggleEdit, saveRow, deleteRow, lockRow, unlockRow, markPaid });
+</script>
 </body>
 </html>
