@@ -6,40 +6,63 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
     :root{--text:#111;--muted:#6b7280;--line:#e5e7eb;--btn:#374151;--acc:#2563eb;--ok:#16a34a;--warn:#d97706;--err:#b91c1c}
-    *{box-sizing:border-box}
-    body{margin:0;background:#fff;color:var(--text);font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
-    .wrap{max-width:1100px;margin:28px auto;padding:0 14px}
-    h1{margin:0 0 16px;font-size:22px}
-    .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:14px}
-    label{display:block;margin:6px 0 4px;font-weight:600}
-    input,select,textarea{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:#fff}
-    input:focus,select:focus,textarea:focus{outline:2px solid #c7d2fe;border-color:#c7d2fe}
-    .grid{display:grid;gap:10px}
-    .g4{grid-template-columns:repeat(4,minmax(0,1fr))}
-    .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-    .btn{border:none;border-radius:10px;padding:8px 12px;cursor:pointer;font-weight:700;color:#fff;background:var(--btn)}
-    .btn.acc{background:var(--acc)} .btn.ok{background:var(--ok)} .btn.warn{background:var(--warn)} .btn.err{background:var(--err)}
-    .btn:disabled{opacity:.5;cursor:not-allowed}
-    table{width:100%;border-collapse:collapse;border:1px solid var(--line);border-radius:12px;overflow:hidden}
-    th,td{padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top;text-align:left}
-    th{background:#f9fafb}
-    tbody tr:hover{background:#f9fafb}
-    .badge{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:2px 10px;font-size:12px;background:#fff}
-    .b-open{border-color:#93c5fd;color:#1d4ed8}
-    .b-locked{border-color:#fbbf24;color:#b45309}
-    .b-paid{border-color:#86efac;color:#166534}
-    .error{color:#b91c1c;margin-top:8px}
-    .mono{font-family:ui-monospace,Menlo,Consolas,monospace}
-    .actions{display:flex;gap:6px;flex-wrap:wrap}
-    .hidden{display:none}
-    .align-end{align-items:end}
-    .notes-add .hrow{display:flex;gap:8px;align-items:end}
-    .notes-add input{width:auto;flex:1}
-    .notes-add #btnCreate{white-space:nowrap;margin:0}
-    .pager{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin-top:10px}
-    .pager .btn{padding:6px 10px}
-    .pager .stat{color:var(--muted)}
-    .spacer{flex:1 1 auto}
+*{box-sizing:border-box}
+body{margin:0;background:#fff;color:var(--text);font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
+.wrap{max-width:1100px;margin:28px auto;padding:0 14px}
+h1{margin:0 0 16px;font-size:22px}
+.card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:14px}
+label{display:block;margin:6px 0 4px;font-weight:600}
+
+/* ทำเส้น input จางลงเล็กน้อย เพื่อลดอิทธิพลต่อเส้นแบ่งแถว */
+input,select,textarea{
+  width:100%; padding:9px 11px;
+  border:1px solid #eceff3; border-radius:10px; background:#fff;
+}
+input:focus,select:focus,textarea:focus{outline:2px solid #c7d2fe;border-color:#c7d2fe}
+
+.grid{display:grid;gap:10px}
+.g4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.btn{border:none;border-radius:10px;padding:8px 12px;cursor:pointer;font-weight:700;color:#fff;background:var(--btn)}
+.btn.acc{background:var(--acc)} .btn.ok{background:var(--ok)} .btn.warn{background:var(--warn)} .btn.err{background:var(--err)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+
+/* ===== ตาราง (ใช้ collapse และวาดเส้นที่ cell) ===== */
+table{
+  width:100%;
+  border-collapse:collapse;   /* กลับมาใช้ collapse ที่เสถียร */
+  border:1px solid var(--line);
+  border-radius:12px;
+  overflow:hidden;
+}
+th,td{
+  padding:10px 12px;
+  vertical-align:top;
+  text-align:left;
+  border-bottom:1px solid var(--line);  /* เส้นแบ่งแถว */
+}
+tbody tr:last-child td{ border-bottom:0 } /* แถวสุดท้ายไม่ต้องมีเส้นล่าง */
+th{ background:#f9fafb }
+tbody tr:hover{ background:#f9fafb }
+
+.badge{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:2px 10px;font-size:12px;background:#fff}
+.b-open{border-color:#93c5fd;color:#1d4ed8}
+.b-locked{border-color:#fbbf24;color:#b45309}
+.b-paid{border-color:#86efac;color:#166534}
+.error{color:#b91c1c;margin-top:8px}
+.mono{font-family:ui-monospace,Menlo,Consolas,monospace}
+.actions{display:flex;gap:6px;flex-wrap:wrap}
+.hidden{display:none}
+.align-end{align-items:end}
+.notes-add .hrow{display:flex;gap:8px;align-items:end}
+.notes-add input{width:auto;flex:1}
+.notes-add #btnCreate{white-space:nowrap;margin:0}
+.pager{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin-top:10px}
+.pager .btn{padding:6px 10px}
+.pager .stat{color:var(--muted)}
+.spacer{flex:1 1 auto}
+
+
   </style>
 </head>
 <body>
@@ -54,7 +77,9 @@
       <div>
         <label>Status</label>
         <select id="c_status">
-          <option value="open">open</option><option value="locked">locked</option><option value="paid">paid</option>
+          <option value="open">open</option>
+          <option value="locked">locked</option>
+          <option value="paid">paid</option>
         </select>
       </div>
       <div class="notes-add">
@@ -83,7 +108,7 @@
         </select>
       </label>
 
-      <button class="btn" id="btnRefresh">รีเฟรช</button>
+      <button class="btn" id="btnRefresh">Refresh</button>
       <div class="spacer"></div>
       <div id="pagerTop" class="pager"></div>
     </div>
@@ -203,7 +228,7 @@
             <option value="locked" ${it.status==='locked'?'selected':''}>locked</option>
             <option value="paid"   ${it.status==='paid'?'selected':''}>paid</option>
           </select>
-          <div style="margin-top:6px">${badge(it.status)}</div>
+          
         </td>
         <td><input type="text" value="${esc(it.notes || '')}" data-field="notes" disabled /></td>
         <td class="actions">

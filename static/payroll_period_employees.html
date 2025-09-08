@@ -122,7 +122,7 @@
         row.className = 'row';
         row.innerHTML = `
           <div><span class="pill">${code}</span></div>
-          <div><a href="${link}" target="_blank" rel="noopener noreferrer">${name}</a></div>
+          <div><a href="${link}" target="_blank" rel="noopener noreferrer" target="_blank">${name}</a></div>
           <div>${Number(r.total_hours ?? 0).toFixed(2)} h</div>
           <div>${r.entry_count ?? 0}</div>`;
         listBox.appendChild(row);

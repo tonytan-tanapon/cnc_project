@@ -40,9 +40,9 @@
         <th>Date</th>
         <th>Shifts</th>
         <th>Breaks</th>
-        <th>Break (unpaid h)</th>
-        <th>Reg (h)</th>
-        <th>OT (h)</th>
+        <th>Break (hrs)*</th>
+        <th>Reg (hrs)</th>
+        <th>OT (hrs)</th>
         <th>Rate</th>
         <th>OT Rate</th>
         <th>Pay (Reg)</th>
@@ -53,7 +53,7 @@
     <tbody id="tblBody"><tr><td colspan="12" class="empty">Loading…</td></tr></tbody>
     <tfoot id="tblFoot"></tfoot>
   </table>
-
+  <div class="muted" style="margin-top:4px">* Unpaid break hours</div>
   <div class="bar">
     <label>Rate:
       <input id="rate" type="number" step="0.01" min="0" value="20.00" inputmode="decimal">
@@ -78,14 +78,17 @@
   const pad = n=>String(n).padStart(2,'0');
   const fmtDate = iso => iso ? new Date(iso).toISOString().slice(0,10) : '';
   const fmtTime = iso => { if(!iso) return ''; const d=new Date(iso); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
-  const currency = v => '$ ' + Number(v||0).toFixed(2);
+  const currency = v =>
+  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    .format(Number(v ?? 0));
   const getQS = k => new URL(location.href).searchParams.get(k);
   const utcDateKey = iso => iso ? new Date(iso).toISOString().slice(0,10) : null;
-
+  
+  
   // cache
   let lastSummary = null, lastBreaksByDate = {}, lastShiftsByDate = {};
   let currentEmployeeId = null, currentPpId = null;
-
+  let currentEmpName = '', currentPpStart = '', currentPpEnd = '';
   async function safeGetPayPeriod(pp_id){
     try{ const pp = await apiGET(`${PP}/${pp_id}`); if(pp) return pp; }catch{}
     const all = await apiGET(PP);
@@ -106,7 +109,7 @@
     return sorted.map(s=>{
       const si = fmtTime(s.start_at);
       const so = s.end_at ? fmtTime(s.end_at) : '…';
-      return `${si}–${so}`;
+      return `${si}-${so}`;
     }).join('<br>');
   }
 
@@ -116,8 +119,8 @@
     return sorted.map(b=>{
       const s = fmtTime(b.start_at);
       const e = fmtTime(b.end_at);
-      const tag = (b.is_paid ? '' : ' (unpaid)');
-      return `${s}–${e}${tag}`;
+      // const tag = (b.is_paid ? '' : ' (unpaid)');
+      return `${s}-${e}`;
     }).join('<br>');
   }
 
@@ -170,7 +173,12 @@
         <td class="num mono">${currency(sumPayReg+sumPayOT)}</td>
       </tr>`;
   }
-
+  const safeFilename = (s) =>
+  String(s ?? '')
+    .normalize('NFKC')
+    .replace(/[<>:"/\\|?*\x00-\x1F]/g, '')  // อักขระต้องห้ามบน Windows/macOS
+    .replace(/\s+/g, '_')
+    .slice(0, 120);
   function exportCSV(){
     const header = [
       'no','date','shifts','breaks',
@@ -200,10 +208,12 @@
     const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href = url;
-    a.download = `timesheet_${new Date().toISOString().slice(0,10)}.csv`;
+    // a.download = `timesheet_${new Date().toISOString().slice(0,10)}.csv`;
+    const fname = `payroll_${safeFilename(currentEmpName)}_${currentPpStart}_${currentPpEnd}.csv`;
+    a.download = fname;
     a.click(); URL.revokeObjectURL(url);
   }
-
+  
   async function loadPage(fetchFromApi = true){
     const pp_id = getQS('pp_id');
     const employee_id = getQS('employee_id');
@@ -222,6 +232,9 @@
     document.getElementById('header').textContent =
       `Payroll — ${emp?.name ?? ('Emp #'+employee_id)} (${fmtDate(pp.start_at)} → ${fmtDate(pp.end_at)})`;
 
+    currentEmpName = emp?.name ?? `Emp_${employee_id}`;
+    currentPpStart = fmtDate(pp.start_at); // YYYY-MM-DD
+    currentPpEnd   = fmtDate(pp.end_at);   // YYYY-MM-DD
     if (fetchFromApi){
       const [summary, details] = await Promise.all([
         apiGET(`/payroll/pay-periods/${pp_id}/employees/${employee_id}/daily-summary?closed_only=false&ot_daily_threshold=8`),
