@@ -5,19 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Purchase Orders · Topnotch – MFG</title>
   <link rel="stylesheet" href="/static/css/app.css" />
-  <style>
-    .btn-small {
-      padding: 4px 8px;
-      font-size: 14px;
-      border: 1px solid var(--line, #ccc);
-      border-radius: 6px;
-      background: #111;
-      color: #fff;
-      cursor: pointer;
-      transition: background 0.2s;
-    }
-    .btn-small:hover { background: #333; }
-  </style>
 </head>
 <body>
   <div class="app">
@@ -27,6 +14,7 @@
         <span class="logo-badge">TN</span>
         <span>Topnotch – MFG</span>
       </div>
+      <!-- เมนูจะถูกโหลดจาก /static/partials/nav.html -->
       <div id="navSlot" data-nav-slot></div>
     </aside>
 
@@ -53,54 +41,31 @@
           <div class="grid" style="margin-top:8px">
             <div class="col-2">
               <label>PO Number</label>
-              <input id="po_no" placeholder="Autogen (ว่าง/AUTO)" />
+              <input id="po_no" placeholder="Autogen" />
             </div>
             <div class="col-3">
               <label>Customer</label>
-              <!-- รองรับ autocomplete จาก JS -->
-              <input id="po_cust" type="text" autocomplete="off" inputmode="latin" placeholder="Customer code or name" />
+              <!-- พิมพ์เป็น customer_code + มี autocomplete จาก JS -->
+              <input  id="po_cust" type="text" autocomplete="off"   inputmode="latin"   placeholder="Customer codeName""             
+              />
             </div>
             <div class="col-4">
               <label>Description</label>
               <input id="po_desc" />
             </div>
-
+            
             <div class="col-12">
               <button class="btn" id="po_create" type="button">Create</button>
-              <span class="hint">POST /api/v1/pos</span>
+              <span class="hint">POST /pos</span>
             </div>
           </div>
         </div>
 
         <div class="card">
-          <div class="toolbar" style="display:flex; gap:8px; align-items:center;">
-            <input id="po_q" placeholder="search po no / customer / desc" style="flex:1;" />
+          <div class="toolbar">
             <button class="btn" id="po_reload" type="button">Reload</button>
-
-            <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
-              <label>Per page:
-                <select id="po_per_page">
-                  <option value="10">10</option>
-                  <option value="20" selected>20</option>
-                  <option value="50">50</option>
-                  <option value="100">100</option>
-                </select>
-              </label>
-              <div class="pager" style="display:flex;gap:6px;align-items:center;">
-                <button class="btn-small" id="po_prev" type="button" aria-label="Previous page">« Prev</button>
-                <span id="po_page_info" class="muted" aria-live="polite">Page 1</span>
-                <button class="btn-small" id="po_next" type="button" aria-label="Next page">Next »</button>
-              </div>
-            </div>
           </div>
-
-          <div id="po_table" style="min-height:120px;"></div>
-
-          <div class="toolbar" style="display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:8px;">
-            <button class="btn-small" id="po_prev2" type="button" aria-label="Previous page (bottom)">« Prev</button>
-            <span id="po_page_info2" class="muted" aria-live="polite">Page 1</span>
-            <button class="btn-small" id="po_next2" type="button" aria-label="Next page (bottom)">Next »</button>
-          </div>
+          <div id="po_table"></div>
         </div>
       </section>
     </main>
@@ -110,7 +75,9 @@
     <span id="toastText"></span>
   </div>
 
+  <!-- โหลดเมนู + เซ็ต active อัตโนมัติ -->
   <script type="module" src="/static/js/nav-loader.js"></script>
-  <script type="module" src="/static/js/page-pos.js?v=4"></script>
+  <!-- ลอจิกของหน้า PO -->
+  <script type="module" src="/static/js/page-pos.js?v=1"></script>
 </body>
 </html>

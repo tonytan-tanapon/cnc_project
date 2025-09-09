@@ -434,44 +434,49 @@ function renderLines() {
     : poLines.slice();
 
   if (!rows.length) {
-    tb.innerHTML = `<tr><td colspan="7" class="empty">No lines</td></tr>`;
+    tb.innerHTML = `<tr><td colspan="8" class="empty">No lines</td></tr>`; // 👈 colspan=8
     return;
   }
 
-  tb.innerHTML = rows.map(row => {
+  tb.innerHTML = rows.map((row, idxInRows) => {
+    // คำนวณเลขลำดับสำหรับแถวปัจจุบัน
+    // - ถ้าแถวแรกเป็น new: แถว new ไม่มีเลข, แถวถัดไปเริ่ม 1
+    // - ถ้าไม่มี new: เริ่ม 1 ตาม index ปกติ
+    const displayNo = row.__isNew
+      ? ''                       // แถว new ไม่แสดงเลข
+      : (editingLineId === 'new' ? idxInRows : idxInRows + 1);
+
     const isEdit = editingLineId === row.id || (row.__isNew && editingLineId === 'new');
 
     if (!isEdit) {
-  const qty   = fmtQty(row.qty_ordered);
-  const price = fmtMoney(row.unit_price);
-  const due   = row.due_date ?? '';
+      const qty   = fmtQty(row.qty_ordered);
+      const price = fmtMoney(row.unit_price);
+      const due   = row.due_date ?? '';
 
-  // 👇 เพิ่มสองบรรทัดนี้แทนของเดิม
-  const partId = (row.part?.id ?? row.part_id ?? null);
-  const partNo = row.part?.part_no ?? (row.part_id ?? '');
+      const partId = (row.part?.id ?? row.part_id ?? null);
+      const partNo = row.part?.part_no ?? (row.part_id ?? '');
+      const partNoCell = partId
+        ? `<a href="${partDetailUrl(partId)}" class="link">${escapeHtml(String(partNo))}</a>`
+        : `${escapeHtml(String(partNo))}`;
 
-  // 👇 ถ้ามี id ให้ลิงก์ไปหน้า part-detail
-  const partNoCell = partId
-    ? `<a href="${partDetailUrl(partId)}" class="link">${escapeHtml(String(partNo))}</a>`
-    : `${escapeHtml(String(partNo))}`;
+      const rev   = row.rev?.rev ?? (row.revision_id ?? '');
+      const notes = escapeHtml(row.notes ?? '');
 
-  const rev   = row.rev?.rev ?? (row.revision_id ?? '');
-  const notes = escapeHtml(row.notes ?? '');
-  return `
-    <tr data-id="${row.id}">
-      <td>${partNoCell}</td>
-      <td>${escapeHtml(String(rev))}</td>
-      <td style="text-align:right">${qty}</td>
-      <td style="text-align:right">${price}</td>
-      <td>${escapeHtml(due)}</td>
-      <td>${notes}</td>
-      <td style="text-align:right; white-space:nowrap">
-        <button class="btn ghost btn-sm" data-edit="${row.id}">Edit</button>
-        <button class="btn danger btn-sm" data-del="${row.id}">Delete</button>
-      </td>
-    </tr>`;
-}
- else {
+      return `
+        <tr data-id="${row.id}">
+          <td class="no-col" style="text-align:right">${escapeHtml(String(displayNo))}</td>   <!-- 👈 No. -->
+          <td>${partNoCell}</td>
+          <td>${escapeHtml(String(rev))}</td>
+          <td style="text-align:right">${qty}</td>
+          <td style="text-align:right">${price}</td>
+          <td>${escapeHtml(due)}</td>
+          <td>${notes}</td>
+          <td style="text-align:right; white-space:nowrap">
+            <button class="btn ghost btn-sm" data-edit="${row.id}">Edit</button>
+            <button class="btn danger btn-sm" data-del="${row.id}">Delete</button>
+          </td>
+        </tr>`;
+    } else {
       const rid = row.__isNew ? 'new' : row.id;
       const partNo = row.part?.part_no ?? '';
       const rev = row.rev?.rev ?? '';
@@ -479,11 +484,12 @@ function renderLines() {
       const price = row.unit_price ?? '';
       const due = row.due_date ?? '';
       const notes = row.notes ?? '';
-      const partId = (row.part_id ?? row.part?.id) ?? '';          // fallback part.id
-      const revisionId = (row.revision_id ?? row.rev?.id) ?? '';   // fallback rev.id
+      const partId = (row.part_id ?? row.part?.id) ?? '';
+      const revisionId = (row.revision_id ?? row.rev?.id) ?? '';
 
       return `
         <tr data-id="${row.id ?? ''}" data-editing="1">
+          <td class="no-col" style="text-align:right">${escapeHtml(String(displayNo))}</td>   <!-- 👈 No. -->
           <td>
             <input id="r_part_code_${rid}" value="${escapeHtml(partNo)}" placeholder="e.g. P-10001" />
             <input id="r_part_id_${rid}" type="hidden" value="${escapeHtml(String(partId))}">
@@ -530,53 +536,42 @@ function renderLines() {
     b.addEventListener('click', cancelEdit);
   });
 
-  // ---- attach autocomplete + เติม rev list ให้แถวที่กำลังแก้ไข ----
+  // ---- autocomplete + rev list สำหรับแถวที่กำลังแก้ไข ----
   if (editingLineId != null) {
     const rid = editingLineId;
     const partInputEl = $(`r_part_code_${rid}`);
     if (partInputEl) attachRowPartAutocomplete(rid, partInputEl);
 
-    // ถ้าเป็นแถวเดิม (rid != 'new') เติมรายการ Rev จาก part_id หรือ part.id
     if (rid !== 'new') {
       const rowData = poLines.find(x => x.id === Number(rid));
       const partIdCandidate = (rowData?.part_id ?? rowData?.part?.id) ?? null;
       const prevRevId = (rowData?.revision_id ?? rowData?.rev?.id) ?? null;
       const prevRevText = rowData?.rev?.rev ?? '';
 
-      dlog('edit-row attach rev datalist', { rid, partIdCandidate, prevRevId, prevRevText, rowData });
-
       if (partIdCandidate) {
         loadRevisionsForInto(partIdCandidate, rid).then(() => {
-          // จับคู่ตาม id
           if (prevRevId) {
             const dl = $(`revOptions_${rid}`);
             const match = [...(dl?.children || [])].find(o => (o.getAttribute('data-id') || '') === String(prevRevId));
             if (match) {
               $(`r_rev_${rid}`).value = match.value;
               $(`r_revision_id_${rid}`).value = String(prevRevId);
-              dlog('matched by revision_id', { value: match.value, id: prevRevId });
               return;
             }
           }
-          // จับคู่ตาม rev text
           if (prevRevText) {
             const dl = $(`revOptions_${rid}`);
             const opt = [...(dl?.children || [])].find(o => (o.value || '') === String(prevRevText));
             if (opt) {
               $(`r_rev_${rid}`).value = opt.value;
               $(`r_revision_id_${rid}`).value = opt.getAttribute('data-id') || '';
-              dlog('matched by rev text', { value: opt.value, id: opt.getAttribute('data-id') });
               return;
             }
           }
-          dlog('no previous rev to match; keep default');
         });
-      } else {
-        dlog('NO partIdCandidate – skip loading revs');
       }
     }
 
-    // sync rev -> revision_id
     const revInput = $(`r_rev_${rid}`);
     revInput?.addEventListener('change', () => {
       const dl = $(`revOptions_${rid}`);
@@ -586,7 +581,6 @@ function renderLines() {
         if (opt) matchId = opt.getAttribute('data-id') || '';
       }
       $(`r_revision_id_${rid}`).value = matchId;
-      dlog('rev change -> set revision_id', { rid, rev: revInput.value, matchId });
     });
 
     revInput?.addEventListener('keydown', (e) => {
@@ -598,12 +592,12 @@ function renderLines() {
           $(`r_revision_id_${rid}`).value = opt.getAttribute('data-id') || '';
           e.preventDefault();
           $(`r_qty_${rid}`)?.focus();
-          dlog('rev Enter -> matched', { rid, value: opt.value, id: opt.getAttribute('data-id') });
         }
       }
     });
   }
 }
+
 
 function startEdit(id) {
   if (editingLineId != null) { cancelEdit(); }

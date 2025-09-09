@@ -5,19 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Purchase Orders · Topnotch – MFG</title>
   <link rel="stylesheet" href="/static/css/app.css" />
-  <style>
-    .btn-small {
-      padding: 4px 8px;
-      font-size: 14px;
-      border: 1px solid var(--line, #ccc);
-      border-radius: 6px;
-      background: #111;
-      color: #fff;
-      cursor: pointer;
-      transition: background 0.2s;
-    }
-    .btn-small:hover { background: #333; }
-  </style>
 </head>
 <body>
   <div class="app">
@@ -73,34 +60,13 @@
         </div>
 
         <div class="card">
-          <div class="toolbar" style="display:flex; gap:8px; align-items:center;">
-            <input id="po_q" placeholder="search po no / customer / desc" style="flex:1;" />
+          <div class="toolbar" style="display:flex;gap:8px;align-items:center;">
+            <!-- (ออปชัน) ถ้าอยากให้ค้นหาจาก q ก็เพิ่ม input นี้ -->
+            <!-- <input id="po_q" placeholder="search po no / customer / desc" style="flex:1;" /> -->
             <button class="btn" id="po_reload" type="button">Reload</button>
-
-            <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
-              <label>Per page:
-                <select id="po_per_page">
-                  <option value="10">10</option>
-                  <option value="20" selected>20</option>
-                  <option value="50">50</option>
-                  <option value="100">100</option>
-                </select>
-              </label>
-              <div class="pager" style="display:flex;gap:6px;align-items:center;">
-                <button class="btn-small" id="po_prev" type="button" aria-label="Previous page">« Prev</button>
-                <span id="po_page_info" class="muted" aria-live="polite">Page 1</span>
-                <button class="btn-small" id="po_next" type="button" aria-label="Next page">Next »</button>
-              </div>
-            </div>
           </div>
-
-          <div id="po_table" style="min-height:120px;"></div>
-
-          <div class="toolbar" style="display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:8px;">
-            <button class="btn-small" id="po_prev2" type="button" aria-label="Previous page (bottom)">« Prev</button>
-            <span id="po_page_info2" class="muted" aria-live="polite">Page 1</span>
-            <button class="btn-small" id="po_next2" type="button" aria-label="Next page (bottom)">Next »</button>
-          </div>
+          <div id="po_table"></div>
+          <!-- (ออปชัน) ถ้าอยากมี Prev/Next ใส่ตามหน้า Customers แล้วเชื่อม goPrev/goNext -->
         </div>
       </section>
     </main>
@@ -111,6 +77,6 @@
   </div>
 
   <script type="module" src="/static/js/nav-loader.js"></script>
-  <script type="module" src="/static/js/page-pos.js?v=4"></script>
+  <script type="module" src="/static/js/page-pos.js?v=3"></script>
 </body>
 </html>
