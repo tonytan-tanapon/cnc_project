@@ -5,6 +5,30 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Parts · Topnotch MFG</title>
   <link rel="stylesheet" href="/static/css/app.css" />
+
+  <style>
+    /* Custom styles for parts page */
+    .table-line{
+  display:flex;
+  align-items:flex-start;  /* pager ชิดบนของตาราง */
+  gap:12px;
+}
+
+/* ให้ table ขยายเต็มพื้นที่และเลื่อนในแนวนอนได้ */
+.table-line .table-wrap{
+  flex:1;
+  min-width:0;            /* กัน flex item ดันหลุดบรรทัด */
+  overflow:auto;
+}
+
+/* ปรับสไตล์ pager ตอนอยู่แบบ inline (ทับของเดิมที่ตั้ง margin-top) */
+.pager.inline{
+  margin-top:0;
+  white-space:nowrap;     /* กันแตกบรรทัด */
+  flex-wrap:nowrap;
+  align-self:flex-start;  /* ชิดบน */
+}
+    </style>
 </head>
 <body>
   <div class="app">
@@ -34,62 +58,49 @@
 
       <!-- Page -->
       <section id="page-parts">
-        <h2 class="page-title">🧩 Parts</h2>
+  <h2 class="page-title">🧩 Parts</h2>
 
-        <div class="grid">
+  <div class="grid">
+    <!-- ซ้าย: Create Part (ครึ่งหน้า) -->
+    <div class="col-12">
+      <div class="card">
+        <b>Create Part</b>
+        <div class="grid" style="margin-top:8px">
+          <div class="col-6"><label>Part No.</label><input id="p_no" placeholder="Autogen)" /></div>
+          <div class="col-6"><label>Name</label><input id="p_name" placeholder="Widget A" /></div>
+          <div class="col-12"><label>Description</label><input id="p_desc" placeholder="Optional description" /></div>
+          <div class="col-6"><label>Default UoM</label><input id="p_uom" value="ea" /></div>
           <div class="col-6">
-            <div class="card">
-              <b>Create Part</b>
-              <div class="grid" style="margin-top:8px">
-                <div class="col-6"><label>Part No.</label><input id="p_no" placeholder="PN-0001" /></div>
-                <div class="col-6"><label>Name</label><input id="p_name" placeholder="Widget A" /></div>
-                <div class="col-12"><label>Description</label><input id="p_desc" placeholder="Optional description" /></div>
-                <div class="col-6"><label>Default UoM</label><input id="p_uom" value="ea" /></div>
-                <div class="col-6">
-                  <label>Status</label>
-                  <select id="p_status">
-                    <option value="active" selected>active</option>
-                    <option value="inactive">inactive</option>
-                  </select>
-                </div>
-                <div class="col-12">
-                  <button class="btn" id="p_create" type="button">Create</button>
-                </div>
-              </div>
-              <div class="toolbar" style="margin-top:8px">
-                <input id="p_q" placeholder="search part_no/name/spec" />
-                <button class="btn" id="p_reload" type="button">Reload</button>
-              </div>
-              <div id="p_table"></div>
-            </div>
+            <label>Status</label>
+            <select id="p_status">
+              <option value="active" selected>active</option>
+              <option value="inactive">inactive</option>
+            </select>
           </div>
-
-          <div class="col-6">
-            <div class="card">
-              <b>Add Revision</b>
-              <div class="grid" style="margin-top:8px">
-                <div class="col-4"><label>Part ID</label><input id="r_part_id" type="number" /></div>
-                <div class="col-4"><label>Rev</label><input id="r_rev" placeholder="A / B / C" /></div>
-                <div class="col-4">
-                  <label>Current?</label>
-                  <select id="r_current"><option value="false">false</option><option value="true">true</option></select>
-                </div>
-                <div class="col-6"><label>Drawing File</label><input id="r_dwg" placeholder="DWG-001.pdf" /></div>
-                <div class="col-6"><label>Spec</label><input id="r_spec" placeholder="AMS/ASTM..." /></div>
-                <div class="col-12">
-                  <button class="btn" id="r_create" type="button">Add Revision</button>
-                </div>
-              </div>
-
-              <div class="toolbar" style="margin-top:8px">
-                <input id="r_list_pid" placeholder="Part ID for listing" />
-                <button class="btn" id="r_reload" type="button">Load Revisions</button>
-              </div>
-              <div id="r_table"></div>
-            </div>
+          <div class="col-12">
+            <button class="btn" id="p_create" type="button">Create</button>
           </div>
         </div>
-      </section>
+      </div>
+    </div>
+
+    <!-- แถวใหม่: ตารางเต็มหน้า -->
+    <div class="col-12">
+      <div class="card">
+        <div class="toolbar">
+          <input id="p_q" placeholder="search part_no/name/spec" />
+          <button class="btn" id="p_reload" type="button">Reload</button>
+        </div>
+
+      </div>
+      <div>
+ 
+    </div>
+  </div>
+</section>
+ <div class="table-wrap" id="p_table"></div>
+  <div id="p_pager" class="pager inline"></div>
+</div>
     </main>
   </div>
 

@@ -12,7 +12,7 @@ from models import Part, PartRevision
 # Pydantic Schemas (inline)
 # =========================
 class PartCreate(BaseModel):
-    part_no: str
+    part_no: Optional[str] = None
     name: Optional[str] = None
     description: Optional[str] = None
     default_uom: Optional[str] = "ea"
@@ -69,9 +69,22 @@ part_revisions_router = APIRouter(prefix="/part-revisions", tags=["part-revision
 # ==========
 # /parts
 # ==========
-@parts_router.get("", response_model=List[PartOut])
+from math import ceil
+
+class PartPageOut(BaseModel):
+    items: List[PartOut]
+    total: int
+    page: int
+    per_page: int
+    pages: int
+
+parts_router = APIRouter(prefix="/parts", tags=["parts"])
+
+@parts_router.get("", response_model=PartPageOut)
 def list_parts(
     q: Optional[str] = Query(None, description="ค้นหาใน part_no / name / description"),
+    page: int = Query(1, ge=1),
+    per_page: int = Query(20, ge=1, le=200),
     db: Session = Depends(get_db),
 ):
     query = db.query(Part)
@@ -82,25 +95,89 @@ def list_parts(
             (Part.name.ilike(ql)) |
             (Part.description.ilike(ql))
         )
-    return query.order_by(Part.id.desc()).all()
+
+    total = query.count()
+    pages = max(1, ceil(total / per_page)) if total else 1
+
+    # clamp page ให้อยู่ในช่วง
+    if page > pages: page = pages
+    if page < 1: page = 1
+
+    items = (
+        query.order_by(Part.id.desc())
+             .offset((page - 1) * per_page)
+             .limit(per_page)
+             .all()
+    )
+
+    return PartPageOut(
+        items=items,
+        total=total,
+        page=page,
+        per_page=per_page,
+        pages=pages,
+    )
+
+from uuid import uuid4
+import os
+
+# ตั้งค่า prefix และความยาว padding แก้ได้ผ่าน ENV
+PART_NO_PREFIX = os.getenv("PART_NO_PREFIX", "PN-")
+PART_NO_PAD = int(os.getenv("PART_NO_PAD", "5"))
 
 @parts_router.post("", response_model=PartOut)
 def create_part(payload: PartCreate, db: Session = Depends(get_db)):
-    part_no = (payload.part_no or "").strip().upper()
-    if not part_no:
-        raise HTTPException(400, "part_no is required")
+    name = (payload.name or None)
+    description = (payload.description or None)
+    default_uom = (payload.default_uom or "ea")
+    status = (payload.status or "active")
 
-    if db.query(Part).filter(Part.part_no == part_no).first():
-        raise HTTPException(409, "part_no already exists")
+    # ถ้าผู้ใช้ใส่ part_no มา -> ใช้ตามนั้น (เช็คซ้ำเหมือนเดิม)
+    if (payload.part_no or "").strip():
+        part_no = (payload.part_no or "").strip().upper()
+        if db.query(Part).filter(Part.part_no == part_no).first():
+            raise HTTPException(409, "part_no already exists")
 
+        p = Part(
+            part_no=part_no,
+            name=name,
+            description=description,
+            default_uom=default_uom,
+            status=status,
+        )
+        db.add(p)
+        try:
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+            raise HTTPException(409, "part_no already exists")
+        db.refresh(p)
+        return p
+
+    # --------- Auto-generate path ---------
+    # 1) ใส่ค่า temp (unique) กัน unique constraint ชน
+    temp_no = f"TMP-{uuid4().hex[:12].upper()}"
     p = Part(
-        part_no=part_no,
-        name=(payload.name or None),
-        description=(payload.description or None),
-        default_uom=(payload.default_uom or "ea"),
-        status=(payload.status or "active"),
+        part_no=temp_no,
+        name=name,
+        description=description,
+        default_uom=default_uom,
+        status=status,
     )
     db.add(p)
+    db.flush()  # ได้ p.id โดยยังไม่ commit
+
+    # 2) สร้างหมายเลขจริงจาก id เช่น PN-00001
+    gen_no = f"{PART_NO_PREFIX}{p.id:0{PART_NO_PAD}d}"
+
+    # เผื่อไว้: ตรวจซ้ำ (แทบจะเป็นไปไม่ได้ถ้า prefix/pad คงที่)
+    if db.query(Part).filter(Part.part_no == gen_no, Part.id != p.id).first():
+        # ในทางปฏิบัติไม่ควรเกิด ถ้าอยากกันสุด ๆ จะวนหา id/pad/prefix ใหม่
+        raise HTTPException(409, "Generated part_no collision, please retry")
+
+    p.part_no = gen_no
+
+    # 3) commit ปิดงานในทรานแซคชันเดียว
     try:
         db.commit()
     except IntegrityError:
@@ -108,7 +185,6 @@ def create_part(payload: PartCreate, db: Session = Depends(get_db)):
         raise HTTPException(409, "part_no already exists")
     db.refresh(p)
     return p
-
 @parts_router.get("/{part_id}", response_model=PartOut)
 def get_part(part_id: int, db: Session = Depends(get_db)):
     p = db.get(Part, part_id)

@@ -13,6 +13,9 @@ const OPEN_PART_SUGGEST_ON_FOCUS = false;
 const customersDetailUrl = (id) =>
   `/static/customers-detail.html?id=${encodeURIComponent(id)}`;
 
+const partDetailUrl = (id) =>
+  `/static/part-detail.html?id=${encodeURIComponent(id)}`;
+
 /* ---------------- helpers ---------------- */
 const escapeHtml = (s) =>
   String(s ?? '')
@@ -439,26 +442,36 @@ function renderLines() {
     const isEdit = editingLineId === row.id || (row.__isNew && editingLineId === 'new');
 
     if (!isEdit) {
-      const qty   = fmtQty(row.qty_ordered);
-      const price = fmtMoney(row.unit_price);
-      const due   = row.due_date ?? '';
-      const partNo= row.part?.part_no ?? (row.part_id ?? '');
-      const rev   = row.rev?.rev ?? (row.revision_id ?? '');
-      const notes = escapeHtml(row.notes ?? '');
-      return `
-        <tr data-id="${row.id}">
-          <td>${escapeHtml(partNo)}</td>
-          <td>${escapeHtml(String(rev))}</td>
-          <td style="text-align:right">${qty}</td>
-          <td style="text-align:right">${price}</td>
-          <td>${escapeHtml(due)}</td>
-          <td>${notes}</td>
-          <td style="text-align:right; white-space:nowrap">
-            <button class="btn ghost btn-sm" data-edit="${row.id}">Edit</button>
-            <button class="btn danger btn-sm" data-del="${row.id}">Delete</button>
-          </td>
-        </tr>`;
-    } else {
+  const qty   = fmtQty(row.qty_ordered);
+  const price = fmtMoney(row.unit_price);
+  const due   = row.due_date ?? '';
+
+  // 👇 เพิ่มสองบรรทัดนี้แทนของเดิม
+  const partId = (row.part?.id ?? row.part_id ?? null);
+  const partNo = row.part?.part_no ?? (row.part_id ?? '');
+
+  // 👇 ถ้ามี id ให้ลิงก์ไปหน้า part-detail
+  const partNoCell = partId
+    ? `<a href="${partDetailUrl(partId)}" class="link">${escapeHtml(String(partNo))}</a>`
+    : `${escapeHtml(String(partNo))}`;
+
+  const rev   = row.rev?.rev ?? (row.revision_id ?? '');
+  const notes = escapeHtml(row.notes ?? '');
+  return `
+    <tr data-id="${row.id}">
+      <td>${partNoCell}</td>
+      <td>${escapeHtml(String(rev))}</td>
+      <td style="text-align:right">${qty}</td>
+      <td style="text-align:right">${price}</td>
+      <td>${escapeHtml(due)}</td>
+      <td>${notes}</td>
+      <td style="text-align:right; white-space:nowrap">
+        <button class="btn ghost btn-sm" data-edit="${row.id}">Edit</button>
+        <button class="btn danger btn-sm" data-del="${row.id}">Delete</button>
+      </td>
+    </tr>`;
+}
+ else {
       const rid = row.__isNew ? 'new' : row.id;
       const partNo = row.part?.part_no ?? '';
       const rev = row.rev?.rev ?? '';
@@ -747,27 +760,32 @@ function renderPartAc(list) {
 }
 
 // 1) แทนที่ฟังก์ชัน fetchPartSuggest เดิมทั้งหมดด้วยเวอร์ชันนี้
+// รองรับทั้ง response เป็น array และแบบมี {items, total, ...}
+function normalizeItems(resp) {
+  if (Array.isArray(resp)) return resp;
+  if (resp && typeof resp === 'object') return resp.items || [];
+  return [];
+}
+
 const fetchPartSuggest = debounce(async (term) => {
   try {
-    let rows = [];
-    if (!term || term.trim().length === 0) {
-      // กรณียังไม่พิมพ์: ขอรายการล่าสุด (backend /parts คืนมา id desc อยู่แล้ว)
-      const data = await jfetch(`/parts`);
-      rows = (data || []).slice(0, 10);
-      dlog('fetchPartSuggest (empty) -> latest 10', { count: rows.length });
-    } else {
-      // กรณีมีคำค้น
-      rows = await jfetch(`/parts?q=${encodeURIComponent(term)}`);
-      rows = (rows || []).slice(0, 20);
-      dlog('fetchPartSuggest (term)', { term, count: rows.length });
-    }
+    // ขอแบบมีหน้าให้ชัด (กัน backend คืนมาเยอะเกิน)
+    const url = !term || term.trim().length === 0
+      ? `/parts?page=1&per_page=10`
+      : `/parts?q=${encodeURIComponent(term)}&page=1&per_page=20`;
 
-    renderPartAc(rows);
+    const resp = await jfetch(url);
+    const rows = normalizeItems(resp).map(p => ({
+      id: p.id,
+      part_no: (p.part_no || '').toUpperCase(),
+      name: p.name || '',
+    }));
+
+    renderPartAc(rows.slice(0, 20));
     ensurePartBox();
     if (partInput) positionPartBox(partInput);
   } catch (e) {
     renderPartAc([]);
-    dlog('fetchPartSuggest ERR', e);
   }
 }, 220);
 
@@ -805,10 +823,11 @@ function attachRowPartAutocomplete(rid, input) {
 async function choosePartForRow(rid, idx) {
   if (idx < 0 || idx >= partItems.length) return;
   const p = partItems[idx]; // {id, part_no, name}
-  $(`r_part_code_${rid}`).value = p.part_no;
+  const pn = (p.part_no || '').toUpperCase();
+
+  $(`r_part_code_${rid}`).value = pn;
   $(`r_part_id_${rid}`).value   = p.id;
   hidePartAc();
-  dlog('choosePartForRow', { rid, part: p });
   await loadRevisionsForInto(p.id, rid);
 }
 
