@@ -371,3 +371,167 @@ document.addEventListener('DOMContentLoaded', () => {
 
   loadPO();
 });
+
+
+/* ===================== PO Lines ===================== */
+let poLines = [];
+let editingLineId = null;
+
+async function loadLines() {
+  if (!poId) return;
+  try {
+    const rows = await jfetch(`/pos/${encodeURIComponent(poId)}/lines`);
+    poLines = rows || [];
+    renderLines();
+  } catch (e) {
+    console.error(e);
+    poLines = [];
+    renderLines();
+  }
+}
+
+function renderLines() {
+  const tb = $('tblLinesBody');
+  if (!poLines.length) {
+    tb.innerHTML = `<tr><td colspan="7" class="empty">No lines</td></tr>`;
+    return;
+  }
+  tb.innerHTML = poLines.map(row => {
+    const qty = Number(row.qty_ordered ?? 0).toLocaleString(undefined, { maximumFractionDigits: 3 });
+    const price = row.unit_price != null
+      ? Number(row.unit_price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      : '';
+    const due = row.due_date ?? '';
+    const partNo = row.part?.part_no ?? (row.part_id ?? '');
+    const rev = row.rev?.rev ?? (row.revision_id ?? '');
+    const notes = escapeHtml(row.notes ?? '');
+
+    return `
+      <tr data-id="${row.id}">
+        <td>${escapeHtml(partNo)}</td>
+        <td>${escapeHtml(String(rev))}</td>
+        <td style="text-align:right">${qty}</td>
+        <td style="text-align:right">${price}</td>
+        <td>${escapeHtml(due)}</td>
+        <td>${notes}</td>
+        <td style="text-align:right">
+          <button class="btn ghost btn-sm" data-edit="${row.id}">Edit</button>
+          <button class="btn danger btn-sm" data-del="${row.id}">Delete</button>
+        </td>
+      </tr>`;
+  }).join('');
+
+  // wire actions
+  tb.querySelectorAll('[data-edit]').forEach(b => {
+    b.addEventListener('click', () => openLineForm(getLineById(+b.dataset.edit)));
+  });
+  tb.querySelectorAll('[data-del]').forEach(b => {
+    b.addEventListener('click', () => deleteLine(+b.dataset.del));
+  });
+}
+
+function getLineById(id) {
+  return poLines.find(x => x.id === id);
+}
+
+/* ---------- Modal helpers ---------- */
+function openLineForm(line /* or null */) {
+  editingLineId = line?.id ?? null;
+  $('lineModalTitle').textContent = editingLineId ? `Edit Line #${editingLineId}` : 'Add Line';
+
+  $('f_part_code').value  = line?.part?.part_no ?? '';
+  $('f_rev').value        = line?.rev?.rev ?? '';
+  $('f_part_id').value    = line?.part_id ?? '';
+  $('f_revision_id').value= line?.revision_id ?? '';
+  $('f_qty').value        = line?.qty_ordered ?? '';
+  $('f_price').value      = line?.unit_price ?? '';
+  $('f_due').value        = line?.due_date ?? '';
+  $('f_notes').value      = line?.notes ?? '';
+
+  showModal(true);
+}
+
+function showModal(show) {
+  const m = $('lineModal');
+  m.style.display = show ? '' : 'none';
+}
+
+/* close handlers */
+(function wireModalClose(){
+  const m = $('lineModal');
+  m.addEventListener('click', (e) => {
+    if (e.target.matches('[data-close], .modal, .modal-backdrop')) {
+      showModal(false);
+    }
+  });
+})();
+
+/* ---------- Save / Delete ---------- */
+async function saveLine() {
+  const payload = {
+    // ยืดหยุ่น: จะกรอกผ่าน part_id/revision_id หรือ part_code/rev ก็ได้
+    part_id: numOrNull($('f_part_id').value),
+    revision_id: numOrNull($('f_revision_id').value),
+    part_code: strOrNull($('f_part_code').value),
+    rev: strOrNull($('f_rev').value),
+    qty_ordered: numOrNull($('f_qty').value),
+    unit_price: numOrNull($('f_price').value),
+    due_date: strOrNull($('f_due').value),  // yyyy-mm-dd
+    notes: strOrNull($('f_notes').value),
+  };
+
+  // เล็กน้อย: ต้องมีหนึ่งใน (part_id หรือ part_code)
+  if (!payload.part_id && !payload.part_code) {
+    toast('กรุณาใส่ Part ID หรือ Part No', false);
+    return;
+  }
+
+  try {
+    if (editingLineId) {
+      const updated = await jfetch(`/pos/${encodeURIComponent(poId)}/lines/${editingLineId}`, {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      });
+      // update local
+      const idx = poLines.findIndex(x => x.id === editingLineId);
+      if (idx >= 0) poLines[idx] = updated;
+      toast('Line updated');
+    } else {
+      const created = await jfetch(`/pos/${encodeURIComponent(poId)}/lines`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+      poLines.unshift(created);
+      toast('Line added');
+    }
+    renderLines();
+    showModal(false);
+  } catch (e) {
+    toast(e?.message || 'Save failed', false);
+  }
+}
+
+async function deleteLine(id) {
+  if (!confirm('Delete this line?')) return;
+  try {
+    await jfetch(`/pos/${encodeURIComponent(poId)}/lines/${id}`, { method: 'DELETE' });
+    poLines = poLines.filter(x => x.id !== id);
+    renderLines();
+    toast('Line deleted');
+  } catch (e) {
+    toast(e?.message || 'Delete failed', false);
+  }
+}
+
+/* ---------- utils ---------- */
+function numOrNull(v){ const n = Number(v); return isFinite(n) ? n : null }
+function strOrNull(v){ v = (v ?? '').trim(); return v ? v : null }
+
+/* ---------- boot (ต่อจากเดิม) ---------- */
+document.addEventListener('DOMContentLoaded', () => {
+  $('btnAddLine').addEventListener('click', () => openLineForm(null));
+  $('btnLineSave').addEventListener('click', saveLine);
+
+  // เมื่อโหลด PO แล้ว ค่อยโหลด Lines
+  loadPO().then(loadLines);
+});

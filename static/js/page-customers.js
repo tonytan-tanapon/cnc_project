@@ -1,5 +1,5 @@
 // /static/js/page-customers.js
-import { $, jfetch, toast } from './api.js'; 
+import { $, jfetch, toast } from './api.js';
 
 /* ----------------- CONFIG ----------------- */
 const DETAIL_PAGE = './customers-detail.html';
@@ -17,45 +17,107 @@ function escapeHtml(s) {
 function customerUrl(id) {
   return `${DETAIL_PAGE}?id=${encodeURIComponent(id)}`;
 }
-
 function gotoDetail(id) {
   if (!id) return;
   location.href = customerUrl(id);
 }
 window.gotoDetail = gotoDetail;
 
+/* ----------------- debounce helper ----------------- */
+function debounce(fn, ms = 300) {
+  let t;
+  return (...args) => {
+    clearTimeout(t);
+    t = setTimeout(() => fn(...args), ms);
+  };
+}
+
+/* ----------------- state (pagination/search) ----------------- */
+let state = {
+  page: 1,
+  perPage: 20,
+  q: '',
+  total: 0,
+  pages: 1,
+};
+
+/* ----------------- UI refs ----------------- */
+const btnToggleCreate = document.getElementById('btnToggleCreate');
+const createCard = document.getElementById('createCard');
+const btnCreate = document.getElementById('c_create');
+
+const inputSearch = $('c_q');
+const btnReload = $('c_reload');
+const selPerPage = $('c_per_page');
+
+const btnPrevTop = $('c_prev');
+const btnNextTop = $('c_next');
+const pageInfoTop = $('c_page_info');
+
+const btnPrevBottom = $('c_prev2');
+const btnNextBottom = $('c_next2');
+const pageInfoBottom = $('c_page_info2');
+
+const tableContainer = $('c_table');
+
+/* ----------------- create form toggle ----------------- */
+function showCreate() {
+  createCard.removeAttribute('hidden');
+  btnToggleCreate.textContent = '× Cancel';
+  document.getElementById('c_name')?.focus();
+}
+function hideCreate() {
+  createCard.setAttribute('hidden', '');
+  btnToggleCreate.textContent = '+ Add';
+}
+btnToggleCreate?.addEventListener('click', () => {
+  if (createCard.hasAttribute('hidden')) showCreate(); else hideCreate();
+});
+
+/* ----------------- create customer ----------------- */
+async function createCustomer() {
+  const payload = {
+    code: $('c_code')?.value.trim() || '',
+    name: $('c_name')?.value.trim(),
+    contact: $('c_contact')?.value.trim() || null,
+    email: $('c_email')?.value.trim() || null,
+    phone: $('c_phone')?.value.trim() || null,
+    address: $('c_addr')?.value.trim() || null,
+  };
+
+  if (!payload.name) {
+    toast('Enter customer name', false);
+    return;
+  }
+
+  try {
+    await jfetch('/customers', { method: 'POST', body: JSON.stringify(payload) });
+    toast('Customer created');
+    // reset form
+    ['c_code','c_name','c_contact','c_email','c_phone','c_addr'].forEach(id => { const el = $(id); if (el) el.value = ''; });
+    hideCreate();
+    state.page = 1; // กลับไปหน้าแรกเพื่อโชว์ลูกค้าใหม่
+    await loadCustomers();
+  } catch (e) {
+    toast(e?.message || 'Create failed', false);
+  }
+}
+
 /* ----------------- table renderer ----------------- */
 function renderCustomersTable(container, rows) {
-
-  // container is html element to show. ex const container = $('c_table'); 
-  // rows is data recieving from server. ex const rows = await jfetch(url);
-  // if empty rows
   if (!rows || rows.length === 0) {
     container.innerHTML = '<div class="empty">No customers</div>';
     return;
   }
 
-  // function getID(r){
-  //      return r.id || r.customer_id || r.customerId || '' 
-  // }
-  const getId = (r) => r.id ?? r.customer_id ?? r.customerId ?? ''; 
+  const getId = (r) => r.id ?? r.customer_id ?? r.customerId ?? '';
 
-  // define data in bodyHTML
-  // loop data in rows
-  // return data in each row 
-  const bodyHTML = rows.map(r => { // in ecah row do somthing
-    const rid = getId(r);  // get id 
-    // make link
-    // ex codeCell = <a href="./customers-detail.html?id=5" class="code-link">C0005</a>
+  const bodyHTML = rows.map(r => {
+    const rid = getId(r);
     const codeCell = rid
-      ? `<a href="${customerUrl(rid)}" class="code-link">${escapeHtml(r.code ?? '')}</a>`  // ? if True
-      : `<span>${escapeHtml(r.code ?? '')}</span>`;                                        // : if False
+      ? `<a href="${customerUrl(rid)}" class="code-link">${escapeHtml(r.code ?? '')}</a>`
+      : `<span>${escapeHtml(r.code ?? '')}</span>`;
 
-    // const nameCell = rid
-    //   ? `<a href="${customerUrl(rid)}" class="name-link">${escapeHtml(r.name ?? '')}</a>`
-    //   : `<span>${escapeHtml(r.name ?? '')}</span>`;
-
-    // return each rows  
     return `
       <tr class="click-row" data-id="${escapeHtml(rid)}" tabindex="0" title="Open detail">
         <td>${codeCell}</td>
@@ -67,9 +129,6 @@ function renderCustomersTable(container, rows) {
     `;
   }).join('');
 
-
-  // add bodyHTML to real table.
-  // note colume name show be same with original in HTML
   container.innerHTML = `
     <table class="table customers-table">
       <thead>
@@ -90,70 +149,99 @@ function renderCustomersTable(container, rows) {
       .customers-table tr:hover { background: rgba(0,0,0,.03); }
     </style>
   `;
+
+  // row click
+  const isAnchor = (el) => el?.closest('a[href]');
+  container.querySelector('tbody')?.addEventListener('click', (e) => {
+    if (isAnchor(e.target)) return;
+    const tr = e.target.closest('tr[data-id]');
+    if (!tr) return;
+    const id = tr.dataset.id;
+    if (id) gotoDetail(id);
+  });
+}
+
+/* ----------------- pagination helpers ----------------- */
+function updatePagerUI() {
+  const { page, pages, total, perPage } = state;
+  const info = `Page ${page} / ${pages} · ${total} items`;
+  if (pageInfoTop) pageInfoTop.textContent = info;
+  if (pageInfoBottom) pageInfoBottom.textContent = info;
+
+  const disablePrev = page <= 1;
+  const disableNext = page >= pages;
+
+  [btnPrevTop, btnPrevBottom].forEach(b => { if (b) b.disabled = disablePrev; });
+  [btnNextTop, btnNextBottom].forEach(b => { if (b) b.disabled = disableNext; });
+
+  if (selPerPage && Number(selPerPage.value) !== perPage) {
+    selPerPage.value = String(perPage);
+  }
 }
 
 /* ----------------- data ops ----------------- */
 async function loadCustomers() {
-  const q = $('c_q')?.value?.trim();  //serach box
-  const url = '/customers' + (q ? `?q=${encodeURIComponent(q)}` : '');
- 
-  try {
-    
-    const rows = await jfetch(url); // get row from APIs
+  const q = inputSearch?.value?.trim() ?? '';
+  state.q = q;
 
-    const container = $('c_table'); 
-    if (!container) return; // if not found container return. in fact we should have container to show the data 
-    renderCustomersTable(container, rows); // show data in table by sending container and rows
-  } catch (e) {
-    $('c_table').innerHTML = `<div class="hint">${escapeHtml(e.message ?? 'Error')}</div>`;
-  }
-}
+  const params = new URLSearchParams();
+  if (q) params.set('q', q);
+  params.set('page', String(state.page));
+  params.set('per_page', String(state.perPage));
 
-async function createCustomer() {
-  // Set payload as data in each text box as JSON format 
-  const payload = {
-    code: $('c_code')?.value.trim() || '',
-    name: $('c_name').value.trim(),
-    contact: $('c_contact').value.trim() || null,
-    email: $('c_email').value.trim() || null,
-    phone: $('c_phone').value.trim() || null,
-    address: $('c_addr').value.trim() || null,
-  };
- 
-  if (!payload.name) {
-    toast('Enter customer name', false);
-    return;
-  }
+  const url = `/customers?${params.toString()}`;
 
   try {
-    await jfetch('/customers', { method: 'POST', body: JSON.stringify(payload) });
-    toast('Customer created');
+    const data = await jfetch(url);
+    const { items, total, page, per_page, pages } = data || {};
 
-    // clear form
-    ['c_code','c_name','c_contact','c_email','c_phone','c_addr'].forEach(id => $(id).value = '');
-    await loadCustomers();
+    state.total = Number(total) || 0;
+    state.page = Number(page) || 1;
+    state.perPage = Number(per_page) || 20;
+    state.pages = Number(pages) || 1;
+
+    renderCustomersTable(tableContainer, items || []);
+    updatePagerUI();
   } catch (e) {
-    toast(e.message || 'Create failed', false);
+    tableContainer.innerHTML = `<div class="hint">${escapeHtml(e?.message ?? 'Error')}</div>`;
+    state.total = 0; state.pages = 1;
+    updatePagerUI();
   }
 }
 
 /* ----------------- boot ----------------- */
 document.addEventListener('DOMContentLoaded', () => {
-  $('c_create')?.addEventListener('click', createCustomer); // if c_create click go to createCustomer()
-  $('c_reload')?.addEventListener('click', loadCustomers);  // if c_reload click go to loadCustomers()
-  $('c_q')?.addEventListener('keydown', e => { loadCustomers(); }); // if keydown only
-  // $('c_q')?.addEventListener('keydown', e => { if (e.key === 'Enter') loadCustomers(); }); // if keydown and enter
-  const container = $('c_table');
-  if (container) {              // if click row of table 
-    container.addEventListener('click', (e) => {
-      const isAnchor = e.target.closest('a[href]');
-      if (isAnchor) return;
-      const tr = e.target.closest('tr[data-id]');
-      if (!tr) return;
-      const id = tr.dataset.id;
-      if (id) gotoDetail(id);
-    });
-  }
+  btnCreate?.addEventListener('click', createCustomer);
+  btnReload?.addEventListener('click', () => { state.page = 1; loadCustomers(); });
+
+  // auto search while typing
+  let composing = false;
+  const loadCustomersDebounced = debounce(() => { state.page = 1; loadCustomers(); }, 300);
+
+  inputSearch?.addEventListener('compositionstart', () => { composing = true; });
+  inputSearch?.addEventListener('compositionend', () => { composing = false; loadCustomersDebounced(); });
+  inputSearch?.addEventListener('input', () => { if (!composing) loadCustomersDebounced(); });
+
+  // per-page
+  selPerPage?.addEventListener('change', () => {
+    state.perPage = Number(selPerPage.value) || 20;
+    state.page = 1;
+    loadCustomers();
+  });
+
+  // pager buttons
+  const goPrev = () => { if (state.page > 1) { state.page -= 1; loadCustomers(); } };
+  const goNext = () => { if (state.page < state.pages) { state.page += 1; loadCustomers(); } };
+
+  btnPrevTop?.addEventListener('click', goPrev);
+  btnPrevBottom?.addEventListener('click', goPrev);
+  btnNextTop?.addEventListener('click', goNext);
+  btnNextBottom?.addEventListener('click', goNext);
+
+  // Esc → close create form
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !createCard.hasAttribute('hidden')) hideCreate();
+  });
 
   loadCustomers();
 });

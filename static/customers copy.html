@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Purchase Orders · Topnotch – MFG</title>
+  <title>Customers · Topnotch – MFG</title>
   <link rel="stylesheet" href="/static/css/app.css" />
 </head>
 <body>
@@ -14,7 +14,7 @@
         <span class="logo-badge">TN</span>
         <span>Topnotch – MFG</span>
       </div>
-      <!-- เมนูจะถูกโหลดจาก /static/partials/nav.html -->
+      <!-- เมนูจะถูก inject จาก /static/partials/nav.html -->
       <div id="navSlot" data-nav-slot></div>
     </aside>
 
@@ -32,40 +32,32 @@
         <button class="btn" id="btnPing" type="button">Ping</button>
       </div>
 
-      <!-- Purchase Orders -->
-      <section id="page-pos">
-        <h2 class="page-title">🧾 Purchase Orders</h2>
+      <!-- Customers -->
+      <section id="page-customers">
+        <h2 class="page-title">👤 Customers</h2>
 
         <div class="card">
-          <b>Create PO</b>
+          <b>Create Customer</b>
           <div class="grid" style="margin-top:8px">
-            <div class="col-2">
-              <label>PO Number</label>
-              <input id="po_no" placeholder="Autogen" />
-            </div>
-            <div class="col-3">
-              <label>Customer</label>
-              <!-- พิมพ์เป็น customer_code + มี autocomplete จาก JS -->
-              <input  id="po_cust" type="text" autocomplete="off"   inputmode="latin"   placeholder="Customer code or name""             
-              />
-            </div>
-            <div class="col-4">
-              <label>Description</label>
-              <input id="po_desc" />
-            </div>
-            
+            <div class="col-4"><label>Code</label><input id="c_code" placeholder="Auto"/></div>
+            <div class="col-4"><label>Name</label><input id="c_name" placeholder="Ex. Acme Corp"/></div>
+            <div class="col-4"><label>Contact</label><input id="c_contact" PO vender /></div>
+            <div class="col-4"><label>Email</label><input id="c_email"/></div>
+            <div class="col-4"><label>Phone</label><input id="c_phone"/></div>
+            <div class="col-12"><label>Address</label><input id="c_addr"/></div>
             <div class="col-12">
-              <button class="btn" id="po_create" type="button">Create</button>
-              <span class="hint">POST /pos</span>
+              <button class="btn" id="c_create" type="button">Create</button>
+              <span class="hint">POST /customers</span>
             </div>
           </div>
         </div>
 
         <div class="card">
           <div class="toolbar">
-            <button class="btn" id="po_reload" type="button">Reload</button>
+            <input id="c_q" placeholder="search code/name" />
+            <button class="btn" id="c_reload" type="button">Reload</button>
           </div>
-          <div id="po_table"></div>
+          <div id="c_table"></div>
         </div>
       </section>
     </main>
@@ -74,10 +66,7 @@
   <div class="toast" id="toast" role="status" aria-live="polite">
     <span id="toastText"></span>
   </div>
-
-  <!-- โหลดเมนู + เซ็ต active อัตโนมัติ -->
   <script type="module" src="/static/js/nav-loader.js"></script>
-  <!-- ลอจิกของหน้า PO -->
-  <script type="module" src="/static/js/page-pos.js?v=1"></script>
+  <script type="module" src="/static/js/page-customers.js?v=2"></script>
 </body>
 </html>

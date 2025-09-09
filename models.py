@@ -218,26 +218,27 @@ class ProductionLot(Base):
 
     id = Column(Integer, primary_key=True)
     lot_no = Column(String, unique=True, index=True, nullable=False)
-
+    
     part_id = Column(Integer, ForeignKey("parts.id"), nullable=False)
     part_revision_id = Column(Integer, ForeignKey("part_revisions.id"), nullable=True, index=True)
     po_id = Column(Integer, ForeignKey("purchase_orders.id"), nullable=True, index=True)
+    po_line_id = Column(Integer, ForeignKey("po_lines.id"), nullable=True, index=True)
 
     planned_qty = Column(Integer, nullable=False, default=0)
     started_at  = Column(DateTime(timezone=True), nullable=True)
     finished_at = Column(DateTime(timezone=True), nullable=True)
 
     status = Column(String, nullable=False, default="in_process")
-
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     # CHANGED: add foreign_keys + back_populates
     part = relationship("Part", foreign_keys=[part_id], back_populates="production_lots")
     part_revision = relationship("PartRevision", foreign_keys=[part_revision_id], back_populates="production_lots")
     po = relationship("PO", back_populates="lots", foreign_keys=[po_id])
-
+    po_line = relationship("POLine", foreign_keys=[po_line_id])
     material_uses = relationship("LotMaterialUse", back_populates="lot", cascade="all, delete-orphan")
     travelers = relationship("ShopTraveler", back_populates="lot", cascade="all, delete-orphan",
                              order_by="ShopTraveler.created_at.asc()")
-
+    
     # --- FAIR link per lot (optional) ---
     fair_required = Column(Boolean, nullable=False, default=False)
     fair_record_id = Column(Integer, ForeignKey("inspection_records.id", ondelete="SET NULL"), nullable=True, index=True)
@@ -248,6 +249,20 @@ class ProductionLot(Base):
         uselist=False
     )
 
+
+    @validates("po_line_id")
+    def _on_set_po_line(self, key, v):
+        sess = object_session(self)
+        if v is None:
+            return v
+        pl = sess.get(POLine, v) if sess else None
+        if not pl:
+            return v
+        # sync fields (เขียนทับให้ตรงกับ POLine เสมอ)
+        self.po_id = pl.po_id
+        self.part_id = pl.part_id
+        self.part_revision_id = pl.revision_id
+        return v
     def __repr__(self):
         return f"<ProductionLot(lot_no={self.lot_no}, status={self.status})>"
 

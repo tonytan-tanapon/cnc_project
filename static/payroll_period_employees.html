@@ -93,7 +93,7 @@
       for(const p of periods){
         const opt = document.createElement('option');
         opt.value = p.id;
-        opt.textContent = `${toLocalISODate(new Date(p.start_at))} → ${toLocalISODate(new Date(p.end_at))}`;
+        opt.textContent = `(${p.id}) ${toLocalISODate(new Date(p.start_at))} → ${toLocalISODate(new Date(p.end_at))}`;
         opt.dataset.start = p.start_at; opt.dataset.end = p.end_at;
         selPeriod.appendChild(opt);
       }

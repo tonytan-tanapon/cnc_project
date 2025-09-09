@@ -5,6 +5,23 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Customers · Topnotch – MFG</title>
   <link rel="stylesheet" href="/static/css/app.css" />
+  <style>
+    .btn-small {
+  padding: 4px 8px;
+  font-size: 14px;
+  border: 1px solid var(--line, #ccc);
+  border-radius: 6px;
+  background: #111;
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-small:hover {
+  background: #333;
+}
+
+  </style>
 </head>
 <body>
   <div class="app">
@@ -32,34 +49,64 @@
         <button class="btn" id="btnPing" type="button">Ping</button>
       </div>
 
-      <!-- Customers -->
-      <section id="page-customers">
-        <h2 class="page-title">👤 Customers</h2>
+    <!-- Customers -->
+<section id="page-customers">
+  <div class="page-header" style="display:flex;align-items:center;gap:8px;">
+    <h2 class="page-title" style="margin:0;">👤 Customers</h2>
+    <button id="btnToggleCreate" type="button" class="btn-small" aria-label="Add Customer">+ Add</button>
+  </div>
 
-        <div class="card">
-          <b>Create Customer</b>
-          <div class="grid" style="margin-top:8px">
-            <div class="col-4"><label>Code</label><input id="c_code" placeholder="Auto"/></div>
-            <div class="col-4"><label>Name</label><input id="c_name" placeholder="Ex. Acme Corp"/></div>
-            <div class="col-4"><label>Contact</label><input id="c_contact" PO vender /></div>
-            <div class="col-4"><label>Email</label><input id="c_email"/></div>
-            <div class="col-4"><label>Phone</label><input id="c_phone"/></div>
-            <div class="col-12"><label>Address</label><input id="c_addr"/></div>
-            <div class="col-12">
-              <button class="btn" id="c_create" type="button">Create</button>
-              <span class="hint">POST /customers</span>
-            </div>
-          </div>
-        </div>
+  <!-- Create Customer (ซ่อนก่อน) -->
+  <div class="card" id="createCard" hidden>
+    <b>Create Customer</b>
+    <div class="grid" style="margin-top:8px">
+      <div class="col-4"><label>Code</label><input id="c_code" placeholder="Auto"/></div>
+      <div class="col-4"><label>Name</label><input id="c_name" placeholder="Ex. Acme Corp"/></div>
+      <div class="col-4"><label>Contact</label><input id="c_contact" placeholder="PO vendor"/></div>
+      <div class="col-4"><label>Email</label><input id="c_email"/></div>
+      <div class="col-4"><label>Phone</label><input id="c_phone"/></div>
+      <div class="col-12"><label>Address</label><input id="c_addr"/></div>
+      <div class="col-12">
+        <button class="btn" id="c_create" type="button">Create</button>
+        <span class="hint">POST /customers</span>
+      </div>
+    </div>
+  </div>
 
-        <div class="card">
-          <div class="toolbar">
-            <input id="c_q" placeholder="search code/name" />
-            <button class="btn" id="c_reload" type="button">Reload</button>
-          </div>
-          <div id="c_table"></div>
+  <div class="card">
+    <div class="toolbar" style="display:flex; gap:8px; align-items:center;">
+      <input id="c_q" placeholder="search code/name" style="flex:1;" />
+      <button class="btn" id="c_reload" type="button">Reload</button>
+
+      <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
+        <label>Per page:
+          <select id="c_per_page">
+            <option value="10">10</option>
+            <option value="20" selected>20</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+          </select>
+        </label>
+        <div class="pager" style="display:flex;gap:6px;align-items:center;">
+          <button class="btn-small" id="c_prev" type="button" aria-label="Previous page">« Prev</button>
+          <span id="c_page_info" class="muted">Page 1 / 1</span>
+          <button class="btn-small" id="c_next" type="button" aria-label="Next page">Next »</button>
         </div>
-      </section>
+      </div>
+    </div>
+
+    <div id="c_table" style="min-height:120px;"></div>
+
+    <div class="toolbar" style="display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:8px;">
+      <button class="btn-small" id="c_prev2" type="button" aria-label="Previous page (bottom)">« Prev</button>
+      <span id="c_page_info2" class="muted">Page 1 / 1</span>
+      <button class="btn-small" id="c_next2" type="button" aria-label="Next page (bottom)">Next »</button>
+    </div>
+  </div>
+</section>
+
+
+
     </main>
   </div>
 

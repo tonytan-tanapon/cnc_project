@@ -1,4 +1,3 @@
-// /static/js/page-pos.js
 import { $, jfetch, toast, initTopbar } from './api.js';
 
 const on = (el, ev, fn) => el && el.addEventListener(ev, fn);
@@ -17,12 +16,12 @@ const escapeHtml = (s) =>
 const posUrl = (id) => `${DETAIL_PAGE}?id=${encodeURIComponent(id)}`;
 const customerUrl = (id) => `${CUSTOMER_DETAIL_PAGE}?id=${encodeURIComponent(id)}`;
 
-/* ========================= Autocomplete (customer_code) ========================= */
-let selectedCustomer = null; // {id, code, name} ที่เลือกไว้ล่าสุด
-let acBox;                  // กล่องแสดงรายการ
-let acItems = [];           // รายการที่โชว์อยู่
-let acActive = -1;          // index ที่ถูก focus
-let acTarget;               // input element (po_cust)
+/* ========================= Autocomplete ========================= */
+let selectedCustomer = null; // {id, code, name}
+let acBox;
+let acItems = [];
+let acActive = -1;
+let acTarget;
 
 function ensureAcBox() {
   if (acBox) return acBox;
@@ -60,33 +59,30 @@ function renderAc(list) {
   const box = ensureAcBox();
   acItems = list || [];
   acActive = -1;
-  if (acItems.length === 0) {
-    hideAc();
-    return;
-  }
-  box.innerHTML = acItems
-    .map(
-      (c, i) => `
-      <div class="ac-item" data-i="${i}" style="padding:8px 10px; cursor:pointer; display:flex; gap:8px; align-items:center">
-        <span class="badge" style="font-size:11px">${escapeHtml(c.code ?? '')}</span>
-        <div style="flex:1">
-          <div style="font-weight:600">${escapeHtml(c.name ?? '')}</div>
-          <div class="hint" style="font-size:12px; color:#64748b">#${c.id}</div>
+  if (acItems.length === 0) { hideAc(); return; }
+
+  box.innerHTML = acItems.map((c, i) => `
+    <div class="ac-item" data-i="${i}"
+         style="padding:8px 10px; cursor:pointer; display:flex; gap:8px; align-items:center">
+      <span class="badge" style="font-size:11px">${escapeHtml(c.code ?? '')}</span>
+      <div style="flex:1; min-width:0">
+        <div style="font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">
+          ${escapeHtml(c.name ?? '')}
         </div>
-      </div>`
-    )
-    .join('');
+      </div>
+    </div>
+  `).join('');
+
   [...box.querySelectorAll('.ac-item')].forEach((el) => {
-    el.addEventListener('mouseenter', () => {
-      setActive(parseInt(el.dataset.i, 10));
-    });
-    el.addEventListener('mousedown', (e) => {
-      e.preventDefault(); // กัน blur ก่อนเลือก
-      chooseActive(parseInt(el.dataset.i, 10));
-    });
+    el.addEventListener('mouseenter', () => setActive(parseInt(el.dataset.i, 10)));
+    el.addEventListener('mousedown', (e) => { e.preventDefault(); chooseActive(parseInt(el.dataset.i, 10)); });
   });
+
+  if (!acTarget) return;
   box.style.display = '';
+  positionAcBox(acTarget);
 }
+
 
 function setActive(i) {
   acActive = i;
@@ -99,9 +95,13 @@ function chooseActive(i) {
   if (i < 0 || i >= acItems.length) return;
   const c = acItems[i];
   selectedCustomer = { id: c.id, code: (c.code || '').toUpperCase(), name: c.name || '' };
-  acTarget.value = selectedCustomer.code;
+
+  // แสดงทั้ง code + name ในช่อง
+  acTarget.value = `${selectedCustomer.code} - ${selectedCustomer.name}`.trim();
+
   hideAc();
 }
+
 
 function debounce(fn, ms = 200) {
   let t;
@@ -112,16 +112,18 @@ function debounce(fn, ms = 200) {
 }
 
 const fetchSuggest = debounce(async (term) => {
-  if (!term || term.length < 1) {
-    renderAc([]);
-    return;
-  }
   try {
-    const list = await jfetch(`/customers?q=${encodeURIComponent(term)}`);
-    // map เฉพาะ field ที่ใช้
-    const rows = (list || []).map((x) => ({ id: x.id, code: (x.code || '').toUpperCase(), name: x.name || '' }));
-    renderAc(rows.slice(0, 20));
-    positionAcBox(acTarget);
+    let url;
+    if (!term || term.length < 1) {
+      url = `/customers?page=1&per_page=10`;
+    } else {
+      url = `/customers?q=${encodeURIComponent(term)}&page=1&per_page=20`;
+    }
+    const data = await jfetch(url);
+    const list = data?.items ?? [];
+    const rows = list.map((x) => ({ id: x.id, code: (x.code || '').toUpperCase(), name: x.name || '' }));
+    renderAc(rows);
+    if (acTarget) positionAcBox(acTarget);
   } catch {
     renderAc([]);
   }
@@ -130,28 +132,34 @@ const fetchSuggest = debounce(async (term) => {
 function attachAutocomplete(input) {
   acTarget = input;
   input.setAttribute('autocomplete', 'off');
-  input.placeholder = input.placeholder || 'Customer code (พิมพ์เพื่อค้นหา)';
+  input.placeholder = input.placeholder || 'Customer code or name';
+
+  let composing = false;
+  input.addEventListener('compositionstart', () => { composing = true; });
+  input.addEventListener('compositionend', () => {
+    composing = false;
+    const term = (input.value || '').trim();
+    fetchSuggest(term);
+    ensureAcBox(); positionAcBox(input);
+  });
 
   input.addEventListener('input', () => {
+    if (composing) return;
     const term = (input.value || '').trim();
-    // ถ้าพิมพ์ต่างจากที่เลือกไว้ ให้ล้าง selection
     if (!selectedCustomer || selectedCustomer.code !== term.toUpperCase()) {
       selectedCustomer = null;
     }
     fetchSuggest(term);
-    ensureAcBox();
-    positionAcBox(input);
+    ensureAcBox(); positionAcBox(input);
   });
 
   input.addEventListener('focus', () => {
     const term = (input.value || '').trim();
     fetchSuggest(term);
-    ensureAcBox();
-    positionAcBox(input);
+    ensureAcBox(); positionAcBox(input);
   });
 
   input.addEventListener('blur', () => {
-    // หน่วงนิดหน่อยเพื่อให้ mousedown ในรายการทันทำงาน
     setTimeout(hideAc, 100);
   });
 
@@ -177,7 +185,7 @@ function attachAutocomplete(input) {
   window.addEventListener('scroll', () => acBox && positionAcBox(input), true);
 }
 
-/* ========================= List renderer (แสดง customer_code) ========================= */
+/* ========================= List renderer ========================= */
 function renderPosTable(holder, rows, id2code = new Map()) {
   if (!rows || rows.length === 0) {
     holder.innerHTML = '<div class="empty">No POs</div>';
@@ -226,13 +234,16 @@ async function loadPOs() {
   const holder = $('po_table');
   try {
     const rows = await jfetch('/pos');
-    // ทำแผนที่ id -> code เพื่อแสดงผลสวย ๆ
+    const ids = [...new Set((rows || []).map(r => r.customer_id).filter(Boolean))];
+
     let id2code = new Map();
-    try {
-      const customers = await jfetch('/customers');
-      id2code = new Map(customers.map((c) => [c.id, (c.code || '').toUpperCase()]));
-    } catch {
-      // เงียบ ๆ ถ้าโหลดลูกค้าไม่ได้ จะ fallback เป็น #id
+    if (ids.length > 0) {
+      try {
+        const minis = await jfetch(`/customers/lookup?ids=${encodeURIComponent(ids.join(','))}`);
+        id2code = new Map(minis.map(c => [c.id, (c.code || '').toUpperCase()]));
+      } catch {
+        // fallback
+      }
     }
     renderPosTable(holder, rows, id2code);
   } catch (e) {
@@ -241,36 +252,45 @@ async function loadPOs() {
   }
 }
 
-async function resolveCustomerIdFromCode(code) {
-  if (!code) return null;
-  // ถ้าเลือกจากรายการแล้ว และ code ตรงกัน ใช้เลย
-  if (selectedCustomer && selectedCustomer.code === code.toUpperCase()) {
-    return selectedCustomer.id;
+async function resolveCustomerIdFromCode(text) {
+  const raw = (text || '').trim();
+  if (!raw) return null;
+
+  // ถ้าเคยเลือกจาก list แล้ว ให้เชื่อถือ selection เป็นหลัก
+  if (selectedCustomer) {
+    // ป้องกันผู้ใช้แก้ไขข้อความเล็กน้อย: ยอมถ้า value ขึ้นต้นด้วย code เดิม
+    const startsWithCode = raw.toUpperCase().startsWith(selectedCustomer.code);
+    if (startsWithCode) return selectedCustomer.id;
   }
-  // ไม่ได้เลือกจากรายการ => ค้นหาแบบ exact (ตาม code)
+
+  // ถ้าไม่ได้เลือกจาก list ให้ดึง "code" ออกมาก่อน (รองรับรูปแบบ 'CODE - Name')
+  const codeOnly = raw.split('-')[0].trim().toUpperCase();
+
   try {
-    const list = await jfetch(`/customers?q=${encodeURIComponent(code)}`);
-    const exact = (list || []).find((c) => (c.code || '').toUpperCase() === code.toUpperCase());
+    const data = await jfetch(`/customers?q=${encodeURIComponent(codeOnly)}&page=1&per_page=20`);
+    const list = data?.items ?? [];
+    const exact = list.find(c => (c.code || '').toUpperCase() === codeOnly);
     return exact ? exact.id : null;
   } catch {
     return null;
   }
 }
 
-// สร้าง PO ใหม่ (ใช้ customer_code แต่ส่ง customer_id)
+
+// สร้าง PO ใหม่
 async function createPO() {
-  const po_no = ($('po_no')?.value || '').trim(); // ว่าง/"AUTO"/"AUTOGEN" = autogen หลังบ้าน
+  const po_no = ($('po_no')?.value || '').trim();
   const desc = ($('po_desc')?.value || '').trim();
   const code = ($('po_cust')?.value || '').trim().toUpperCase();
 
   if (!code) {
-    toast('กรุณาใส่ Customer Code', false);
+    toast('Enter Customer Code', false);
     return;
   }
 
   const custId = await resolveCustomerIdFromCode(code);
   if (!custId) {
-    toast('ไม่พบลูกค้าจากรหัสที่พิมพ์ กรุณาเลือกจากรายการแนะนำ', false);
+    toast('Customer does not found !!', false);
     $('po_cust')?.focus();
     return;
   }
@@ -284,10 +304,7 @@ async function createPO() {
   try {
     await jfetch('/pos', { method: 'POST', body: JSON.stringify(payload) });
     toast('PO created');
-    ['po_no', 'po_desc', 'po_cust'].forEach((id) => {
-      const el = $(id);
-      if (el) el.value = '';
-    });
+    ['po_no', 'po_desc', 'po_cust'].forEach((id) => { const el = $(id); if (el) el.value = ''; });
     selectedCustomer = null;
     await loadPOs();
   } catch (e) {
@@ -299,27 +316,24 @@ async function createPO() {
 document.addEventListener('DOMContentLoaded', () => {
   initTopbar();
 
-  // เปลี่ยนช่อง po_cust ให้เป็น code + autocomplete
   const custInput = $('po_cust');
   if (custInput) {
-    custInput.placeholder = 'Customer code (พิมพ์เพื่อค้นหา)';
+    custInput.placeholder = 'Customer code or name';
     attachAutocomplete(custInput);
   }
 
   on($('po_reload'), 'click', loadPOs);
   on($('po_create'), 'click', createPO);
 
-  // Enter ที่ช่อง code -> สร้างเร็ว
   on($('po_cust'), 'keydown', (e) => {
     if (e.key === 'Enter') createPO();
   });
 
-  // Fallback: คลิกพื้นที่อื่นในแถวก็ไปหน้า detail
   const holder = $('po_table');
   if (holder) {
     holder.addEventListener('click', (e) => {
       const a = e.target.closest('a[href]');
-      if (a) return; // ถ้าคลิกลิงก์จริง ให้เบราว์เซอร์นำทางเอง
+      if (a) return;
       const tr = e.target.closest('tr[data-id]');
       if (!tr) return;
       const id = tr.dataset.id;
