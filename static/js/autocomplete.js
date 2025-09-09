@@ -2,6 +2,16 @@
 // Lightweight, reusable autocomplete for any entity (customers, parts, employees, ...)
 // Vanilla JS, no dependencies.
 
+/** utility for external usage in renderers */
+export function acEscapeHtml(s) {
+  return String(s ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
 /**
  * Attach autocomplete behavior to an <input> element.
  *
@@ -11,8 +21,8 @@
  * @param {(item:any) => string} opts.getDisplayValue - value to set in input when picked (e.g., "CODE — NAME")
  * @param {(item:any) => string} [opts.renderItem] - returns HTML for each row; default uses getDisplayValue
  * @param {(item:any) => void} [opts.onPick] - called when an item is selected
- * @param {boolean} [opts.openOnFocus=false] - open list on focus (fetch with current value)
- * @param {number} [opts.minChars=1] - minimum characters before searching
+ * @param {boolean | 'first10'} [opts.openOnFocus=false] - if true, open with current term; if 'first10', open with empty query
+ * @param {number} [opts.minChars=1] - minimum characters before searching (ignored when forcing on focus)
  * @param {number} [opts.debounceMs=200] - debounce time for input
  * @param {number} [opts.maxHeight=280] - dropdown max height (px)
  * @param {number} [opts.zIndex=1000] - dropdown z-index
@@ -21,9 +31,9 @@
  */
 export function attachAutocomplete(inputEl, opts) {
   const cfg = {
-    renderItem: (it) => escapeHtml(cfg.getDisplayValue(it)),
+    renderItem: (it) => acEscapeHtml(cfg.getDisplayValue(it)),
     onPick: () => {},
-    openOnFocus: false,
+    openOnFocus: false, // false | true | 'first10'
     minChars: 1,
     debounceMs: 200,
     maxHeight: 280,
@@ -46,15 +56,6 @@ export function attachAutocomplete(inputEl, opts) {
   let destroyed = false;
 
   // Utils -----------------------------------------------------------
-  function escapeHtml(s) {
-    return String(s ?? '')
-      .replaceAll('&', '&amp;')
-      .replaceAll('<', '&lt;')
-      .replaceAll('>', '&gt;')
-      .replaceAll('"', '&quot;')
-      .replaceAll("'", '&#39;');
-  }
-
   function debounce(fn, ms) {
     let t;
     return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
@@ -143,13 +144,14 @@ export function attachAutocomplete(inputEl, opts) {
     show();
   }
 
-  const doSearch = debounce(async (term) => {
+  // Core searchers --------------------------------------------------
+  // Debounced search (for typing)
+  const doSearchDebounced = debounce(async (term) => {
     try {
       const trimmed = (term ?? '').trim();
       if (trimmed.length < cfg.minChars) { hide(); return; }
       lastTerm = trimmed;
       const data = await cfg.fetchItems(trimmed);
-      // Avoid race: only render if input not destroyed and term is still current
       if (!destroyed && trimmed === lastTerm) {
         render(Array.isArray(data) ? data : (data?.items ?? []));
       }
@@ -158,14 +160,34 @@ export function attachAutocomplete(inputEl, opts) {
     }
   }, cfg.debounceMs);
 
+  // Immediate search (forced; ignores minChars) — for focus-open use cases
+  async function doSearchImmediate(term) {
+    try {
+      const q = (term ?? '').trim();
+      lastTerm = q;
+      const data = await cfg.fetchItems(q);
+      if (!destroyed && q === lastTerm) {
+        render(Array.isArray(data) ? data : (data?.items ?? []));
+      }
+    } catch (e) {
+      cfg.onError(e);
+    }
+  }
+
   // Wire events -----------------------------------------------------
   ensureBox();
   inputEl.setAttribute('autocomplete', 'off');
 
-  const onInput = () => { placeBox(); doSearch(inputEl.value); };
+  const onInput = () => { placeBox(); doSearchDebounced(inputEl.value); };
   const onFocus = () => {
     placeBox();
-    if (cfg.openOnFocus) doSearch(inputEl.value);
+    if (cfg.openOnFocus === 'first10') {
+      // แสดง 10 รายการแรกทันที (caller ต้องทำให้ fetchItems('') คืน 10 อันแรก)
+      doSearchImmediate('');
+    } else if (cfg.openOnFocus === true) {
+      // เปิดด้วยค่าที่พิมพ์อยู่ (แม้น้อยกว่า minChars ก็ force)
+      doSearchImmediate(inputEl.value);
+    }
   };
   const onBlur = () => setTimeout(hide, 120); // allow mouse click
   const onKey = (e) => {
@@ -201,30 +223,37 @@ export function attachAutocomplete(inputEl, opts) {
 
 // ---------------- Example usages ----------------
 // 1) Customers
-// import { attachAutocomplete } from './autocomplete.js';
+// import { attachAutocomplete, acEscapeHtml } from './autocomplete.js';
 // const customerInput = document.getElementById('po_customer_input');
 // const hiddenId = document.getElementById('po_customer_id');
 // attachAutocomplete(customerInput, {
-//   fetchItems: (q) => jfetch(`/customers?q=${encodeURIComponent(q)}&limit=12`),
+//   fetchItems: (q) => jfetch(
+//     (q && q.trim())
+//       ? `/customers?q=${encodeURIComponent(q.trim())}&page=1&per_page=20`
+//       : `/customers?page=1&per_page=10`
+//   ),
 //   getDisplayValue: (it) => `${it.code ?? ''} — ${it.name ?? ''}`,
 //   renderItem: (it) => `
 //     <div style="font-weight:600">${(it.code ?? '').toString()}</div>
-//     <div style="color:#6b7280">— ${escapeHtml(it.name ?? '')}</div>
+//     <div style="color:#6b7280">— ${acEscapeHtml(it.name ?? '')}</div>
 //   `,
-//   onPick: (it) => { hiddenId.value = it.id; }
+//   onPick: (it) => { hiddenId.value = it.id; },
+//   openOnFocus: 'first10',  // ⬅️ โฟกัสแล้วแสดง 10 รายการแรกทันที
+//   // minChars: 1 — ปล่อยค่าเดิมได้ เพราะ focus ใช้ immediate fetch ที่ไม่สน minChars
 // });
 
 // 2) Parts (show part_no and description)
 // const partInput = document.getElementById('line_part_input');
 // const partHidden = document.getElementById('line_part_id');
 // attachAutocomplete(partInput, {
-//   fetchItems: (q) => jfetch(`/parts?q=${encodeURIComponent(q)}&limit=12`),
+//   fetchItems: (q) => jfetch(`/parts?q=${encodeURIComponent(q || '')}&limit=12`),
 //   getDisplayValue: (it) => `${it.part_no ?? ''} — ${it.description ?? ''}`,
 //   renderItem: (it) => `
-//     <div style="font-weight:600">${escapeHtml(it.part_no ?? '')}</div>
-//     <div style="color:#6b7280">— ${escapeHtml(it.description ?? '')}</div>
+//     <div style="font-weight:600">${acEscapeHtml(it.part_no ?? '')}</div>
+//     <div style="color:#6b7280">— ${acEscapeHtml(it.description ?? '')}</div>
 //   `,
-//   onPick: (it) => { partHidden.value = it.id; }
+//   onPick: (it) => { partHidden.value = it.id; },
+//   openOnFocus: 'first10',   // เปิด 10 รายการแรกของ parts ตาม backend
 // });
 
 // 3) Revisions (dependent on selected Part)
@@ -235,17 +264,18 @@ export function attachAutocomplete(inputEl, opts) {
 //   fetchItems: (q) => {
 //     const pid = currentPartId();
 //     if (!pid) return Promise.resolve([]);
-//     return jfetch(`/parts/${encodeURIComponent(pid)}/revisions?q=${encodeURIComponent(q)}`);
+//     return jfetch(`/parts/${encodeURIComponent(pid)}/revisions?q=${encodeURIComponent(q || '')}`);
 //   },
 //   getDisplayValue: (it) => `Rev ${it.rev ?? ''}`,
 //   onPick: (it) => { revHidden.value = it.id; },
-//   minChars: 0, // allow showing all revs when focused
-//   openOnFocus: true,
+//   minChars: 0,              // อนุญาตให้โชว์ได้แม้ไม่พิมพ์
+//   openOnFocus: true,        // โฟกัสแล้วเปิดด้วยค่าที่มี (หรือว่าง)
 // });
 
 // 4) Employees by code or name
 // attachAutocomplete(document.getElementById('emp_input'), {
-//   fetchItems: (q) => jfetch(`/employees?q=${encodeURIComponent(q)}`),
+//   fetchItems: (q) => jfetch(`/employees?q=${encodeURIComponent(q || '')}`),
 //   getDisplayValue: (it) => `${it.emp_code ?? ''} — ${it.name ?? ''}`,
-//   onPick: (it) => { document.getElementById('employee_id').value = it.id; }
+//   onPick: (it) => { document.getElementById('employee_id').value = it.id; },
+//   openOnFocus: 'first10',
 // });

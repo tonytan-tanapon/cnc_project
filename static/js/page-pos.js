@@ -1,5 +1,18 @@
-import { $, jfetch, toast, initTopbar } from './api.js';
+// 2) Parts (show part_no and description)
+// const partInput = document.getElementById('line_part_input');
+// const partHidden = document.getElementById('line_part_id');
+// attachAutocomplete(partInput, {
+//   fetchItems: (q) => jfetch(`/parts?q=${encodeURIComponent(q)}&limit=12`),
+//   getDisplayValue: (it) => `${it.part_no ?? ''} — ${it.description ?? ''}`,
+//   renderItem: (it) => `
+//     <div style="font-weight:600">${escapeHtml(it.part_no ?? '')}</div>
+//     <div style="color:#6b7280">— ${escapeHtml(it.description ?? '')}</div>
+//   `,
+//   onPick: (it) => { partHidden.value = it.id; }
+// });
 
+import { $, jfetch, toast, initTopbar } from './api.js';
+import { attachAutocomplete } from './autocomplete.js';
 const on = (el, ev, fn) => el && el.addEventListener(ev, fn);
 
 const DETAIL_PAGE = './pos-detail.html';
@@ -22,7 +35,7 @@ let acBox;
 let acItems = [];
 let acActive = -1;
 let acTarget;
-
+let selectedCustomerId = null;
 function ensureAcBox() {
   if (acBox) return acBox;
   acBox = document.createElement('div');
@@ -125,62 +138,6 @@ const fetchSuggest = debounce(async (term) => {
   }
 }, 220);
 
-function attachAutocomplete(input) {
-  acTarget = input;
-  input.setAttribute('autocomplete', 'off');
-  input.placeholder = input.placeholder || 'Customer code or name';
-
-  let composing = false;
-  input.addEventListener('compositionstart', () => { composing = true; });
-  input.addEventListener('compositionend', () => {
-    composing = false;
-    const term = (input.value || '').trim();
-    fetchSuggest(term);
-    ensureAcBox(); positionAcBox(input);
-  });
-
-  input.addEventListener('input', () => {
-    if (composing) return;
-    const term = (input.value || '').trim();
-    if (!selectedCustomer || selectedCustomer.code !== term.toUpperCase()) {
-      selectedCustomer = null;
-    }
-    fetchSuggest(term);
-    ensureAcBox(); positionAcBox(input);
-  });
-
-  input.addEventListener('focus', () => {
-    const term = (input.value || '').trim();
-    fetchSuggest(term);
-    ensureAcBox(); positionAcBox(input);
-  });
-
-  input.addEventListener('blur', () => {
-    setTimeout(hideAc, 100);
-  });
-
-  input.addEventListener('keydown', (e) => {
-    if (acBox?.style.display === 'none') return;
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      setActive(Math.min(acActive + 1, acItems.length - 1));
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      setActive(Math.max(acActive - 1, 0));
-    } else if (e.key === 'Enter') {
-      if (acActive >= 0) {
-        e.preventDefault();
-        chooseActive(acActive);
-      }
-    } else if (e.key === 'Escape') {
-      hideAc();
-    }
-  });
-
-  window.addEventListener('resize', () => acBox && positionAcBox(input));
-  window.addEventListener('scroll', () => acBox && positionAcBox(input), true);
-}
-
 /* ========================= List renderer ========================= */
 function renderPosTable(holder, rows, id2code = new Map()) {
   if (!rows || rows.length === 0) {
@@ -252,11 +209,11 @@ async function resolveCustomerIdFromCode(text) {
   const raw = (text || '').trim();
   if (!raw) return null;
 
-  // ถ้าเคยเลือกจาก list แล้ว ให้เชื่อถือ selection เป็นหลัก
-  if (selectedCustomer) {
-    const startsWithCode = raw.toUpperCase().startsWith(selectedCustomer.code);
-    if (startsWithCode) return selectedCustomer.id;
-  }
+  // // ถ้าเคยเลือกจาก list แล้ว ให้เชื่อถือ selection เป็นหลัก
+  // if (selectedCustomer) {
+  //   const startsWithCode = raw.toUpperCase().startsWith(selectedCustomer.code);
+  //   if (startsWithCode) return selectedCustomer.id;
+  // }
 
   // ถ้าไม่ได้เลือกจาก list ให้ดึง "code" ออกมาก่อน (รองรับรูปแบบ 'CODE - Name')
   const codeOnly = raw.split('-')[0].trim().toUpperCase();
@@ -275,14 +232,14 @@ async function resolveCustomerIdFromCode(text) {
 async function createPO() {
   const po_no = ($('po_no')?.value || '').trim();
   const desc = ($('po_desc')?.value || '').trim();
-  const code = ($('po_cust')?.value || '').trim().toUpperCase();
+  const code = ($('po_cust')?.value || '').trim();
 
   if (!code) {
     toast('Enter Customer Code', false);
     return;
   }
 
-  const custId = await resolveCustomerIdFromCode(code);
+  const custId = selectedCustomerId ?? await resolveCustomerIdFromCode(code);
   if (!custId) {
     toast('Customer does not found !!', false);
     $('po_cust')?.focus();
@@ -315,11 +272,51 @@ async function createPO() {
 /* ========================= Bootstrap ========================= */
 document.addEventListener('DOMContentLoaded', () => {
   initTopbar();
-
+  
   const custInput = $('po_cust');
+  // if (custInput) {
+  //   custInput.placeholder = 'Customer code or name';
+  //   attachAutocomplete(custInput);
+  // }
   if (custInput) {
     custInput.placeholder = 'Customer code or name';
-    attachAutocomplete(custInput);
+
+    // reset selection ถ้ามีการพิมพ์ทับ
+    custInput.addEventListener('input', () => { selectedCustomerId = null; });
+
+    attachAutocomplete(custInput, {
+      // ดึงรายการลูกค้า (รองรับไม่มีคำค้นด้วย)
+      fetchItems: async (q) => {
+        const url = (q && q.trim())
+          ? `/customers?q=${encodeURIComponent(q.trim())}&page=1&per_page=20`
+          : `/customers?page=1&per_page=10`;
+        const data = await jfetch(url);
+        return (data?.items ?? []).map(x => ({
+          id: x.id,
+          code: (x.code || '').toUpperCase(),
+          name: x.name || ''
+        }));
+      },
+
+      // ค่า text ที่จะใส่กลับลง <input> เมื่อเลือก
+      getDisplayValue: (it) => `${it.code} - ${it.name}`.trim(),
+
+      // หน้าตา item ใน dropdown (ไม่แสดง id ตามที่ต้องการ)
+      renderItem: (it) => `
+        <div style="padding:8px 10px; display:flex; gap:8px; align-items:center">
+          <span class="badge" style="font-size:11px">${escapeHtml(it.code)}</span>
+          <div style="font-weight:600">${escapeHtml(it.name)}</div>
+        </div>
+      `,
+
+      // เมื่อเลือกแล้ว เก็บ id ไว้ใช้ตอน create
+      onPick: (it) => {
+        selectedCustomerId = it.id;
+        // ถ้าต้องการเก็บใส่ hidden ด้วยก็ได้:
+        // $('po_customer_id')?.value = it.id;
+      },
+      openOnFocus: 'first10',  // ⬅️ โฟกัสแล้วแสดง 10 รายการแรกทันที
+    });
   }
 
   on($('po_reload'), 'click', loadPOs);
