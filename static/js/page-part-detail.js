@@ -172,7 +172,7 @@ async function addRevision() {
     is_current: (($("r_current").value || "false") === "true"),
   };
   if (!payload.rev) {
-    toast("ต้องกรอก Rev", false);
+    toast("Enter Rev", false);
     return;
   }
   try {
@@ -185,7 +185,7 @@ async function addRevision() {
     await loadRevisions();
     ["r_rev","r_dwg","r_spec"].forEach(id => { const el = $(id); if (el) el.value = ""; });
     $("r_current").value = "false";
-    toast("เพิ่ม Revision สำเร็จ");
+    toast("Revision Added");
   } catch (e) {
     toast(e.message || "Add revision failed", false);
   }
@@ -219,8 +219,47 @@ async function setRevisionCurrent(id) {
   }
 }
 
+// เพิ่ม Suggest ให้ #r_rev จากของเดิมของ part นี้
+function initRevSuggestForCurrentPart(partId) {
+  const input = document.getElementById('r_rev');
+  if (!input || !partId) return;
+
+  // สร้าง datalist ถ้ายังไม่มี
+  let dl = document.getElementById('revOptionsSuggest');
+  if (!dl) {
+    dl = document.createElement('datalist');
+    dl.id = 'revOptionsSuggest';
+    document.body.appendChild(dl);
+  }
+  input.setAttribute('list', 'revOptionsSuggest');
+
+  // โหลดรายการ Rev ของ part นี้มาเป็นตัวช่วย
+  jfetch(`/part-revisions?part_id=${encodeURIComponent(partId)}`)
+    .then(rows => Array.isArray(rows) ? rows : [])
+    .then(rows => {
+      // A..Z
+      const list = rows
+        .map(r => (r.rev || '').toUpperCase())
+        .filter(Boolean)
+        .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+
+      dl.innerHTML = list.map(rv => `<option value="${rv}"></option>`).join('');
+    })
+    .catch(() => { dl.innerHTML = ''; });
+
+  // force upper-case เมื่อพิมพ์
+  input.addEventListener('input', () => { input.value = input.value.toUpperCase(); });
+}
+
 /* ---------------- boot ---------------- */
 document.addEventListener("DOMContentLoaded", () => {
+    const qs = new URLSearchParams(location.search);
+  const partId = Number(qs.get('id'));
+  if (Number.isFinite(partId)) {
+    initRevSuggestForCurrentPart(partId);
+  }
+
+
   $("btnHeaderEdit")?.addEventListener("click", () => {
     headerOpen ? hideHeaderEditor() : showHeaderEditor();
   });
