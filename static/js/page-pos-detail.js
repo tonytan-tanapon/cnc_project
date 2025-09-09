@@ -1,54 +1,112 @@
 // /static/js/page-pos-detail.js
 import { $, jfetch, toast } from './api.js';
 
+const DEBUG = false;
+const dlog = (...args) => { if (DEBUG) console.log('[PO-D]', ...args); };
+
 const qs = new URLSearchParams(location.search);
 const poId = qs.get('id');
 
 let original = null;            // สำหรับ Reset
 let selectedCustomer = null;    // { id, code, name } ที่เลือกจาก autocomplete
-
+const OPEN_PART_SUGGEST_ON_FOCUS = false;
 const customersDetailUrl = (id) =>
   `/static/customers-detail.html?id=${encodeURIComponent(id)}`;
+
+/* ---------------- helpers ---------------- */
+const escapeHtml = (s) =>
+  String(s ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+
+/* ---------- Toggle: Header Edit / Cancel ---------- */
+let headerOpen = false;
+
+function showHeaderEditor() {
+  const sec = $('page-po-detail');
+  if (!sec) return;
+  sec.hidden = false;
+  $('btnHeaderEdit').textContent = 'Cancel';
+  headerOpen = true;
+
+  dlog('showHeaderEditor');
+
+  // attach autocomplete ให้ช่องลูกค้าตอนฟอร์มถูกแสดง (หลีกเลี่ยงปัญหาคำนวณตำแหน่งตอน hidden)
+  const custInput = $('po_cust');
+  if (custInput && !custInput.dataset.acReady) {
+    attachCustomerAutocomplete(custInput);
+    custInput.dataset.acReady = '1';
+  }
+  if (custInput) {
+    custInput.focus();
+    const term = (custInput.value || '').trim();
+    fetchCustomerSuggest(term);
+    ensureCustAcBox();
+    positionCustAcBox(custInput);
+  }
+}
+
+function hideHeaderEditor() {
+  const sec = $('page-po-detail');
+  if (!sec) return;
+  if (original) resetForm();           // รีเซ็ตก่อนซ่อน
+  sec.hidden = true;
+  $('btnHeaderEdit').textContent = 'Edit PO';
+  headerOpen = false;
+  dlog('hideHeaderEditor');
+}
 
 /* ---------- helpers: customer fetch/resolve ---------- */
 async function fetchCustomerById(id) {
   if (!id) return null;
   try {
     const c = await jfetch(`/customers/${encodeURIComponent(id)}`);
-    return {
-      id: c.id,
-      code: (c.code || '').toUpperCase(),
-      name: c.name || '',
-    };
-  } catch {
+    const out = { id: c.id, code: (c.code || '').toUpperCase(), name: c.name || '' };
+    dlog('fetchCustomerById', id, out);
+    return out;
+  } catch (e) {
+    dlog('fetchCustomerById ERR', e);
     return null;
   }
 }
 
-async function resolveCustomerIdFromCode(code) {
-  if (!code) return null;
+async function resolveCustomerIdFromCode(codeOrText) {
+  if (!codeOrText) return null;
+  const code = String(codeOrText).split('-')[0].trim().toUpperCase();
+  if (selectedCustomer && code.startsWith(selectedCustomer.code)) {
+    dlog('resolveCustomerId: from selectedCustomer', selectedCustomer);
+    return selectedCustomer.id;
+  }
   try {
-    const list = await jfetch(`/customers?q=${encodeURIComponent(code)}`);
-    const exact = (list || []).find(
-      (c) => (c.code || '').toUpperCase() === code.toUpperCase()
-    );
+    const url = `/customers?q=${encodeURIComponent(code)}&page=1&per_page=20`;
+    const data = await jfetch(url);
+    const list = Array.isArray(data) ? data : (data?.items || data?.results || data?.data || data?.list || []);
+    const exact = (list || []).find((c) => (c.code || '').toUpperCase() === code);
+    dlog('resolveCustomerIdFromCode', { code, url, listLen: list?.length, exact });
     return exact ? exact.id : null;
-  } catch {
+  } catch (e) {
+    dlog('resolveCustomerIdFromCode ERR', e);
     return null;
   }
 }
 
 function updateCustomerLink(cust /* {id, code, name} | null */) {
   const a = $('link_cust');
-  if (!a) return;
+  const h = $('custNameHint');
+  if (!a || !h) return;
   if (cust) {
     a.href = customersDetailUrl(cust.id);
     a.textContent = cust.code;
     a.title = cust.name ? `${cust.code} — ${cust.name}` : cust.code;
+    h.textContent = cust.name || '';
   } else {
     a.href = '#';
     a.textContent = '';
     a.removeAttribute('title');
+    h.textContent = '';
   }
 }
 
@@ -61,18 +119,17 @@ function fillFormBasic(po) {
 
 async function fillForm(po) {
   fillFormBasic(po);
-
-  // แสดง customer_code + เก็บ selectedCustomer
   const cust = await fetchCustomerById(po.customer_id);
   selectedCustomer = cust;
-  $('po_cust').value = cust?.code || '';
+  $('po_cust').value = cust ? `${cust.code}${cust.name ? ' - ' + cust.name : ''}` : '';
   updateCustomerLink(cust);
+  dlog('fillForm', { po, cust });
 }
 
 function readForm() {
   return {
     po_number: ($('po_no').value ?? '').trim().toUpperCase() || null,
-    customer_code: ($('po_cust').value ?? '').trim().toUpperCase() || null,
+    customer_code: ($('po_cust').value ?? '').trim().toUpperCase() || null, // อาจเป็น "CODE - NAME"
     description: ($('po_desc').value ?? '').trim() || null,
   };
 }
@@ -85,17 +142,16 @@ function setBusy(b) {
   $('hint').textContent = b ? 'Working…' : '';
 }
 
-/* ---------- autocomplete ---------- */
-let acBox;          // กล่อง suggestion
-let acItems = [];   // [{id, code, name}]
-let acActive = -1;  // index ที่โฟกัส
-let acTarget;       // input element
+/* ---------- Autocomplete Customer (detail header) ---------- */
+let custAcBox;          // div ของ suggestion
+let custAcItems = [];   // [{id, code, name}]
+let custAcActive = -1;  // index
+let custAcTarget;       // input element
 
-function ensureAcBox() {
-  if (acBox) return acBox;
-  acBox = document.createElement('div');
-  acBox.className = 'ac-box';
-  Object.assign(acBox.style, {
+function ensureCustAcBox() {
+  if (custAcBox) return custAcBox;
+  custAcBox = document.createElement('div');
+  Object.assign(custAcBox.style, {
     position: 'absolute',
     zIndex: '9999',
     minWidth: '240px',
@@ -107,158 +163,156 @@ function ensureAcBox() {
     boxShadow: '0 10px 20px rgba(2,6,23,.08), 0 2px 6px rgba(2,6,23,.06)',
     display: 'none',
   });
-  document.body.appendChild(acBox);
-  return acBox;
+  custAcBox.className = 'ac-box';
+  document.body.appendChild(custAcBox);
+  return custAcBox;
 }
 
-function positionAcBox(input) {
-  if (!acBox) return;
+function positionCustAcBox(input) {
+  if (!custAcBox || !input) return;
   const r = input.getBoundingClientRect();
-  acBox.style.left = `${window.scrollX + r.left}px`;
-  acBox.style.top = `${window.scrollY + r.bottom + 4}px`;
-  acBox.style.width = `${r.width}px`;
+  custAcBox.style.left = `${window.scrollX + r.left}px`;
+  custAcBox.style.top = `${window.scrollY + r.bottom + 4}px`;
+  custAcBox.style.width = `${r.width}px`;
 }
 
-function hideAc() {
-  if (!acBox) return;
-  acBox.style.display = 'none';
-  acItems = [];
-  acActive = -1;
+function hideCustAc() {
+  if (!custAcBox) return;
+  custAcBox.style.display = 'none';
+  custAcItems = [];
+  custAcActive = -1;
 }
 
-function renderAc(list) {
-  const box = ensureAcBox();
-  acItems = list || [];
-  acActive = -1;
-  if (acItems.length === 0) {
-    hideAc();
-    return;
-  }
-  box.innerHTML = acItems
-    .map(
-      (c, i) => `
-      <div class="ac-item" data-i="${i}" style="padding:8px 10px; cursor:pointer; display:flex; gap:8px; align-items:center">
-        <span class="badge" style="font-size:11px">${escapeHtml(c.code)}</span>
-        <div style="flex:1">
-          <div style="font-weight:600">${escapeHtml(c.name)}</div>
-          <div class="hint" style="font-size:12px; color:#64748b">#${c.id}</div>
+function renderCustAc(list) {
+  const box = ensureCustAcBox();
+  custAcItems = list || [];
+  custAcActive = -1;
+  if (custAcItems.length === 0 || !custAcTarget) { hideCustAc(); return; }
+
+  box.innerHTML = custAcItems.map((c, i) => `
+    <div class="ac-item" data-i="${i}"
+         style="padding:8px 10px; cursor:pointer; display:flex; gap:8px; align-items:center">
+      <span class="badge" style="font-size:11px">${escapeHtml((c.code || '').toUpperCase())}</span>
+      <div style="flex:1; min-width:0">
+        <div style="font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">
+          ${escapeHtml(c.name ?? '')}
         </div>
-      </div>`
-    )
-    .join('');
+      </div>
+    </div>
+  `).join('');
+
   [...box.querySelectorAll('.ac-item')].forEach((el) => {
-    el.addEventListener('mouseenter', () => setActive(parseInt(el.dataset.i, 10)));
+    el.addEventListener('mouseenter', () => setCustActive(parseInt(el.dataset.i, 10)));
     el.addEventListener('mousedown', (e) => {
-      e.preventDefault(); // กัน blur ก่อนเลือก
-      chooseActive(parseInt(el.dataset.i, 10));
+      e.preventDefault();
+      chooseCustActive(parseInt(el.dataset.i, 10));
     });
   });
+
   box.style.display = '';
+  positionCustAcBox(custAcTarget);
 }
 
-function setActive(i) {
-  acActive = i;
-  [...acBox.querySelectorAll('.ac-item')].forEach((el, idx) => {
-    el.style.background = idx === acActive ? 'rgba(0,0,0,.04)' : '';
+function setCustActive(i) {
+  custAcActive = i;
+  [...custAcBox.querySelectorAll('.ac-item')].forEach((el, idx) => {
+    el.style.background = idx === custAcActive ? 'rgba(0,0,0,.04)' : '';
   });
 }
 
-function chooseActive(i) {
-  if (i < 0 || i >= acItems.length) return;
-  const c = acItems[i];
-  selectedCustomer = { id: c.id, code: c.code, name: c.name };
-  acTarget.value = c.code;
+function chooseCustActive(i) {
+  if (i < 0 || i >= custAcItems.length) return;
+  const c = custAcItems[i];
+  selectedCustomer = { id: c.id, code: (c.code || '').toUpperCase(), name: c.name || '' };
+  if (custAcTarget) custAcTarget.value = `${selectedCustomer.code}${selectedCustomer.name ? ' - ' + selectedCustomer.name : ''}`;
   updateCustomerLink(selectedCustomer);
-  hideAc();
+  hideCustAc();
+  dlog('chooseCustActive', selectedCustomer);
 }
 
 function debounce(fn, ms = 200) {
   let t;
-  return (...args) => {
-    clearTimeout(t);
-    t = setTimeout(() => fn(...args), ms);
-  };
+  return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
 }
 
-const fetchSuggest = debounce(async (term) => {
-  if (!term || term.length < 1) {
-    renderAc([]);
-    return;
-  }
+function normalizeList(data) {
+  if (Array.isArray(data)) return data;
+  if (!data || typeof data !== 'object') return [];
+  return data.items || data.results || data.data || data.list || [];
+}
+
+const fetchCustomerSuggest = debounce(async (term) => {
   try {
-    const list = await jfetch(`/customers?q=${encodeURIComponent(term)}`);
-    const rows = (list || []).map((x) => ({
+    const hasTerm = !!(term && term.length >= 1);
+    const url = hasTerm
+      ? `/customers?q=${encodeURIComponent(term)}&page=1&per_page=20`
+      : `/customers?page=1&per_page=10`;
+    const data = await jfetch(url);
+    const list = normalizeList(data);
+    const rows = (list || []).map(x => ({
       id: x.id,
       code: (x.code || '').toUpperCase(),
       name: x.name || '',
     }));
-    renderAc(rows.slice(0, 20));
-    ensureAcBox();
-    positionAcBox(acTarget);
-  } catch {
-    renderAc([]);
+    dlog('fetchCustomerSuggest', { term, url, count: rows.length });
+    renderCustAc(rows.slice(0, 20));
+  } catch (e) {
+    dlog('fetchCustomerSuggest ERR', e);
+    renderCustAc([]);
   }
 }, 220);
 
-function attachAutocomplete(input) {
-  acTarget = input;
+function attachCustomerAutocomplete(input) {
   input.setAttribute('autocomplete', 'off');
-  input.placeholder = input.placeholder || 'Customer code (พิมพ์เพื่อค้นหา)';
+  input.placeholder = input.placeholder || 'Customer code or name';
+  let composing = false;
+
+  input.addEventListener('compositionstart', () => { composing = true; });
+  input.addEventListener('compositionend', () => {
+    composing = false;
+    custAcTarget = input;
+    const term = (input.value || '').trim();
+    fetchCustomerSuggest(term);
+    ensureCustAcBox(); positionCustAcBox(input);
+  });
 
   input.addEventListener('input', () => {
-    const term = (input.value || '').trim().toUpperCase();
-    // ถ้าพิมพ์ต่างจากที่เลือกไว้ ให้ล้าง selection
-    if (!selectedCustomer || selectedCustomer.code !== term) {
+    if (composing) return;
+    custAcTarget = input;
+    const term = (input.value || '').trim();
+    if (!selectedCustomer || !term.toUpperCase().startsWith((selectedCustomer.code || '').toUpperCase())) {
       selectedCustomer = null;
       updateCustomerLink(null);
     }
-    fetchSuggest(term);
-    ensureAcBox();
-    positionAcBox(input);
+    fetchCustomerSuggest(term);
+    ensureCustAcBox(); positionCustAcBox(input);
   });
 
   input.addEventListener('focus', () => {
-    const term = (input.value || '').trim().toUpperCase();
-    fetchSuggest(term);
-    ensureAcBox();
-    positionAcBox(input);
+    custAcTarget = input;
+    const term = (input.value || '').trim();
+    fetchCustomerSuggest(term);
+    ensureCustAcBox(); positionCustAcBox(input);
   });
 
-  input.addEventListener('blur', () => {
-    setTimeout(hideAc, 100); // เผื่อเวลาคลิกรายการ
-  });
+  input.addEventListener('blur', () => setTimeout(hideCustAc, 100));
 
   input.addEventListener('keydown', (e) => {
-    if (!acBox || acBox.style.display === 'none') return;
+    if (!custAcBox || custAcBox.style.display === 'none') return;
     if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      setActive(Math.min(acActive + 1, acItems.length - 1));
+      e.preventDefault(); setCustActive(Math.min(custAcActive + 1, custAcItems.length - 1));
     } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      setActive(Math.max(acActive - 1, 0));
+      e.preventDefault(); setCustActive(Math.max(custAcActive - 1, 0));
     } else if (e.key === 'Enter') {
-      if (acActive >= 0) {
-        e.preventDefault();
-        chooseActive(acActive);
-      }
-    } else if (e.key === 'Escape') {
-      hideAc();
-    }
+      if (custAcActive >= 0) { e.preventDefault(); chooseCustActive(custAcActive); }
+    } else if (e.key === 'Escape') { hideCustAc(); }
   });
 
-  window.addEventListener('resize', () => acBox && positionAcBox(input));
-  window.addEventListener('scroll', () => acBox && positionAcBox(input), true);
+  window.addEventListener('resize', () => custAcTarget && positionCustAcBox(custAcTarget));
+  window.addEventListener('scroll', () => custAcTarget && positionCustAcBox(custAcTarget), true);
 }
 
-const escapeHtml = (s) =>
-  String(s ?? '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
-
-/* ---------- load / save / delete ---------- */
+/* ---------- load / save / delete (PO header) ---------- */
 async function loadPO() {
   if (!poId) {
     $('errorBox').style.display = '';
@@ -272,13 +326,11 @@ async function loadPO() {
     original = po;
     await fillForm(po);
     document.title = `PO · ${po.po_number ?? po.id}`;
-
-    // ติดตั้ง autocomplete หลังเติมค่าเริ่มต้น
-    const custInput = $('po_cust');
-    if (custInput) attachAutocomplete(custInput);
+    dlog('loadPO ok', po);
   } catch (e) {
     $('errorBox').style.display = '';
     $('errorBox').textContent = e?.message || 'Load failed';
+    dlog('loadPO ERR', e);
   } finally {
     setBusy(false);
   }
@@ -286,6 +338,7 @@ async function loadPO() {
 
 async function savePO() {
   const form = readForm();
+  dlog('savePO readForm', form);
 
   if (!form.customer_code) {
     toast('กรุณาใส่ Customer Code', false);
@@ -293,25 +346,15 @@ async function savePO() {
     return;
   }
 
-  // ใช้ selectedCustomer ถ้ารหัสตรงกัน → เร็วกว่า
-  let customer_id = null;
-  if (selectedCustomer && selectedCustomer.code === form.customer_code) {
-    customer_id = selectedCustomer.id;
-  } else {
-    customer_id = await resolveCustomerIdFromCode(form.customer_code);
-  }
-
+  const customer_id = await resolveCustomerIdFromCode(form.customer_code);
+  dlog('savePO customer_id', customer_id);
   if (!customer_id) {
     toast('ไม่พบลูกค้าจากรหัสที่กรอก', false);
     $('po_cust').focus();
     return;
   }
 
-  const payload = {
-    po_number: form.po_number,
-    customer_id,
-    description: form.description,
-  };
+  const payload = { po_number: form.po_number, customer_id, description: form.description };
 
   setBusy(true);
   try {
@@ -320,16 +363,20 @@ async function savePO() {
       body: JSON.stringify(payload),
     });
     original = updated;
-    // หลังบันทึก โหลดข้อมูลลูกค้ามาอัปเดตลิงก์และค่าให้ตรง
+
     const cust = await fetchCustomerById(updated.customer_id);
     selectedCustomer = cust;
-    $('po_cust').value = cust?.code || form.customer_code;
+    $('po_cust').value = cust ? `${cust.code}${cust.name ? ' - ' + cust.name : ''}` : form.customer_code;
     updateCustomerLink(cust);
 
     fillFormBasic(updated);
     toast('Saved');
+
+    hideHeaderEditor();
+    dlog('savePO ok', updated);
   } catch (e) {
     toast(e?.message || 'Save failed', false);
+    dlog('savePO ERR', e);
   } finally {
     setBusy(false);
   }
@@ -355,36 +402,22 @@ function resetForm() {
   toast('Reset');
 }
 
-/* ---------- boot ---------- */
-document.addEventListener('DOMContentLoaded', () => {
-  // แนะนำให้ input ใน pos-detail.html เป็น:
-  // <input id="po_cust" type="text" style="text-transform: uppercase" />
-
-  $('btnSave').addEventListener('click', savePO);
-  $('btnReset').addEventListener('click', resetForm);
-  $('btnDelete').addEventListener('click', deletePO);
-
-  // Enter ที่ช่อง po_no → save เร็ว ๆ
-  $('po_no').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') savePO();
-  });
-
-  loadPO();
-});
-
-
-/* ===================== PO Lines ===================== */
+/* ===================== PO Lines (inline edit) ===================== */
 let poLines = [];
-let editingLineId = null;
+let editingLineId = null;   // 'new' หรือ number
+function fmtMoney(n) { return n == null ? '' : Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+function fmtQty(n) { return Number(n ?? 0).toLocaleString(undefined, { maximumFractionDigits: 3 }); }
 
 async function loadLines() {
   if (!poId) return;
   try {
     const rows = await jfetch(`/pos/${encodeURIComponent(poId)}/lines`);
     poLines = rows || [];
+    dlog('loadLines ok', poLines);
     renderLines();
   } catch (e) {
     console.error(e);
+    dlog('loadLines ERR', e);
     poLines = [];
     renderLines();
   }
@@ -392,122 +425,248 @@ async function loadLines() {
 
 function renderLines() {
   const tb = $('tblLinesBody');
-  if (!poLines.length) {
+
+  const rows = editingLineId === 'new'
+    ? [{ __isNew: true, id: null }].concat(poLines)
+    : poLines.slice();
+
+  if (!rows.length) {
     tb.innerHTML = `<tr><td colspan="7" class="empty">No lines</td></tr>`;
     return;
   }
-  tb.innerHTML = poLines.map(row => {
-    const qty = Number(row.qty_ordered ?? 0).toLocaleString(undefined, { maximumFractionDigits: 3 });
-    const price = row.unit_price != null
-      ? Number(row.unit_price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-      : '';
-    const due = row.due_date ?? '';
-    const partNo = row.part?.part_no ?? (row.part_id ?? '');
-    const rev = row.rev?.rev ?? (row.revision_id ?? '');
-    const notes = escapeHtml(row.notes ?? '');
 
-    return `
-      <tr data-id="${row.id}">
-        <td>${escapeHtml(partNo)}</td>
-        <td>${escapeHtml(String(rev))}</td>
-        <td style="text-align:right">${qty}</td>
-        <td style="text-align:right">${price}</td>
-        <td>${escapeHtml(due)}</td>
-        <td>${notes}</td>
-        <td style="text-align:right">
-          <button class="btn ghost btn-sm" data-edit="${row.id}">Edit</button>
-          <button class="btn danger btn-sm" data-del="${row.id}">Delete</button>
-        </td>
-      </tr>`;
+  tb.innerHTML = rows.map(row => {
+    const isEdit = editingLineId === row.id || (row.__isNew && editingLineId === 'new');
+
+    if (!isEdit) {
+      const qty   = fmtQty(row.qty_ordered);
+      const price = fmtMoney(row.unit_price);
+      const due   = row.due_date ?? '';
+      const partNo= row.part?.part_no ?? (row.part_id ?? '');
+      const rev   = row.rev?.rev ?? (row.revision_id ?? '');
+      const notes = escapeHtml(row.notes ?? '');
+      return `
+        <tr data-id="${row.id}">
+          <td>${escapeHtml(partNo)}</td>
+          <td>${escapeHtml(String(rev))}</td>
+          <td style="text-align:right">${qty}</td>
+          <td style="text-align:right">${price}</td>
+          <td>${escapeHtml(due)}</td>
+          <td>${notes}</td>
+          <td style="text-align:right; white-space:nowrap">
+            <button class="btn ghost btn-sm" data-edit="${row.id}">Edit</button>
+            <button class="btn danger btn-sm" data-del="${row.id}">Delete</button>
+          </td>
+        </tr>`;
+    } else {
+      const rid = row.__isNew ? 'new' : row.id;
+      const partNo = row.part?.part_no ?? '';
+      const rev = row.rev?.rev ?? '';
+      const qty = row.qty_ordered ?? '';
+      const price = row.unit_price ?? '';
+      const due = row.due_date ?? '';
+      const notes = row.notes ?? '';
+      const partId = (row.part_id ?? row.part?.id) ?? '';          // fallback part.id
+      const revisionId = (row.revision_id ?? row.rev?.id) ?? '';   // fallback rev.id
+
+      return `
+        <tr data-id="${row.id ?? ''}" data-editing="1">
+          <td>
+            <input id="r_part_code_${rid}" value="${escapeHtml(partNo)}" placeholder="e.g. P-10001" />
+            <input id="r_part_id_${rid}" type="hidden" value="${escapeHtml(String(partId))}">
+          </td>
+          <td>
+            <input id="r_rev_${rid}" value="${escapeHtml(String(rev))}" list="revOptions_${rid}" placeholder="e.g. A" />
+            <datalist id="revOptions_${rid}"></datalist>
+            <input id="r_revision_id_${rid}" type="hidden" value="${escapeHtml(String(revisionId))}">
+          </td>
+          <td style="text-align:right">
+            <input id="r_qty_${rid}" type="number" step="1" value="${escapeHtml(String(qty))}" style="text-align:right; width:120px">
+          </td>
+          <td style="text-align:right">
+            <input id="r_price_${rid}" type="number" step="1" value="${escapeHtml(String(price))}" style="text-align:right; width:140px">
+          </td>
+          <td>
+            <input id="r_due_${rid}" type="date" value="${escapeHtml(String(due))}">
+          </td>
+          <td>
+            <input id="r_notes_${rid}" value="${escapeHtml(String(notes))}">
+          </td>
+          <td style="text-align:right; white-space:nowrap">
+            <button class="btn btn-sm" data-save="${rid}">Save</button>
+            <button class="btn ghost btn-sm" data-cancel="${rid}">Cancel</button>
+            ${row.__isNew ? '' : `<button class="btn danger btn-sm" data-del="${rid}">Delete</button>`}
+          </td>
+        </tr>`;
+    }
   }).join('');
 
-  // wire actions
+  // wire: ปุ่มแถวปกติ
   tb.querySelectorAll('[data-edit]').forEach(b => {
-    b.addEventListener('click', () => openLineForm(getLineById(+b.dataset.edit)));
+    b.addEventListener('click', () => startEdit(+b.dataset.edit));
   });
   tb.querySelectorAll('[data-del]').forEach(b => {
     b.addEventListener('click', () => deleteLine(+b.dataset.del));
   });
-}
 
-function getLineById(id) {
-  return poLines.find(x => x.id === id);
-}
-
-/* ---------- Modal helpers ---------- */
-function openLineForm(line /* or null */) {
-  editingLineId = line?.id ?? null;
-  $('lineModalTitle').textContent = editingLineId ? `Edit Line #${editingLineId}` : 'Add Line';
-
-  $('f_part_code').value  = line?.part?.part_no ?? '';
-  $('f_rev').value        = line?.rev?.rev ?? '';
-  $('f_part_id').value    = line?.part_id ?? '';
-  $('f_revision_id').value= line?.revision_id ?? '';
-  $('f_qty').value        = line?.qty_ordered ?? '';
-  $('f_price').value      = line?.unit_price ?? '';
-  $('f_due').value        = line?.due_date ?? '';
-  $('f_notes').value      = line?.notes ?? '';
-
-  showModal(true);
-}
-
-function showModal(show) {
-  const m = $('lineModal');
-  m.style.display = show ? '' : 'none';
-}
-
-/* close handlers */
-(function wireModalClose(){
-  const m = $('lineModal');
-  m.addEventListener('click', (e) => {
-    if (e.target.matches('[data-close], .modal, .modal-backdrop')) {
-      showModal(false);
-    }
+  // wire: ปุ่มแถวแก้ไข
+  tb.querySelectorAll('[data-save]').forEach(b => {
+    b.addEventListener('click', () => saveLineInline(b.dataset.save));
   });
-})();
+  tb.querySelectorAll('[data-cancel]').forEach(b => {
+    b.addEventListener('click', cancelEdit);
+  });
 
-/* ---------- Save / Delete ---------- */
-async function saveLine() {
+  // ---- attach autocomplete + เติม rev list ให้แถวที่กำลังแก้ไข ----
+  if (editingLineId != null) {
+    const rid = editingLineId;
+    const partInputEl = $(`r_part_code_${rid}`);
+    if (partInputEl) attachRowPartAutocomplete(rid, partInputEl);
+
+    // ถ้าเป็นแถวเดิม (rid != 'new') เติมรายการ Rev จาก part_id หรือ part.id
+    if (rid !== 'new') {
+      const rowData = poLines.find(x => x.id === Number(rid));
+      const partIdCandidate = (rowData?.part_id ?? rowData?.part?.id) ?? null;
+      const prevRevId = (rowData?.revision_id ?? rowData?.rev?.id) ?? null;
+      const prevRevText = rowData?.rev?.rev ?? '';
+
+      dlog('edit-row attach rev datalist', { rid, partIdCandidate, prevRevId, prevRevText, rowData });
+
+      if (partIdCandidate) {
+        loadRevisionsForInto(partIdCandidate, rid).then(() => {
+          // จับคู่ตาม id
+          if (prevRevId) {
+            const dl = $(`revOptions_${rid}`);
+            const match = [...(dl?.children || [])].find(o => (o.getAttribute('data-id') || '') === String(prevRevId));
+            if (match) {
+              $(`r_rev_${rid}`).value = match.value;
+              $(`r_revision_id_${rid}`).value = String(prevRevId);
+              dlog('matched by revision_id', { value: match.value, id: prevRevId });
+              return;
+            }
+          }
+          // จับคู่ตาม rev text
+          if (prevRevText) {
+            const dl = $(`revOptions_${rid}`);
+            const opt = [...(dl?.children || [])].find(o => (o.value || '') === String(prevRevText));
+            if (opt) {
+              $(`r_rev_${rid}`).value = opt.value;
+              $(`r_revision_id_${rid}`).value = opt.getAttribute('data-id') || '';
+              dlog('matched by rev text', { value: opt.value, id: opt.getAttribute('data-id') });
+              return;
+            }
+          }
+          dlog('no previous rev to match; keep default');
+        });
+      } else {
+        dlog('NO partIdCandidate – skip loading revs');
+      }
+    }
+
+    // sync rev -> revision_id
+    const revInput = $(`r_rev_${rid}`);
+    revInput?.addEventListener('change', () => {
+      const dl = $(`revOptions_${rid}`);
+      let matchId = '';
+      if (dl) {
+        const opt = [...dl.children].find(o => o.value === revInput.value.trim());
+        if (opt) matchId = opt.getAttribute('data-id') || '';
+      }
+      $(`r_revision_id_${rid}`).value = matchId;
+      dlog('rev change -> set revision_id', { rid, rev: revInput.value, matchId });
+    });
+
+    revInput?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        const dl = $(`revOptions_${rid}`);
+        if (!dl) return;
+        const opt = [...dl.children].find(o => o.value === revInput.value.trim());
+        if (opt) {
+          $(`r_revision_id_${rid}`).value = opt.getAttribute('data-id') || '';
+          e.preventDefault();
+          $(`r_qty_${rid}`)?.focus();
+          dlog('rev Enter -> matched', { rid, value: opt.value, id: opt.getAttribute('data-id') });
+        }
+      }
+    });
+  }
+}
+
+function startEdit(id) {
+  if (editingLineId != null) { cancelEdit(); }
+  editingLineId = id;
+  dlog('startEdit', id);
+  renderLines();
+}
+function startAddLine() {
+  if (editingLineId != null) { cancelEdit(); }
+  editingLineId = 'new';
+  dlog('startAddLine');
+  renderLines();
+  // $(`r_part_code_new`)?.focus();
+}
+// function startAddLine() {
+//   if (editingLineId != null) { cancelEdit(); }
+//   editingLineId = 'new';
+//   renderLines();
+//   const el = $(`r_part_code_new`);
+//   if (el) {
+//     el.focus(); 
+//     // ไม่เรียก suggest ใด ๆ ที่นี่
+//   }
+// }
+
+
+
+function cancelEdit() {
+  dlog('cancelEdit');
+  editingLineId = null;
+  renderLines();
+}
+
+async function saveLineInline(rid) {
+  const isNew = rid === 'new';
   const payload = {
-    // ยืดหยุ่น: จะกรอกผ่าน part_id/revision_id หรือ part_code/rev ก็ได้
-    part_id: numOrNull($('f_part_id').value),
-    revision_id: numOrNull($('f_revision_id').value),
-    part_code: strOrNull($('f_part_code').value),
-    rev: strOrNull($('f_rev').value),
-    qty_ordered: numOrNull($('f_qty').value),
-    unit_price: numOrNull($('f_price').value),
-    due_date: strOrNull($('f_due').value),  // yyyy-mm-dd
-    notes: strOrNull($('f_notes').value),
+    part_id: numOrNull($(`r_part_id_${rid}`).value),
+    revision_id: numOrNull($(`r_revision_id_${rid}`).value),
+    part_code: strOrNull($(`r_part_code_${rid}`).value),
+    rev: strOrNull($(`r_rev_${rid}`).value),
+    qty_ordered: numOrNull($(`r_qty_${rid}`).value),
+    unit_price: numOrNull($(`r_price_${rid}`).value),
+    due_date: strOrNull($(`r_due_${rid}`).value),
+    notes: strOrNull($(`r_notes_${rid}`).value),
   };
+  dlog('saveLineInline payload', { rid, isNew, payload });
 
-  // เล็กน้อย: ต้องมีหนึ่งใน (part_id หรือ part_code)
   if (!payload.part_id && !payload.part_code) {
-    toast('กรุณาใส่ Part ID หรือ Part No', false);
+    toast('Enter Part No', false);
     return;
   }
 
   try {
-    if (editingLineId) {
-      const updated = await jfetch(`/pos/${encodeURIComponent(poId)}/lines/${editingLineId}`, {
-        method: 'PUT',
-        body: JSON.stringify(payload),
-      });
-      // update local
-      const idx = poLines.findIndex(x => x.id === editingLineId);
-      if (idx >= 0) poLines[idx] = updated;
-      toast('Line updated');
-    } else {
+    if (isNew) {
       const created = await jfetch(`/pos/${encodeURIComponent(poId)}/lines`, {
         method: 'POST',
         body: JSON.stringify(payload),
       });
       poLines.unshift(created);
       toast('Line added');
+      dlog('saveLineInline created', created);
+    } else {
+      const updated = await jfetch(`/pos/${encodeURIComponent(poId)}/lines/${rid}`, {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      });
+      const idx = poLines.findIndex(x => x.id === Number(rid));
+      if (idx >= 0) poLines[idx] = updated;
+      toast('Line updated');
+      dlog('saveLineInline updated', updated);
     }
+    editingLineId = null;
     renderLines();
-    showModal(false);
   } catch (e) {
     toast(e?.message || 'Save failed', false);
+    dlog('saveLineInline ERR', e);
   }
 }
 
@@ -518,25 +677,20 @@ async function deleteLine(id) {
     poLines = poLines.filter(x => x.id !== id);
     renderLines();
     toast('Line deleted');
+    dlog('deleteLine ok', id);
   } catch (e) {
     toast(e?.message || 'Delete failed', false);
+    dlog('deleteLine ERR', e);
   }
 }
 
-/* ---------- utils ---------- */
-function numOrNull(v){ const n = Number(v); return isFinite(n) ? n : null }
-function strOrNull(v){ v = (v ?? '').trim(); return v ? v : null }
-
-
-/* ===================== Autocomplete Part ===================== */
+/* ---- Autocomplete Part / Rev (inline row) ---- */
 let partAcBox, partItems = [], partActive = -1, partInput;
-let pickedPart = null;      // { id, part_no, name }
-let pickedRevision = null;  // { id, rev, is_current }
+let currentPartRid = null; // row id ที่กำลัง attach autocomplete
 
 function ensurePartBox() {
   if (partAcBox) return partAcBox;
   partAcBox = document.createElement('div');
-  partAcBox.className = 'ac-box';
   Object.assign(partAcBox.style, {
     position: 'absolute',
     zIndex: '9999',
@@ -549,6 +703,7 @@ function ensurePartBox() {
     boxShadow: '0 10px 20px rgba(2,6,23,.08), 0 2px 6px rgba(2,6,23,.06)',
     display: 'none',
   });
+  partAcBox.className = 'ac-box';
   document.body.appendChild(partAcBox);
   return partAcBox;
 }
@@ -564,146 +719,168 @@ function hidePartAc() {
   partItems = [];
   partActive = -1;
 }
-function renderPartAc(list) {
-  const box = ensurePartBox();
-  partItems = list || [];
-  partActive = -1;
-  if (!partItems.length) { hidePartAc(); return; }
-  box.innerHTML = partItems.map((p, i) => `
-    <div class="ac-item" data-i="${i}" style="padding:8px 10px; cursor:pointer; display:flex; gap:8px; align-items:center">
-      <span class="badge" style="font-size:11px">${escapeHtml(p.part_no)}</span>
-      <div style="flex:1">
-        <div style="font-weight:600">${escapeHtml(p.name || '')}</div>
-        <div class="hint" style="font-size:12px; color:#64748b">#${p.id}</div>
-      </div>
-    </div>
-  `).join('');
-  [...box.querySelectorAll('.ac-item')].forEach(el => {
-    el.addEventListener('mouseenter', () => setPartActive(parseInt(el.dataset.i, 10)));
-    el.addEventListener('mousedown', (e) => {
-      e.preventDefault();
-      choosePart(parseInt(el.dataset.i, 10));
-    });
-  });
-  box.style.display = '';
-}
 function setPartActive(i) {
   partActive = i;
   [...partAcBox.querySelectorAll('.ac-item')].forEach((el, idx) => {
     el.style.background = idx === partActive ? 'rgba(0,0,0,.04)' : '';
   });
 }
-async function choosePart(i) {
-  if (i < 0 || i >= partItems.length) return;
-  pickedPart = partItems[i];            // {id, part_no, name}
-  pickedRevision = null;
-  $('f_part_code').value = pickedPart.part_no;
-  $('f_part_id').value   = pickedPart.id;
-  hidePartAc();
-
-  // โหลด revisions ของ part ที่เลือก แล้วเติม datalist ให้ Rev
-  await loadRevisionsFor(pickedPart.id);
+function renderPartAc(list) {
+  const box = ensurePartBox();
+  partItems = list || [];
+  partActive = -1;
+  if (!partItems.length) { hidePartAc(); return; }
+  box.innerHTML = list.map((p, i) => `
+    <div class="ac-item" data-i="${i}" style="padding:8px 10px; cursor:pointer; display:flex; gap:8px; align-items:center">
+      <span class="badge" style="font-size:11px">${escapeHtml(p.part_no)}</span>
+      <div style="flex:1"><div style="font-weight:600">${escapeHtml(p.name || '')}</div></div>
+    </div>
+  `).join('');
+  [...box.querySelectorAll('.ac-item')].forEach(el => {
+    el.addEventListener('mouseenter', () => setPartActive(parseInt(el.dataset.i, 10)));
+    el.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      if (currentPartRid != null) choosePartForRow(currentPartRid, parseInt(el.dataset.i, 10));
+    });
+  });
+  box.style.display = '';
 }
 
+// 1) แทนที่ฟังก์ชัน fetchPartSuggest เดิมทั้งหมดด้วยเวอร์ชันนี้
 const fetchPartSuggest = debounce(async (term) => {
-  if (!term || term.length < 1) { renderPartAc([]); return; }
   try {
-    const rows = await jfetch(`/parts?q=${encodeURIComponent(term)}`);
-    // rows: [{id, part_no, name}]
-    renderPartAc(rows.slice(0, 20));
+    let rows = [];
+    if (!term || term.trim().length === 0) {
+      // กรณียังไม่พิมพ์: ขอรายการล่าสุด (backend /parts คืนมา id desc อยู่แล้ว)
+      const data = await jfetch(`/parts`);
+      rows = (data || []).slice(0, 10);
+      dlog('fetchPartSuggest (empty) -> latest 10', { count: rows.length });
+    } else {
+      // กรณีมีคำค้น
+      rows = await jfetch(`/parts?q=${encodeURIComponent(term)}`);
+      rows = (rows || []).slice(0, 20);
+      dlog('fetchPartSuggest (term)', { term, count: rows.length });
+    }
+
+    renderPartAc(rows);
     ensurePartBox();
-    positionPartBox(partInput);
-  } catch {
+    if (partInput) positionPartBox(partInput);
+  } catch (e) {
     renderPartAc([]);
+    dlog('fetchPartSuggest ERR', e);
   }
 }, 220);
 
-function attachPartAutocomplete(input) {
+// 2) ใน attachRowPartAutocomplete ให้เรียก fetchPartSuggest แม้ term ว่างตอน focus
+function attachRowPartAutocomplete(rid, input) {
+  currentPartRid = rid;
   partInput = input;
   input.setAttribute('autocomplete', 'off');
 
   input.addEventListener('input', () => {
     const term = (input.value || '').trim();
-    // ถ้าพิมพ์เปลี่ยนไปจากที่เลือกไว้ ให้ล้าง selection
-    if (!pickedPart || pickedPart.part_no !== term) {
-      pickedPart = null;
-      $('f_part_id').value = '';
-      resetRevChoices();
-    }
-    fetchPartSuggest(term);
+    $(`r_part_id_${rid}`).value = '';
+    resetRevChoicesInto(rid);
+    fetchPartSuggest(term);               // <-- จะดึงล่าสุด 10 ถ้า term ว่าง
     ensurePartBox(); positionPartBox(input);
   });
 
   input.addEventListener('focus', () => {
     const term = (input.value || '').trim();
-    fetchPartSuggest(term);
+    fetchPartSuggest(term);               // <-- โชว์ล่าสุด 10 ตอนเพิ่งโฟกัส
     ensurePartBox(); positionPartBox(input);
   });
 
   input.addEventListener('blur', () => setTimeout(hidePartAc, 100));
+
   input.addEventListener('keydown', (e) => {
     if (!partAcBox || partAcBox.style.display === 'none') return;
     if (e.key === 'ArrowDown') { e.preventDefault(); setPartActive(Math.min(partActive + 1, partItems.length - 1)); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); setPartActive(Math.max(partActive - 1, 0)); }
-    else if (e.key === 'Enter') { if (partActive >= 0) { e.preventDefault(); choosePart(partActive); } }
+    else if (e.key === 'Enter') { if (partActive >= 0) { e.preventDefault(); choosePartForRow(rid, partActive); } }
     else if (e.key === 'Escape') { hidePartAc(); }
   });
-
-  window.addEventListener('resize', () => partAcBox && positionPartBox(input));
-  window.addEventListener('scroll', () => partAcBox && positionPartBox(input), true);
 }
 
-/* ===================== Revisions (datalist) ===================== */
-async function loadRevisionsFor(partId) {
+async function choosePartForRow(rid, idx) {
+  if (idx < 0 || idx >= partItems.length) return;
+  const p = partItems[idx]; // {id, part_no, name}
+  $(`r_part_code_${rid}`).value = p.part_no;
+  $(`r_part_id_${rid}`).value   = p.id;
+  hidePartAc();
+  dlog('choosePartForRow', { rid, part: p });
+  await loadRevisionsForInto(p.id, rid);
+}
+
+function resetRevChoicesInto(rid) {
+  const dl = $(`revOptions_${rid}`);
+  if (dl) dl.innerHTML = '';
+  const revInput = $(`r_rev_${rid}`);
+  if (revInput) revInput.value = '';
+  const h = $(`r_revision_id_${rid}`);
+  if (h) h.value = '';
+  dlog('resetRevChoicesInto', rid);
+}
+
+/* ========= FIXED: ใช้ /part-revisions?part_id=... ตาม backend ========= */
+async function fetchPartRevisions(partId) {
+  const url = `/part-revisions?part_id=${encodeURIComponent(partId)}`;
+  const data = await jfetch(url); // FastAPI ของคุณกำหนด response_model=List[PartRevisionOut]
+  // data = [{id, part_id, rev, is_current, ...}]
+  const rows = (Array.isArray(data) ? data : []).map(r => ({
+    id: r.id,
+    rev: r.rev,
+    is_current: !!r.is_current,
+  }));
+  dlog('fetchPartRevisions OK', { url, count: rows.length });
+  return rows;
+}
+
+async function loadRevisionsForInto(partId, rid) {
   try {
-    const revs = await jfetch(`/parts/${encodeURIComponent(partId)}/revisions`);
-    // revs: [{id, rev, is_current}]
-    const dl = $('revOptions');
-    dl.innerHTML = revs.map(r => `<option value="${escapeHtml(r.rev)}" data-id="${r.id}"></option>`).join('');
-    // เลือก current ให้ถ้ามี
+    const revs = await fetchPartRevisions(partId);
+    const dl = $(`revOptions_${rid}`);
+    if (!dl) return;
+
+    dl.innerHTML = revs
+      .map(r => `<option value="${escapeHtml(r.rev)}" data-id="${r.id}"></option>`)
+      .join('');
+
     const current = revs.find(r => r.is_current);
     if (current) {
-      $('f_rev').value = current.rev;
-      $('f_revision_id').value = current.id;
-      pickedRevision = current;
+      $(`r_rev_${rid}`).value = current.rev;
+      $(`r_revision_id_${rid}`).value = current.id;
+      dlog('loadRevisionsForInto -> current', { rid, partId, current });
+    } else if (revs.length > 0) {
+      $(`r_rev_${rid}`).value = revs[0].rev;
+      $(`r_revision_id_${rid}`).value = revs[0].id;
+      dlog('loadRevisionsForInto -> first', { rid, partId, first: revs[0] });
     } else {
-      $('f_rev').value = '';
-      $('f_revision_id').value = '';
-      pickedRevision = null;
+      $(`r_rev_${rid}`).value = '';
+      $(`r_revision_id_${rid}`).value = '';
+      dlog('loadRevisionsForInto -> empty list', { rid, partId });
     }
-  } catch {
-    resetRevChoices();
+  } catch (e) {
+    resetRevChoicesInto(rid);
+    dlog('loadRevisionsForInto ERR', { partId, rid, err: e });
   }
 }
 
-function resetRevChoices() {
-  const dl = $('revOptions');
-  if (dl) dl.innerHTML = '';
-  $('f_rev').value = '';
-  $('f_revision_id').value = '';
-  pickedRevision = null;
-}
+/* ---------- utils ---------- */
+function numOrNull(v){ const n = Number(v); return isFinite(n) ? n : null }
+function strOrNull(v){ v = (v ?? '').trim(); return v ? v : null }
 
-// sync จาก rev text -> revision_id (ตอน blur/change)
-$('f_rev')?.addEventListener('change', () => {
-  const v = ($('f_rev').value || '').trim();
-  const dl = $('revOptions');
-  let matchId = '';
-  if (dl) {
-    const opt = [...dl.children].find(o => o.value === v);
-    if (opt) matchId = opt.getAttribute('data-id') || '';
-  }
-  $('f_revision_id').value = matchId;
-  pickedRevision = matchId ? { id: Number(matchId), rev: v } : null;
-});
-
-/* ---------- boot (ต่อจากเดิม) ---------- */
+/* ---------- boot ---------- */
 document.addEventListener('DOMContentLoaded', () => {
-  $('btnAddLine').addEventListener('click', () => openLineForm(null));
-  $('btnLineSave').addEventListener('click', saveLine);
+  $('btnHeaderEdit')?.addEventListener('click', () => {
+    headerOpen ? hideHeaderEditor() : showHeaderEditor();
+  });
 
-  // เมื่อโหลด PO แล้ว ค่อยโหลด Lines
+  $('btnSave')?.addEventListener('click', savePO);
+  $('btnReset')?.addEventListener('click', resetForm);
+  $('btnDelete')?.addEventListener('click', deletePO);
+  $('po_no')?.addEventListener('keydown', (e) => { if (e.key === 'Enter') savePO(); });
+  $('btnAddLine')?.addEventListener('click', startAddLine);
+
   loadPO().then(loadLines);
-
-  attachPartAutocomplete($('f_part_code')); // <- ผูก Part autocomplete
 });

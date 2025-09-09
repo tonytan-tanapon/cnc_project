@@ -83,7 +83,6 @@ function renderAc(list) {
   positionAcBox(acTarget);
 }
 
-
 function setActive(i) {
   acActive = i;
   [...acBox.querySelectorAll('.ac-item')].forEach((el, idx) => {
@@ -95,13 +94,10 @@ function chooseActive(i) {
   if (i < 0 || i >= acItems.length) return;
   const c = acItems[i];
   selectedCustomer = { id: c.id, code: (c.code || '').toUpperCase(), name: c.name || '' };
-
   // แสดงทั้ง code + name ในช่อง
   acTarget.value = `${selectedCustomer.code} - ${selectedCustomer.name}`.trim();
-
   hideAc();
 }
-
 
 function debounce(fn, ms = 200) {
   let t;
@@ -258,7 +254,6 @@ async function resolveCustomerIdFromCode(text) {
 
   // ถ้าเคยเลือกจาก list แล้ว ให้เชื่อถือ selection เป็นหลัก
   if (selectedCustomer) {
-    // ป้องกันผู้ใช้แก้ไขข้อความเล็กน้อย: ยอมถ้า value ขึ้นต้นด้วย code เดิม
     const startsWithCode = raw.toUpperCase().startsWith(selectedCustomer.code);
     if (startsWithCode) return selectedCustomer.id;
   }
@@ -276,8 +271,7 @@ async function resolveCustomerIdFromCode(text) {
   }
 }
 
-
-// สร้าง PO ใหม่
+// สร้าง PO ใหม่ แล้ว redirect ไปหน้า detail พร้อม id
 async function createPO() {
   const po_no = ($('po_no')?.value || '').trim();
   const desc = ($('po_desc')?.value || '').trim();
@@ -302,10 +296,16 @@ async function createPO() {
   };
 
   try {
-    await jfetch('/pos', { method: 'POST', body: JSON.stringify(payload) });
-    toast('PO created');
-    ['po_no', 'po_desc', 'po_cust'].forEach((id) => { const el = $(id); if (el) el.value = ''; });
-    selectedCustomer = null;
+    // 👇 สำคัญ: เก็บค่าที่สร้างกลับมา (ต้องมี id)
+    const created = await jfetch('/pos', { method: 'POST', body: JSON.stringify(payload) });
+    if (created?.id) {
+      // ไปหน้ารายละเอียดทันที เช่น /static/pos-detail.html?id=45
+      location.href = posUrl(created.id);
+      return; // ไม่ต้องทำอะไรต่อแล้ว
+    }
+
+    // เผื่อกรณีแบ็กเอนด์ไม่คืน id (ไม่ควรเกิด)
+    toast('PO created but no id returned', false);
     await loadPOs();
   } catch (e) {
     toast(e.message, false);

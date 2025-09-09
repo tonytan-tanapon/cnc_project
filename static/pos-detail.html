@@ -5,9 +5,28 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>PO Detail · Topnotch – MFG</title>
   <link rel="stylesheet" href="/static/css/app.css" />
+  <style>
+   .page-header-row {
+  display: flex;
+  align-items: center;   /* จัดกลางแนวตั้ง */
+  gap: 12px;             /* ระยะห่างระหว่าง item */
+}
+
+.page-header-row .page-title {
+  margin: 0;
+}
+
+.page-header-row .subtitle {
+  margin: 0;
+  color: #64748b;
+  font-size: 14px;
+}
+
+  </style>
 </head>
 <body>
   <div class="app">
+    <!-- Sidebar -->
     <aside class="sidebar">
       <div class="logo">
         <span class="logo-badge">TN</span>
@@ -16,6 +35,7 @@
       <div id="navSlot" data-nav-slot></div>
     </aside>
 
+    <!-- Main -->
     <main class="main">
       <div class="topbar">
         <div class="search">
@@ -24,12 +44,23 @@
           </svg>
           <input id="globalSearch" type="search" placeholder="Search PO / Lot / Tracking…" />
         </div>
+
+        
+
         <a class="btn" href="/static/pos.html">← Back</a>
       </div>
-
-      <section id="page-po-detail">
-        <h2 class="page-title">📦 PO Detail</h2>
-        <p class="subtitle" id="subTitle"></p>
+      <section class="page-header">
+  <div class="page-header-row">
+    <h2 class="page-title">📦 PO Detail</h2>
+    <p class="subtitle" id="subTitle"></p>
+    <button class="btn ghost" id="btnHeaderEdit" type="button">Edit PO</button>
+  </div>
+</section>
+      <!-- ซ่อน section header ตอนแรก -->
+      <section id="page-po-detail" hidden>
+        
+        <!-- ปุ่มสลับ Edit / Cancel -->
+        
 
         <div class="card">
           <div class="grid" style="margin-top:8px">
@@ -39,20 +70,20 @@
             </div>
 
             <div class="col-4">
-              <label>Customer</label>
-              <!-- พิมพ์เป็น customer_code -->
-              <input
-                id="po_cust"
-                type="text"
-                autocomplete="off"
-                inputmode="latin"
-                placeholder="Customer code เช่น C0001"
-                style="text-transform: uppercase"
-              />
-              <div class="hint">
-                <a id="link_cust" href="#" target="_self">ดูลูกค้า</a>
-              </div>
-            </div>
+  <label>Customer</label>
+  <input
+    id="po_cust"
+    type="text"
+    autocomplete="off"
+    inputmode="latin"
+    placeholder="Customer code or name"
+    style="text-transform: uppercase"
+  />
+  <div class="hint">
+    <a id="link_cust" href="#" target="_self">ดูลูกค้า</a>
+  </div>
+  <div class="hint" id="custNameHint" style="color:#64748b"></div>
+</div>
 
             <div class="col-12">
               <label>Description</label>
@@ -71,90 +102,32 @@
         <div id="errorBox" class="hint" style="display:none"></div>
       </section>
 
-      <!-- ===== PO Lines ===== -->
-<section id="po-lines" class="card" style="margin-top:16px">
-  <div class="card-head">
-    <h3 style="margin:0">PO Lines</h3>
-    <button class="btn" id="btnAddLine" type="button">+ Add Line</button>
-  </div>
-
-  <div class="table-wrap">
-    <table class="table" id="tblLines">
-      <thead>
-        <tr>
-          <th style="width:140px">Part No</th>
-          <th style="width:80px">Rev</th>
-          <th style="width:110px; text-align:right">Qty</th>
-          <th style="width:120px; text-align:right">Unit Price</th>
-          <th style="width:120px">Due Date</th>
-          <th>Notes</th>
-          <th style="width:130px"></th>
-        </tr>
-      </thead>
-      <tbody id="tblLinesBody">
-        <tr><td colspan="7" class="empty">No lines</td></tr>
-      </tbody>
-    </table>
-  </div>
-</section>
-
-<!-- ===== Modal: Add/Edit POLine ===== -->
-<div id="lineModal" class="modal" style="display:none">
-  <div class="modal-backdrop" data-close></div>
-  <div class="modal-card">
-    <div class="modal-head">
-      <h3 id="lineModalTitle">Add Line</h3>
-      <button class="icon" data-close aria-label="Close">✕</button>
-    </div>
-    <div class="modal-body">
-      <div class="grid">
-        <div class="col-6">
-          <label>Part No</label>
-          <input id="f_part_code" placeholder="e.g. P-10001" />
-          <div class="hint">หรือใส่ Part ID ด้านล่าง</div>
+      <!-- ===== PO Lines (inline edit) ===== -->
+      <section id="po-lines" class="card" style="margin-top:16px">
+        <div class="table-wrap">
+          <table class="table" id="tblLines">
+            <thead>
+              <tr>
+                <th style="width:140px">Part No</th>
+                <th style="width:80px">Rev</th>
+                <th style="width:110px; text-align:right">Qty</th>
+                <th style="width:120px; text-align:right">Unit Price</th>
+                <th style="width:120px">Due Date</th>
+                <th>Notes</th>
+                <th style="width:180px; text-align:right">
+                  <div style="display:flex; align-items:center; justify-content:space-between; gap:8px">
+                    <span>Action</span>
+                    <button class="btn" id="btnAddLine" type="button">+ Add Line</button>
+                  </div>
+                </th>
+              </tr>
+            </thead>
+            <tbody id="tblLinesBody">
+              <tr><td colspan="7" class="empty">No lines</td></tr>
+            </tbody>
+          </table>
         </div>
-        <!-- Rev -->
-<div class="col-6">
-  <label>Rev</label>
-  <input id="f_rev" placeholder="e.g. A" list="revOptions" />
-  <datalist id="revOptions"></datalist>
-</div>
-
-        <div class="col-6">
-          <label>Part ID (optional)</label>
-          <input id="f_part_id" type="number" inputmode="numeric" />
-        </div>
-        <div class="col-6">
-          <label>Revision ID (optional)</label>
-          <input id="f_revision_id" type="number" inputmode="numeric" />
-        </div>
-
-        <div class="col-4">
-          <label>Qty</label>
-          <input id="f_qty" type="number" step="0.001" />
-        </div>
-        <div class="col-4">
-          <label>Unit Price</label>
-          <input id="f_price" type="number" step="0.01" />
-        </div>
-        <div class="col-4">
-          <label>Due Date</label>
-          <input id="f_due" type="date" />
-        </div>
-
-        <div class="col-12">
-          <label>Notes</label>
-          <input id="f_notes" />
-        </div>
-      </div>
-    </div>
-    <div class="modal-foot">
-      <button class="btn" id="btnLineSave" type="button">Save</button>
-      <button class="btn ghost" data-close type="button">Cancel</button>
-    </div>
-  </div>
-</div>
-
+      </section>
     </main>
   </div>
 
@@ -163,7 +136,6 @@
   </div>
 
   <script type="module" src="/static/js/nav-loader.js"></script>
-  <!-- เปลี่ยนเป็นเวอร์ชันคงที่ กันแคช -->
-  <script type="module" src="/static/js/page-pos-detail.js?v=pc_005"></script>
+  <script type="module" src="/static/js/page-pos-detail.js?v=inline_header001"></script>
 </body>
 </html>
