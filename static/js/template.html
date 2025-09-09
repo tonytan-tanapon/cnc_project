@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Generic Data Table Template</title>
+  <style>
+    :root{ --line:#e5e7eb; --muted:#6b7280 }
+    body{ font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Arial; margin:0; padding:20px }
+    h1{ margin:0 0 6px; font-size:18px }
+    .muted{ color:var(--muted); font-size:12px }
+    .toolbar{ display:flex; gap:8px; align-items:center; margin:12px 0 }
+    input[type="text"], input[type="number"]{ padding:6px 8px; border:1px solid var(--line); border-radius:8px; }
+    button{ padding:8px 12px; border:1px solid var(--line); border-radius:8px; background:#111; color:#fff; cursor:pointer }
+    button[disabled]{ opacity:.5; cursor:not-allowed }
+    table{ width:100%; border-collapse:collapse; border:1px solid var(--line); border-radius:12px; overflow:hidden }
+    th, td{ padding:10px 12px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top }
+    thead th{ background:#f9fafb; font-weight:600; font-size:12px; color:#111 }
+    tfoot td{ background:#fafafa }
+    .td-actions{ width:140px }
+    .empty{ color:var(--muted); text-align:center }
+    .ac-box{ position:absolute; z-index:1000; } /* for autocomplete dropdown */
+  </style>
+</head>
+<body>
+  <h1>Generic Data Table</h1>
+  <div class="muted">Load + Cursor Pagination + Sort + Inline Edit/Delete + Autocomplete</div>
+
+  <div class="toolbar">
+    <input id="q" type="text" placeholder="Search..." />
+    <button id="btnAdd">+ Add Row</button>
+    <button id="btnExport">Export CSV</button>
+    <span id="status" class="muted" style="margin-left:auto"></span>
+  </div>
+
+  <table id="dataTable">
+    <thead>
+      <tr id="theadRow"><!-- filled by config --></tr>
+    </thead>
+    <tbody id="tblBody"><tr><td class="empty" colspan="99">Loading…</td></tr></tbody>
+    <tfoot>
+      <tr><td colspan="99" style="text-align:center">
+        <button id="btnMore">Load more</button>
+      </td></tr>
+    </tfoot>
+  </table>
+
+  <script type="module">
+    // ---- Import our reusable modules (adjust paths if needed) ----
+    import { jfetch, toast, escapeHtml, makeSortableTable, showLoading, hideLoading, exportCSV, debounce } from '/static/js/utils.js';
+    import { CursorPager } from '/static/js/pagination.js';
+    import { makeInlineTable } from '/static/js/inline-crud.js';
+    import { attachAutocomplete } from '/static/js/autocomplete.js';
+
+    // ===================== CONFIG =====================
+    // Adjust these for each page/entity
+    const CONFIG = {
+      title: 'Customers',
+      endpoint: '/api/v1/customers', // base list endpoint (GET) & base for POST/PUT/DELETE
+      pageSize: 25,
+      searchable: true,
+      // Column schema (order matters)
+      columns: [
+        { key: 'code', label: 'Code', editor: 'text' },
+        { key: 'name', label: 'Name', editor: 'text' },
+        // Example of AC column (commented; enable and adjust endpoint)
+        // { key: 'employee_id', label: 'Account Owner', editor: 'autocomplete', ac: employeeAC }
+      ],
+      // Optional: provide custom create/update/delete paths
+      paths: {
+        list: (params) => `${CONFIG.endpoint}`,
+        create: () => `${CONFIG.endpoint}`,
+        update: (row) => `${CONFIG.endpoint}/${encodeURIComponent(row.id)}`,
+        remove: (row) => `${CONFIG.endpoint}/${encodeURIComponent(row.id)}`,
+      }
+    };
+
+    // Example reusable AC config (if you need an autocomplete column)
+    // const employeeAC = {
+    //   attach: (input, onPick) => attachAutocomplete(input, {
+    //     fetchItems: (term) => jfetch(`/api/v1/employees?q=${encodeURIComponent(term)}&limit=12`),
+    //     getDisplayValue: it => `${it.emp_code} — ${it.name}`,
+    //     onPick
+    //   }),
+    //   getValue: (row) => row.emp_code ? `${row.emp_code} — ${row.emp_name}` : '',
+    //   setRow: (row, it) => { row.employee_id = it.id; row.emp_code = it.emp_code; row.emp_name = it.name; }
+    // };
+
+    // ===================== BOOTSTRAP =====================
+    const H1 = document.querySelector('h1');
+    if (CONFIG.title) H1.textContent = `${CONFIG.title} Table`;
+    const statusEl = document.getElementById('status');
+
+    // build thead from CONFIG.columns
+    const theadRow = document.getElementById('theadRow');
+    CONFIG.columns.forEach(c => {
+      const th = document.createElement('th');
+      th.textContent = c.label ?? c.key;
+      theadRow.appendChild(th);
+    });
+    const thAct = document.createElement('th'); thAct.textContent = ''; theadRow.appendChild(thAct);
+
+    const table = document.getElementById('dataTable');
+    const btnMore = document.getElementById('btnMore');
+    const btnAdd = document.getElementById('btnAdd');
+    const btnExport = document.getElementById('btnExport');
+    const qInput = document.getElementById('q');
+
+    // Pager
+    const pager = new CursorPager({ url: CONFIG.paths.list(), pageSize: CONFIG.pageSize });
+
+    // Inline CRUD
+    const CRUD = makeInlineTable(table, {
+      columns: CONFIG.columns,
+      load: async () => {
+        showLoading(table);
+        const { items, hasMore } = await pager.next({ q: CONFIG.searchable ? qInput.value.trim() : undefined });
+        hideLoading(table);
+        statusEl.textContent = hasMore ? 'More available…' : 'All loaded';
+        return { items, hasMore };
+      },
+      create: (row) => jfetch(CONFIG.paths.create(), { method: 'POST', body: row }),
+      update: (row) => jfetch(CONFIG.paths.update(row), { method: 'PUT', body: row }),
+      remove: (row) => jfetch(CONFIG.paths.remove(row), { method: 'DELETE' }),
+      loadMoreBtn: btnMore,
+      toast: (m,t)=>toast(m, t==='error'?'error':'success'),
+      optimistic: true,
+    });
+
+    // Events
+    document.addEventListener('DOMContentLoaded', init);
+    btnAdd.addEventListener('click', () => CRUD.addBlank());
+    btnExport.addEventListener('click', async () => doExport());
+    if (CONFIG.searchable) qInput.addEventListener('input', debounce(reloadFromTop, 250)); else qInput.disabled = true;
+
+    async function init(){
+      await reloadFromTop();
+      makeSortableTable(table);
+    }
+
+    async function reloadFromTop(){
+      pager.reset();
+      await CRUD.reload();
+    }
+
+    async function doExport(){
+      // fetch all by iterating cursor (simple approach)
+      const all = [];
+      const tempPager = new CursorPager({ url: CONFIG.paths.list(), pageSize: 500 });
+      let rounds = 0, MAX_ROUNDS = 100; // safety
+      while(!tempPager.exhausted && rounds < MAX_ROUNDS){
+        const { items } = await tempPager.next({ q: CONFIG.searchable ? qInput.value.trim() : undefined });
+        all.push(...items);
+        rounds++;
+      }
+      if (!all.length) return toast('No data');
+      exportCSV((CONFIG.title||'data') + '.csv', all);
+    }
+
+    // Optional: demonstrate how to plug an autocomplete column at runtime
+    // If any column has editor === 'autocomplete' but no ac config yet, you can set it here
+    // CONFIG.columns.find(c=>c.key==='employee_id').ac = employeeAC;
+  </script>
+</body>
+</html>
