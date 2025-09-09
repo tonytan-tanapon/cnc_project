@@ -113,10 +113,12 @@
           <input id="f_part_code" placeholder="e.g. P-10001" />
           <div class="hint">หรือใส่ Part ID ด้านล่าง</div>
         </div>
-        <div class="col-6">
-          <label>Rev</label>
-          <input id="f_rev" placeholder="e.g. A" />
-        </div>
+        <!-- Rev -->
+<div class="col-6">
+  <label>Rev</label>
+  <input id="f_rev" placeholder="e.g. A" list="revOptions" />
+  <datalist id="revOptions"></datalist>
+</div>
 
         <div class="col-6">
           <label>Part ID (optional)</label>

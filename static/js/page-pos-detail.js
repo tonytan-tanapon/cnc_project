@@ -527,6 +527,176 @@ async function deleteLine(id) {
 function numOrNull(v){ const n = Number(v); return isFinite(n) ? n : null }
 function strOrNull(v){ v = (v ?? '').trim(); return v ? v : null }
 
+
+/* ===================== Autocomplete Part ===================== */
+let partAcBox, partItems = [], partActive = -1, partInput;
+let pickedPart = null;      // { id, part_no, name }
+let pickedRevision = null;  // { id, rev, is_current }
+
+function ensurePartBox() {
+  if (partAcBox) return partAcBox;
+  partAcBox = document.createElement('div');
+  partAcBox.className = 'ac-box';
+  Object.assign(partAcBox.style, {
+    position: 'absolute',
+    zIndex: '9999',
+    minWidth: '240px',
+    maxHeight: '260px',
+    overflow: 'auto',
+    background: '#fff',
+    border: '1px solid #e2e8f0',
+    borderRadius: '10px',
+    boxShadow: '0 10px 20px rgba(2,6,23,.08), 0 2px 6px rgba(2,6,23,.06)',
+    display: 'none',
+  });
+  document.body.appendChild(partAcBox);
+  return partAcBox;
+}
+function positionPartBox(input) {
+  const r = input.getBoundingClientRect();
+  partAcBox.style.left = `${window.scrollX + r.left}px`;
+  partAcBox.style.top  = `${window.scrollY + r.bottom + 4}px`;
+  partAcBox.style.width= `${r.width}px`;
+}
+function hidePartAc() {
+  if (!partAcBox) return;
+  partAcBox.style.display = 'none';
+  partItems = [];
+  partActive = -1;
+}
+function renderPartAc(list) {
+  const box = ensurePartBox();
+  partItems = list || [];
+  partActive = -1;
+  if (!partItems.length) { hidePartAc(); return; }
+  box.innerHTML = partItems.map((p, i) => `
+    <div class="ac-item" data-i="${i}" style="padding:8px 10px; cursor:pointer; display:flex; gap:8px; align-items:center">
+      <span class="badge" style="font-size:11px">${escapeHtml(p.part_no)}</span>
+      <div style="flex:1">
+        <div style="font-weight:600">${escapeHtml(p.name || '')}</div>
+        <div class="hint" style="font-size:12px; color:#64748b">#${p.id}</div>
+      </div>
+    </div>
+  `).join('');
+  [...box.querySelectorAll('.ac-item')].forEach(el => {
+    el.addEventListener('mouseenter', () => setPartActive(parseInt(el.dataset.i, 10)));
+    el.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      choosePart(parseInt(el.dataset.i, 10));
+    });
+  });
+  box.style.display = '';
+}
+function setPartActive(i) {
+  partActive = i;
+  [...partAcBox.querySelectorAll('.ac-item')].forEach((el, idx) => {
+    el.style.background = idx === partActive ? 'rgba(0,0,0,.04)' : '';
+  });
+}
+async function choosePart(i) {
+  if (i < 0 || i >= partItems.length) return;
+  pickedPart = partItems[i];            // {id, part_no, name}
+  pickedRevision = null;
+  $('f_part_code').value = pickedPart.part_no;
+  $('f_part_id').value   = pickedPart.id;
+  hidePartAc();
+
+  // โหลด revisions ของ part ที่เลือก แล้วเติม datalist ให้ Rev
+  await loadRevisionsFor(pickedPart.id);
+}
+
+const fetchPartSuggest = debounce(async (term) => {
+  if (!term || term.length < 1) { renderPartAc([]); return; }
+  try {
+    const rows = await jfetch(`/parts?q=${encodeURIComponent(term)}`);
+    // rows: [{id, part_no, name}]
+    renderPartAc(rows.slice(0, 20));
+    ensurePartBox();
+    positionPartBox(partInput);
+  } catch {
+    renderPartAc([]);
+  }
+}, 220);
+
+function attachPartAutocomplete(input) {
+  partInput = input;
+  input.setAttribute('autocomplete', 'off');
+
+  input.addEventListener('input', () => {
+    const term = (input.value || '').trim();
+    // ถ้าพิมพ์เปลี่ยนไปจากที่เลือกไว้ ให้ล้าง selection
+    if (!pickedPart || pickedPart.part_no !== term) {
+      pickedPart = null;
+      $('f_part_id').value = '';
+      resetRevChoices();
+    }
+    fetchPartSuggest(term);
+    ensurePartBox(); positionPartBox(input);
+  });
+
+  input.addEventListener('focus', () => {
+    const term = (input.value || '').trim();
+    fetchPartSuggest(term);
+    ensurePartBox(); positionPartBox(input);
+  });
+
+  input.addEventListener('blur', () => setTimeout(hidePartAc, 100));
+  input.addEventListener('keydown', (e) => {
+    if (!partAcBox || partAcBox.style.display === 'none') return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); setPartActive(Math.min(partActive + 1, partItems.length - 1)); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setPartActive(Math.max(partActive - 1, 0)); }
+    else if (e.key === 'Enter') { if (partActive >= 0) { e.preventDefault(); choosePart(partActive); } }
+    else if (e.key === 'Escape') { hidePartAc(); }
+  });
+
+  window.addEventListener('resize', () => partAcBox && positionPartBox(input));
+  window.addEventListener('scroll', () => partAcBox && positionPartBox(input), true);
+}
+
+/* ===================== Revisions (datalist) ===================== */
+async function loadRevisionsFor(partId) {
+  try {
+    const revs = await jfetch(`/parts/${encodeURIComponent(partId)}/revisions`);
+    // revs: [{id, rev, is_current}]
+    const dl = $('revOptions');
+    dl.innerHTML = revs.map(r => `<option value="${escapeHtml(r.rev)}" data-id="${r.id}"></option>`).join('');
+    // เลือก current ให้ถ้ามี
+    const current = revs.find(r => r.is_current);
+    if (current) {
+      $('f_rev').value = current.rev;
+      $('f_revision_id').value = current.id;
+      pickedRevision = current;
+    } else {
+      $('f_rev').value = '';
+      $('f_revision_id').value = '';
+      pickedRevision = null;
+    }
+  } catch {
+    resetRevChoices();
+  }
+}
+
+function resetRevChoices() {
+  const dl = $('revOptions');
+  if (dl) dl.innerHTML = '';
+  $('f_rev').value = '';
+  $('f_revision_id').value = '';
+  pickedRevision = null;
+}
+
+// sync จาก rev text -> revision_id (ตอน blur/change)
+$('f_rev')?.addEventListener('change', () => {
+  const v = ($('f_rev').value || '').trim();
+  const dl = $('revOptions');
+  let matchId = '';
+  if (dl) {
+    const opt = [...dl.children].find(o => o.value === v);
+    if (opt) matchId = opt.getAttribute('data-id') || '';
+  }
+  $('f_revision_id').value = matchId;
+  pickedRevision = matchId ? { id: Number(matchId), rev: v } : null;
+});
+
 /* ---------- boot (ต่อจากเดิม) ---------- */
 document.addEventListener('DOMContentLoaded', () => {
   $('btnAddLine').addEventListener('click', () => openLineForm(null));
@@ -534,4 +704,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // เมื่อโหลด PO แล้ว ค่อยโหลด Lines
   loadPO().then(loadLines);
+
+  attachPartAutocomplete($('f_part_code')); // <- ผูก Part autocomplete
 });
