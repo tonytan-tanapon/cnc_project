@@ -230,32 +230,53 @@ def create_po_line(po_id: int, payload: PoLineCreate, db: Session = Depends(get_
 
 @router.put("/{po_id}/lines/{line_id}", response_model=PoLineOut)
 def update_po_line(po_id: int, line_id: int, payload: PoLineUpdate, db: Session = Depends(get_db)):
-  po = db.get(PO, po_id)
-  if not po: raise HTTPException(404, "PO not found")
-  line = db.get(POLine, line_id)
-  if not line or line.po_id != po_id:
-    raise HTTPException(404, "Line not found")
+    po = db.get(PO, po_id)
+    if not po:
+        raise HTTPException(404, "PO not found")
+    line = db.get(POLine, line_id)
+    if not line or line.po_id != po_id:
+        raise HTTPException(404, "Line not found")
 
-  # ถ้าส่ง part/rev มา จะ resolve แล้วตั้งค่าใหม่
-  part_obj = None; rev_obj = None
-  if any([payload.part_id, payload.part_code, payload.revision_id, payload.rev]):
-    p_id, r_id, part_obj, rev_obj = _resolve_part_and_rev(
-      db, payload.part_id, payload.part_code, payload.revision_id, payload.rev
+    part_obj = None
+    rev_obj = None
+
+    # มีการส่งฟิลด์ที่เกี่ยวกับ part / rev มา
+    if any([payload.part_id, payload.part_code, payload.revision_id, payload.rev]):
+        p_id, r_id, part_obj, rev_obj = _resolve_part_and_rev(
+            db, payload.part_id, payload.part_code, payload.revision_id, payload.rev
+        )
+
+        # ถ้าเปลี่ยน part → ต้องตัด rev ทิ้งก่อน เพื่อเลี่ยง validator ล้ม
+        if line.part_id != p_id:
+            line.revision_id = None
+            line.part_id = p_id
+            if r_id is not None:
+                line.revision_id = r_id
+            else:
+                current_rev = db.query(PartRevision)\
+                                .filter(PartRevision.part_id == p_id, PartRevision.is_current == True)\
+                                .first()
+                if current_rev:
+                    line.revision_id = current_rev.id
+
+    # อัปเดตฟิลด์อื่น ๆ
+    if payload.qty_ordered is not None: line.qty_ordered = payload.qty_ordered
+    if payload.unit_price is not None:  line.unit_price = payload.unit_price
+    if payload.due_date is not None:    line.due_date = payload.due_date
+    if payload.notes is not None:       line.notes = payload.notes
+
+    db.commit()
+    db.refresh(line)
+
+    return PoLineOut.model_validate(line, from_attributes=True).model_copy(
+        update={
+            "part": PartBrief.model_validate(part_obj or line.part, from_attributes=True)
+                    if (part_obj or line.part) else None,
+            "rev":  RevBrief.model_validate(rev_obj  or line.rev,  from_attributes=True)
+                    if (rev_obj  or line.rev)  else None,
+        }
     )
-    line.part_id = p_id
-    line.revision_id = r_id
 
-  if payload.qty_ordered is not None: line.qty_ordered = payload.qty_ordered
-  if payload.unit_price is not None: line.unit_price = payload.unit_price
-  if payload.due_date is not None: line.due_date = payload.due_date
-  if payload.notes is not None: line.notes = payload.notes
-
-  db.commit()
-  db.refresh(line)
-  return PoLineOut.from_orm(line).copy(update={
-    "part": PartBrief.from_orm(part_obj or line.part) if (part_obj or line.part) else None,
-    "rev": RevBrief.from_orm(rev_obj or line.rev) if (rev_obj or line.rev) else None,
-  })
 
 
 @router.delete("/{po_id}/lines/{line_id}")

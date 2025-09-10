@@ -344,3 +344,52 @@ def delete_part_revision(rev_id: int, db: Session = Depends(get_db)):
     return {"message": "Revision deleted"}
 
 
+# routers/parts.py
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.orm import Session
+from typing import List
+from pydantic import BaseModel, ConfigDict
+
+from database import get_db
+from models import Part, PartRevision
+
+router = APIRouter(prefix="/parts", tags=["parts"])
+
+class PartOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    part_no: str
+    name: str | None = None
+
+class PartRevisionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    rev: str
+    is_current: bool | None = None
+
+@router.get("", response_model=List[PartOut])
+def search_parts(
+    q: str = Query(""),
+    limit: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db)
+):
+    term = (q or "").strip()
+    qry = db.query(Part)
+    if term:
+        like = f"%{term}%"
+        qry = qry.filter((Part.part_no.ilike(like)) | (Part.name.ilike(like)))
+    rows = qry.order_by(Part.part_no.asc()).limit(limit).all()
+    return [PartOut.model_validate(p, from_attributes=True) for p in rows]
+
+@router.get("/{part_id}/revisions", response_model=List[PartRevisionOut])
+def list_part_revisions(part_id: int, db: Session = Depends(get_db)):
+    part = db.get(Part, part_id)
+    if not part:
+        raise HTTPException(404, "Part not found")
+    revs = (
+        db.query(PartRevision)
+        .filter(PartRevision.part_id == part_id)
+        .order_by(PartRevision.is_current.desc(), PartRevision.rev.asc())
+        .all()
+    )
+    return [PartRevisionOut.model_validate(r, from_attributes=True) for r in revs]

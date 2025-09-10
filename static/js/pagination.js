@@ -41,132 +41,85 @@ export class CursorPager2D {
    * @param {(json:any)=>bool}  [opts.getHasMore]  map json → has_more
    */
   constructor({ url, pageSize = 25, getItems, getNext, getPrev, getHasMore }) {
-    const base = (getAPIBase() || '').replace(/\/$/, '');
-    if (base && (url === base || url.startsWith(base + '/'))) {
-      console.warn('[CursorPager2D] `url` ควรเป็น path relative เช่น "/xxx/keyset" แต่ได้:', url);
-    }
-
     this.url = url;
     this.pageSize = pageSize;
-    this._getItems = getItems   || (r => r.items || []);
-    this._getNext  = getNext    || (r => r.next_cursor ?? null);
-    this._getPrev  = getPrev    || (r => r.prev_cursor ?? null);
+    this._getItems = getItems || (r => r.items || []);
+    this._getNext  = getNext  || (r => r.next_cursor ?? null);
+    this._getPrev  = getPrev  || (r => r.prev_cursor ?? null);
     this._getHM    = getHasMore || (r => !!r.has_more);
 
-    // state ภายใน
-    this._cursor = null;         // สำหรับ next
-    this._before = null;         // สำหรับ prev
-    this.pageIndex = 1;
-    this.meta = null;
-    this._busy = false;
-    // สถานะนำทางสำหรับ UI
-    this.nav = { hasPrev: false, hasNext: false };
-  }
-
-  get busy() { return this._busy; }
-  reset() {
     this._cursor = null;
     this._before = null;
-    this.pageIndex = 1;
+    this._busy = false;
     this.meta = null;
+    this.pageIndex = 1;
+
+    // ✅ nav เริ่มต้น (ให้ list-pager ใช้ปิด/เปิดปุ่ม)
     this.nav = { hasPrev: false, hasNext: false };
   }
+  reset(){ this._cursor=null; this._before=null; this._busy=false; this.meta=null; this.pageIndex=1; this.nav={hasPrev:false,hasNext:false}; }
+  get busy(){ return this._busy; }
 
   async _fetch(params = {}) {
     const path = buildPath(this.url, { limit: this.pageSize, ...params });
     return jfetch(path, { method: 'GET', headers: { 'Accept': 'application/json' } });
   }
 
-  _backup() {
-    return {
-      _cursor: this._cursor,
-      _before: this._before,
-      pageIndex: this.pageIndex,
-      meta: this.meta,
-      nav: { ...this.nav },
-    };
-  }
-  _restore(bak) {
-    this._cursor = bak._cursor;
-    this._before = bak._before;
-    this.pageIndex = bak.pageIndex;
-    this.meta = bak.meta;
-    this.nav = { ...bak.nav };
+  _applyNav(op, json) {
+    const hasMore = this._getHM(json);
+    if (op === 'first') {
+      this.nav = { hasPrev: false, hasNext: hasMore };
+    } else if (op === 'next') {
+      this.nav = { hasPrev: this.pageIndex >= 1, hasNext: hasMore };
+    } else if (op === 'prev') {
+      this.nav = { hasPrev: hasMore, hasNext: true };
+    }
   }
 
   async first(extra = {}) {
-    if (this._busy) return { items: [], hasMore: false, meta: this.meta, nav: { ...this.nav } };
+    if (this._busy) return { items: [], hasMore: false };
     this._busy = true;
     try {
-      const json  = await this._fetch({ ...extra, limit: this.pageSize });
+      const json = await this._fetch({ ...extra, limit: this.pageSize });
       const items = this._getItems(json);
-
-      // commit เสมอ (หน้าแรก)
       this._cursor = this._getNext(json);
       this._before = this._getPrev(json);
-      this.meta    = json;
+      this.meta = json;
       this.pageIndex = 1;
-      const hasMore = this._getHM(json);
-      this.nav = { hasPrev: false, hasNext: !!hasMore };
-
-      return { items, hasMore, meta: json, nav: { ...this.nav } };
+      this._applyNav('first', json);               // ✅ ตั้ง nav
+      return { items, hasMore: this._getHM(json), meta: json };
     } finally { this._busy = false; }
   }
 
-  // /static/js/pagination.js  (เฉพาะ method ต่อไปนี้)
-async next(extra = {}) {
-  if (this._busy) return { items: [], hasMore: false, meta: this.meta, nav: { ...this.nav } };
-  this._busy = true;
-  const bak = { _cursor: this._cursor, _before: this._before, pageIndex: this.pageIndex, meta: this.meta, nav:{...this.nav} };
-  try {
-    const json  = await this._fetch({ ...extra, cursor: this._cursor, limit: this.pageSize });
-    const items = this._getItems(json);
+  async next(extra = {}) {
+    if (this._busy) return { items: [], hasMore: false };
+    this._busy = true;
+    try {
+      const json = await this._fetch({ ...extra, cursor: this._cursor, limit: this.pageSize });
+      const items = this._getItems(json);
+      this._cursor = this._getNext(json);
+      this._before = this._getPrev(json);
+      this.meta = json;
+      this.pageIndex += 1;
+      this._applyNav('next', json);                // ✅ ตั้ง nav
+      return { items, hasMore: this._getHM(json), meta: json };
+    } finally { this._busy = false; }
+  }
 
-    if (!items || items.length === 0) {
-      // ไม่มีหน้าใหม่ → rollback (pageIndex จะกลับค่าก่อนหน้า)
-      Object.assign(this, bak);
-      this.nav.hasNext = false;
-      return { items: [], hasMore: false, meta: json, nav: { ...this.nav } };
-    }
-
-    // ✅ commit เมื่อมีรายการเท่านั้น
-    this._cursor = this._getNext(json);
-    this._before = this._getPrev(json);
-    this.meta    = json;
-    this.pageIndex += 1;
-
-    const hasMore = this._getHM(json);
-    this.nav = { hasPrev: true, hasNext: !!hasMore };
-    return { items, hasMore, meta: json, nav: { ...this.nav } };
-  } finally { this._busy = false; }
-}
-
-async prev(extra = {}) {
-  if (this._busy) return { items: [], hasMore: false, meta: this.meta, nav: { ...this.nav } };
-  this._busy = true;
-  const bak = { _cursor: this._cursor, _before: this._before, pageIndex: this.pageIndex, meta: this.meta, nav:{...this.nav} };
-  try {
-    const json  = await this._fetch({ ...extra, before: this._before, limit: this.pageSize });
-    const items = this._getItems(json);
-
-    if (!items || items.length === 0) {
-      // ไม่มีหน้าเก่า → rollback
-      Object.assign(this, bak);
-      this.nav.hasPrev = false;
-      return { items: [], hasMore: false, meta: json, nav: { ...this.nav } };
-    }
-
-    // ✅ commit เมื่อมีรายการเท่านั้น
-    this._cursor = this._getNext(json);
-    this._before = this._getPrev(json);
-    this.meta    = json;
-    this.pageIndex = Math.max(1, this.pageIndex - 1);
-
-    const hasMore = this._getHM(json);
-    this.nav = { hasPrev: !!hasMore, hasNext: true };
-    return { items, hasMore, meta: json, nav: { ...this.nav } };
-  } finally { this._busy = false; }
-}
+  async prev(extra = {}) {
+    if (this._busy) return { items: [], hasMore: false };
+    this._busy = true;
+    try {
+      const json = await this._fetch({ ...extra, before: this._before, limit: this.pageSize });
+      const items = this._getItems(json);
+      this._cursor = this._getNext(json);
+      this._before = this._getPrev(json);
+      this.meta = json;
+      this.pageIndex = Math.max(1, this.pageIndex - 1);
+      this._applyNav('prev', json);                // ✅ ตั้ง nav
+      return { items, hasMore: this._getHM(json), meta: json };
+    } finally { this._busy = false; }
+  }
 }
 
 /** OffsetPager (คงแนวคิดเดียวกัน) */

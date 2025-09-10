@@ -1,345 +1,197 @@
+// /static/js/page-pos.js
 import { $, jfetch, toast, initTopbar } from './api.js';
+import { escapeHtml } from './utils.js';
+import { attachAutocomplete } from './autocomplete.js';
+import { renderTableX } from './tablex.js';
+import { createToggler } from './toggler.js';
 
 const on = (el, ev, fn) => el && el.addEventListener(ev, fn);
+const debounce = (fn, ms=300) => { let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; };
 
+/* ---------- URL helpers ---------- */
 const DETAIL_PAGE = './pos-detail.html';
 const CUSTOMER_DETAIL_PAGE = './customers-detail.html';
-
-const escapeHtml = (s) =>
-  String(s ?? '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
-
-const posUrl = (id) => `${DETAIL_PAGE}?id=${encodeURIComponent(id)}`;
+const posUrl      = (id) => `${DETAIL_PAGE}?id=${encodeURIComponent(id)}`;
 const customerUrl = (id) => `${CUSTOMER_DETAIL_PAGE}?id=${encodeURIComponent(id)}`;
 
-/* ========================= Autocomplete ========================= */
-let selectedCustomer = null; // {id, code, name}
-let acBox;
-let acItems = [];
-let acActive = -1;
-let acTarget;
+/* ---------- state ---------- */
+const state = { q: '' };
 
-function ensureAcBox() {
-  if (acBox) return acBox;
-  acBox = document.createElement('div');
-  acBox.className = 'ac-box';
-  acBox.style.position = 'absolute';
-  acBox.style.zIndex = '9999';
-  acBox.style.minWidth = '240px';
-  acBox.style.maxHeight = '260px';
-  acBox.style.overflow = 'auto';
-  acBox.style.background = '#fff';
-  acBox.style.border = '1px solid #e2e8f0';
-  acBox.style.borderRadius = '10px';
-  acBox.style.boxShadow = '0 10px 20px rgba(2,6,23,.08), 0 2px 6px rgba(2,6,23,.06)';
-  acBox.style.display = 'none';
-  document.body.appendChild(acBox);
-  return acBox;
-}
-
-function positionAcBox(input) {
-  const r = input.getBoundingClientRect();
-  acBox.style.left = `${window.scrollX + r.left}px`;
-  acBox.style.top = `${window.scrollY + r.bottom + 4}px`;
-  acBox.style.width = `${r.width}px`;
-}
-
-function hideAc() {
-  if (!acBox) return;
-  acBox.style.display = 'none';
-  acItems = [];
-  acActive = -1;
-}
-
-function renderAc(list) {
-  const box = ensureAcBox();
-  acItems = list || [];
-  acActive = -1;
-  if (acItems.length === 0) { hideAc(); return; }
-
-  box.innerHTML = acItems.map((c, i) => `
-    <div class="ac-item" data-i="${i}"
-         style="padding:8px 10px; cursor:pointer; display:flex; gap:8px; align-items:center">
-      <span class="badge" style="font-size:11px">${escapeHtml(c.code ?? '')}</span>
-      <div style="flex:1; min-width:0">
-        <div style="font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">
-          ${escapeHtml(c.name ?? '')}
-        </div>
-      </div>
-    </div>
-  `).join('');
-
-  [...box.querySelectorAll('.ac-item')].forEach((el) => {
-    el.addEventListener('mouseenter', () => setActive(parseInt(el.dataset.i, 10)));
-    el.addEventListener('mousedown', (e) => { e.preventDefault(); chooseActive(parseInt(el.dataset.i, 10)); });
-  });
-
-  if (!acTarget) return;
-  box.style.display = '';
-  positionAcBox(acTarget);
-}
-
-function setActive(i) {
-  acActive = i;
-  [...acBox.querySelectorAll('.ac-item')].forEach((el, idx) => {
-    el.style.background = idx === acActive ? 'rgba(0,0,0,.04)' : '';
-  });
-}
-
-function chooseActive(i) {
-  if (i < 0 || i >= acItems.length) return;
-  const c = acItems[i];
-  selectedCustomer = { id: c.id, code: (c.code || '').toUpperCase(), name: c.name || '' };
-  // แสดงทั้ง code + name ในช่อง
-  acTarget.value = `${selectedCustomer.code} - ${selectedCustomer.name}`.trim();
-  hideAc();
-}
-
-function debounce(fn, ms = 200) {
-  let t;
-  return (...args) => {
-    clearTimeout(t);
-    t = setTimeout(() => fn(...args), ms);
-  };
-}
-
-const fetchSuggest = debounce(async (term) => {
+/* ---------- lookups (reuse ได้) ---------- */
+async function lookupCustomerCodes(ids = []) {
+  if (!ids.length) return new Map();
   try {
-    let url;
-    if (!term || term.length < 1) {
-      url = `/customers?page=1&per_page=10`;
-    } else {
-      url = `/customers?q=${encodeURIComponent(term)}&page=1&per_page=20`;
-    }
-    const data = await jfetch(url);
-    const list = data?.items ?? [];
-    const rows = list.map((x) => ({ id: x.id, code: (x.code || '').toUpperCase(), name: x.name || '' }));
-    renderAc(rows);
-    if (acTarget) positionAcBox(acTarget);
+    const minis = await jfetch(`/customers/lookup?ids=${encodeURIComponent(ids.join(','))}`);
+    return new Map(minis.map(c => [c.id, (c.code || '').toUpperCase()]));
   } catch {
-    renderAc([]);
-  }
-}, 220);
-
-function attachAutocomplete(input) {
-  acTarget = input;
-  input.setAttribute('autocomplete', 'off');
-  input.placeholder = input.placeholder || 'Customer code or name';
-
-  let composing = false;
-  input.addEventListener('compositionstart', () => { composing = true; });
-  input.addEventListener('compositionend', () => {
-    composing = false;
-    const term = (input.value || '').trim();
-    fetchSuggest(term);
-    ensureAcBox(); positionAcBox(input);
-  });
-
-  input.addEventListener('input', () => {
-    if (composing) return;
-    const term = (input.value || '').trim();
-    if (!selectedCustomer || selectedCustomer.code !== term.toUpperCase()) {
-      selectedCustomer = null;
-    }
-    fetchSuggest(term);
-    ensureAcBox(); positionAcBox(input);
-  });
-
-  input.addEventListener('focus', () => {
-    const term = (input.value || '').trim();
-    fetchSuggest(term);
-    ensureAcBox(); positionAcBox(input);
-  });
-
-  input.addEventListener('blur', () => {
-    setTimeout(hideAc, 100);
-  });
-
-  input.addEventListener('keydown', (e) => {
-    if (acBox?.style.display === 'none') return;
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      setActive(Math.min(acActive + 1, acItems.length - 1));
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      setActive(Math.max(acActive - 1, 0));
-    } else if (e.key === 'Enter') {
-      if (acActive >= 0) {
-        e.preventDefault();
-        chooseActive(acActive);
-      }
-    } else if (e.key === 'Escape') {
-      hideAc();
-    }
-  });
-
-  window.addEventListener('resize', () => acBox && positionAcBox(input));
-  window.addEventListener('scroll', () => acBox && positionAcBox(input), true);
-}
-
-/* ========================= List renderer ========================= */
-function renderPosTable(holder, rows, id2code = new Map()) {
-  if (!rows || rows.length === 0) {
-    holder.innerHTML = '<div class="empty">No POs</div>';
-    return;
-  }
-  const body = rows
-    .map((r) => {
-      const rid = r.id ?? '';
-      const poNo = escapeHtml(r.po_number ?? '');
-      const custId = r.customer_id ?? null;
-      const custCode = id2code.get(custId) || null;
-      const custCell = custCode
-        ? `<a href="${customerUrl(custId)}" title="Open customer #${custId}">${escapeHtml(custCode)}</a>`
-        : (custId ? `<a href="${customerUrl(custId)}" title="Open customer #${custId}">#${custId}</a>` : `<span>-</span>`);
-      return `
-        <tr class="po-row" data-id="${escapeHtml(rid)}" title="Open PO detail">
-          <td><a href="${posUrl(rid)}" class="po-link">${poNo || `#${rid}`}</a></td>
-          <td>${custCell}</td>
-          <td>${escapeHtml(r.description ?? '')}</td>
-        </tr>
-      `;
-    })
-    .join('');
-
-  holder.innerHTML = `
-    <table class="table pos-table">
-      <thead>
-        <tr>
-          <th style="width:220px">PO No.</th>
-          <th style="width:160px">Customer</th>
-          <th>Description</th>
-        </tr>
-      </thead>
-      <tbody>${body}</tbody>
-    </table>
-    <style>
-      .pos-table a { text-decoration: underline; }
-      .pos-table tr[data-id] { cursor: pointer; }
-      .pos-table tr[data-id]:hover { background: rgba(0,0,0,.03); }
-    </style>
-  `;
-}
-
-/* ========================= Load & Create ========================= */
-async function loadPOs() {
-  const holder = $('po_table');
-  try {
-    const rows = await jfetch('/pos');
-    const ids = [...new Set((rows || []).map(r => r.customer_id).filter(Boolean))];
-
-    let id2code = new Map();
-    if (ids.length > 0) {
-      try {
-        const minis = await jfetch(`/customers/lookup?ids=${encodeURIComponent(ids.join(','))}`);
-        id2code = new Map(minis.map(c => [c.id, (c.code || '').toUpperCase()]));
-      } catch {
-        // fallback
-      }
-    }
-    renderPosTable(holder, rows, id2code);
-  } catch (e) {
-    holder.innerHTML = `<div class="hint">${e.message}</div>`;
-    toast('โหลด PO ไม่สำเร็จ: ' + e.message, false);
+    return new Map();
   }
 }
 
 async function resolveCustomerIdFromCode(text) {
-  const raw = (text || '').trim();
-  if (!raw) return null;
-
-  // ถ้าเคยเลือกจาก list แล้ว ให้เชื่อถือ selection เป็นหลัก
-  if (selectedCustomer) {
-    const startsWithCode = raw.toUpperCase().startsWith(selectedCustomer.code);
-    if (startsWithCode) return selectedCustomer.id;
-  }
-
-  // ถ้าไม่ได้เลือกจาก list ให้ดึง "code" ออกมาก่อน (รองรับรูปแบบ 'CODE - Name')
-  const codeOnly = raw.split('-')[0].trim().toUpperCase();
-
+  const codeOnly = (text || '').split('-')[0].trim().toUpperCase();
+  if (!codeOnly) return null;
   try {
     const data = await jfetch(`/customers?q=${encodeURIComponent(codeOnly)}&page=1&per_page=20`);
     const list = data?.items ?? [];
     const exact = list.find(c => (c.code || '').toUpperCase() === codeOnly);
-    return exact ? exact.id : null;
-  } catch {
-    return null;
+    return exact ? Number(exact.id) : null;  // บังคับเลข
+  } catch { return null; }
+}
+
+/* ---------- table render ---------- */
+function renderPosTable(container, rows, ctx = {}) {
+  renderTableX(container, rows, {
+    rowStart: Number(ctx.rowStart || 0),
+    getRowId : r => r.id,
+    onRowClick: r => { if (r?.id) location.href = posUrl(r.id); },
+    columns: [
+      { key: '__no', title: 'No.', width: '64px', align: 'right' },
+      {
+        key: 'po_number', title: 'PO No.', width: '220px',
+        render: r => {
+          const rid = r.id;
+          const po  = escapeHtml(r.po_number ?? '');
+          const label = po || `#${rid}`;
+          return rid ? `<a href="${posUrl(rid)}" class="po-link">${label}</a>` : label;
+        }
+      },
+      {
+        key: 'customer_id', title: 'Customer', width: '160px',
+        render: r => {
+          const cid = r.customer_id;
+          const code = r.__cust_code || null;
+          if (!cid) return '<span>-</span>';
+          const label = escapeHtml(code || `#${cid}`);
+          return `<a href="${customerUrl(cid)}" title="Open customer #${cid}">${label}</a>`;
+        }
+      },
+      { key: 'description', title: 'Description' },
+    ],
+  });
+}
+
+/* ---------- load list (รองรับค้นหา) ---------- */
+async function loadPOs() {
+  const holder = $('po_table');
+  const q = (state.q || '').trim();
+  try {
+    // ใช้ keyset ที่รองรับ q และเรียงจากใหม่ไปเก่า (เอาหน้าแรกพอ)
+    const url = `/pos/keyset?limit=100${ q ? `&q=${encodeURIComponent(q)}` : '' }`;
+    const { items = [] } = await jfetch(url);
+
+    const ids  = [...new Set(items.map(r => r.customer_id).filter(Boolean))];
+    const id2code = await lookupCustomerCodes(ids);
+    const enriched = items.map(r => ({ ...r, __cust_code: id2code.get(r.customer_id) || null }));
+
+    renderPosTable(holder, enriched, { rowStart: 0 });
+  } catch (e) {
+    holder.innerHTML = `<div class="hint">${escapeHtml(e?.message || 'Load failed')}</div>`;
+    toast('โหลด PO ไม่สำเร็จ: ' + (e?.message || e), false);
   }
 }
 
-// สร้าง PO ใหม่ แล้ว redirect ไปหน้า detail พร้อม id
+/* ---------- create PO ---------- */
+let selectedCustomerId = null;
+
 async function createPO() {
   const po_no = ($('po_no')?.value || '').trim();
-  const desc = ($('po_desc')?.value || '').trim();
-  const code = ($('po_cust')?.value || '').trim().toUpperCase();
+  const desc  = ($('po_desc')?.value || '').trim();
+  const code  = ($('po_cust')?.value || '').trim();
 
-  if (!code) {
-    toast('Enter Customer Code', false);
-    return;
-  }
+  if (!code) { toast('Enter Customer Code', false); $('po_cust')?.focus(); return; }
 
-  const custId = await resolveCustomerIdFromCode(code);
-  if (!custId) {
-    toast('Customer does not found !!', false);
+  const cidMaybe = selectedCustomerId ?? await resolveCustomerIdFromCode(code);
+  const cid = Number(cidMaybe);
+  if (!Number.isInteger(cid) || cid <= 0) {
+    toast('Customer not found', false);
     $('po_cust')?.focus();
     return;
   }
 
   const payload = {
-    po_number: po_no,
+    po_number: po_no ? po_no.toUpperCase() : null,  // ไม่กรอกให้เป็น null → server autogen
     description: desc || null,
-    customer_id: custId,
+    customer_id: cid,
   };
 
-  try {
-    // 👇 สำคัญ: เก็บค่าที่สร้างกลับมา (ต้องมี id)
-    const created = await jfetch('/pos', { method: 'POST', body: JSON.stringify(payload) });
-    if (created?.id) {
-      // ไปหน้ารายละเอียดทันที เช่น /static/pos-detail.html?id=45
-      location.href = posUrl(created.id);
-      return; // ไม่ต้องทำอะไรต่อแล้ว
-    }
+  console.log('POST /pos payload =', payload);
 
-    // เผื่อกรณีแบ็กเอนด์ไม่คืน id (ไม่ควรเกิด)
+  try {
+    const created = await jfetch('/pos', { method: 'POST', body: JSON.stringify(payload) });
+    if (created?.po_number) toast(`Created PO ${created.po_number}`, true);
+    if (created?.id) { location.href = posUrl(created.id); return; }
     toast('PO created but no id returned', false);
     await loadPOs();
   } catch (e) {
-    toast(e.message, false);
+    toast(e?.message || 'Create failed', false);
   }
 }
 
-/* ========================= Bootstrap ========================= */
+/* ---------- bootstrap ---------- */
 document.addEventListener('DOMContentLoaded', () => {
   initTopbar();
 
+  // ค้นหา PO
+  const inputSearch = $('po_q');
+  if (inputSearch) {
+    inputSearch.placeholder = 'Search PO no. / description / customer';
+    inputSearch.addEventListener('input', debounce(() => {
+      state.q = inputSearch.value || '';
+      loadPOs();
+    }, 300));
+  }
+
+  // Autocomplete ลูกค้า
   const custInput = $('po_cust');
   if (custInput) {
     custInput.placeholder = 'Customer code or name';
-    attachAutocomplete(custInput);
-  }
-
-  on($('po_reload'), 'click', loadPOs);
-  on($('po_create'), 'click', createPO);
-
-  on($('po_cust'), 'keydown', (e) => {
-    if (e.key === 'Enter') createPO();
-  });
-
-  const holder = $('po_table');
-  if (holder) {
-    holder.addEventListener('click', (e) => {
-      const a = e.target.closest('a[href]');
-      if (a) return;
-      const tr = e.target.closest('tr[data-id]');
-      if (!tr) return;
-      const id = tr.dataset.id;
-      if (id) location.href = posUrl(id);
+    custInput.addEventListener('input', () => { selectedCustomerId = null; });
+    attachAutocomplete(custInput, {
+      fetchItems: async (q) => {
+        const url = (q && q.trim())
+          ? `/customers?q=${encodeURIComponent(q.trim())}&page=1&per_page=20`
+          : `/customers?page=1&per_page=10`;
+        const data = await jfetch(url);
+        return (data?.items ?? []).map(x => ({
+          id: x.id,
+          code: (x.code || '').toUpperCase(),
+          name: x.name || ''
+        }));
+      },
+      getDisplayValue: it => `${it.code} - ${it.name}`.trim(),
+      renderItem: it => `
+        <div style="padding:8px 10px; display:flex; gap:8px; align-items:center">
+          <span class="badge" style="font-size:11px">${escapeHtml(it.code)}</span>
+          <div style="font-weight:600">${escapeHtml(it.name)}</div>
+        </div>`,
+      onPick: it => { selectedCustomerId = Number(it.id); },  // ⬅️ บังคับเลขที่นี่ (ไม่มี onPick ลอยนอก object แล้ว)
+      openOnFocus: 'first10',
     });
   }
 
+  // ปุ่ม
+  on($('po_reload'), 'click', loadPOs);
+  on($('po_create'), 'click', createPO);
+  on($('po_cust'), 'keydown', (e) => { if (e.key === 'Enter') createPO(); });
+
+  // toggle create (ถ้ามี)
+  const btnToggleCreate = document.getElementById('btnToggleCreate');
+  const createCard      = document.getElementById('createCard');
+  if (btnToggleCreate && createCard) {
+    const tg = createToggler({
+      trigger: btnToggleCreate,
+      panel: createCard,
+      persistKey: 'pos:create',
+      focusTarget: '#po_cust',
+      closeOnEsc: true,
+      closeOnOutside: true,
+      onOpen:  () => { btnToggleCreate.textContent = '× Cancel'; },
+      onClose: () => { btnToggleCreate.textContent = '+ Add'; },
+    });
+    btnToggleCreate.textContent = tg.isOpen() ? '× Cancel' : '+ Add';
+  }
+
+  // โหลดครั้งแรก
   loadPOs();
 });
