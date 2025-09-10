@@ -1,78 +1,46 @@
 // /static/js/page-customers.js
 import { $, jfetch, toast } from './api.js';
+import { debounce, showLoading, hideLoading, escapeHtml } from './utils.js';
+import { CursorPager2D } from './pagination.js?v=2'; // กันแคชค้าง
 
 /* ----------------- CONFIG ----------------- */
 const DETAIL_PAGE = './customers-detail.html';
 
 /* ----------------- helpers ----------------- */
-function escapeHtml(s) {
-  return String(s ?? '')
-    .replaceAll('&','&amp;')
-    .replaceAll('<','&lt;')
-    .replaceAll('>','&gt;')
-    .replaceAll('"','&quot;')
-    .replaceAll("'",'&#39;');
-}
 
-function customerUrl(id) {
-  return `${DETAIL_PAGE}?id=${encodeURIComponent(id)}`;
-}
-function gotoDetail(id) {
-  if (!id) return;
-  location.href = customerUrl(id);
-}
+function customerUrl(id) { return `${DETAIL_PAGE}?id=${encodeURIComponent(id)}`; }
+function gotoDetail(id) { if (id) location.href = customerUrl(id); }
 window.gotoDetail = gotoDetail;
 
-/* ----------------- debounce helper ----------------- */
-function debounce(fn, ms = 300) {
-  let t;
-  return (...args) => {
-    clearTimeout(t);
-    t = setTimeout(() => fn(...args), ms);
-  };
-}
-
-/* ----------------- state (pagination/search) ----------------- */
-let state = {
-  page: 1,
-  perPage: 20,
-  q: '',
-  total: 0,
-  pages: 1,
-};
+/* ----------------- state ----------------- */
+let state = { perPage: 20, q: '' };
+let reachedEarliest = false; // ไม่มี prev ต่อแล้ว
+let reachedLatest   = false; // ไม่มี next ต่อแล้ว
 
 /* ----------------- UI refs ----------------- */
-const btnToggleCreate = document.getElementById('btnToggleCreate');
-const createCard = document.getElementById('createCard');
-const btnCreate = document.getElementById('c_create');
+const btnToggleCreate  = document.getElementById('btnToggleCreate');
+const createCard       = document.getElementById('createCard');
+const btnCreate        = document.getElementById('c_create');
 
-const inputSearch = $('c_q');
-const btnReload = $('c_reload');
-const selPerPage = $('c_per_page');
+const inputSearch      = $('c_q');
+const btnReload        = $('c_reload');
+const selPerPage       = $('c_per_page');
 
-const btnPrevTop = $('c_prev');
-const btnNextTop = $('c_next');
-const pageInfoTop = $('c_page_info');
+const btnPrevTop       = $('c_prev');
+const btnNextTop       = $('c_next');
+const pageInfoTop      = $('c_page_info');
 
-const btnPrevBottom = $('c_prev2');
-const btnNextBottom = $('c_next2');
-const pageInfoBottom = $('c_page_info2');
+const btnPrevBottom    = $('c_prev2');
+const btnNextBottom    = $('c_next2');
+const pageInfoBottom   = $('c_page_info2');
 
-const tableContainer = $('c_table');
+const tableContainer   = $('c_table');
+const btnPing          = document.getElementById('btnPing');
 
 /* ----------------- create form toggle ----------------- */
-function showCreate() {
-  createCard.removeAttribute('hidden');
-  btnToggleCreate.textContent = '× Cancel';
-  document.getElementById('c_name')?.focus();
-}
-function hideCreate() {
-  createCard.setAttribute('hidden', '');
-  btnToggleCreate.textContent = '+ Add';
-}
-btnToggleCreate?.addEventListener('click', () => {
-  if (createCard.hasAttribute('hidden')) showCreate(); else hideCreate();
-});
+function showCreate(){ createCard.hidden = false; btnToggleCreate.textContent = '× Cancel'; document.getElementById('c_name')?.focus(); }
+function hideCreate(){ createCard.hidden = true;  btnToggleCreate.textContent = '+ Add'; }
+btnToggleCreate?.addEventListener('click', () => { createCard.hidden ? showCreate() : hideCreate(); });
 
 /* ----------------- create customer ----------------- */
 async function createCustomer() {
@@ -84,40 +52,30 @@ async function createCustomer() {
     phone: $('c_phone')?.value.trim() || null,
     address: $('c_addr')?.value.trim() || null,
   };
-
-  if (!payload.name) {
-    toast('Enter customer name', false);
-    return;
-  }
+  if (!payload.name) return toast('Enter customer name', false);
 
   try {
     await jfetch('/customers', { method: 'POST', body: JSON.stringify(payload) });
     toast('Customer created');
-    // reset form
-    ['c_code','c_name','c_contact','c_email','c_phone','c_addr'].forEach(id => { const el = $(id); if (el) el.value = ''; });
+    ['c_code','c_name','c_contact','c_email','c_phone','c_addr'].forEach(id => { const el = $(id); if (el) el.value=''; });
     hideCreate();
-    state.page = 1; // กลับไปหน้าแรกเพื่อโชว์ลูกค้าใหม่
-    await loadCustomers();
+    await reloadFirst(); // หน้าแรกของ keyset
   } catch (e) {
     toast(e?.message || 'Create failed', false);
   }
 }
 
-/* ----------------- table renderer ----------------- */
+/* ----------------- render table ----------------- */
 function renderCustomersTable(container, rows) {
   if (!rows || rows.length === 0) {
     container.innerHTML = '<div class="empty">No customers</div>';
     return;
   }
-
-  const getId = (r) => r.id ?? r.customer_id ?? r.customerId ?? '';
-
   const bodyHTML = rows.map(r => {
-    const rid = getId(r);
+    const rid = r.id ?? r.customer_id ?? r.customerId ?? '';
     const codeCell = rid
       ? `<a href="${customerUrl(rid)}" class="code-link">${escapeHtml(r.code ?? '')}</a>`
       : `<span>${escapeHtml(r.code ?? '')}</span>`;
-
     return `
       <tr class="click-row" data-id="${escapeHtml(rid)}" tabindex="0" title="Open detail">
         <td>${codeCell}</td>
@@ -125,8 +83,7 @@ function renderCustomersTable(container, rows) {
         <td>${escapeHtml(r.contact ?? '')}</td>
         <td>${escapeHtml(r.email ?? '')}</td>
         <td>${escapeHtml(r.phone ?? '')}</td>
-      </tr>
-    `;
+      </tr>`;
   }).join('');
 
   container.innerHTML = `
@@ -150,7 +107,7 @@ function renderCustomersTable(container, rows) {
     </style>
   `;
 
-  // row click
+  // row click (ignore anchor)
   const isAnchor = (el) => el?.closest('a[href]');
   container.querySelector('tbody')?.addEventListener('click', (e) => {
     if (isAnchor(e.target)) return;
@@ -161,78 +118,84 @@ function renderCustomersTable(container, rows) {
   });
 }
 
-/* ----------------- pagination helpers ----------------- */
+/* ----------------- pager (keyset 2D) ----------------- */
+let pager = new CursorPager2D({
+  url: '/customers/keyset',
+  pageSize: state.perPage,
+});
+
+function recreatePager() {
+  pager = new CursorPager2D({
+    url: '/customers/keyset',
+    pageSize: state.perPage,
+  });
+}
+
 function updatePagerUI() {
-  const { page, pages, total, perPage } = state;
-  const info = `Page ${page} / ${pages} · ${total} items`;
+  const info = `Page ${pager.pageIndex}`;
   if (pageInfoTop) pageInfoTop.textContent = info;
   if (pageInfoBottom) pageInfoBottom.textContent = info;
 
-  const disablePrev = page <= 1;
-  const disableNext = page >= pages;
+  const disablePrev = reachedEarliest || pager.pageIndex <= 1;
+  const disableNext = reachedLatest;
 
   [btnPrevTop, btnPrevBottom].forEach(b => { if (b) b.disabled = disablePrev; });
   [btnNextTop, btnNextBottom].forEach(b => { if (b) b.disabled = disableNext; });
-
-  if (selPerPage && Number(selPerPage.value) !== perPage) {
-    selPerPage.value = String(perPage);
-  }
 }
 
-/* ----------------- data ops ----------------- */
-async function loadCustomers() {
-  const q = inputSearch?.value?.trim() ?? '';
-  state.q = q;
-
-  const params = new URLSearchParams();
-  if (q) params.set('q', q);
-  params.set('page', String(state.page));
-  params.set('per_page', String(state.perPage));
-
-  const url = `/customers?${params.toString()}`;
-
-  try {
-    const data = await jfetch(url);
-    const { items, total, page, per_page, pages } = data || {};
-
-    state.total = Number(total) || 0;
-    state.page = Number(page) || 1;
-    state.perPage = Number(per_page) || 20;
-    state.pages = Number(pages) || 1;
-
-    renderCustomersTable(tableContainer, items || []);
-    updatePagerUI();
-  } catch (e) {
-    tableContainer.innerHTML = `<div class="hint">${escapeHtml(e?.message ?? 'Error')}</div>`;
-    state.total = 0; state.pages = 1;
-    updatePagerUI();
-  }
+async function reloadFirst() {
+  // เปลี่ยน base หรือ perPage → recreate pager
+  recreatePager();
+  reachedEarliest = false;
+  reachedLatest   = false;
+  showLoading(tableContainer);
+  const { items, hasMore } = await pager.first({ q: state.q || undefined });
+  hideLoading(tableContainer);
+  renderCustomersTable(tableContainer, items || []);
+  reachedLatest = !hasMore; // ถ้าไม่มีหน้าถัดไป
+  updatePagerUI();
+}
+async function goNext() {
+  if (reachedLatest) return;
+  showLoading(tableContainer);
+  const { items, hasMore } = await pager.next({ q: state.q || undefined });
+  hideLoading(tableContainer);
+  if ((items || []).length) renderCustomersTable(tableContainer, items);
+  reachedEarliest = false;
+  reachedLatest   = !hasMore;
+  updatePagerUI();
+}
+async function goPrev() {
+  if (reachedEarliest || pager.pageIndex <= 1) return;
+  showLoading(tableContainer);
+  const { items, hasMore } = await pager.prev({ q: state.q || undefined });
+  hideLoading(tableContainer);
+  if ((items || []).length) renderCustomersTable(tableContainer, items);
+  reachedEarliest = !hasMore; // ไม่มี prev ต่อแล้ว
+  reachedLatest   = false;    // ยังไปหน้า next ได้
+  updatePagerUI();
 }
 
 /* ----------------- boot ----------------- */
 document.addEventListener('DOMContentLoaded', () => {
+  // Create
   btnCreate?.addEventListener('click', createCustomer);
-  btnReload?.addEventListener('click', () => { state.page = 1; loadCustomers(); });
+  btnReload?.addEventListener('click', () => reloadFirst());
 
-  // auto search while typing
-  let composing = false;
-  const loadCustomersDebounced = debounce(() => { state.page = 1; loadCustomers(); }, 300);
+  // Search (debounce)
+  const onType = debounce(() => {
+    state.q = inputSearch?.value?.trim() || '';
+    reloadFirst();
+  }, 300);
+  inputSearch?.addEventListener('input', onType);
 
-  inputSearch?.addEventListener('compositionstart', () => { composing = true; });
-  inputSearch?.addEventListener('compositionend', () => { composing = false; loadCustomersDebounced(); });
-  inputSearch?.addEventListener('input', () => { if (!composing) loadCustomersDebounced(); });
-
-  // per-page
+  // Per page
   selPerPage?.addEventListener('change', () => {
     state.perPage = Number(selPerPage.value) || 20;
-    state.page = 1;
-    loadCustomers();
+    reloadFirst();
   });
 
-  // pager buttons
-  const goPrev = () => { if (state.page > 1) { state.page -= 1; loadCustomers(); } };
-  const goNext = () => { if (state.page < state.pages) { state.page += 1; loadCustomers(); } };
-
+  // Pager buttons
   btnPrevTop?.addEventListener('click', goPrev);
   btnPrevBottom?.addEventListener('click', goPrev);
   btnNextTop?.addEventListener('click', goNext);
@@ -243,5 +206,17 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.key === 'Escape' && !createCard.hasAttribute('hidden')) hideCreate();
   });
 
-  loadCustomers();
+  // Ping (optional helper)
+  // ตรงที่ bind ปุ่ม Ping ใน api.js หรือหน้า page-*.js
+  btnPing?.addEventListener('click', async () => {
+    try {
+      await jfetch('/customers/keyset?limit=1'); // ✅ jfetch ต่อ base ให้เอง
+      toast('API OK ✅');                         // ข้อความชัดเจน ไม่พึ่งตัวแปรอื่น
+    } catch (e) {
+      toast(`Ping error: ${e?.message ?? 'Unknown error'}`, false);
+    }
+  });
+
+      // First load
+      reloadFirst();
 });

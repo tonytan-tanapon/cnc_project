@@ -3,19 +3,34 @@ export const $ = (id) => document.getElementById(id);
 
 const KEY_API_BASE = "apiBase";
 export function getAPIBase() {
-  const v = (localStorage.getItem(KEY_API_BASE) || "").trim();
+  // sanitize: อนุญาต "" หรือ "/api/v<number>"
+  let v = (localStorage.getItem(KEY_API_BASE) || "").trim();
+  if (v && !/^\/api\/v\d+$/i.test(v)) {
+    // ถ้ามีค่าประหลาด (เผลอตั้งเป็น path อื่น) ให้รีเซ็ตเป็น /api/v1
+    v = "/api/v1";
+    localStorage.setItem(KEY_API_BASE, v);
+  }
   return v || "/api/v1";
 }
 export function setAPIBase(v) {
-  const base = (v || "").trim() || "/api/v1";
-  localStorage.setItem(KEY_API_BASE, base);
-  return base;
+  v = (v || "").trim();
+  if (v && !/^\/api\/v\d+$/i.test(v)) v = "/api/v1";
+  localStorage.setItem(KEY_API_BASE, v || "/api/v1");
+  return getAPIBase();
 }
+
+/** ต่อ base อย่างปลอดภัย (กันต่อซ้ำ) */
 export function withBase(path) {
-  const base = getAPIBase();
+  const base = (getAPIBase() || "").trim();
   if (/^https?:\/\//i.test(path)) return path;
-  const left = base.endsWith("/") ? base.slice(0, -1) : base;
-  const right = path.startsWith("/") ? path : "/" + path;
+
+  const left  = base ? (base.endsWith('/') ? base.slice(0,-1) : base) : '';
+  const right = path.startsWith('/') ? path : '/' + path;
+
+  // กันกรณี path ขึ้นต้นด้วย base อยู่แล้ว
+  if (left && (right === left || right.startsWith(left + '/'))) {
+    return right;
+  }
   return left + right;
 }
 
@@ -23,12 +38,15 @@ function isJSON(res) {
   const ct = res.headers.get("content-type") || "";
   return ct.includes("application/json");
 }
+
+/** jfetch: ใช้กับทุก API เพื่อให้ base ตรงกันหมด */
 export async function jfetch(path, init = {}) {
   const url = withBase(path);
   const res = await fetch(url, {
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...(init.headers || {}) },
     ...init,
   });
+
   if (!res.ok) {
     let msg = `${res.status}: `;
     try {
@@ -46,39 +64,7 @@ export async function jfetch(path, init = {}) {
   return isJSON(res) ? res.json() : res.text();
 }
 
-// export async function jfetch(url, opts = {}) {
-//   const res = await fetch(url, {
-//     method: opts.method || 'GET',
-//     headers: {
-//       'Content-Type': 'application/json',
-//       ...(opts.headers || {}),
-//     },
-//     body: opts.body,
-//     credentials: 'include', // if you use cookies/sessions; remove if not
-//   });
-
-//   if (res.status === 401 || res.status === 403) {
-//     // DO NOT redirect on kiosk. Just throw so the page stays put.
-//     const text = await res.text().catch(() => '');
-//     const err = new Error(text || 'Unauthorized');
-//     err.status = res.status;
-//     throw err;
-//   }
-
-//   if (!res.ok) {
-//     const text = await res.text().catch(() => '');
-//     const err = new Error(text || res.statusText);
-//     err.status = res.status;
-//     throw err;
-//   }
-
-//   // 204 no content
-//   if (res.status === 204) return null;
-
-//   const ct = res.headers.get('content-type') || '';
-//   return ct.includes('application/json') ? res.json() : res.text();
-// }
-
+// /static/js/api.js
 export function showToast(msg, ok = true) {
   let t = document.getElementById("toast");
   if (!t) {
@@ -90,35 +76,18 @@ export function showToast(msg, ok = true) {
     t.appendChild(span);
     document.body.appendChild(t);
   }
+
   const span = t.querySelector("#toastText") || t.firstChild;
-  span.textContent = msg;
+  const text = (msg === undefined || msg === null) ? (ok ? 'OK' : 'Error') : String(msg);
+  span.textContent = text;               // ✅ ไม่มี undefined แล้ว
   t.style.borderColor = ok ? "#27d17d" : "#ef4444";
   t.classList.add("show");
   setTimeout(() => t.classList.remove("show"), 2000);
 }
 export const toast = showToast;
 
-export function renderTable(el, rows) {
-  if (!el) return;
-  if (!rows || rows.length === 0) {
-    el.innerHTML = '<div class="hint">ไม่มีข้อมูล</div>';
-    return;
-  }
-  const cols = [...new Set(rows.flatMap((r) => Object.keys(r)))];
-  const esc = (v) => {
-    if (v == null) return "";
-    if (typeof v === "object") return '<span class="badge">obj</span>';
-    return String(v).replace(/[&<>"]/g, (s) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[s]));
-  };
-  const thead = `<thead><tr>${cols.map((c) => `<th>${esc(c)}</th>`).join("")}</tr></thead>`;
-  const tbody = `<tbody>${rows
-    .map(
-      (r) =>
-        `<tr>${cols.map((c) => `<td data-col="${c}">${esc(r[c])}</td>`).join("")}</tr>`
-    )
-    .join("")}</tbody>`;
-  el.innerHTML = `<div style="overflow:auto"><table>${thead}${tbody}</table></div>`;
-}
+
+export function renderTable(el, rows) { /* ...ของเดิม... */ }
 
 export function initTopbar() {
   const baseInput = document.getElementById("apiBase");
@@ -140,7 +109,7 @@ export function initTopbar() {
   if (btnPing) {
     btnPing.addEventListener("click", async () => {
       try {
-        await jfetch("/customers");
+        await jfetch("/customers/keyset?limit=1");
         showToast("API OK ✅");
       } catch (err) {
         showToast(`Ping failed: ${err.message}`, false);

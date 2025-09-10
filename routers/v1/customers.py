@@ -69,56 +69,108 @@ def list_customers(
     "pages": max(pages, 1),
   }
 
-# >>> ---------- list + pagination (keyset/cursor สองทิศ) ----------
+# # >>> ---------- list + pagination (keyset/cursor สองทิศ) ----------
+# @router.get("/keyset", response_model=CustomerCursorPage)
+# def list_customers_keyset(
+#   q: Optional[str] = Query(None, description="Search by code or name (ILIKE)"),
+#   limit: int = Query(25, ge=1, le=200),
+#   cursor: Optional[int] = Query(None, description="Fetch rows with id > cursor (next page)"),
+#   before: Optional[int] = Query(None, description="Fetch rows with id < before (previous page)"),
+#   db: Session = Depends(get_db),
+# ):
+#   """
+#   Bidirectional keyset pagination:
+#     - หน้าแรก: ไม่ส่ง cursor/before (เรียง ASC)
+#     - หน้า 'ถัดไป': ส่ง cursor=<id สุดท้ายของหน้าปัจจุบัน>
+#     - หน้า 'ก่อนหน้า': ส่ง before=<id แรกของหน้าปัจจุบัน>
+#   คืนค่า items ที่เรียง ASC เสมอ
+#   """
+#   # base query + search
+#   qry = db.query(Customer)
+#   if q and q.strip():
+#     like = f"%{q.strip()}%"
+#     qry = qry.filter(or_(Customer.code.ilike(like), Customer.name.ilike(like)))
+
+#   # กำหนดทิศทาง
+#   going_prev = before is not None and cursor is None
+#   if going_prev:
+#     # กดย้อนกลับ: id < before, เรียง DESC แล้วค่อย reverse ก่อนคืน
+#     qry = qry.filter(Customer.id < before).order_by(Customer.id.desc())
+#   else:
+#     # หน้าแรก / ถัดไป: id > cursor, เรียง ASC
+#     if cursor is not None:
+#       qry = qry.filter(Customer.id > cursor)
+#     qry = qry.order_by(Customer.id.asc())
+
+#   rows = qry.limit(limit + 1).all()  # +1 เพื่อตรวจ has_more
+
+#   # ถ้าย้อนกลับ ให้กลับลำดับเป็น ASC ก่อนส่ง
+#   if going_prev:
+#     rows = list(reversed(rows))
+
+#   page_rows = rows[:limit]
+#   has_more = len(rows) > limit
+
+#   # map -> CustomerOut (ใช้ Pydantic schema ที่คุณมีอยู่แล้ว)
+#   # ถ้า CustomerOut = BaseModel(from ORM), สามารถ return ORM ได้เลย
+#   # ที่นี่ขอเรียกใช้ตรงๆ
+#   items: List[CustomerOut] = [CustomerOut.model_validate(r) for r in page_rows]  # Pydantic v2
+#   # ถ้าเป็น v1: items = [CustomerOut.from_orm(r) for r in page_rows]
+
+#   next_cursor = page_rows[-1].id if page_rows else None
+#   prev_cursor = page_rows[0].id if page_rows else None
+
+#   return {
+#     "items": items,
+#     "next_cursor": next_cursor,
+#     "prev_cursor": prev_cursor,
+#     "has_more": has_more,
+#   }
+
+# >>> ---------- list + pagination (keyset/cursor — แสดงใหม่ -> เก่า) ----------
 @router.get("/keyset", response_model=CustomerCursorPage)
 def list_customers_keyset(
   q: Optional[str] = Query(None, description="Search by code or name (ILIKE)"),
   limit: int = Query(25, ge=1, le=200),
-  cursor: Optional[int] = Query(None, description="Fetch rows with id > cursor (next page)"),
-  before: Optional[int] = Query(None, description="Fetch rows with id < before (previous page)"),
+  cursor: Optional[int] = Query(None, description="(DESC) Next page (older): fetch id < cursor"),
+  before: Optional[int] = Query(None, description="(DESC) Prev page (newer): fetch id > before"),
   db: Session = Depends(get_db),
 ):
   """
-  Bidirectional keyset pagination:
-    - หน้าแรก: ไม่ส่ง cursor/before (เรียง ASC)
-    - หน้า 'ถัดไป': ส่ง cursor=<id สุดท้ายของหน้าปัจจุบัน>
-    - หน้า 'ก่อนหน้า': ส่ง before=<id แรกของหน้าปัจจุบัน>
-  คืนค่า items ที่เรียง ASC เสมอ
+  Keyset (DESC): แสดงจาก id ใหม่ -> เก่า
+    - หน้าแรก: ไม่ส่ง cursor/before (ORDER BY id DESC)
+    - Next (ไปเก่า): ส่ง cursor=<id สุดท้ายของหน้าปัจจุบัน> และใช้ id < cursor
+    - Prev (ไปใหม่): ส่ง before=<id แรกของหน้าปัจจุบัน> และใช้ id > before
+  คืนค่า items เป็น DESC เสมอ
   """
-  # base query + search
   qry = db.query(Customer)
   if q and q.strip():
     like = f"%{q.strip()}%"
     qry = qry.filter(or_(Customer.code.ilike(like), Customer.name.ilike(like)))
 
-  # กำหนดทิศทาง
   going_prev = before is not None and cursor is None
+
   if going_prev:
-    # กดย้อนกลับ: id < before, เรียง DESC แล้วค่อย reverse ก่อนคืน
-    qry = qry.filter(Customer.id < before).order_by(Customer.id.desc())
+    # ไป "ใหม่" กว่า: id > before, ดึง ASC เพื่อหยิบที่ใหม่กว่า แล้ว reverse เป็น DESC ก่อนส่งออก
+    qry = qry.filter(Customer.id > before).order_by(Customer.id.asc())
+    rows = qry.limit(limit + 1).all()
+    rows = list(reversed(rows))  # กลับเป็น DESC (ใหม่ -> เก่า)
   else:
-    # หน้าแรก / ถัดไป: id > cursor, เรียง ASC
+    # หน้าแรก หรือไป "เก่า" กว่า: id < cursor, ORDER BY DESC
     if cursor is not None:
-      qry = qry.filter(Customer.id > cursor)
-    qry = qry.order_by(Customer.id.asc())
-
-  rows = qry.limit(limit + 1).all()  # +1 เพื่อตรวจ has_more
-
-  # ถ้าย้อนกลับ ให้กลับลำดับเป็น ASC ก่อนส่ง
-  if going_prev:
-    rows = list(reversed(rows))
+      qry = qry.filter(Customer.id < cursor)
+    qry = qry.order_by(Customer.id.desc())
+    rows = qry.limit(limit + 1).all()
 
   page_rows = rows[:limit]
   has_more = len(rows) > limit
 
-  # map -> CustomerOut (ใช้ Pydantic schema ที่คุณมีอยู่แล้ว)
-  # ถ้า CustomerOut = BaseModel(from ORM), สามารถ return ORM ได้เลย
-  # ที่นี่ขอเรียกใช้ตรงๆ
   items: List[CustomerOut] = [CustomerOut.model_validate(r) for r in page_rows]  # Pydantic v2
-  # ถ้าเป็น v1: items = [CustomerOut.from_orm(r) for r in page_rows]
+  # ถ้า v1: items = [CustomerOut.from_orm(r) for r in page_rows]
 
-  next_cursor = page_rows[-1].id if page_rows else None
-  prev_cursor = page_rows[0].id if page_rows else None
+  # สำหรับ DESC: แถวแรก = ใหม่สุด, แถวสุดท้าย = เก่าสุด ของหน้านี้
+  next_cursor = page_rows[-1].id if page_rows else None  # ไป "เก่า" กว่า
+  prev_cursor = page_rows[0].id if page_rows else None   # ไป "ใหม่" กว่า
 
   return {
     "items": items,
@@ -126,6 +178,7 @@ def list_customers_keyset(
     "prev_cursor": prev_cursor,
     "has_more": has_more,
   }
+
 
 # ---------- lookup (ต้องอยู่เหนือ /{customer_id}) ----------
 @router.get("/lookup", response_model=List[CustomerMini])

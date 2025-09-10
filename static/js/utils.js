@@ -7,22 +7,22 @@
 //          makeSortableTable
 
 /* ----------------------------- Fetch helper ----------------------------- */
-export async function jfetch(url, opts = {}) {
-  const headers = { 'Accept': 'application/json', ...(opts.headers || {}) };
-  let body = opts.body;
-  if (body && typeof body === 'object' && !(body instanceof FormData)) {
-    headers['Content-Type'] = 'application/json';
-    body = JSON.stringify(body);
-  }
-  const res = await fetch(url, { ...opts, headers, body });
-  const ct = res.headers.get('content-type') || '';
-  const data = ct.includes('application/json') ? await res.json() : await res.text();
-  if (!res.ok) {
-    const msg = (data && (data.message || data.error?.message)) || `HTTP ${res.status}`;
-    throw new Error(msg);
-  }
-  return data;
-}
+// export async function jfetch(url, opts = {}) {
+//   const headers = { 'Accept': 'application/json', ...(opts.headers || {}) };
+//   let body = opts.body;
+//   if (body && typeof body === 'object' && !(body instanceof FormData)) {
+//     headers['Content-Type'] = 'application/json';
+//     body = JSON.stringify(body);
+//   }
+//   const res = await fetch(url, { ...opts, headers, body });
+//   const ct = res.headers.get('content-type') || '';
+//   const data = ct.includes('application/json') ? await res.json() : await res.text();
+//   if (!res.ok) {
+//     const msg = (data && (data.message || data.error?.message)) || `HTTP ${res.status}`;
+//     throw new Error(msg);
+//   }
+//   return data;
+// }
 
 /* ----------------------------- UI: Toast ----------------------------- */
 let _toastHost;

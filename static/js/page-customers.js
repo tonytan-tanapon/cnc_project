@@ -1,66 +1,71 @@
-// /static/js/page-customers.js
+// /static/js/page-customers.js  (เรียกใช้แบบสั้น)
 import { $, jfetch, toast } from './api.js';
-import { debounce, showLoading, hideLoading } from './utils.js';
-import { CursorPager2D } from './pagination.js?v=2'; // กันแคชค้าง
+import { escapeHtml } from './utils.js';
+import { createListPager } from './list-pager.js?v=2';
+import { renderTableX } from './tablex.js';
+import { createToggler } from './toggler.js';
 
-/* ----------------- CONFIG ----------------- */
+/* ---- CONFIG / helpers ---- */
 const DETAIL_PAGE = './customers-detail.html';
-
-/* ----------------- helpers ----------------- */
-function escapeHtml(s) {
-  return String(s ?? '')
-    .replaceAll('&','&amp;')
-    .replaceAll('<','&lt;')
-    .replaceAll('>','&gt;')
-    .replaceAll('"','&quot;')
-    .replaceAll("'",'&#39;');
-}
-function customerUrl(id) { return `${DETAIL_PAGE}?id=${encodeURIComponent(id)}`; }
-function gotoDetail(id) { if (id) location.href = customerUrl(id); }
+const customerUrl = (id) => `${DETAIL_PAGE}?id=${encodeURIComponent(id)}`;
+const gotoDetail = (id) => { if (id) location.href = customerUrl(id); };
 window.gotoDetail = gotoDetail;
 
-// อ่านค่า API Base จาก input เสมอ (รองรับสลับ runtime)
-function getAPIBase() {
-  const v = document.getElementById('apiBase')?.value?.trim();
-  const base = v || '/api/v1';
-  return base.replace(/\/+$/, ''); // ตัด / ท้าย
-}
-function buildURL(path) {
-  // path เริ่มด้วย /api/... เช่น /customers หรือ /customers/keyset
-  return `${getAPIBase()}${path.startsWith('/') ? '' : '/'}${path}`;
-}
+/* ---- UI refs ---- */
+const inputSearch      = $('c_q');
+const selPerPage       = $('c_per_page');
+const btnPrevTop       = $('c_prev');
+const btnNextTop       = $('c_next');
+const pageInfoTop      = $('c_page_info');
+const btnPrevBottom    = $('c_prev2');
+const btnNextBottom    = $('c_next2');
+const pageInfoBottom   = $('c_page_info2');
+const tableContainer   = $('c_table');
 
-/* ----------------- state ----------------- */
-let state = { perPage: 20, q: '' };
-let reachedEarliest = false; // ไม่มี prev ต่อแล้ว
-let reachedLatest   = false; // ไม่มี next ต่อแล้ว
-
-/* ----------------- UI refs ----------------- */
 const btnToggleCreate  = document.getElementById('btnToggleCreate');
 const createCard       = document.getElementById('createCard');
 const btnCreate        = document.getElementById('c_create');
 
-const inputSearch      = $('c_q');
-const btnReload        = $('c_reload');
-const selPerPage       = $('c_per_page');
+/* ---- render (ใช้ tablex + No. + fallback id) ---- */
+function renderCustomersTable(container, rows, ctx = {}) {
+  renderTableX(container, rows, {
+    rowStart: Number(ctx.rowStart || 0),
+    getRowId: r => r.id ?? r.customer_id ?? r.customerId,
+    onRowClick: r => {
+      const rid = r.id ?? r.customer_id ?? r.customerId;
+      if (rid != null) gotoDetail(rid);
+    },
+    columns: [
+      { key: '__no', title: 'No.', width: '64px', align: 'right' },
+      {
+        key: 'code', title: 'Code', width: '120px',
+        render: r => {
+          const rid = r.id ?? r.customer_id ?? r.customerId;
+          const code = escapeHtml(r.code ?? '');
+          return rid ? `<a href="${customerUrl(rid)}" class="code-link">${code}</a>` : code;
+        }
+      },
+      { key: 'name',    title: 'Name' },
+      { key: 'contact', title: 'Contact', width: '200px' },
+      { key: 'email',   title: 'Email',   width: '240px' },
+      { key: 'phone',   title: 'Phone',   width: '140px' },
+    ],
+  });
+}
 
-const btnPrevTop       = $('c_prev');
-const btnNextTop       = $('c_next');
-const pageInfoTop      = $('c_page_info');
+/* ---- list pager (ค้นหา + เพจจิ้ง reuse) ---- */
+const lp = createListPager({
+  url: '/customers/keyset',
+  pageSize: 20,
+  container: tableContainer,
+  render: renderCustomersTable,
+  pageInfoEls: [pageInfoTop, pageInfoBottom],
+  prevButtons: [btnPrevTop, btnPrevBottom],
+  nextButtons: [btnNextTop, btnNextBottom],
+  queryKey: 'q', // backend รับพารามิเตอร์ชื่อ q
+});
 
-const btnPrevBottom    = $('c_prev2');
-const btnNextBottom    = $('c_next2');
-const pageInfoBottom   = $('c_page_info2');
-
-const tableContainer   = $('c_table');
-const btnPing          = document.getElementById('btnPing');
-
-/* ----------------- create form toggle ----------------- */
-function showCreate(){ createCard.hidden = false; btnToggleCreate.textContent = '× Cancel'; document.getElementById('c_name')?.focus(); }
-function hideCreate(){ createCard.hidden = true;  btnToggleCreate.textContent = '+ Add'; }
-btnToggleCreate?.addEventListener('click', () => { createCard.hidden ? showCreate() : hideCreate(); });
-
-/* ----------------- create customer ----------------- */
+/* ---- create customer ---- */
 async function createCustomer() {
   const payload = {
     code: $('c_code')?.value.trim() || '',
@@ -73,168 +78,43 @@ async function createCustomer() {
   if (!payload.name) return toast('Enter customer name', false);
 
   try {
-    await jfetch(buildURL('/customers'), { method: 'POST', body: JSON.stringify(payload) });
+    await jfetch('/customers', { method: 'POST', body: JSON.stringify(payload) });
     toast('Customer created');
-    ['c_code','c_name','c_contact','c_email','c_phone','c_addr'].forEach(id => { const el = $(id); if (el) el.value=''; });
-    hideCreate();
-    await reloadFirst(); // หน้าแรกของ keyset
+    ['c_code','c_name','c_contact','c_email','c_phone','c_addr']
+      .forEach(id => { const el = $(id); if (el) el.value = ''; });
+    // ปิดด้วย toggler (แทน hideCreate เดิม)
+    createTg?.close();
+    await lp.reloadFirst();
   } catch (e) {
     toast(e?.message || 'Create failed', false);
   }
 }
 
-/* ----------------- render table ----------------- */
-function renderCustomersTable(container, rows) {
-  if (!rows || rows.length === 0) {
-    container.innerHTML = '<div class="empty">No customers</div>';
-    return;
-  }
-  const bodyHTML = rows.map(r => {
-    const rid = r.id ?? r.customer_id ?? r.customerId ?? '';
-    const codeCell = rid
-      ? `<a href="${customerUrl(rid)}" class="code-link">${escapeHtml(r.code ?? '')}</a>`
-      : `<span>${escapeHtml(r.code ?? '')}</span>`;
-    return `
-      <tr class="click-row" data-id="${escapeHtml(rid)}" tabindex="0" title="Open detail">
-        <td>${codeCell}</td>
-        <td>${escapeHtml(r.name ?? '')}</td>
-        <td>${escapeHtml(r.contact ?? '')}</td>
-        <td>${escapeHtml(r.email ?? '')}</td>
-        <td>${escapeHtml(r.phone ?? '')}</td>
-      </tr>`;
-  }).join('');
-
-  container.innerHTML = `
-    <table class="table customers-table">
-      <thead>
-        <tr>
-          <th style="width:120px">Code</th>
-          <th>Name</th>
-          <th style="width:200px">Contact</th>
-          <th style="width:240px">Email</th>
-          <th style="width:140px">Phone</th>
-        </tr>
-      </thead>
-      <tbody>${bodyHTML}</tbody>
-    </table>
-    <style>
-      .customers-table a { text-decoration: underline; }
-      .click-row { cursor: pointer; }
-      .click-row:focus { outline: 2px solid #77aaff; outline-offset: 2px; }
-      .customers-table tr:hover { background: rgba(0,0,0,.03); }
-    </style>
-  `;
-
-  // row click (ignore anchor)
-  const isAnchor = (el) => el?.closest('a[href]');
-  container.querySelector('tbody')?.addEventListener('click', (e) => {
-    if (isAnchor(e.target)) return;
-    const tr = e.target.closest('tr[data-id]');
-    if (!tr) return;
-    const id = tr.dataset.id;
-    if (id) gotoDetail(id);
-  });
-}
-
-/* ----------------- pager (keyset 2D) ----------------- */
-let pager = new CursorPager2D({
-  url: buildURL('/customers/keyset'),
-  pageSize: state.perPage,
-});
-
-function recreatePager() {
-  pager = new CursorPager2D({
-    url: buildURL('/customers/keyset'),
-    pageSize: state.perPage,
-  });
-}
-
-function updatePagerUI() {
-  const info = `Page ${pager.pageIndex}`;
-  if (pageInfoTop) pageInfoTop.textContent = info;
-  if (pageInfoBottom) pageInfoBottom.textContent = info;
-
-  const disablePrev = reachedEarliest || pager.pageIndex <= 1;
-  const disableNext = reachedLatest;
-
-  [btnPrevTop, btnPrevBottom].forEach(b => { if (b) b.disabled = disablePrev; });
-  [btnNextTop, btnNextBottom].forEach(b => { if (b) b.disabled = disableNext; });
-}
-
-async function reloadFirst() {
-  // เปลี่ยน base หรือ perPage → recreate pager
-  recreatePager();
-  reachedEarliest = false;
-  reachedLatest   = false;
-  showLoading(tableContainer);
-  const { items, hasMore } = await pager.first({ q: state.q || undefined });
-  hideLoading(tableContainer);
-  renderCustomersTable(tableContainer, items || []);
-  reachedLatest = !hasMore; // ถ้าไม่มีหน้าถัดไป
-  updatePagerUI();
-}
-async function goNext() {
-  if (reachedLatest) return;
-  showLoading(tableContainer);
-  const { items, hasMore } = await pager.next({ q: state.q || undefined });
-  hideLoading(tableContainer);
-  if ((items || []).length) renderCustomersTable(tableContainer, items);
-  reachedEarliest = false;
-  reachedLatest   = !hasMore;
-  updatePagerUI();
-}
-async function goPrev() {
-  if (reachedEarliest || pager.pageIndex <= 1) return;
-  showLoading(tableContainer);
-  const { items, hasMore } = await pager.prev({ q: state.q || undefined });
-  hideLoading(tableContainer);
-  if ((items || []).length) renderCustomersTable(tableContainer, items);
-  reachedEarliest = !hasMore; // ไม่มี prev ต่อแล้ว
-  reachedLatest   = false;    // ยังไปหน้า next ได้
-  updatePagerUI();
-}
-
-/* ----------------- boot ----------------- */
+/* ---- boot ---- */
+let createTg;
 document.addEventListener('DOMContentLoaded', () => {
-  // Create
+  // toggler สำหรับ create section (อย่าผูกคลิกซ้ำ)
+  createTg = createToggler({
+    trigger: btnToggleCreate,
+    panel: createCard,
+    persistKey: 'customers:create',
+    focusTarget: '#c_name',
+    closeOnEsc: true,
+    closeOnOutside: true,
+    group: 'top-actions',
+    onOpen:  () => { btnToggleCreate.textContent = '× Cancel'; },
+    onClose: () => { btnToggleCreate.textContent = '+ Add'; },
+  });
+  // sync ปุ่มเริ่มต้นตามสถานะที่ restore มา
+  btnToggleCreate.textContent = createTg.isOpen() ? '× Cancel' : '+ Add';
+
+  // bind search + per-page
+  lp.bindSearch(inputSearch, { debounceMs: 300 });
+  lp.bindPerPage(selPerPage);
+
+  // create
   btnCreate?.addEventListener('click', createCustomer);
-  btnReload?.addEventListener('click', () => reloadFirst());
 
-  // Search (debounce)
-  const onType = debounce(() => {
-    state.q = inputSearch?.value?.trim() || '';
-    reloadFirst();
-  }, 300);
-  inputSearch?.addEventListener('input', onType);
-
-  // Per page
-  selPerPage?.addEventListener('change', () => {
-    state.perPage = Number(selPerPage.value) || 20;
-    reloadFirst();
-  });
-
-  // Pager buttons
-  btnPrevTop?.addEventListener('click', goPrev);
-  btnPrevBottom?.addEventListener('click', goPrev);
-  btnNextTop?.addEventListener('click', goNext);
-  btnNextBottom?.addEventListener('click', goNext);
-
-  // Esc → close create form
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && !createCard.hasAttribute('hidden')) hideCreate();
-  });
-
-  // Ping (optional helper)
-  btnPing?.addEventListener('click', async () => {
-    try {
-      const url = buildURL('/customers/keyset?limit=1');
-      const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
-      toast(res.ok ? `Ping OK (${url})` : `Ping ${res.status}`);
-    } catch (e) {
-      toast(`Ping error: ${e?.message || e}`, false);
-    }
-  });
-
-  // First load
-  reloadFirst();
+  // first load
+  lp.reloadFirst();
 });
