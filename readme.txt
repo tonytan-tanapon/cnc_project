@@ -43,3 +43,11 @@ then
 
 alembic revision --autogenerate -m "add tables"
 alembic upgrade head
+
+
+install
+Clone
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements.txt
+runserver.bat 
