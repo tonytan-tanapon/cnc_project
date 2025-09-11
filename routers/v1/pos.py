@@ -183,29 +183,27 @@ def list_lines(po_id: int, db: Session = Depends(get_db)):
     if not po:
         raise HTTPException(404, "PO not found")
 
-    # list_lines()
     rows: List[POLine] = (
         db.query(POLine)
-        .options(joinedload(POLine.part), joinedload(POLine.rev))   # <- แก้ชื่อ attr
+        .options(joinedload(POLine.part), joinedload(POLine.rev))
         .filter(POLine.po_id == po_id)
         .order_by(POLine.id)
         .all()
     )
 
-
     out: List[PoLineOut] = []
     for r in rows:
-        amount = float(r.qty or 0) * float(r.unit_price or 0)
+        amount = float(r.qty_ordered or 0) * float(r.unit_price or 0)
         out.append(
             PoLineOut(
                 id=r.id,
                 po_id=r.po_id,
                 part=r.part,
-                revision=r.rev,          # <- ใช้ r.rev
-                qty=r.qty,
-                unit_price=r.unit_price,
+                revision=r.rev,
+                qty=float(r.qty_ordered or 0),
+                unit_price=float(r.unit_price or 0),
                 amount=amount,
-                note=r.note,
+                note=r.notes,
             )
         )
     return out
@@ -230,23 +228,25 @@ def create_line(po_id: int, payload: PoLineCreate, db: Session = Depends(get_db)
         po_id=po.id,
         part_id=part.id,
         revision_id=rev.id if rev else None,
-        qty=payload.qty,
+        qty_ordered=payload.qty,          # ✅ ใช้ qty_ordered
         unit_price=payload.unit_price,
-        note=payload.note,
+        notes=payload.note,               # ✅ ใช้ notes
+        # due_date=... (ถ้าจะรองรับในอนาคต)
     )
     db.add(line)
     db.commit()
     db.refresh(line)
-    amount = float(line.qty or 0) * float(line.unit_price or 0)
+
+    amount = float(line.qty_ordered or 0) * float(line.unit_price or 0)
     return PoLineOut(
         id=line.id,
         po_id=line.po_id,
         part=line.part,
-        revision=line.rev,           # <- ใช้ rev
-        qty=line.qty,
-        unit_price=line.unit_price,
+        revision=line.rev,
+        qty=float(line.qty_ordered or 0),
+        unit_price=float(line.unit_price or 0),
         amount=amount,
-        note=line.note,
+        note=line.notes,
     )
 
 @pos_router.patch("/{po_id}/lines/{line_id}", response_model=PoLineOut)
@@ -276,24 +276,24 @@ def update_line(po_id: int, line_id: int, payload: PoLineUpdate, db: Session = D
             line.revision_id = rev.id
 
     if payload.qty is not None:
-        line.qty = payload.qty
+        line.qty_ordered = payload.qty          # ✅
     if payload.unit_price is not None:
         line.unit_price = payload.unit_price
     if payload.note is not None:
-        line.note = payload.note
+        line.notes = payload.note               # ✅
 
     db.commit()
     db.refresh(line)
-    amount = float(line.qty or 0) * float(line.unit_price or 0)
+    amount = float(line.qty_ordered or 0) * float(line.unit_price or 0)
     return PoLineOut(
         id=line.id,
         po_id=line.po_id,
         part=line.part,
-        revision=line.revision,
-        qty=line.qty,
-        unit_price=line.unit_price,
+        revision=line.rev,                      # ✅ เดิมใช้ line.revision (ผิด attr)
+        qty=float(line.qty_ordered or 0),
+        unit_price=float(line.unit_price or 0),
         amount=amount,
-        note=line.note,
+        note=line.notes,
     )
 
 @pos_router.delete("/{po_id}/lines/{line_id}", status_code=204)

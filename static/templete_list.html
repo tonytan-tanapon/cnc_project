@@ -1,0 +1,48 @@
+<section id="page-widgets">
+  <h2 class="page-title">📦 Widgets</h2>
+
+  <div class="card">
+    <div class="toolbar" style="display:flex; gap:8px; align-items:center;">
+      <input id="w_q" placeholder="search code / name" style="flex:1;">
+      <button class="btn" id="w_reload" type="button">Reload</button>
+
+      <div style="margin-left:auto; display:flex; gap:8px; align-items:center;">
+        <label>Per page:
+          <select id="w_per_page">
+            <option>10</option><option selected>20</option><option>50</option><option>100</option>
+          </select>
+        </label>
+        <div class="pager" style="display:flex; gap:6px; align-items:center;">
+          <button class="btn-small" id="w_prev"  type="button">« Prev</button>
+          <span id="w_page_info"  class="muted">Page 1</span>
+          <button class="btn-small" id="w_next"  type="button">Next »</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="w_table" style="min-height:160px;"></div>
+
+    <div class="toolbar" style="display:flex; gap:8px; align-items:center; justify-content:flex-end; margin-top:8px;">
+      <button class="btn-small" id="w_prev2" type="button">« Prev</button>
+      <span id="w_page_info2" class="muted">Page 1</span>
+      <button class="btn-small" id="w_next2" type="button">Next »</button>
+    </div>
+  </div>
+
+  <div class="card" id="createCard" hidden>
+    <b>Create Widget</b>
+    <div class="grid" style="margin-top:8px">
+      <div class="col-3"><label>Code</label><input id="w_code"></div>
+      <div class="col-3"><label>Name</label><input id="w_name"></div>
+      <div class="col-3"><label>UoM</label><input id="w_uom" value="ea"></div>
+      <div class="col-3"><label>Status</label>
+        <select id="w_status"><option>active</option><option>inactive</option></select>
+      </div>
+      <div class="col-12"><label>Note</label><input id="w_note"></div>
+      <div class="col-12"><button class="btn" id="w_create" type="button">Create</button></div>
+    </div>
+  </div>
+
+  <button class="btn" id="btnToggleCreate" type="button">+ Add</button>
+</section>
+<script type="module" src="/static/js/page-widgets.js?v=1"></script>

@@ -9,10 +9,8 @@ const poId = qs.get('id');
 
 let original = null;            // สำหรับ Reset
 let selectedCustomer = null;    // { id, code, name } ที่เลือกจาก autocomplete
-const OPEN_PART_SUGGEST_ON_FOCUS = false;
 const customersDetailUrl = (id) =>
   `/static/customers-detail.html?id=${encodeURIComponent(id)}`;
-
 const partDetailUrl = (id) =>
   `/static/part-detail.html?id=${encodeURIComponent(id)}`;
 
@@ -34,8 +32,6 @@ function showHeaderEditor() {
   sec.hidden = false;
   $('btnHeaderEdit').textContent = 'Cancel';
   headerOpen = true;
-
-  dlog('showHeaderEditor');
 
   // attach autocomplete ให้ช่องลูกค้าตอนฟอร์มถูกแสดง (หลีกเลี่ยงปัญหาคำนวณตำแหน่งตอน hidden)
   const custInput = $('po_cust');
@@ -59,7 +55,6 @@ function hideHeaderEditor() {
   sec.hidden = true;
   $('btnHeaderEdit').textContent = 'Edit PO';
   headerOpen = false;
-  dlog('hideHeaderEditor');
 }
 
 /* ---------- helpers: customer fetch/resolve ---------- */
@@ -122,7 +117,20 @@ function fillFormBasic(po) {
 
 async function fillForm(po) {
   fillFormBasic(po);
-  const cust = await fetchCustomerById(po.customer_id);
+
+  // ใช้ข้อมูล customer ที่ backend ส่งมาใน PoOut (po.customer)
+  let cust = null;
+  if (po.customer) {
+    cust = {
+      id: po.customer.id,
+      code: (po.customer.code || '').toUpperCase(),
+      name: po.customer.name || '',
+    };
+  } else if (po.customer_id) {
+    // สำรอง: เผื่อรุ่นเก่ายังส่ง customer_id มา
+    cust = await fetchCustomerById(po.customer_id);
+  }
+
   selectedCustomer = cust;
   $('po_cust').value = cust ? `${cust.code}${cust.name ? ' - ' + cust.name : ''}` : '';
   updateCustomerLink(cust);
@@ -142,7 +150,7 @@ function setBusy(b) {
     const el = $(id);
     if (el) el.disabled = b;
   });
-  $('hint').textContent = b ? 'Working…' : '';
+  $('hint') && ($('hint').textContent = b ? 'Working…' : '');
 }
 
 /* ---------- Autocomplete Customer (detail header) ---------- */
@@ -318,8 +326,7 @@ function attachCustomerAutocomplete(input) {
 /* ---------- load / save / delete (PO header) ---------- */
 async function loadPO() {
   if (!poId) {
-    $('errorBox').style.display = '';
-    $('errorBox').textContent = 'Missing ?id= in URL';
+    $('errorBox') && ( $('errorBox').style.display = '', $('errorBox').textContent = 'Missing ?id= in URL' );
     setBusy(true);
     return;
   }
@@ -331,8 +338,7 @@ async function loadPO() {
     document.title = `PO · ${po.po_number ?? po.id}`;
     dlog('loadPO ok', po);
   } catch (e) {
-    $('errorBox').style.display = '';
-    $('errorBox').textContent = e?.message || 'Load failed';
+    $('errorBox') && ( $('errorBox').style.display = '', $('errorBox').textContent = e?.message || 'Load failed' );
     dlog('loadPO ERR', e);
   } finally {
     setBusy(false);
@@ -344,8 +350,8 @@ async function savePO() {
   dlog('savePO readForm', form);
 
   if (!form.customer_code) {
-    toast('กรุณาใส่ Customer Code', false);
-    $('po_cust').focus();
+    toast('Enter Customer Code', false);
+    $('po_cust')?.focus();
     return;
   }
 
@@ -353,7 +359,7 @@ async function savePO() {
   dlog('savePO customer_id', customer_id);
   if (!customer_id) {
     toast('ไม่พบลูกค้าจากรหัสที่กรอก', false);
-    $('po_cust').focus();
+    $('po_cust')?.focus();
     return;
   }
 
@@ -362,12 +368,23 @@ async function savePO() {
   setBusy(true);
   try {
     const updated = await jfetch(`/pos/${encodeURIComponent(poId)}`, {
-      method: 'PUT',
+      method: 'PATCH',
       body: JSON.stringify(payload),
     });
     original = updated;
 
-    const cust = await fetchCustomerById(updated.customer_id);
+    // ใช้ updated.customer (PoOut) เพื่อแสดงชื่อ/โค้ด
+    let cust = null;
+    if (updated.customer) {
+      cust = {
+        id: updated.customer.id,
+        code: (updated.customer.code || '').toUpperCase(),
+        name: updated.customer.name || '',
+      };
+    } else if (updated.customer_id) {
+      cust = await fetchCustomerById(updated.customer_id);
+    }
+
     selectedCustomer = cust;
     $('po_cust').value = cust ? `${cust.code}${cust.name ? ' - ' + cust.name : ''}` : form.customer_code;
     updateCustomerLink(cust);
@@ -428,20 +445,19 @@ async function loadLines() {
 
 function renderLines() {
   const tb = $('tblLinesBody');
+  if (!tb) return;
 
   const rows = editingLineId === 'new'
     ? [{ __isNew: true, id: null }].concat(poLines)
     : poLines.slice();
 
   if (!rows.length) {
-    tb.innerHTML = `<tr><td colspan="8" class="empty">No lines</td></tr>`; // 👈 colspan=8
+    tb.innerHTML = `<tr><td colspan="8" class="empty">No lines</td></tr>`;
     return;
   }
 
   tb.innerHTML = rows.map((row, idxInRows) => {
     // คำนวณเลขลำดับสำหรับแถวปัจจุบัน
-    // - ถ้าแถวแรกเป็น new: แถว new ไม่มีเลข, แถวถัดไปเริ่ม 1
-    // - ถ้าไม่มี new: เริ่ม 1 ตาม index ปกติ
     const displayNo = row.__isNew
       ? ''                       // แถว new ไม่แสดงเลข
       : (editingLineId === 'new' ? idxInRows : idxInRows + 1);
@@ -449,9 +465,9 @@ function renderLines() {
     const isEdit = editingLineId === row.id || (row.__isNew && editingLineId === 'new');
 
     if (!isEdit) {
-      const qty   = fmtQty(row.qty_ordered);
+      const qty   = fmtQty(row.qty);
       const price = fmtMoney(row.unit_price);
-      const due   = row.due_date ?? '';
+      const due   = row.due_date ?? ''; // อาจไม่มีใน schema → ว่างไว้
 
       const partId = (row.part?.id ?? row.part_id ?? null);
       const partNo = row.part?.part_no ?? (row.part_id ?? '');
@@ -459,18 +475,18 @@ function renderLines() {
         ? `<a href="${partDetailUrl(partId)}" class="link">${escapeHtml(String(partNo))}</a>`
         : `${escapeHtml(String(partNo))}`;
 
-      const rev   = row.rev?.rev ?? (row.revision_id ?? '');
-      const notes = escapeHtml(row.notes ?? '');
+      const revText = row.revision?.rev ?? (row.rev?.rev ?? (row.revision_id ?? ''));
+      const note = row.note ?? row.notes ?? '';
 
       return `
         <tr data-id="${row.id}">
-          <td class="no-col" style="text-align:right">${escapeHtml(String(displayNo))}</td>   <!-- 👈 No. -->
+          <td class="no-col" style="text-align:right">${escapeHtml(String(displayNo))}</td>
           <td>${partNoCell}</td>
-          <td>${escapeHtml(String(rev))}</td>
+          <td>${escapeHtml(String(revText ?? ''))}</td>
           <td style="text-align:right">${qty}</td>
           <td style="text-align:right">${price}</td>
           <td>${escapeHtml(due)}</td>
-          <td>${notes}</td>
+          <td>${escapeHtml(note)}</td>
           <td style="text-align:right; white-space:nowrap">
             <button class="btn ghost btn-sm" data-edit="${row.id}">Edit</button>
             <button class="btn danger btn-sm" data-del="${row.id}">Delete</button>
@@ -479,24 +495,25 @@ function renderLines() {
     } else {
       const rid = row.__isNew ? 'new' : row.id;
       const partNo = row.part?.part_no ?? '';
-      const rev = row.rev?.rev ?? '';
-      const qty = row.qty_ordered ?? '';
+      const revText = row.revision?.rev ?? row.rev?.rev ?? '';
+      const qty = row.qty ?? '';
       const price = row.unit_price ?? '';
       const due = row.due_date ?? '';
-      const notes = row.notes ?? '';
+      const note = row.note ?? row.notes ?? '';
       const partId = (row.part_id ?? row.part?.id) ?? '';
-      const revisionId = (row.revision_id ?? row.rev?.id) ?? '';
+      const revisionId = (row.revision_id ?? row.revision?.id ?? row.rev?.id) ?? '';
 
       return `
         <tr data-id="${row.id ?? ''}" data-editing="1">
-          <td class="no-col" style="text-align:right">${escapeHtml(String(displayNo))}</td>   <!-- 👈 No. -->
+          <td class="no-col" style="text-align:right">${escapeHtml(String(displayNo))}</td>
           <td>
             <input id="r_part_code_${rid}" value="${escapeHtml(partNo)}" placeholder="e.g. P-10001" />
             <input id="r_part_id_${rid}" type="hidden" value="${escapeHtml(String(partId))}">
           </td>
           <td>
-            <input id="r_rev_${rid}" value="${escapeHtml(String(rev))}" list="revOptions_${rid}" placeholder="e.g. A" />
-            <datalist id="revOptions_${rid}"></datalist>
+            <select id="r_rev_select_${rid}" disabled>
+              <option value="">— Select revision —</option>
+            </select>
             <input id="r_revision_id_${rid}" type="hidden" value="${escapeHtml(String(revisionId))}">
           </td>
           <td style="text-align:right">
@@ -509,7 +526,7 @@ function renderLines() {
             <input id="r_due_${rid}" type="date" value="${escapeHtml(String(due))}">
           </td>
           <td>
-            <input id="r_notes_${rid}" value="${escapeHtml(String(notes))}">
+            <input id="r_notes_${rid}" value="${escapeHtml(String(note))}">
           </td>
           <td style="text-align:right; white-space:nowrap">
             <button class="btn btn-sm" data-save="${rid}">Save</button>
@@ -536,68 +553,33 @@ function renderLines() {
     b.addEventListener('click', cancelEdit);
   });
 
-  // ---- autocomplete + rev list สำหรับแถวที่กำลังแก้ไข ----
+  // ---- autocomplete + rev dropdown สำหรับแถวที่กำลังแก้ไข ----
   if (editingLineId != null) {
     const rid = editingLineId;
+
+    // ซิงก์ select → hidden id
+    const sel = $(`r_rev_select_${rid}`);
+    sel?.addEventListener('change', () => {
+      $(`r_revision_id_${rid}`).value = sel.value || '';
+    });
+
     const partInputEl = $(`r_part_code_${rid}`);
     if (partInputEl) attachRowPartAutocomplete(rid, partInputEl);
 
     if (rid !== 'new') {
       const rowData = poLines.find(x => x.id === Number(rid));
       const partIdCandidate = (rowData?.part_id ?? rowData?.part?.id) ?? null;
-      const prevRevId = (rowData?.revision_id ?? rowData?.rev?.id) ?? null;
-      const prevRevText = rowData?.rev?.rev ?? '';
+      const prevRevId = (rowData?.revision_id ?? rowData?.revision?.id ?? rowData?.rev?.id) ?? null;
+      const prevRevText = (rowData?.revision?.rev ?? rowData?.rev?.rev) ?? '';
 
       if (partIdCandidate) {
-        loadRevisionsForInto(partIdCandidate, rid).then(() => {
-          if (prevRevId) {
-            const dl = $(`revOptions_${rid}`);
-            const match = [...(dl?.children || [])].find(o => (o.getAttribute('data-id') || '') === String(prevRevId));
-            if (match) {
-              $(`r_rev_${rid}`).value = match.value;
-              $(`r_revision_id_${rid}`).value = String(prevRevId);
-              return;
-            }
-          }
-          if (prevRevText) {
-            const dl = $(`revOptions_${rid}`);
-            const opt = [...(dl?.children || [])].find(o => (o.value || '') === String(prevRevText));
-            if (opt) {
-              $(`r_rev_${rid}`).value = opt.value;
-              $(`r_revision_id_${rid}`).value = opt.getAttribute('data-id') || '';
-              return;
-            }
-          }
-        });
+        loadRevisionsForInto(partIdCandidate, rid, { preferId: prevRevId, preferText: prevRevText });
+      } else {
+        resetRevChoicesInto(rid);
       }
     }
-
-    const revInput = $(`r_rev_${rid}`);
-    revInput?.addEventListener('change', () => {
-      const dl = $(`revOptions_${rid}`);
-      let matchId = '';
-      if (dl) {
-        const opt = [...dl.children].find(o => o.value === revInput.value.trim());
-        if (opt) matchId = opt.getAttribute('data-id') || '';
-      }
-      $(`r_revision_id_${rid}`).value = matchId;
-    });
-
-    revInput?.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        const dl = $(`revOptions_${rid}`);
-        if (!dl) return;
-        const opt = [...dl.children].find(o => o.value === revInput.value.trim());
-        if (opt) {
-          $(`r_revision_id_${rid}`).value = opt.getAttribute('data-id') || '';
-          e.preventDefault();
-          $(`r_qty_${rid}`)?.focus();
-        }
-      }
-    });
   }
 }
-
 
 function startEdit(id) {
   if (editingLineId != null) { cancelEdit(); }
@@ -605,25 +587,13 @@ function startEdit(id) {
   dlog('startEdit', id);
   renderLines();
 }
+
 function startAddLine() {
   if (editingLineId != null) { cancelEdit(); }
   editingLineId = 'new';
   dlog('startAddLine');
   renderLines();
-  // $(`r_part_code_new`)?.focus();
 }
-// function startAddLine() {
-//   if (editingLineId != null) { cancelEdit(); }
-//   editingLineId = 'new';
-//   renderLines();
-//   const el = $(`r_part_code_new`);
-//   if (el) {
-//     el.focus(); 
-//     // ไม่เรียก suggest ใด ๆ ที่นี่
-//   }
-// }
-
-
 
 function cancelEdit() {
   dlog('cancelEdit');
@@ -633,49 +603,68 @@ function cancelEdit() {
 
 async function saveLineInline(rid) {
   const isNew = rid === 'new';
-  const payload = {
-    part_id: numOrNull($(`r_part_id_${rid}`).value),
-    revision_id: numOrNull($(`r_revision_id_${rid}`).value),
-    part_code: strOrNull($(`r_part_code_${rid}`).value),
-    rev: strOrNull($(`r_rev_${rid}`).value),
-    qty_ordered: numOrNull($(`r_qty_${rid}`).value),
-    unit_price: numOrNull($(`r_price_${rid}`).value),
-    due_date: strOrNull($(`r_due_${rid}`).value),
-    notes: strOrNull($(`r_notes_${rid}`).value),
-  };
-  dlog('saveLineInline payload', { rid, isNew, payload });
 
-  if (!payload.part_id && !payload.part_code) {
+  const revSel = $(`r_rev_select_${rid}`);
+  // อ่านค่าแบบเดิม
+  let payload = {
+    part_id:     numOrNull($(`r_part_id_${rid}`).value),
+    revision_id: numOrNull(revSel?.value || $(`r_revision_id_${rid}`).value),
+    qty:         numOrNull($(`r_qty_${rid}`).value),
+    unit_price:  numOrNull($(`r_price_${rid}`).value),
+    note:        strOrNull($(`r_notes_${rid}`).value),
+    // อย่าใส่ due_date ถ้า backend ยังไม่รองรับ
+  };
+
+  // guard เบื้องต้น
+  if (!payload.part_id) {
     toast('Enter Part No', false);
     return;
   }
+  if (payload.revision_id && !payload.part_id) {
+    toast('เลือก Part ก่อน แล้วค่อยเลือก Revision', false);
+    return;
+  }
+
+  // 🧹 Normalize: อย่าส่ง null ให้ฟิลด์ที่ schema คาดว่าเป็น number
+  if (payload.qty == null)          delete payload.qty;         // ให้ backend ใช้ default=1
+  if (payload.unit_price == null)   delete payload.unit_price;  // ให้ backend ใช้ default=0
+  if (payload.revision_id == null)  delete payload.revision_id; // Optional อยู่แล้ว
+  if (payload.note == null)         delete payload.note;        // ว่างก็ไม่ต้องส่ง
+
+  // (ถ้าอยาก fix ค่าที่นี่ก็ได้)
+  // payload.qty ??= 1;
+  // payload.unit_price ??= 0;
+
+  dlog('saveLineInline payload(normalized)', { rid, isNew, payload });
 
   try {
     if (isNew) {
       const created = await jfetch(`/pos/${encodeURIComponent(poId)}/lines`, {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' }, // กันพลาด header
         body: JSON.stringify(payload),
       });
       poLines.unshift(created);
       toast('Line added');
-      dlog('saveLineInline created', created);
     } else {
       const updated = await jfetch(`/pos/${encodeURIComponent(poId)}/lines/${rid}`, {
-        method: 'PUT',
+        method: 'PATCH', // ให้ตรง backend
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
       const idx = poLines.findIndex(x => x.id === Number(rid));
       if (idx >= 0) poLines[idx] = updated;
       toast('Line updated');
-      dlog('saveLineInline updated', updated);
     }
     editingLineId = null;
     renderLines();
   } catch (e) {
-    toast(e?.message || 'Save failed', false);
+    // ช่วย debug 422: แสดงรายละเอียด error จาก FastAPI (ถ้า jfetch โยนมา)
     dlog('saveLineInline ERR', e);
+    toast(e?.message || 'Save failed', false);
   }
 }
+
 
 async function deleteLine(id) {
   if (!confirm('Delete this line?')) return;
@@ -753,8 +742,6 @@ function renderPartAc(list) {
   box.style.display = '';
 }
 
-// 1) แทนที่ฟังก์ชัน fetchPartSuggest เดิมทั้งหมดด้วยเวอร์ชันนี้
-// รองรับทั้ง response เป็น array และแบบมี {items, total, ...}
 function normalizeItems(resp) {
   if (Array.isArray(resp)) return resp;
   if (resp && typeof resp === 'object') return resp.items || [];
@@ -763,7 +750,6 @@ function normalizeItems(resp) {
 
 const fetchPartSuggest = debounce(async (term) => {
   try {
-    // ขอแบบมีหน้าให้ชัด (กัน backend คืนมาเยอะเกิน)
     const url = !term || term.trim().length === 0
       ? `/parts?page=1&per_page=10`
       : `/parts?q=${encodeURIComponent(term)}&page=1&per_page=20`;
@@ -783,7 +769,10 @@ const fetchPartSuggest = debounce(async (term) => {
   }
 }, 220);
 
-// 2) ใน attachRowPartAutocomplete ให้เรียก fetchPartSuggest แม้ term ว่างตอน focus
+// token สำหรับโหลด revisions (กัน race) + จำว่า list นี้สัมพันธ์กับ part ไหน
+const revFetchToken = {};   // map: rid -> running token
+const revListPartId = {};   // map: rid -> part_id ล่าสุดที่ใช้โหลด rev
+
 function attachRowPartAutocomplete(rid, input) {
   currentPartRid = rid;
   partInput = input;
@@ -793,13 +782,13 @@ function attachRowPartAutocomplete(rid, input) {
     const term = (input.value || '').trim();
     $(`r_part_id_${rid}`).value = '';
     resetRevChoicesInto(rid);
-    fetchPartSuggest(term);               // <-- จะดึงล่าสุด 10 ถ้า term ว่าง
+    fetchPartSuggest(term);               // ดึงล่าสุด 10 ถ้า term ว่าง
     ensurePartBox(); positionPartBox(input);
   });
 
   input.addEventListener('focus', () => {
     const term = (input.value || '').trim();
-    fetchPartSuggest(term);               // <-- โชว์ล่าสุด 10 ตอนเพิ่งโฟกัส
+    fetchPartSuggest(term);               // โชว์ล่าสุด 10 ตอนเพิ่งโฟกัส
     ensurePartBox(); positionPartBox(input);
   });
 
@@ -821,61 +810,109 @@ async function choosePartForRow(rid, idx) {
 
   $(`r_part_code_${rid}`).value = pn;
   $(`r_part_id_${rid}`).value   = p.id;
+
+  // เตรียม dropdown rev
+  const sel = $(`r_rev_select_${rid}`);
+  if (sel) {
+    sel.disabled = true;
+    sel.innerHTML = `<option value="">Loading…</option>`;
+  }
+
   hidePartAc();
-  await loadRevisionsForInto(p.id, rid);
+  await loadRevisionsForInto(p.id, rid);   // auto pick current/first
 }
 
 function resetRevChoicesInto(rid) {
-  const dl = $(`revOptions_${rid}`);
-  if (dl) dl.innerHTML = '';
-  const revInput = $(`r_rev_${rid}`);
-  if (revInput) revInput.value = '';
-  const h = $(`r_revision_id_${rid}`);
-  if (h) h.value = '';
+  const sel = $(`r_rev_select_${rid}`);
+  const hid = $(`r_revision_id_${rid}`);
+  if (sel) {
+    sel.disabled = true;
+    sel.innerHTML = `<option value="">— Select revision —</option>`;
+  }
+  if (hid) hid.value = '';
   dlog('resetRevChoicesInto', rid);
 }
 
-/* ========= FIXED: ใช้ /part-revisions?part_id=... ตาม backend ========= */
+/* ========= ใช้ /part-revisions?part_id=... ========= */
+/* ========= Robust: โหลด revisions แบบลอง 2 endpoint ========= */
 async function fetchPartRevisions(partId) {
-  const url = `/part-revisions?part_id=${encodeURIComponent(partId)}`;
-  const data = await jfetch(url); // FastAPI ของคุณกำหนด response_model=List[PartRevisionOut]
-  // data = [{id, part_id, rev, is_current, ...}]
-  const rows = (Array.isArray(data) ? data : []).map(r => ({
-    id: r.id,
-    rev: r.rev,
-    is_current: !!r.is_current,
-  }));
-  dlog('fetchPartRevisions OK', { url, count: rows.length });
-  return rows;
+  // ถ้า jfetch ของคุณ “ไม่” เติม /api/v1 ให้อัตโนมัติ → เปลี่ยนเป็น '/api/v1/part-revisions...' และ '/api/v1/parts/.../revisions'
+  const tryEndpoints = [
+    `/part-revisions?part_id=${encodeURIComponent(partId)}`,   // แบบที่ 1
+    `/parts/${encodeURIComponent(partId)}/revisions`,          // แบบที่ 2
+  ];
+
+  for (const url of tryEndpoints) {
+    try {
+      const data = await jfetch(url);
+      // รองรับทั้ง array ตรง ๆ และ {items:[...]}
+      const arr = Array.isArray(data) ? data : (data?.items || []);
+      if (Array.isArray(arr)) {
+        const rows = arr.map(r => ({
+          id: r.id,
+          rev: r.rev || r.revision || r.code || '',   // กันกรณี field ชื่อไม่ตรง
+          is_current: !!(r.is_current ?? r.current ?? r.active),
+        }));
+        if (rows.length || url.includes('/revisions')) {
+          dlog('fetchPartRevisions OK', { url, count: rows.length });
+          return rows;
+        }
+      }
+    } catch (e) {
+      dlog('fetchPartRevisions FAIL', { url, err: e?.message || e });
+    }
+  }
+  return [];
 }
 
-async function loadRevisionsForInto(partId, rid) {
-  try {
-    const revs = await fetchPartRevisions(partId);
-    const dl = $(`revOptions_${rid}`);
-    if (!dl) return;
 
-    dl.innerHTML = revs
-      .map(r => `<option value="${escapeHtml(r.rev)}" data-id="${r.id}"></option>`)
+async function loadRevisionsForInto(partId, rid, opts = {}) {
+  // opts: { preferId?: number|null, preferText?: string|null }
+  revFetchToken[rid] = (revFetchToken[rid] || 0) + 1;
+  const myToken = revFetchToken[rid];
+
+  const sel = $(`r_rev_select_${rid}`);
+  const hid = $(`r_revision_id_${rid}`);
+  if (!sel || !hid) return;
+
+  // UI: loading
+  sel.disabled = true;
+  sel.innerHTML = `<option value="">Loading…</option>`;
+  hid.value = '';
+
+  try {
+    const revs = await fetchPartRevisions(partId); // [{id, rev, is_current}]
+    if (myToken !== revFetchToken[rid]) return; // โดนรีเฟรชทับแล้ว
+
+    // เติมตัวเลือก
+    sel.innerHTML = [`<option value="">— No revision —</option>`]
+      .concat(revs.map(r => `<option value="${r.id}">${escapeHtml(r.rev)}</option>`))
       .join('');
 
-    const current = revs.find(r => r.is_current);
-    if (current) {
-      $(`r_rev_${rid}`).value = current.rev;
-      $(`r_revision_id_${rid}`).value = current.id;
-      dlog('loadRevisionsForInto -> current', { rid, partId, current });
-    } else if (revs.length > 0) {
-      $(`r_rev_${rid}`).value = revs[0].rev;
-      $(`r_revision_id_${rid}`).value = revs[0].id;
-      dlog('loadRevisionsForInto -> first', { rid, partId, first: revs[0] });
+    sel.disabled = false;
+    revListPartId[rid] = partId;
+
+    // เลือก default: preferId > preferText > current > first > none
+    let chosenId = null;
+
+    if (opts.preferId && revs.some(r => r.id === opts.preferId)) {
+      chosenId = String(opts.preferId);
+    } else if (opts.preferText) {
+      const found = revs.find(r => String(r.rev) === String(opts.preferText));
+      if (found) chosenId = String(found.id);
     } else {
-      $(`r_rev_${rid}`).value = '';
-      $(`r_revision_id_${rid}`).value = '';
-      dlog('loadRevisionsForInto -> empty list', { rid, partId });
+      const cur = revs.find(r => r.is_current);
+      if (cur) chosenId = String(cur.id);
+      else if (revs[0]) chosenId = String(revs[0].id);
     }
+
+    sel.value = chosenId ?? '';
+    hid.value = sel.value || '';
   } catch (e) {
-    resetRevChoicesInto(rid);
-    dlog('loadRevisionsForInto ERR', { partId, rid, err: e });
+    // fail → เคลียร์เป็น none
+    sel.disabled = false;
+    sel.innerHTML = `<option value="">— No revision —</option>`;
+    hid.value = '';
   }
 }
 

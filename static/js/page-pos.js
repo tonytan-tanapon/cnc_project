@@ -169,7 +169,7 @@ btnCreate?.addEventListener('click', async () => {
     if (!cust) cust = await resolveCustomerIfNeeded();
 
     if (!cust?.id) {
-      toast('เลือก Customer จากลิสต์ก่อนครับ', false);
+      toast('Select Customer !!', false);
       poCustEl?.focus();
       return;
     }
