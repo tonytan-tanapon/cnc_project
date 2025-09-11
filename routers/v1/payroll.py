@@ -191,9 +191,11 @@ def list_pay_rates(
     latest_only: bool = False,
     db: Session = Depends(get_db),
 ):
+    # print("Hello")
     q = db.query(PayRate)
     if employee_id is not None:
         q = q.filter(PayRate.employee_id == employee_id)
+        # q = q.filter(PayRate.status == "active")
 
     if as_of is not None:
         # ถ้าต้องการรายการเดียวที่มีผล ณ เวลา as_of (latest_only)

@@ -23,6 +23,9 @@ const poDescEl    = $('po_desc');
 const btnCreate   = $('po_create');
 
 const state = { page: 1, pageSize: Number(selPerPage?.value || 20), q: '', total: 0, items: [] };
+// page-pos.js (top or near your config)
+const OPEN_CUSTOMER_SUGGEST_ON_FOCUS = false;  // true = show first 10 on focus
+const MIN_CHARS_FOR_CUSTOMER = 2;              // require 2 chars before searching
 
 /* ===================== Autocomplete (Customer) ===================== */
 let selectedCustomer = null; // { id, code, name }

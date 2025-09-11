@@ -604,51 +604,57 @@ function cancelEdit() {
 async function saveLineInline(rid) {
   const isNew = rid === 'new';
 
+  const partId = numOrNull($(`r_part_id_${rid}`).value);
   const revSel = $(`r_rev_select_${rid}`);
-  // อ่านค่าแบบเดิม
-  let payload = {
-    part_id:     numOrNull($(`r_part_id_${rid}`).value),
-    revision_id: numOrNull(revSel?.value || $(`r_revision_id_${rid}`).value),
-    qty:         numOrNull($(`r_qty_${rid}`).value),
-    unit_price:  numOrNull($(`r_price_${rid}`).value),
-    note:        strOrNull($(`r_notes_${rid}`).value),
-    // อย่าใส่ due_date ถ้า backend ยังไม่รองรับ
+  const revHidden = $(`r_revision_id_${rid}`);
+  const revRaw = (revSel?.value || revHidden?.value || '').trim();
+  const revId = numOrNull(revRaw);
+
+  // Build base payload
+  const payload = {
+    part_id: partId,
+    qty:        numOrNull($(`r_qty_${rid}`).value),
+    unit_price: numOrNull($(`r_price_${rid}`).value),
+    note:       strOrNull($(`r_notes_${rid}`).value),
   };
 
-  // guard เบื้องต้น
+  // Guard: must have part
   if (!payload.part_id) {
     toast('Enter Part No', false);
     return;
   }
-  if (payload.revision_id && !payload.part_id) {
-    toast('เลือก Part ก่อน แล้วค่อยเลือก Revision', false);
-    return;
+
+  // ✅ Only include revision_id when it matches the same part used to populate the dropdown
+  const partIdForRev = revListPartId[rid]; // set by loadRevisionsForInto
+  if (revId && partIdForRev === partId) {
+    payload.revision_id = revId;
+  } else if (revId && partIdForRev !== partId) {
+    // Early fix: clear mismatched revision before sending
+    {
+  const hid = $(`r_revision_id_${rid}`);
+  if (hid) hid.value = '';
+}
+    if (revSel) revSel.value = '';
+    toast('Revision cleared: it didn’t belong to the selected part.', false);
   }
 
-  // 🧹 Normalize: อย่าส่ง null ให้ฟิลด์ที่ schema คาดว่าเป็น number
-  if (payload.qty == null)          delete payload.qty;         // ให้ backend ใช้ default=1
-  if (payload.unit_price == null)   delete payload.unit_price;  // ให้ backend ใช้ default=0
-  if (payload.revision_id == null)  delete payload.revision_id; // Optional อยู่แล้ว
-  if (payload.note == null)         delete payload.note;        // ว่างก็ไม่ต้องส่ง
-
-  // (ถ้าอยาก fix ค่าที่นี่ก็ได้)
-  // payload.qty ??= 1;
-  // payload.unit_price ??= 0;
-
-  dlog('saveLineInline payload(normalized)', { rid, isNew, payload });
+  // Normalize: remove nulls so backend can apply defaults
+  if (payload.qty == null)        delete payload.qty;
+  if (payload.unit_price == null) delete payload.unit_price;
+  if (payload.note == null)       delete payload.note;
 
   try {
     if (isNew) {
       const created = await jfetch(`/pos/${encodeURIComponent(poId)}/lines`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' }, // กันพลาด header
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
       poLines.unshift(created);
       toast('Line added');
     } else {
       const updated = await jfetch(`/pos/${encodeURIComponent(poId)}/lines/${rid}`, {
-        method: 'PATCH', // ให้ตรง backend
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
@@ -659,26 +665,23 @@ async function saveLineInline(rid) {
     editingLineId = null;
     renderLines();
   } catch (e) {
-    // ช่วย debug 422: แสดงรายละเอียด error จาก FastAPI (ถ้า jfetch โยนมา)
+    // If backend says the revision doesn't belong, clear it and prompt the user
+    const msg = String(e?.message || '').toLowerCase();
+    if (msg.includes('revision_id does not belong') || msg.includes('belongs to part')) {
+      {
+  const hid = $(`r_revision_id_${rid}`);
+  if (hid) hid.value = '';
+}
+      if (revSel) revSel.value = '';
+      toast('Selected revision doesn’t belong to this part. Revision cleared — try saving again.', false);
+    } else {
+      toast(e?.message || 'Save failed', false);
+    }
     dlog('saveLineInline ERR', e);
-    toast(e?.message || 'Save failed', false);
   }
 }
 
 
-async function deleteLine(id) {
-  if (!confirm('Delete this line?')) return;
-  try {
-    await jfetch(`/pos/${encodeURIComponent(poId)}/lines/${id}`, { method: 'DELETE' });
-    poLines = poLines.filter(x => x.id !== id);
-    renderLines();
-    toast('Line deleted');
-    dlog('deleteLine ok', id);
-  } catch (e) {
-    toast(e?.message || 'Delete failed', false);
-    dlog('deleteLine ERR', e);
-  }
-}
 
 /* ---- Autocomplete Part / Rev (inline row) ---- */
 let partAcBox, partItems = [], partActive = -1, partInput;
@@ -830,6 +833,8 @@ function resetRevChoicesInto(rid) {
     sel.innerHTML = `<option value="">— Select revision —</option>`;
   }
   if (hid) hid.value = '';
+  // 🔒 also clear the part id that last populated this rev list (prevents stale association)
+  revListPartId[rid] = undefined;
   dlog('resetRevChoicesInto', rid);
 }
 

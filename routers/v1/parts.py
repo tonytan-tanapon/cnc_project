@@ -11,13 +11,19 @@ from models import Part, PartRevision
 
 parts_router = APIRouter(prefix="/parts", tags=["parts"])
 
+from utils.code_generator import next_code
+
+@parts_router.get("/next-code")
+def get_next_part_code(prefix: str = "P", width: int = 5, db: Session = Depends(get_db)):
+    return {"next_code": next_code(db, Part, "part_no", prefix=prefix, width=width)}
+
 # ---------------- Schemas (API ใช้ชื่อ uom/description/status) ----------------
 class PartCreate(BaseModel):
-    part_no: str
+    part_no: str | None = None          # ⬅️ allow autogen
     name: Optional[str] = None
-    uom: Optional[str] = None            # -> map to model.default_uom
-    description: str = ""                # -> model.description
-    status: Optional[str] = "active"     # -> model.status
+    uom: Optional[str] = None           # -> model.default_uom
+    description: str = ""               # -> model.description
+    status: Optional[str] = "active"    # -> model.status
 
 class PartUpdate(BaseModel):
     part_no: Optional[str] = None
@@ -107,23 +113,45 @@ def list_parts(
     data = [to_part_out(p, include_revs=include_revs) for p in items]
     return {"items": data, "total": total, "page": page, "page_size": page_size}
 
+from sqlalchemy.exc import IntegrityError
+
 @parts_router.post("/", response_model=PartOut, status_code=201)
 def create_part(payload: PartCreate, db: Session = Depends(get_db)):
+    raw = (payload.part_no or "").strip().upper()
+    autogen = raw in ("", "AUTO", "AUTOGEN")
+
+    # choose your default format here
+    code = next_code(db, Part, "part_no", prefix="P", width=5) if autogen else raw
+
+    # quick existence check (nice error if client supplied duplicate)
+    if not autogen and db.query(Part).filter(Part.part_no == code).first():
+        raise HTTPException(409, "Duplicate part_no")
+
     p = Part(
-        part_no=payload.part_no,
+        part_no=code,
         name=payload.name,
         description=payload.description,
         default_uom=payload.uom or "ea",
         status=payload.status or "active",
     )
-    db.add(p)
-    try:
-        db.commit()
-    except IntegrityError:
-        db.rollback()
-        raise HTTPException(409, "Duplicate part_no")
-    db.refresh(p)
-    return to_part_out(p)
+
+    for _ in range(3):
+        try:
+            db.add(p)
+            db.commit()
+            db.refresh(p)
+            return to_part_out(p)
+        except IntegrityError:
+            db.rollback()
+            if autogen:
+                # regenerate and try again
+                p.part_no = next_code(db, Part, "part_no", prefix="P", width=5)
+            else:
+                # user-supplied duplicate
+                raise HTTPException(409, "Duplicate part_no")
+
+    # if we somehow failed 3 times
+    raise HTTPException(500, "Failed to generate unique part_no")
 
 @parts_router.get("/{part_id}", response_model=PartOut)
 def get_part(part_id: int, db: Session = Depends(get_db)):

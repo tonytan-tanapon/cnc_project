@@ -42,6 +42,21 @@ const state = {
   total: 0,
   items: [],
 };
+const AUTO_MAGIC = 'AUTO';
+
+async function peekNextPartNo() {
+  try {
+    const res = await jfetch('/parts/next-code'); // { next_code: "P00001", ... }
+    // if (inNo && !inNo.value) {
+    //   inNo.placeholder = res?.next_code || '';
+    // }
+    if (inNo && !inNo.value) {
+      inNo.value = res?.next_code || '';
+    }
+  } catch (_) {
+    // ignore
+  }
+}
 
 /* ---------- pager utils ---------- */
 function computeTotalPages() {
@@ -143,13 +158,12 @@ async function load() {
 
 /* ---------- create ---------- */
 async function createPart() {
-  const part_no = inNo?.value?.trim().toUpperCase();
+  const raw_no = inNo?.value?.trim().toUpperCase();
+  const part_no = raw_no || AUTO_MAGIC;   // ⬅️ if blank → "AUTO" for backend autogen
   const name = inName?.value?.trim() || null;
   const description = inDesc?.value?.trim() || '';
   const uom = inUom?.value?.trim() || null;
   const status = inStat?.value || 'active';
-
-  if (!part_no) { toast('Part No. required', false); inNo?.focus(); return; }
 
   try {
     await jfetch('/parts', {
@@ -157,9 +171,13 @@ async function createPart() {
       body: JSON.stringify({ part_no, name, description, uom, status }),
     });
     toast('Created');
+
     // clear inputs
     [inNo, inName, inDesc, inUom].forEach(el => el && (el.value = ''));
     if (inStat) inStat.value = 'active';
+
+    // refresh placeholder with the next number
+    await peekNextPartNo();
 
     // reload list from first page
     state.page = 1;
@@ -168,6 +186,7 @@ async function createPart() {
     toast(e?.message || 'Create failed', false);
   }
 }
+
 
 /* ---------- bindings ---------- */
 inputSearch?.addEventListener('input', debounce(() => {
@@ -224,5 +243,11 @@ btnCreate?.addEventListener('click', createPart);
 /* ---------- boot ---------- */
 document.addEventListener('DOMContentLoaded', () => {
   initTopbar?.();
+  peekNextPartNo();       // ⬅️ show next code as placeholder on load
   load();
+});
+
+// Optional: refresh placeholder when focusing the field if it’s still empty
+inNo?.addEventListener('focus', () => {
+  if (!inNo.value?.trim()) peekNextPartNo();
 });

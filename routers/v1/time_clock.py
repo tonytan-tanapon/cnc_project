@@ -461,17 +461,44 @@ def kiosk_stop_break(payload: KioskStopBreakPayload, db: Session = Depends(get_d
 # ============================================================
 # List / Get (no auth)
 # ============================================================
+
+
+@timeclock_router.get("/pay-periods/{pp_id}/employees")
+def employees_in_pay_period(pp_id: int, db: Session = Depends(get_db)):
+    rows = (
+        db.query(
+            Employee.id.label("employee_id"),
+            Employee.emp_code,
+            Employee.name,
+            func.sum(TimeEntry.clock_out_at - TimeEntry.clock_in_at).label("total_hours"),
+            func.count(TimeEntry.id).label("entry_count"),
+        )
+        .join(TimeEntry, TimeEntry.employee_id == Employee.id)
+        .filter(TimeEntry.pay_period_id == pp_id)
+        .filter(Employee.status == "active")   # 🔑 enforce here
+        .group_by(Employee.id, Employee.emp_code, Employee.name)
+        .all()
+    )
+    return [dict(r._mapping) for r in rows]
+
+
 @timeclock_router.get("", summary="List time entries (optional range filter)")
 def list_time_entries(
     db: Session = Depends(get_db),
     employee_id: Optional[int] = Query(default=None),
     start_at: Optional[datetime] = Query(default=None, description="clock_in_at >= start_at"),
     end_at: Optional[datetime] = Query(default=None, description="clock_in_at < end_at (exclusive)"),
+    status: Optional[str] = Query(default="active", description="Employee status filter (default=active)"),
 ) -> List[dict]:
     q = (
         db.query(TimeEntry)
+          .join(TimeEntry.employee)
           .options(joinedload(TimeEntry.employee), joinedload(TimeEntry.breaks))
     )
+    if status:
+        q = q.filter(Employee.status == status.lower())
+
+    print(q)
     if employee_id is not None:
         q = q.filter(TimeEntry.employee_id == employee_id)
     if start_at is not None:
@@ -481,6 +508,37 @@ def list_time_entries(
     q = q.order_by(TimeEntry.clock_in_at.asc(), TimeEntry.id.asc())
     rows = q.all()
     return [_serialize_time_entry(te) for te in rows]
+
+
+
+# @timeclock_router.get("", summary="List time entries (optional range filter)")
+# def list_time_entries(
+#     db: Session = Depends(get_db),
+#     employee_id: Optional[int] = Query(default=None),
+#     start_at: Optional[datetime] = Query(default=None, description="clock_in_at >= start_at"),
+#     end_at: Optional[datetime] = Query(default=None, description="clock_in_at < end_at (exclusive)"),
+#     status: Optional[str] = Query(default="active", description="Employee status filter (default=active)"),
+# ) -> List[dict]:
+#     q = (
+#         db.query(TimeEntry)
+#           .join(TimeEntry.employee)  # 🔑 join Employee so we can filter on status
+#           .options(joinedload(TimeEntry.employee), joinedload(TimeEntry.breaks))
+#     )
+
+#     # filter by employee status
+#     if status:
+#         q = q.filter(Employee.status == status.lower())
+
+#     if employee_id is not None:
+#         q = q.filter(TimeEntry.employee_id == employee_id)
+#     if start_at is not None:
+#         q = q.filter(TimeEntry.clock_in_at >= start_at)
+#     if end_at is not None:
+#         q = q.filter(TimeEntry.clock_in_at < end_at)
+
+#     q = q.order_by(TimeEntry.clock_in_at.asc(), TimeEntry.id.asc())
+#     rows = q.all()
+#     return [_serialize_time_entry(te) for te in rows]
 
 @timeclock_router.get("/range", summary="List time entries by range (alias)")
 def list_time_entries_range(
@@ -515,3 +573,5 @@ def get_time_entry(time_entry_id: int, db: Session = Depends(get_db)) -> dict:
     if not te:
         raise HTTPException(404, "TimeEntry not found")
     return _serialize_time_entry(te)
+
+

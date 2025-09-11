@@ -40,9 +40,66 @@ def _to_utc_date(dt) -> Optional[str]:
 # 1) รายชื่อพนักงานในช่วง Pay Period + ชั่วโมงสุทธิ & จำนวนรายการ
 #    GET /payroll/pay-periods/{pp_id}/employees
 # ============================================================
+# @router.get("/pay-periods/{pp_id}/employees")
+# def employees_in_pay_period(
+#     pp_id: int,
+#     db: Session = Depends(get_db),
+# ):
+#     """
+#     คืน list ของพนักงานที่มี time entries อยู่ใน pay period นี้
+#     พร้อม total_hours (สุทธิ: gross - unpaid breaks) และ entry_count
+#     """
+#     pp = _get_pp_or_404(db, pp_id)
+
+#     # ดึง time entries ทั้งงวด (รวม breaks ด้วย joinedload เพื่อหลีกเลี่ยง N+1)
+#     entries: List[TimeEntry] = (
+#         db.query(TimeEntry)
+#           .options(joinedload(TimeEntry.employee), joinedload(TimeEntry.breaks))
+#           .filter(TimeEntry.clock_in_at >= pp.start_at,
+#                   TimeEntry.clock_in_at <  pp.end_at)
+#           .all()
+#     )
+
+#     agg = defaultdict(lambda: {
+#         "employee_id": None,
+#         "emp_code": None,
+#         "name": None,
+#         "total_hours": 0.0,
+#         "entry_count": 0,
+#     })
+
+#     for te in entries:
+#         if not te.employee_id:
+#             continue
+
+#         emp: Optional[Employee] = te.employee
+#         rec = agg[te.employee_id]
+#         rec["employee_id"] = te.employee_id
+#         rec["emp_code"] = getattr(emp, "emp_code", None)
+#         rec["name"] = getattr(emp, "name", None)
+#         rec["entry_count"] += 1
+
+#         if te.clock_in_at and te.clock_out_at:
+#             gross_h = (te.clock_out_at - te.clock_in_at).total_seconds() / 3600.0
+#             unpaid_h = 0.0
+#             for br in getattr(te, "breaks", []) or []:
+#                 if not br.is_paid and br.start_at and br.end_at:
+#                     unpaid_h += (br.end_at - br.start_at).total_seconds() / 3600.0
+#             rec["total_hours"] += max(0.0, gross_h - unpaid_h)
+
+#     # ออกเป็น list เรียงตามชื่อพนักงาน
+#     rows = list(agg.values())
+#     rows.sort(key=lambda x: (x["name"] or "").lower())
+#     return rows
+
+# ============================================================
+# 1) รายชื่อพนักงานในช่วง Pay Period + ชั่วโมงสุทธิ & จำนวนรายการ
+#    GET /payroll/pay-periods/{pp_id}/employees?status=active
+# ============================================================
 @router.get("/pay-periods/{pp_id}/employees")
 def employees_in_pay_period(
     pp_id: int,
+    status: Optional[str] = Query("active", description="Filter Employee.status"),
     db: Session = Depends(get_db),
 ):
     """
@@ -51,12 +108,16 @@ def employees_in_pay_period(
     """
     pp = _get_pp_or_404(db, pp_id)
 
-    # ดึง time entries ทั้งงวด (รวม breaks ด้วย joinedload เพื่อหลีกเลี่ยง N+1)
+    # ดึง time entries ทั้งงวด (รวม breaks และ employee)
     entries: List[TimeEntry] = (
         db.query(TimeEntry)
+          .join(TimeEntry.employee)  # 👈 join with Employee
           .options(joinedload(TimeEntry.employee), joinedload(TimeEntry.breaks))
-          .filter(TimeEntry.clock_in_at >= pp.start_at,
-                  TimeEntry.clock_in_at <  pp.end_at)
+          .filter(
+              TimeEntry.clock_in_at >= pp.start_at,
+              TimeEntry.clock_in_at < pp.end_at,
+          )
+          .filter(Employee.status == status.lower() if status else True)  # 👈 filter by status
           .all()
     )
 
@@ -87,10 +148,10 @@ def employees_in_pay_period(
                     unpaid_h += (br.end_at - br.start_at).total_seconds() / 3600.0
             rec["total_hours"] += max(0.0, gross_h - unpaid_h)
 
-    # ออกเป็น list เรียงตามชื่อพนักงาน
     rows = list(agg.values())
     rows.sort(key=lambda x: (x["name"] or "").lower())
     return rows
+
 
 
 # ============================================================
