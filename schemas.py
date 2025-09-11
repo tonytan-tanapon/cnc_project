@@ -182,28 +182,100 @@ class RawBatchBase(APIBase):
     location: Optional[str] = None
     cert_file: Optional[str] = None
 
+# schemas.py (Pydantic v2)
+from pydantic import BaseModel, Field, field_validator, ConfigDict
+from datetime import date, datetime
+from decimal import Decimal
+
 class RawBatchCreate(BaseModel):
     material_id: int
-    batch_no: str
-    supplier_id: Optional[int] = None
-    supplier_batch_no: Optional[str] = None
-    mill_name: Optional[str] = None
-    mill_heat_no: Optional[str] = None
-    received_at: Optional[date] = None
-    qty_received: Decimal = Field(..., gt=Decimal("0"))
-    location: Optional[str] = None
-    cert_file: Optional[str] = None
+    # Allow empty/'AUTO'/'AUTOGEN' -> router will autogenerate
+    batch_no: str | None = Field(default=None, description="Empty/AUTO/AUTOGEN to autogenerate")
+    supplier_id: int | None = None
+    supplier_batch_no: str | None = None
+    mill_name: str | None = None
+    mill_heat_no: str | None = None
+    # Accept date or ISO datetime, store as date
+    received_at: date | None = None
+    # Accept "0", "", numbers; enforce >= 0 (no negatives)
+    qty_received: Decimal = Field(default=Decimal("0"), ge=Decimal("0"))
+    location: str | None = None
+    cert_file: str | None = None
+
+    # Ignore stray fields instead of 422
+    model_config = ConfigDict(extra="ignore")
+
+    @field_validator("batch_no", mode="before")
+    @classmethod
+    def _norm_batch_no(cls, v):
+        if v is None:
+            return None
+        s = str(v).strip()
+        return None if s == "" or s.upper() in {"AUTO", "AUTOGEN"} else s
+
+    @field_validator("qty_received", mode="before")
+    @classmethod
+    def _coerce_qty(cls, v):
+        if v is None or v == "":
+            return Decimal("0")
+        # Accept int/float/str with commas
+        s = str(v).replace(",", "").strip()
+        d = Decimal(s)
+        if d < 0:
+            raise ValueError("qty_received must be >= 0")
+        return d
+
+    @field_validator("received_at", mode="before")
+    @classmethod
+    def _coerce_date(cls, v):
+        if v in (None, ""):
+            return None
+        if isinstance(v, date) and not isinstance(v, datetime):
+            return v
+        if isinstance(v, datetime):
+            return v.date()
+        s = str(v).strip()
+        # Accept 'YYYY-MM-DD'
+        try:
+            return date.fromisoformat(s[:10])
+        except Exception:
+            pass
+        # Accept full ISO datetime (e.g. '2025-09-11T13:45')
+        try:
+            return datetime.fromisoformat(s).date()
+        except Exception:
+            raise ValueError("received_at must be YYYY-MM-DD or ISO datetime")
+
+
+from pydantic import BaseModel, Field, field_validator
+from typing import Optional
+from datetime import date
+from decimal import Decimal
+
+from pydantic import BaseModel, Field, field_validator
+from typing import Optional
+from datetime import date
+from decimal import Decimal
 
 class RawBatchUpdate(BaseModel):
+    material_id: Optional[int] = None
     batch_no: Optional[str] = None
     supplier_id: Optional[int] = None
     supplier_batch_no: Optional[str] = None
     mill_name: Optional[str] = None
     mill_heat_no: Optional[str] = None
     received_at: Optional[date] = None
-    qty_received: Optional[Decimal] = None
+    qty_received: Optional[Decimal] = Field(None, ge=Decimal("0"))
+    qty_used: Optional[Decimal] = Field(None, ge=Decimal("0"))     # ← NEW
     location: Optional[str] = None
     cert_file: Optional[str] = None
+
+    @field_validator("qty_received", "qty_used", mode="before")
+    @classmethod
+    def _coerce_decimal(cls, v):
+      if v in (None, ""):
+          return None
+      return Decimal(str(v).replace(",", "").strip())
 
 class RawBatchOut(RawBatchBase):
     id: int

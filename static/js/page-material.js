@@ -1,110 +1,157 @@
-// /static/js/page-material.js
-import { jfetch, renderTable, showToast as toast } from "/static/js/api.js?v=4";
+// /static/js/page-materials.js  (keyset + tablex + toggler)
+import { $, jfetch, toast } from './api.js';
+import { escapeHtml } from './utils.js';
+import { createListPager } from './list-pager.js?v=2';
+import { renderTableX } from './tablex.js';
+import { createToggler } from './toggler.js';
 
-const $ = (id) => document.getElementById(id);
+/* ---- CONFIG / helpers ---- */
+const DETAIL_PAGE = './materials-detail.html';
+const materialUrl = (id) => `${DETAIL_PAGE}?id=${encodeURIComponent(id)}`;
+const gotoDetail = (id) => { if (id != null) location.href = materialUrl(id); };
+window.gotoDetail = gotoDetail;
 
-const numOrNull = (v) => (v === "" || v == null ? null : Number(v));
-const strOrNull = (v) => {
-  if (v == null) return null;
-  const s = String(v).trim();
-  return s === "" ? null : s;
+const fmtDate = (v) => {
+  if (!v) return '';
+  const d = new Date(v);
+  return isNaN(d) ? '' : d.toLocaleString();
 };
 
-// ---------- Materials ----------
-async function loadMaterials() {
-  const holder = $("m_table");
-  try {
-    const rows = await jfetch("/materials");
-    renderTable(holder, rows);
-  } catch (e) {
-    holder.innerHTML = `<div class="hint">${e.message}</div>`;
-    toast("โหลด Materials ไม่สำเร็จ: " + e.message, false);
-  }
+/* ---- UI refs (match your HTML ids) ---- */
+const inputSearch      = $('m_q');
+const selPerPage       = $('m_per_page');
+const btnPrevTop       = $('m_prev');
+const btnNextTop       = $('m_next');
+const pageInfoTop      = $('m_page_info');
+const btnPrevBottom    = $('m_prev2');
+const btnNextBottom    = $('m_next2');
+const pageInfoBottom   = $('m_page_info2');
+const tableContainer   = $('m_table');
+
+const btnToggleCreate  = $('m_toggle_create');
+const createCard       = $('m_create_card');
+const btnCreate        = $('m_create');
+
+/* ---- render (tablex with No. and link to detail) ---- */
+function renderMaterialsTable(container, rows, ctx = {}) {
+  renderTableX(container, rows, {
+    rowStart: Number(ctx.rowStart || 0),
+    getRowId: r => r.id ?? r.material_id ?? r.materialId,
+    onRowClick: r => {
+      const rid = r.id ?? r.material_id ?? r.materialId;
+      if (rid != null) gotoDetail(rid);
+    },
+    columns: [
+      { key: '__no', title: 'No.', width: '64px', align: 'right' },
+      {
+        key: 'code', title: 'Code', width: '140px',
+        render: r => {
+          const rid = r.id ?? r.material_id ?? r.materialId;
+          const code = escapeHtml(r.code ?? '');
+          return rid ? `<a href="${materialUrl(rid)}" class="code-link">${code}</a>` : code;
+        }
+      },
+      { key: 'name',   title: 'Name' },
+      { key: 'spec',   title: 'Spec',   width: '220px', render: r => escapeHtml(r.spec ?? '') },
+      { key: 'uom',    title: 'UoM',    width: '100px', align: 'center' },
+      { key: 'remark', title: 'Remark', width: '240px', render: r => escapeHtml(r.remark ?? '') },
+      { key: 'created_at', title: 'Created', width: '180px', align: 'right', render: r => fmtDate(r.created_at) },
+    ],
+    // Optional: empty message inside tablex
+    emptyHtml: '<div class="muted">No materials</div>',
+  });
 }
 
+/* ---- list pager (search + per-page + prev/next) ----
+   Backend expected to support /materials/keyset?q=&page_size=&cursor=
+   If your API is offset-based only, point url to '/materials' (it still works
+   if your createListPager supports offset mode). */
+const lp = createListPager({
+  url: '/materials/keyset',
+  pageSize: Number(selPerPage?.value || 20),
+  container: tableContainer,
+  render: renderMaterialsTable,
+  pageInfoEls: [pageInfoTop, pageInfoBottom],
+  prevButtons: [btnPrevTop, btnPrevBottom],
+  nextButtons: [btnNextTop, btnNextBottom],
+  queryKey: 'q',
+});
+
+/* ---- create material ---- */
 async function createMaterial() {
   const payload = {
-    code: (strOrNull($("m_code")?.value) || "").toUpperCase(), // เว้นว่าง/เขียน AUTO ให้หลังบ้าน autogen ได้
-    name: strOrNull($("m_name")?.value) || "",
-    spec: strOrNull($("m_spec")?.value),
-    uom: strOrNull($("m_uom")?.value) || "ea",
-    remark: strOrNull($("m_remark")?.value),
+    code:   $('m_code')?.value.trim()   || '',
+    name:   $('m_name')?.value.trim()   || '',
+    spec:   $('m_spec')?.value.trim()   || null,
+    uom:    $('m_uom')?.value.trim()    || null,
+    remark: $('m_remark')?.value.trim() || null,
   };
-
-  if (!payload.name) {
-    toast("กรอกชื่อ Material ก่อนนะ", false);
-    return;
-  }
+  if (!payload.name) return toast('Enter material name', false);
 
   try {
-    await jfetch("/materials", { method: "POST", body: JSON.stringify(payload) });
-    toast("สร้าง Material สำเร็จ");
-    ["m_code", "m_name", "m_spec", "m_uom", "m_remark"].forEach((id) => {
+    await jfetch('/materials', { method: 'POST', body: JSON.stringify(payload) });
+    toast('Material created');
+
+    // reset inputs (keep uom if you want by removing it from the list)
+    ['m_code', 'm_name', 'm_spec', 'm_remark'].forEach(id => {
       const el = $(id);
-      if (el) el.value = "";
+      if (el) el.value = '';
     });
-    await loadMaterials();
+
+    // close the create panel (toggler) if open
+    createTg?.close();
+
+    // reload from first page to see newest item (or keep cursor, up to you)
+    await lp.reloadFirst();
   } catch (e) {
-    toast("สร้าง Material ไม่สำเร็จ: " + e.message, false);
+    console.error(e);
+    toast(e?.message || 'Create failed', false);
   }
 }
 
-// ---------- Batches ----------
-async function loadBatches() {
-  const holder = $("b_table");
-  try {
-    const rows = await jfetch("/batches");
-    renderTable(holder, rows);
-  } catch (e) {
-    holder.innerHTML = `<div class="hint">${e.message}</div>`;
-    toast("โหลด Batches ไม่สำเร็จ: " + e.message, false);
-  }
-}
+/* ---- boot ---- */
+let createTg;
+document.addEventListener('DOMContentLoaded', () => {
+  // toggler for create section
+  createTg = createToggler({
+    trigger: btnToggleCreate,
+    panel: createCard,
+    persistKey: 'materials:create',
+    focusTarget: '#m_name',
+    closeOnEsc: true,
+    closeOnOutside: true,
+    group: 'top-actions',
+    onOpen:  () => { btnToggleCreate.textContent = '× Cancel'; },
+    onClose: () => { btnToggleCreate.textContent = '+ Add'; },
+  });
+  btnToggleCreate.textContent = createTg.isOpen() ? '× Cancel' : '+ Add';
 
-async function createBatch() {
-  const payload = {
-    material_id: numOrNull($("b_mid")?.value),
-    batch_no: strOrNull($("b_no")?.value) || "",
-    supplier_id: numOrNull($("b_sid")?.value),
-    qty_received: Number($("b_qty")?.value || 0),
-    location: strOrNull($("b_loc")?.value),
-    received_at: strOrNull($("b_recv")?.value), // yyyy-mm-dd หรือ null
-    supplier_batch_no: null,
-    mill_name: null,
-    mill_heat_no: null,
-    cert_file: null,
-  };
+  // wire search + per-page
+  lp.bindSearch(inputSearch, { debounceMs: 300 });
+  lp.bindPerPage(selPerPage);
 
-  if (!payload.material_id) {
-    toast("กรอก Material ID ก่อนนะ", false);
-    return;
-  }
-  if (!payload.batch_no) {
-    toast("กรอก Batch No. ก่อนนะ", false);
-    return;
-  }
+  // create handler
+  btnCreate?.addEventListener('click', createMaterial);
 
-  try {
-    await jfetch("/batches", { method: "POST", body: JSON.stringify(payload) });
-    toast("สร้าง Batch สำเร็จ");
-    ["b_mid", "b_no", "b_sid", "b_qty", "b_loc", "b_recv"].forEach((id) => {
-      const el = $(id);
-      if (el) el.value = "";
+  // first load
+  lp.reloadFirst().catch(async () => {
+    // Optional graceful fallback if keyset route doesn't exist:
+    // Recreate with offset endpoint.
+    const alt = createListPager({
+      url: '/materials',
+      pageSize: Number(selPerPage?.value || 20),
+      container: tableContainer,
+      render: renderMaterialsTable,
+      pageInfoEls: [pageInfoTop, pageInfoBottom],
+      prevButtons: [btnPrevTop, btnPrevBottom],
+      nextButtons: [btnNextTop, btnNextBottom],
+      queryKey: 'q',
     });
-    await loadBatches();
-  } catch (e) {
-    toast("สร้าง Batch ไม่สำเร็จ: " + e.message, false);
-  }
-}
-
-// ---------- bind & init ----------
-document.addEventListener("DOMContentLoaded", () => {
-  $("m_create")?.addEventListener("click", createMaterial);
-  $("m_reload")?.addEventListener("click", loadMaterials);
-
-  $("b_create")?.addEventListener("click", createBatch);
-  $("b_reload")?.addEventListener("click", loadBatches);
-
-  loadMaterials();
-  loadBatches();
+    // rebind search/per-page to the alt pager
+    alt.bindSearch(inputSearch, { debounceMs: 300 });
+    alt.bindPerPage(selPerPage);
+    // swap
+    // (Not strictly necessary to detach the first lp; we just stop using it.)
+    await alt.reloadFirst();
+  });
 });

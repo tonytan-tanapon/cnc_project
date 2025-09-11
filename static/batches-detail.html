@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Batch · Edit · Topnotch – MFG</title>
+  <link rel="stylesheet" href="/static/css/app.css" />
+</head>
+<body>
+  <div class="app">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="logo">
+        <span class="logo-badge">TN</span>
+        <span>Topnotch – MFG</span>
+      </div>
+      <div id="navSlot" data-nav-slot></div>
+    </aside>
+
+    <!-- Main -->
+    <main class="main">
+      <!-- Topbar -->
+      <div class="topbar">
+        <div class="search">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zM9.5 14C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+          </svg>
+          <input id="globalSearch" type="search" placeholder="Search PO / Lot / Tracking…" />
+        </div>
+        <a class="btn" href="/static/batches.html">← Back</a>
+      </div>
+
+      <!-- Content -->
+      <section id="page-batch-detail">
+        <h2 class="page-title">📦 Batch</h2>
+
+        <div class="card">
+          <div class="grid" style="margin-top:8px">
+            <div class="col-4">
+              <label>Batch No.</label>
+              <input id="bd_no" placeholder="e.g., B00001" />
+            </div>
+
+            <!-- Material (editable via autocomplete) -->
+            <div class="col-4">
+              <label>Material</label>
+              <div style="display:flex;gap:8px;align-items:center">
+                <input id="bd_material" placeholder="Search material…" />
+                <input id="bd_material_id_val" type="hidden" />
+                <a id="bd_material_link" class="btn ghost" href="#" target="_blank">Open</a>
+              </div>
+              
+            </div>
+
+            <div class="col-4">
+              <label>Supplier ID</label>
+              <input id="bd_supplier_id" type="number" />
+            </div>
+
+            <div class="col-4">
+              <label>Supplier Batch</label>
+              <input id="bd_supplier_batch_no" />
+            </div>
+            <div class="col-4">
+              <label>Mill Name</label>
+              <input id="bd_mill_name" />
+            </div>
+            <div class="col-4">
+              <label>Heat No</label>
+              <input id="bd_mill_heat_no" />
+            </div>
+
+            <div class="col-4">
+              <label>Received Date</label>
+              <input id="bd_received_at" type="date" />
+            </div>
+            <div class="col-4">
+              <label>Qty Received</label>
+              <input id="bd_qty_received" type="number" step="0.0001" inputmode="decimal" />
+            </div>
+            <div class="col-4">
+              <label>Qty Used (read-only)</label>
+              <div class="col-4">
+  <label>Qty Used</label>
+  <input id="bd_qty_used" type="number" step="1" inputmode="decimal" />
+</div>
+            </div>
+
+            <div class="col-6">
+              <label>Location</label>
+              <input id="bd_location" placeholder="RACK-A1" />
+            </div>
+            <div class="col-6">
+              <label>Cert File</label>
+              <div style="display:flex;gap:8px;align-items:center">
+                <input id="bd_cert_file" placeholder="/files/certs/xxx.pdf or URL" />
+                <a id="bd_cert_link" class="btn ghost" href="#" target="_blank">Open</a>
+              </div>
+            </div>
+
+            <div class="col-12" id="actionRow">
+              <button class="btn" id="btnSave" type="button">Save</button>
+              <button class="btn ghost" id="btnReset" type="button">Reset</button>
+              <button class="btn danger" id="btnDelete" type="button" style="float:right">Delete</button>
+              <span class="hint" id="hint"></span>
+            </div>
+          </div>
+
+          <div class="hint" id="metaLine" style="margin-top:4px;display:flex;gap:12px;">
+            <span>Created: <span id="bd_created_at">—</span></span>
+            <span>Available: <span id="bd_available">—</span></span>
+          </div>
+        </div>
+
+        <div id="errorBox" class="hint" style="display:none"></div>
+      </section>
+    </main>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span></div>
+
+  <script type="module" src="/static/js/nav-loader.js"></script>
+  <script type="module" src="/static/js/page-batch-detail.js?v=2"></script>
+</body>
+</html>

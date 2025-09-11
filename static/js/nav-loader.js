@@ -17,6 +17,7 @@ export async function injectNav(slotSelector = '#navSlot') {
         <a href="/static/customers.html">Customers</a>
         <a href="/static/pos.html">Purchase Orders</a>
         <a href="/static/materials.html">Materials</a>
+        <a href="/static/Batches.html">Batches</a>
         <a href="/static/lots.html">Lots</a>
         <a href="/static/employees.html">Employees</a>
         <a href="/static/users.html">Users</a>

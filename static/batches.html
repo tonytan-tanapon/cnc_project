@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Materials · Topnotch – MFG</title>
+  <title>Batches · Topnotch – MFG</title>
   <link rel="stylesheet" href="/static/css/app.css" />
   <style>
     .btn-small {
@@ -44,36 +44,43 @@
       </div>
 
       <!-- Page -->
-      <section id="page-materials">
+      <section id="page-batches">
         <div class="page-header" style="display:flex;align-items:center;gap:8px;">
-          <h2 class="page-title" style="margin:0;">🧱 Materials</h2>
-          <button id="m_toggle_create" type="button" class="btn-small" aria-label="Add Material">+ Add</button>
+          <h2 class="page-title" style="margin:0;">📦 Batches</h2>
+          <button id="b_toggle_create" type="button" class="btn-small" aria-label="Add Batch">+ Add</button>
         </div>
 
-        <!-- Create Material (hidden by default) -->
-        <div class="card" id="m_create_card" hidden>
-          <b>Create Material</b>
+        <!-- Create Batch (hidden by default) -->
+        <div class="card" id="b_create_card" hidden>
+          <b>Create Batch</b>
           <div class="grid" style="margin-top:8px">
-            <div class="col-4"><label>Code</label><input id="m_code" placeholder="AL6061" /></div>
-            <div class="col-4"><label>Name</label><input id="m_name" placeholder="Aluminium 6061" /></div>
-            <div class="col-4"><label>Spec</label><input id="m_spec" placeholder="AMS/ASTM" /></div>
-            <div class="col-4"><label>UoM</label><input id="m_uom" value="kg" /></div>
-            <div class="col-8"><label>Remark</label><input id="m_remark" /></div>
+            <div class="col-6">
+  <label>Material</label>
+  <input id="b_material" placeholder="Search material…" />
+  <input id="b_material_id_val" type="hidden" />  <!-- stores selected material_id -->
+</div>
+
+            <div class="col-4"><label>Batch No.</label><input id="b_batch_no" placeholder="B-24001" /></div>
+            <div class="col-4"><label>Supplier ID</label><input id="b_supplier_id" type="number" /></div>
+            <div class="col-4"><label>Qty Received</label><input id="b_qty_received" type="number" step="0" value="0" /></div>
+            <div class="col-4"><label>Location</label><input id="b_location" placeholder="RACK-A1" /></div>
+            <div class="col-4"><label>Received Date</label><input id="b_received_at" type="date" /></div>
+            <div class="col-12"><label>Remark</label><input id="b_remark" /></div>
             <div class="col-12">
-              <button class="btn" id="m_create" type="button">Create</button>
-              <span class="hint">POST /materials</span>
+              <button class="btn" id="b_create" type="button">Create</button>
+              <span class="hint">POST /batches</span>
             </div>
           </div>
         </div>
 
         <div class="card">
           <div class="toolbar" style="display:flex; gap:8px; align-items:center;">
-            <input id="m_q" placeholder="search code/name/spec" style="flex:1;" />
-            <button class="btn" id="m_reload" type="button">Reload</button>
+            <input id="b_q" placeholder="search batch/material/location" style="flex:1;" />
+            <button class="btn" id="b_reload" type="button">Reload</button>
 
             <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
               <label>Per page:
-                <select id="m_per_page">
+                <select id="b_per_page">
                   <option value="10">10</option>
                   <option value="20" selected>20</option>
                   <option value="50">50</option>
@@ -81,19 +88,19 @@
                 </select>
               </label>
               <div class="pager" style="display:flex;gap:6px;align-items:center;">
-                <button class="btn-small" id="m_prev" type="button" aria-label="Previous page">« Prev</button>
-                <span id="m_page_info" class="muted" aria-live="polite">Page 1</span>
-                <button class="btn-small" id="m_next" type="button" aria-label="Next page">Next »</button>
+                <button class="btn-small" id="b_prev" type="button" aria-label="Previous page">« Prev</button>
+                <span id="b_page_info" class="muted" aria-live="polite">Page 1</span>
+                <button class="btn-small" id="b_next" type="button" aria-label="Next page">Next »</button>
               </div>
             </div>
           </div>
 
-          <div id="m_table" style="min-height:120px;"></div>
+          <div id="b_table" style="min-height:120px;"></div>
 
           <div class="toolbar" style="display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:8px;">
-            <button class="btn-small" id="m_prev2" type="button" aria-label="Previous page (bottom)">« Prev</button>
-            <span id="m_page_info2" class="muted" aria-live="polite">Page 1</span>
-            <button class="btn-small" id="m_next2" type="button" aria-label="Next page (bottom)">Next »</button>
+            <button class="btn-small" id="b_prev2" type="button" aria-label="Previous page (bottom)">« Prev</button>
+            <span id="b_page_info2" class="muted" aria-live="polite">Page 1</span>
+            <button class="btn-small" id="b_next2" type="button" aria-label="Next page (bottom)">Next »</button>
           </div>
         </div>
       </section>
@@ -103,6 +110,6 @@
   <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span></div>
 
   <script type="module" src="/static/js/nav-loader.js"></script>
-  <script type="module" src="/static/js/page-material.js?v=1"></script>
+  <script type="module" src="/static/js/page-batches.js?v=1"></script>
 </body>
 </html>
