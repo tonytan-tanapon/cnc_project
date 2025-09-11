@@ -25,15 +25,18 @@ class PartUpdate(BaseModel):
     uom: Optional[str] = None
     description: Optional[str] = None
     status: Optional[str] = None
-
+from sqlalchemy.orm import Session, selectinload  # ⬅ เพิ่ม selectinload
+# ---------------- Schemas ----------------
 class PartOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
     part_no: str
     name: Optional[str] = None
-    uom: Optional[str] = None            # <- ส่งชื่อ uom ออก (มาจาก default_uom)
+    uom: Optional[str] = None
     description: Optional[str] = None
     status: Optional[str] = None
+    # ⬇⬇ เพิ่มฟิลด์นี้เพื่อแนบ revisions ออกไปได้
+    revisions: Optional[List['RevOut']] = None  # ใช้ __future__ แล้ว รองรับ forward ref
 
 # ----- Revisions Schemas (ใช้ spec/drawing_file/is_current) -----
 class RevCreate(BaseModel):
@@ -59,15 +62,21 @@ class RevOut(BaseModel):
 
 
 # ---------------- Helper: map Part -> PartOut dict ----------------
-def to_part_out(p: Part) -> PartOut:
-    return PartOut(
+def to_part_out(p: Part, include_revs: bool = False) -> PartOut:
+    obj = PartOut(
         id=p.id,
         part_no=p.part_no,
         name=p.name,
-        uom=p.default_uom,          # map field name
+        uom=p.default_uom,
         description=p.description,
         status=p.status,
     )
+    if include_revs:
+        # ป้องกันกรณีความสัมพันธ์ยังไม่โหลด
+        revs = getattr(p, 'revisions', None) or []
+        obj.revisions = [RevOut.model_validate(r) for r in revs]
+    return obj
+
 
 # ---------------- Endpoints ----------------
 @parts_router.get("/", response_model=dict)
@@ -75,12 +84,18 @@ def list_parts(
     q: Optional[str] = Query(default=None, description="search part_no/name"),
     page: int = 1,
     page_size: int = 20,
+    include: Optional[str] = Query(default=None, description="e.g. 'revisions'"),
     db: Session = Depends(get_db),
 ):
     query = db.query(Part)
+
     if q:
         like = f"%{q}%"
         query = query.filter(or_(Part.part_no.ilike(like), Part.name.ilike(like)))
+
+    include_revs = (include == "revisions")
+    if include_revs:
+        query = query.options(selectinload(Part.revisions))  # ลด N+1
 
     total = query.count()
     items = (
@@ -89,7 +104,7 @@ def list_parts(
         .limit(page_size)
         .all()
     )
-    data = [to_part_out(p) for p in items]
+    data = [to_part_out(p, include_revs=include_revs) for p in items]
     return {"items": data, "total": total, "page": page, "page_size": page_size}
 
 @parts_router.post("/", response_model=PartOut, status_code=201)
@@ -221,16 +236,20 @@ def update_revision(rev_id: int, payload: RevUpdate, db: Session = Depends(get_d
         db.refresh(r)
 
     return RevOut.model_validate(r)
-
+from fastapi import APIRouter, Depends, HTTPException, Response
 @parts_router.delete("/revisions/{rev_id}", status_code=204)
 def delete_revision(rev_id: int, db: Session = Depends(get_db)):
-    r = db.query(PartRevision).get(rev_id)
+    # ✅ ใช้ Session.get ใน SQLAlchemy 2.x
+    r = db.get(PartRevision, rev_id)
     if not r:
         raise HTTPException(404, "Revision not found")
+
     db.delete(r)
     try:
         db.commit()
     except IntegrityError:
         db.rollback()
         raise HTTPException(409, "Revision is in use and cannot be deleted")
-    return None
+
+    # ✅ 204: no content
+    return Response(status_code=204)

@@ -1,4 +1,4 @@
-// /static/js/page-part-detail.js  (TableX + guards)
+// /static/js/page-part-detail.js  (TableX + guards + inline edit)
 import { $, jfetch, showToast as toast } from "/static/js/api.js";
 import { renderTableX } from "/static/js/tablex.js";
 
@@ -105,6 +105,7 @@ async function deletePart() {
   if (!confirm("ลบ Part นี้?")) return;
   setBusyHead(true);
   try {
+    
     await jfetch(`/parts/${encodeURIComponent(partId)}`, { method: "DELETE" });
     toast("Deleted");
     location.href = "/static/parts.html";
@@ -115,32 +116,71 @@ async function deletePart() {
   }
 }
 
-/* ---------------- Revisions (TableX ถ้ามี rev_table) ---------------- */
+/* ---------------- Revisions (TableX + inline edit) ---------------- */
 let revisions = [];
+let editingId = null;      // id แถวที่กำลังแก้
+let draft = null;          // ค่ากำลังแก้ (rev/spec/drawing_file/description)
 const revTableEl = $("rev_table");   // ถ้ามี div id="rev_table" จะใช้ TableX
 const revBodyEl  = $("revBody");     // ถ้ายังใช้ <tbody id="revBody"> เดิม จะ fallback
 
 function renderRevisions() {
-  // 1) ถ้ามี container สำหรับ TableX → ใช้ TableX
-  if (revTableEl) {
-    const rows = revisions.map(r => ({
-      id: r.id,
-      rev: r.rev ?? "",
-      description: r.description ?? "",
-    }));
+  const rows = revisions.map(r => {
+    const isEditing = editingId === r.id;
+    const d = isEditing ? draft : r;
 
+    return {
+      id: r.id,
+      is_current: !!r.is_current,
+      rev: d?.rev ?? r.rev ?? "",
+      spec: d?.spec ?? r.spec ?? "",
+      drawing_file: d?.drawing_file ?? r.drawing_file ?? "",
+      description: d?.description ?? r.description ?? "",
+    };
+  });
+
+  // ---------- ใช้ TableX ----------
+  if (revTableEl) {
     renderTableX(revTableEl, rows, {
       rowStart: 0,
       getRowId: r => r.id,
       columns: [
-        { key: '__no',       title: 'No.',         width: '64px', align: 'right' },
-        { key: 'rev',        title: 'Rev',         width: '120px' },
-        { key: 'description',title: 'Description', grow: 1, render: r => escapeHtml(r.description) },
-        { key: '__act',      title: '',            width: '180px', align: 'right',
-          render: r => `
-            <button class="btn-small" data-edit="${r.id}">Edit</button>
-            <button class="btn-small" data-del="${r.id}">Delete</button>
-          `
+        { key: '__no', title: 'No.', width: '64px', align: 'right' },
+        {
+          key: 'rev', title: 'Rev', width: '120px',
+          render: r => (editingId === r.id)
+            ? `<input class="in in-sm" data-fld="rev" value="${escapeHtml(r.rev)}" />`
+            : `<span>${escapeHtml(r.rev)}</span>${r.is_current ? ' <span class="badge">current</span>' : ''}`
+        },
+        {
+          key: 'spec', title: 'Spec', width: '160px',
+          render: r => (editingId === r.id)
+            ? `<input class="in in-sm" data-fld="spec" value="${escapeHtml(r.spec)}" />`
+            : escapeHtml(r.spec)
+        },
+        {
+          key: 'drawing_file', title: 'Drawing', width: '180px',
+          render: r => (editingId === r.id)
+            ? `<input class="in in-sm" data-fld="drawing_file" value="${escapeHtml(r.drawing_file)}" />`
+            : escapeHtml(r.drawing_file)
+        },
+        {
+          key: 'description', title: 'Description', grow: 1,
+          render: r => (editingId === r.id)
+            ? `<input class="in in-sm" data-fld="description" value="${escapeHtml(r.description)}" />`
+            : escapeHtml(r.description)
+        },
+        {
+          key: '__act', title: 'Action', width: '260px', align: 'right',
+          render: r => (editingId === r.id)
+            ? `
+              <button class="btn-small" data-save="${r.id}">Save</button>
+              <button class="btn-small ghost" data-cancel="${r.id}">Cancel</button>
+            `
+            : `
+              <button class="btn-small" data-edit="${r.id}">Edit</button>
+              <button class="btn-small danger" data-del="${r.id}">Delete</button>
+              ${r.is_current ? '' : `<button class="btn-small ghost" data-makecur="${r.id}">Make current</button>`}
+            `
         },
       ],
       emptyText: 'No revisions',
@@ -148,46 +188,112 @@ function renderRevisions() {
     return;
   }
 
-  // 2) ไม่มีก็ fallback เป็นตารางเดิม
+  // ---------- fallback <tbody> ----------
   if (!revBodyEl) return;
-  if (!revisions.length) {
-    revBodyEl.innerHTML = `<tr><td colspan="3" class="empty">No revisions</td></tr>`;
+
+  if (!rows.length) {
+    revBodyEl.innerHTML = `<tr><td colspan="5" class="empty">No revisions</td></tr>`;
     return;
   }
-  revBodyEl.innerHTML = revisions.map(r => `
-    <tr data-id="${r.id}">
-      <td>${escapeHtml(r.rev ?? "")}</td>
-      <td>${escapeHtml(r.description ?? "")}</td>
-      <td style="text-align:right; white-space:nowrap">
+
+  revBodyEl.innerHTML = rows.map(r => {
+    const isEditing = editingId === r.id;
+
+    const revCell = isEditing
+      ? `<input class="in in-sm" data-fld="rev" value="${escapeHtml(r.rev)}" />`
+      : `<span>${escapeHtml(r.rev)}</span>${r.is_current ? ' <span class="badge">current</span>' : ''}`;
+
+    const specCell = isEditing
+      ? `<input class="in in-sm" data-fld="spec" value="${escapeHtml(r.spec)}" />`
+      : escapeHtml(r.spec);
+
+    const dwgCell = isEditing
+      ? `<input class="in in-sm" data-fld="drawing_file" value="${escapeHtml(r.drawing_file)}" />`
+      : escapeHtml(r.drawing_file);
+
+    const descCell = isEditing
+      ? `<input class="in in-sm" data-fld="description" value="${escapeHtml(r.description)}" />`
+      : escapeHtml(r.description);
+
+    const actCell = isEditing
+      ? `
+        <button class="btn btn-sm" data-save="${r.id}">Save</button>
+        <button class="btn ghost btn-sm" data-cancel="${r.id}">Cancel</button>
+      `
+      : `
         <button class="btn ghost btn-sm" data-edit="${r.id}">Edit</button>
         <button class="btn danger btn-sm" data-del="${r.id}">Delete</button>
-      </td>
-    </tr>
-  `).join("");
+        ${r.is_current ? '' : `<button class="btn ghost btn-sm" data-makecur="${r.id}">Make current</button>`}
+      `;
+
+    return `
+      <tr data-id="${r.id}">
+        <td>${revCell}</td>
+        <td>${specCell}</td>
+        <td>${dwgCell}</td>
+        <td>${descCell}</td>
+        <td style="text-align:right; white-space:nowrap">${actCell}</td>
+      </tr>
+    `;
+  }).join('');
 }
 
-// เดเลเกตปุ่มแก้/ลบ เมื่อใช้ TableX
-revTableEl?.addEventListener('click', (e) => {
-  const btn = e.target.closest('button[data-edit],button[data-del],button[data-makecur]');
-  if (!btn) return;
-  const id = Number(btn.dataset.edit || btn.dataset.del || btn.dataset.makecur);
-  if (!id) return;
-  if (btn.dataset.edit) editRevision(id);
-  if (btn.dataset.del) deleteRevision(id);
-  if (btn.dataset.makecur) setRevisionCurrent(id);
-});
+/* ---------------- Actions: Edit/Save/Cancel/Make current/Delete ---------------- */
+function collectDraftFromRow(rootEl) {
+  const get = (name) => rootEl.querySelector(`[data-fld="${name}"]`)?.value ?? '';
+  return {
+    rev: (get('rev') || '').toUpperCase().trim(),
+    spec: (get('spec') || '').trim() || null,
+    drawing_file: (get('drawing_file') || '').trim() || null,
+    description: (get('description') || '').trim() || null,
+  };
+}
 
+function startEdit(id) {
+  const row = revisions.find(r => r.id === id);
+  if (!row) return;
+  editingId = id;
+  draft = {
+    rev: row.rev ?? '',
+    spec: row.spec ?? '',
+    drawing_file: row.drawing_file ?? '',
+    description: row.description ?? '',
+  };
+  renderRevisions();
+  // โฟกัสช่องแรก
+  (revTableEl || revBodyEl)?.querySelector('[data-fld="rev"]')?.focus();
+}
 
-// เดเลเกตปุ่มแก้/ลบ สำหรับ fallback table
-revBodyEl?.addEventListener('click', (e) => {
-  const btn = e.target.closest('button[data-edit],button[data-del],button[data-makecur]');
-  if (!btn) return;
-  const id = Number(btn.dataset.edit || btn.dataset.del || btn.dataset.makecur);
-  if (!id) return;
-  if (btn.dataset.edit) editRevision(id);
-  if (btn.dataset.del) deleteRevision(id);
-  if (btn.dataset.makecur) setRevisionCurrent(id);
-});
+async function saveEdit(id, rowEl) {
+  if (!Number.isFinite(id)) return;
+  const data = collectDraftFromRow(rowEl);
+  if (!data.rev) {
+    toast('Enter Rev', false);
+    rowEl.querySelector('[data-fld="rev"]')?.focus();
+    return;
+  }
+  try {
+    const upd = await jfetch(`/parts/revisions/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+    const idx = revisions.findIndex(r => r.id === id);
+    if (idx >= 0) revisions[idx] = upd;
+    editingId = null;
+    draft = null;
+    renderRevisions();
+    toast('Revision updated');
+  } catch (e) {
+    toast(e?.message || 'Update revision failed', false);
+  }
+}
+
+function cancelEdit() {
+  editingId = null;
+  draft = null;
+  renderRevisions();
+}
+
 async function setRevisionCurrent(id) {
   try {
     await jfetch(`/parts/revisions/${encodeURIComponent(id)}`, {
@@ -198,19 +304,6 @@ async function setRevisionCurrent(id) {
     toast('Set current');
   } catch (e) {
     toast(e?.message || 'Set current failed', false);
-  }
-}
-
-async function loadRevisions() {
-  if (!Number.isFinite(partId)) return;
-  try {
-    const rows = await jfetch(`/parts/${encodeURIComponent(partId)}/revisions`);
-    revisions = Array.isArray(rows) ? rows : [];
-    renderRevisions();
-  } catch (e) {
-    revisions = [];
-    renderRevisions();
-    toast(e?.message || "Load revisions failed", false);
   }
 }
 
@@ -249,11 +342,11 @@ async function addRevision() {
   }
 }
 
-
 async function deleteRevision(id) {
   if (!confirm("Delete this revision?")) return;
   try {
-    await jfetch(`/parts/revisions/${encodeURIComponent(id)}`, { method: "DELETE" });
+    await jfetch(`/parts/revisions/${encodeURIComponent(id)}`, { method: 'DELETE' })
+    // await jfetch(`/parts/revisions/${encodeURIComponent(id)}`, { method: "DELETE" });
     revisions = revisions.filter((x) => x.id !== id);
     renderRevisions();
     toast("Revision deleted");
@@ -262,29 +355,40 @@ async function deleteRevision(id) {
   }
 }
 
-async function editRevision(id) {
-  const row = revisions.find(r => r.id === id);
-  if (!row) return;
-  const newRev = prompt('Rev', row.rev ?? '')?.trim().toUpperCase();
-  if (newRev == null) return;
-  const newSpec = prompt('Spec', row.spec ?? '')?.trim();
-  if (newSpec == null) return;
-  const newDwg = prompt('Drawing File', row.drawing_file ?? '')?.trim();
-  if (newDwg == null) return;
+// เดเลเกตปุ่มสำหรับ TableX (ปุ่มทั้งหมดอยู่คอลัมน์ Action)
+revTableEl?.addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-edit],button[data-del],button[data-makecur],button[data-save],button[data-cancel]');
+  if (!btn) return;
+  const id = Number(btn.dataset.edit || btn.dataset.del || btn.dataset.makecur || btn.dataset.save || btn.dataset.cancel);
+  if (!id) return;
 
-  try {
-    const upd = await jfetch(`/parts/revisions/${encodeURIComponent(id)}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ rev: newRev, spec: newSpec, drawing_file: newDwg }),
-    });
-    const idx = revisions.findIndex(r => r.id === id);
-    if (idx >= 0) revisions[idx] = upd;
-    renderRevisions();
-    toast('Revision updated');
-  } catch (e) {
-    toast(e?.message || 'Update revision failed', false);
+  if (btn.dataset.edit) startEdit(id);
+  if (btn.dataset.del) deleteRevision(id);
+  if (btn.dataset.makecur) setRevisionCurrent(id);
+  if (btn.dataset.save) {
+    // ใน TableX เราจะหา container ใกล้ ๆ ที่มี inputs ของแถวนั้น
+    const rowEl = btn.closest('[data-row-id]') || revTableEl;
+    saveEdit(id, rowEl);
   }
-}
+  if (btn.dataset.cancel) cancelEdit();
+});
+
+// เดเลเกตปุ่ม fallback <tbody> (ปุ่มทั้งหมดอยู่คอลัมน์ Action)
+revBodyEl?.addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-edit],button[data-del],button[data-makecur],button[data-save],button[data-cancel]');
+  if (!btn) return;
+  const id = Number(btn.dataset.edit || btn.dataset.del || btn.dataset.makecur || btn.dataset.save || btn.dataset.cancel);
+  if (!id) return;
+
+  if (btn.dataset.edit) startEdit(id);
+  if (btn.dataset.del) deleteRevision(id);
+  if (btn.dataset.makecur) setRevisionCurrent(id);
+  if (btn.dataset.save) {
+    const rowEl = btn.closest('tr') || revBodyEl;
+    saveEdit(id, rowEl);
+  }
+  if (btn.dataset.cancel) cancelEdit();
+});
 
 /* ---------------- Suggest revs ---------------- */
 function initRevSuggestForCurrentPart(pid) {
@@ -313,6 +417,18 @@ function initRevSuggestForCurrentPart(pid) {
   input.addEventListener('input', () => { input.value = input.value.toUpperCase(); });
 }
 
+async function loadRevisions() {
+  if (!Number.isFinite(partId)) return;
+  try {
+    const rows = await jfetch(`/parts/${encodeURIComponent(partId)}/revisions`);
+    revisions = Array.isArray(rows) ? rows : [];
+  } catch (e) {
+    revisions = [];
+    toast(e?.message || 'Load revisions failed', false);
+  }
+  renderRevisions();
+}
+
 /* ---------------- boot ---------------- */
 document.addEventListener("DOMContentLoaded", () => {
   const idRaw = new URLSearchParams(location.search).get('id');
@@ -336,3 +452,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   loadPart().then(loadRevisions);
 });
+
+// (optional) สำหรับเรียกจากที่อื่น
+function editRevision(id) { startEdit(id); }

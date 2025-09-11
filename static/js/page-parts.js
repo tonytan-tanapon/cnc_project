@@ -1,4 +1,4 @@
-// /static/js/page-part.js  (v6 - TableX)
+// /static/js/page-part.js  (v7 - TableX + Revisions inline)
 // Requirements: api.js (export $, jfetch, showToast, initTopbar), tablex.js (export renderTableX)
 
 import { $, jfetch, showToast as toast, initTopbar } from './api.js';
@@ -47,7 +47,6 @@ const state = {
 function computeTotalPages() {
   if (!state.pageSize) return 1;
   if (state.total) return Math.max(1, Math.ceil(state.total / state.pageSize));
-  // fallback (shouldn't happen since API returns total)
   return state.items.length < state.pageSize && state.page === 1 ? 1 : state.page;
 }
 
@@ -64,6 +63,18 @@ function syncPager() {
   [btnNextTop, btnNextBot].forEach(b => b && b.toggleAttribute('disabled', !canNext));
 }
 
+/* ---------- revisions render ---------- */
+function renderRevisionsInline(part) {
+  const revs = Array.isArray(part.revisions) ? part.revisions : [];
+  if (!revs.length) return `<span class="muted">—</span>`;
+  return revs
+    .map(r => {
+      const cls = r.is_current ? 'rev current' : 'rev';
+      return `<span class="${cls}" title="Revision ${safe(r.rev)}">${safe(r.rev)}</span>`;
+    })
+    .join(`<span class="rev-sep">, </span>`);
+}
+
 /* ---------- render ---------- */
 function renderRows() {
   const rows = state.items.map(p => ({
@@ -73,7 +84,8 @@ function renderRows() {
     uom: p.uom ?? 'ea',
     description: p.description ?? '',
     status: p.status ?? 'active',
-    created_at: p.created_at ?? null, // จะว่างถ้าแบ็กเอนด์ยังไม่มีคอลัมน์นี้
+    created_at: p.created_at ?? null, // อาจไม่มีคอลัมน์นี้ในแบ็กเอนด์
+    revisions: p.revisions ?? [],     // ใช้จาก include=revisions
   }));
 
   renderTableX(tableEl, rows, {
@@ -85,6 +97,10 @@ function renderRows() {
       { key: 'part_no',    title: 'Part No.',   width: '160px',
         render: r => `<a class="code-link" href="${partDetail(r.id)}">${safe(r.part_no ?? '')}</a>` },
       { key: 'name',       title: 'Name',       grow: 1,        render: r => safe(r.name ?? '') },
+
+      // ✅ New column: Revisions (comma-separated, highlight current)
+      { key: 'revisions',  title: 'Revisions',  grow: 1.2,      render: r => renderRevisionsInline(r) },
+
       { key: 'uom',        title: 'UoM',        width: '90px',  render: r => safe(r.uom ?? '') },
       { key: 'description',title: 'Description',grow: 2,        render: r => safe(r.description ?? '') },
       { key: 'status',     title: 'Status',     width: '110px', render: r => safe(r.status ?? '') },
@@ -108,6 +124,7 @@ async function load() {
     const params = new URLSearchParams({
       page: String(state.page),
       page_size: String(state.pageSize),
+      include: 'revisions',                 // ✅ ดึง revisions มาพร้อมกัน
       ...(state.q ? { q: state.q } : {}),
       _: String(Date.now()),
     });
@@ -193,7 +210,6 @@ tableEl?.addEventListener('click', async (e) => {
     try {
       await jfetch(`/parts/${id}`, { method: 'DELETE' });
       toast('Deleted');
-      // ถ้าลบรายการสุดท้ายของหน้าให้เด้งกลับหน้าเดิม-1
       if (state.items.length === 1 && state.page > 1) state.page--;
       load();
     } catch (e) {
