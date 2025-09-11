@@ -49,20 +49,20 @@ class CustomerBrief(BaseModel):
 
 class PoCreate(BaseModel):
     customer_id: int
-    description: str = ""               # ← ใช้ description
-    po_number: Optional[str] = None
+    note: str = ""
+    po_number: Optional[str] = None  # ถ้าไม่ส่งมาจะ autogen
 
 class PoUpdate(BaseModel):
     customer_id: Optional[int] = None
-    description: Optional[str] = None   # ← ใช้ description
+    note: Optional[str] = None
 
 class PoOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
     po_number: str
     customer: CustomerBrief
-    description: Optional[str] = None   # ← ใช้ description
-    created_at: Optional[datetime] = None
+    note: Optional[str] = None
+    created_at: Optional[datetime] = None  # เผื่อ model ไม่มีฟิลด์นี้
 
 class PartBrief(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -129,14 +129,17 @@ def create_po(payload: PoCreate, db: Session = Depends(get_db)):
         raise HTTPException(404, "Customer not found")
 
     po_number = payload.po_number or _next_po_number_yearly(db)
-    po = PO(
-        po_number=po_number,
-        customer_id=cust.id,
-        description=payload.description,   # ← ตรงนี้
-    )
+    po = PO(po_number=po_number, customer_id=cust.id, note=payload.note)
     db.add(po)
     db.commit()
     db.refresh(po)
+    return PoOut.model_validate(po)
+
+@pos_router.get("/{po_id}", response_model=PoOut)
+def get_po(po_id: int, db: Session = Depends(get_db)):
+    po = db.query(PO).options(joinedload(PO.customer)).get(po_id)
+    if not po:
+        raise HTTPException(404, "PO not found")
     return PoOut.model_validate(po)
 
 @pos_router.patch("/{po_id}", response_model=PoOut)
@@ -150,22 +153,12 @@ def update_po(po_id: int, payload: PoUpdate, db: Session = Depends(get_db)):
         if not cust:
             raise HTTPException(404, "Customer not found")
         po.customer_id = payload.customer_id
-
-    if payload.description is not None:      # ← ตรงนี้
-        po.description = payload.description
+    if payload.note is not None:
+        po.note = payload.note
 
     db.commit()
     db.refresh(po)
     return PoOut.model_validate(po)
-
-@pos_router.get("/{po_id}", response_model=PoOut)
-def get_po(po_id: int, db: Session = Depends(get_db)):
-    po = db.query(PO).options(joinedload(PO.customer)).get(po_id)
-    if not po:
-        raise HTTPException(404, "PO not found")
-    return PoOut.model_validate(po)
-
-
 
 @pos_router.delete("/{po_id}", status_code=204)
 def delete_po(po_id: int, db: Session = Depends(get_db)):
@@ -183,15 +176,13 @@ def list_lines(po_id: int, db: Session = Depends(get_db)):
     if not po:
         raise HTTPException(404, "PO not found")
 
-    # list_lines()
     rows: List[POLine] = (
         db.query(POLine)
-        .options(joinedload(POLine.part), joinedload(POLine.rev))   # <- แก้ชื่อ attr
+        .options(joinedload(POLine.part), joinedload(POLine.revision))
         .filter(POLine.po_id == po_id)
         .order_by(POLine.id)
         .all()
     )
-
 
     out: List[PoLineOut] = []
     for r in rows:
@@ -201,7 +192,7 @@ def list_lines(po_id: int, db: Session = Depends(get_db)):
                 id=r.id,
                 po_id=r.po_id,
                 part=r.part,
-                revision=r.rev,          # <- ใช้ r.rev
+                revision=r.revision,
                 qty=r.qty,
                 unit_price=r.unit_price,
                 amount=amount,
@@ -242,7 +233,7 @@ def create_line(po_id: int, payload: PoLineCreate, db: Session = Depends(get_db)
         id=line.id,
         po_id=line.po_id,
         part=line.part,
-        revision=line.rev,           # <- ใช้ rev
+        revision=line.revision,
         qty=line.qty,
         unit_price=line.unit_price,
         amount=amount,

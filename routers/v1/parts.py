@@ -1,55 +1,75 @@
 from __future__ import annotations
-
 from typing import List, Optional
-
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 
 from database import get_db
 from models import Part, PartRevision
 
-# export ชื่อตามที่ __init__.py ใช้
 parts_router = APIRouter(prefix="/parts", tags=["parts"])
 
-# ---------- Schemas ----------
+# ---------------- Schemas (API ใช้ชื่อ uom/description/status) ----------------
 class PartCreate(BaseModel):
     part_no: str
     name: Optional[str] = None
-    uom: Optional[str] = None
-    note: str = ""
+    uom: Optional[str] = None            # -> map to model.default_uom
+    description: str = ""                # -> model.description
+    status: Optional[str] = "active"     # -> model.status
 
 class PartUpdate(BaseModel):
     part_no: Optional[str] = None
     name: Optional[str] = None
     uom: Optional[str] = None
-    note: Optional[str] = None
+    description: Optional[str] = None
+    status: Optional[str] = None
 
 class PartOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
     part_no: str
     name: Optional[str] = None
-    uom: Optional[str] = None
-    note: Optional[str] = None
+    uom: Optional[str] = None            # <- ส่งชื่อ uom ออก (มาจาก default_uom)
+    description: Optional[str] = None
+    status: Optional[str] = None
 
+# ----- Revisions Schemas (ใช้ spec/drawing_file/is_current) -----
 class RevCreate(BaseModel):
     rev: str
-    description: str = ""
+    spec: Optional[str] = ""
+    drawing_file: Optional[str] = None
+    is_current: bool = False
 
 class RevUpdate(BaseModel):
     rev: Optional[str] = None
-    description: Optional[str] = None
+    spec: Optional[str] = None
+    drawing_file: Optional[str] = None
+    is_current: Optional[bool] = None
 
 class RevOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
     part_id: int
     rev: str
-    description: Optional[str] = None
+    spec: Optional[str] = None
+    drawing_file: Optional[str] = None
+    is_current: bool
 
-# ---------- Part endpoints ----------
+
+# ---------------- Helper: map Part -> PartOut dict ----------------
+def to_part_out(p: Part) -> PartOut:
+    return PartOut(
+        id=p.id,
+        part_no=p.part_no,
+        name=p.name,
+        uom=p.default_uom,          # map field name
+        description=p.description,
+        status=p.status,
+    )
+
+# ---------------- Endpoints ----------------
 @parts_router.get("/", response_model=dict)
 def list_parts(
     q: Optional[str] = Query(default=None, description="search part_no/name"),
@@ -61,6 +81,7 @@ def list_parts(
     if q:
         like = f"%{q}%"
         query = query.filter(or_(Part.part_no.ilike(like), Part.name.ilike(like)))
+
     total = query.count()
     items = (
         query.order_by(Part.part_no)
@@ -68,23 +89,33 @@ def list_parts(
         .limit(page_size)
         .all()
     )
-    data = [PartOut.model_validate(p) for p in items]
+    data = [to_part_out(p) for p in items]
     return {"items": data, "total": total, "page": page, "page_size": page_size}
 
 @parts_router.post("/", response_model=PartOut, status_code=201)
 def create_part(payload: PartCreate, db: Session = Depends(get_db)):
-    p = Part(part_no=payload.part_no, name=payload.name, uom=payload.uom, note=payload.note)
+    p = Part(
+        part_no=payload.part_no,
+        name=payload.name,
+        description=payload.description,
+        default_uom=payload.uom or "ea",
+        status=payload.status or "active",
+    )
     db.add(p)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(409, "Duplicate part_no")
     db.refresh(p)
-    return PartOut.model_validate(p)
+    return to_part_out(p)
 
 @parts_router.get("/{part_id}", response_model=PartOut)
 def get_part(part_id: int, db: Session = Depends(get_db)):
     p = db.query(Part).get(part_id)
     if not p:
         raise HTTPException(404, "Part not found")
-    return PartOut.model_validate(p)
+    return to_part_out(p)
 
 @parts_router.patch("/{part_id}", response_model=PartOut)
 def update_part(part_id: int, payload: PartUpdate, db: Session = Depends(get_db)):
@@ -96,14 +127,16 @@ def update_part(part_id: int, payload: PartUpdate, db: Session = Depends(get_db)
         p.part_no = payload.part_no
     if payload.name is not None:
         p.name = payload.name
+    if payload.description is not None:
+        p.description = payload.description
     if payload.uom is not None:
-        p.uom = payload.uom
-    if payload.note is not None:
-        p.note = payload.note
+        p.default_uom = payload.uom
+    if payload.status is not None:
+        p.status = payload.status
 
     db.commit()
     db.refresh(p)
-    return PartOut.model_validate(p)
+    return to_part_out(p)
 
 @parts_router.delete("/{part_id}", status_code=204)
 def delete_part(part_id: int, db: Session = Depends(get_db)):
@@ -117,6 +150,8 @@ def delete_part(part_id: int, db: Session = Depends(get_db)):
 # ---------- Revisions ----------
 @parts_router.get("/{part_id}/revisions", response_model=List[RevOut])
 def list_revisions(part_id: int, db: Session = Depends(get_db)):
+    if not db.query(Part).get(part_id):
+        raise HTTPException(404, "Part not found")
     rows = (
         db.query(PartRevision)
         .filter(PartRevision.part_id == part_id)
@@ -127,13 +162,32 @@ def list_revisions(part_id: int, db: Session = Depends(get_db)):
 
 @parts_router.post("/{part_id}/revisions", response_model=RevOut, status_code=201)
 def create_revision(part_id: int, payload: RevCreate, db: Session = Depends(get_db)):
-    p = db.query(Part).get(part_id)
-    if not p:
+    if not db.query(Part).get(part_id):
         raise HTTPException(404, "Part not found")
-    r = PartRevision(part_id=part_id, rev=payload.rev, description=payload.description)
+
+    r = PartRevision(
+        part_id=part_id,
+        rev=payload.rev,
+        spec=payload.spec or None,
+        drawing_file=payload.drawing_file or None,
+        is_current=bool(payload.is_current),
+    )
     db.add(r)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(409, "Duplicate revision for this part")
     db.refresh(r)
+
+    # ถ้าตั้ง is_current=True ให้ปิด current ตัวอื่น
+    if r.is_current:
+        db.query(PartRevision)\
+          .filter(PartRevision.part_id == part_id, PartRevision.id != r.id, PartRevision.is_current == True)\
+          .update({PartRevision.is_current: False}, synchronize_session=False)
+        db.commit()
+        db.refresh(r)
+
     return RevOut.model_validate(r)
 
 @parts_router.patch("/revisions/{rev_id}", response_model=RevOut)
@@ -141,12 +195,31 @@ def update_revision(rev_id: int, payload: RevUpdate, db: Session = Depends(get_d
     r = db.query(PartRevision).get(rev_id)
     if not r:
         raise HTTPException(404, "Revision not found")
+
     if payload.rev is not None:
         r.rev = payload.rev
-    if payload.description is not None:
-        r.description = payload.description
-    db.commit()
+    if payload.spec is not None:
+        r.spec = payload.spec
+    if payload.drawing_file is not None:
+        r.drawing_file = payload.drawing_file
+    if payload.is_current is not None:
+        r.is_current = bool(payload.is_current)
+
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(409, "Duplicate revision for this part")
     db.refresh(r)
+
+    # ถ้าเพิ่งตั้ง current ให้เคลียร์ตัวอื่น
+    if r.is_current:
+        db.query(PartRevision)\
+          .filter(PartRevision.part_id == r.part_id, PartRevision.id != r.id, PartRevision.is_current == True)\
+          .update({PartRevision.is_current: False}, synchronize_session=False)
+        db.commit()
+        db.refresh(r)
+
     return RevOut.model_validate(r)
 
 @parts_router.delete("/revisions/{rev_id}", status_code=204)
@@ -155,5 +228,9 @@ def delete_revision(rev_id: int, db: Session = Depends(get_db)):
     if not r:
         raise HTTPException(404, "Revision not found")
     db.delete(r)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(409, "Revision is in use and cannot be deleted")
     return None

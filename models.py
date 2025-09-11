@@ -145,6 +145,7 @@ class Part(Base):
     description = Column(Text)
     default_uom = Column(String, default="ea")
     status = Column(String, default="active")
+    
 
     revisions = relationship("PartRevision", back_populates="part", cascade="all, delete-orphan")
 

@@ -5,43 +5,52 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Parts · Topnotch MFG</title>
   <link rel="stylesheet" href="/static/css/app.css" />
-
   <style>
-    /* Custom styles for parts page */
     .table-line{
-  display:flex;
-  align-items:flex-start;  /* pager ชิดบนของตาราง */
-  gap:12px;
-}
+      display:flex;
+      align-items:flex-start;
+      gap:12px;
+    }
+    .table-line .table-wrap{
+      flex:1;
+      min-width:0;
+      overflow:auto;
+    }
+    .pager.inline{
+      margin-top:0;
+      white-space:nowrap;
+      flex-wrap:nowrap;
+      align-self:flex-start;
+    }
 
-/* ให้ table ขยายเต็มพื้นที่และเลื่อนในแนวนอนได้ */
-.table-line .table-wrap{
-  flex:1;
-  min-width:0;            /* กัน flex item ดันหลุดบรรทัด */
-  overflow:auto;
-}
+    /* ให้คอลัมน์เลข & action align ขวาและ padding เท่า PO */
+.table .right, .tx-right { text-align: right; }
 
-/* ปรับสไตล์ pager ตอนอยู่แบบ inline (ทับของเดิมที่ตั้ง margin-top) */
-.pager.inline{
-  margin-top:0;
-  white-space:nowrap;     /* กันแตกบรรทัด */
-  flex-wrap:nowrap;
-  align-self:flex-start;  /* ชิดบน */
+/* ปุ่มเล็กในตารางให้โค้งและ padding เท่าหน้า PO */
+.btn-small {
+  padding: 4px 8px;
+  font-size: 14px;
+  border: 1px solid var(--line, #ccc);
+  border-radius: 6px;
+  background: #111;
+  color: #fff;
+  cursor: pointer;
+  transition: background .2s;
 }
-    </style>
+.btn-small:hover { background: #333; }
+  </style>
 </head>
 <body>
   <div class="app">
-    <!-- Sidebar (partial) -->
-    <!-- <aside class="sidebar" data-include="/static/partials/nav.html"></aside> -->
+    <!-- Sidebar -->
     <aside class="sidebar">
       <div class="logo">
         <span class="logo-badge">TN</span>
         <span>Topnotch – MFG</span>
       </div>
-      <!-- เมนูจะถูก inject จาก /static/partials/nav.html -->
       <div id="navSlot" data-nav-slot></div>
     </aside>
+
     <!-- Main -->
     <main class="main">
       <!-- Topbar -->
@@ -58,71 +67,86 @@
 
       <!-- Page -->
       <section id="page-parts">
-  <h2 class="page-title">🧩 Parts</h2>
+        <h2 class="page-title">🧩 Parts</h2>
 
-  <div class="grid">
-    <!-- ซ้าย: Create Part (ครึ่งหน้า) -->
-    <div class="col-12">
-      <div class="card">
-        <b>Create Part</b>
-        <div class="grid" style="margin-top:8px">
-          <div class="col-6"><label>Part No.</label><input id="p_no" placeholder="Autogen)" /></div>
-          <div class="col-6"><label>Name</label><input id="p_name" placeholder="Widget A" /></div>
-          <div class="col-12"><label>Description</label><input id="p_desc" placeholder="Optional description" /></div>
-          <div class="col-6"><label>Default UoM</label><input id="p_uom" value="ea" /></div>
-          <div class="col-6">
-            <label>Status</label>
-            <select id="p_status">
-              <option value="active" selected>active</option>
-              <option value="inactive">inactive</option>
-            </select>
-          </div>
-          <div class="col-12">
-            <button class="btn" id="p_create" type="button">Create</button>
+        <!-- Create Part -->
+        <div class="card">
+          <b>Create Part</b>
+          <div class="grid" style="margin-top:8px">
+            <div class="col-6">
+              <label>Part No.</label>
+              <input id="p_no" placeholder="(Autogen if backend supports)" />
+            </div>
+            <div class="col-6">
+              <label>Name</label>
+              <input id="p_name" placeholder="Widget A" />
+            </div>
+            <div class="col-12">
+              <label>Description</label>
+              <input id="p_desc" placeholder="Optional description" />
+            </div>
+            <div class="col-6">
+              <label>Default UoM</label>
+              <input id="p_uom" value="ea" />
+            </div>
+            <div class="col-6">
+              <label>Status</label>
+              <select id="p_status">
+                <option value="active" selected>active</option>
+                <option value="inactive">inactive</option>
+              </select>
+            </div>
+            <div class="col-12">
+              <button class="btn" id="p_create" type="button">Create</button>
+            </div>
           </div>
         </div>
-      </div>
-    </div>
 
-    <!-- แถวใหม่: ตารางเต็มหน้า -->
-    <div class="col-12">
-      <div class="card">
-        <div class="toolbar">
-          <input id="p_q" placeholder="search part_no/name/spec" />
-          <button class="btn" id="p_reload" type="button">Reload</button>
-        </div>
+        <!-- Table + Pager -->
+        <div class="card">
+  <!-- Toolbar เหมือนหน้า PO -->
+  <div class="toolbar" style="display:flex; gap:8px; align-items:center;">
+    <input id="p_q" placeholder="search part_no / name / spec" style="flex:1;" />
+    <button class="btn" id="p_reload" type="button">Reload</button>
 
+    <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
+      <label>Per page:
+        <select id="p_per_page">
+          <option value="10">10</option>
+          <option value="20" selected>20</option>
+          <option value="50">50</option>
+          <option value="100">100</option>
+        </select>
+      </label>
+
+      <div class="pager" style="display:flex;gap:6px;align-items:center;">
+        <button class="btn-small" id="p_prev" type="button">« Prev</button>
+        <span id="p_page_info" class="muted">Page 1</span>
+        <button class="btn-small" id="p_next" type="button">Next »</button>
       </div>
-      <div>
- 
     </div>
   </div>
-</section>
- <div class="table-wrap" id="p_table"></div>
-  <div id="p_pager" class="pager inline"></div>
+
+  <div id="p_table" style="min-height:160px;"></div>
+
+  <!-- pager ล่าง (ถ้าอยากมี) -->
+  <div class="toolbar" style="display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:8px;">
+    <button class="btn-small" id="p_prev2" type="button">« Prev</button>
+    <span id="p_page_info2" class="muted">Page 1</span>
+    <button class="btn-small" id="p_next2" type="button">Next »</button>
+  </div>
 </div>
+      </section>
     </main>
   </div>
 
   <!-- Toast -->
-  <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span></div>
+  <div class="toast" id="toast" role="status" aria-live="polite">
+    <span id="toastText"></span>
+  </div>
 
-  <!-- Load nav partial + set active + init topbar -->
-  <!-- <script type="module">
-    const side = document.querySelector('.sidebar[data-include]');
-    if (side) {
-      fetch(side.getAttribute('data-include'))
-        .then(r => r.text())
-        .then(html => {
-          side.innerHTML = html;
-          import('/static/js/nav-active.js?v=1').then(m => m.activateCurrentNav && m.activateCurrentNav());
-        })
-        .catch(()=>{});
-    }
-    import('/static/js/api.js?v=4').then(m => m.initTopbar && m.initTopbar());
-  </script> -->
+  <!-- Scripts -->
   <script type="module" src="/static/js/nav-loader.js"></script>
-  <!-- Page logic -->
-  <script type="module" src="/static/js/page-parts.js?v=1"></script>
+  <script type="module" src="/static/js/page-parts.js?v=2"></script>
 </body>
 </html>

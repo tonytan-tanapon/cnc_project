@@ -1,113 +1,220 @@
-// /static/js/page-pos.js  (drop-in)
-import { $, jfetch, toast, initTopbar } from './api.js';
+// /static/js/page-pos.js (v10)
+import { $, jfetch, toast } from './api.js';
+import { renderTableX } from './tablex.js';
+import { attachAutocomplete } from './autocomplete.js';
 
-const API = '/api/v1';
-const DETAIL_PAGE = './pos-detail.html';
-const posUrl = (id) => `${DETAIL_PAGE}?id=${encodeURIComponent(id)}`;
+const posUrl = (id) => `./pos-detail.html?id=${encodeURIComponent(id)}`;
 
-const state = { page: 1, page_size: 20, q: '' };
+/* --- element refs (id ตรง ๆ) --- */
+const inputSearch = $('po_q');
+const selPerPage  = $('po_per_page');
+const btnPrevTop  = $('po_prev');
+const btnNextTop  = $('po_next');
+const pageInfoTop = $('po_page_info');
+const btnPrevBot  = $('po_prev2');
+const btnNextBot  = $('po_next2');
+const pageInfoBot = $('po_page_info2');
+const table       = $('po_table');
+const btnReload   = $('po_reload');
 
-const on = (el, ev, fn) => el && el.addEventListener(ev, fn);
-const qs = (s, r = document) => r.querySelector(s);
+const poNoEl      = $('po_no');
+const poCustEl    = $('po_cust');
+const poDescEl    = $('po_desc');
+const btnCreate   = $('po_create');
 
-function safeHTML(s) { return String(s ?? '').replaceAll('<','&lt;'); }
-function safeDate(dt) { if (!dt) return ''; const d = new Date(dt); return isNaN(d) ? '' : d.toLocaleString(); }
+const state = { page: 1, pageSize: Number(selPerPage?.value || 20), q: '', total: 0, items: [] };
 
-function ensureTable() {
-  // ต้องมี <table><tbody id="tblBody"></tbody></table>
-  let tbody = qs('#tblBody');
-  if (tbody) return tbody;
+/* ===================== Autocomplete (Customer) ===================== */
+let selectedCustomer = null; // { id, code, name }
 
-  // ถ้าไม่มี ให้สร้าง table อย่างง่ายใต้ปุ่ม Reload
-  const after = qs('#btnReload')?.closest('.card') || qs('main') || document.body;
-  const wrap = document.createElement('div');
-  wrap.innerHTML = `
-    <table class="table">
-      <thead>
-        <tr>
-          <th>PO Number</th>
-          <th>Customer Code</th>
-          <th>Customer Name</th>
-          <th>Description</th>
-          <th>Created</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody id="tblBody"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody>
-    </table>`;
-  after.appendChild(wrap.firstElementChild);
-  return qs('#tblBody');
-}
-
-function renderRows(items) {
-  const tbody = ensureTable();
-  if (!items?.length) {
-    tbody.innerHTML = '<tr><td colspan="6" class="empty">No data</td></tr>';
-    return;
-  }
-  tbody.innerHTML = items.map(x => `
-    <tr data-id="${x.id}">
-      <td><a href="${posUrl(x.id)}">${x.po_number ?? ''}</a></td>
-      <td>${x.customer?.code ?? ''}</td>
-      <td>${x.customer?.name ?? ''}</td>
-      <td>${safeHTML(x.note)}</td>
-      <td>${safeDate(x.created_at)}</td>
-      <td class="act">
-        <button class="link" data-act="open">Open</button>
-        <button class="link" data-act="del">Delete</button>
-      </td>
-    </tr>
-  `).join('');
-}
-
-async function load() {
-  const page_size = Number(qs('#pageSize')?.value || state.page_size);
-  state.page_size = page_size;
-  state.q = qs('#q')?.value?.trim() || '';
-
-  const params = new URLSearchParams({ page: state.page, page_size: state.page_size });
-  if (state.q) params.set('q', state.q);
-
-  const data = await jfetch(`${API}/pos?${params.toString()}`);
-  renderRows(data.items || []);
-}
-
-async function createPO() {
-  const customerId = Number(qs('#c_customer_id')?.value || 0);
-  const note = qs('#c_note')?.value || '';
-  if (!customerId) { toast('Please select customer'); return; }
-  const po = await jfetch(`${API}/pos`, { method: 'POST', json: { customer_id: customerId, note } });
-  toast('Created');
-  location.href = posUrl(po.id);
-}
-
-function hookEvents() {
-  on(qs('#btnReload'), 'click', () => { state.page = 1; load(); });
-  on(qs('#q'), 'keydown', (e) => { if (e.key === 'Enter') { state.page = 1; load(); }});
-
-  on(document, 'click', async (e) => {
-    const btn = e.target.closest('button[data-act]');
-    if (!btn) return;
-    const tr = btn.closest('tr');
-    const id = Number(tr?.dataset.id || 0);
-    if (!id) return;
-
-    if (btn.dataset.act === 'open') location.href = posUrl(id);
-    if (btn.dataset.act === 'del') {
-      if (!confirm('Delete this PO?')) return;
-      await jfetch(`${API}/pos/${id}`, { method: 'DELETE' });
-      toast('Deleted');
-      load();
+async function searchCustomers(term) {
+  const q = (term || '').trim();
+  if (!q) return [];
+  // พยายามรูปแบบหลักก่อน: /customers?q=&page=&page_size=
+  try {
+    const res = await jfetch(`/customers?q=${encodeURIComponent(q)}&page=1&page_size=10`);
+    const items = Array.isArray(res) ? res : (res.items ?? []);
+    return items.map(x => ({
+      id: x.id ?? x.customer_id ?? x.customerId,
+      code: x.code ?? '',
+      name: x.name ?? '',
+    }));
+  } catch (_) {
+    // fallback: /customers/keyset?q=
+    try {
+      const res2 = await jfetch(`/customers/keyset?q=${encodeURIComponent(q)}&limit=10`);
+      const items2 = Array.isArray(res2) ? res2 : (res2.items ?? []);
+      return items2.map(x => ({
+        id: x.id ?? x.customer_id ?? x.customerId,
+        code: x.code ?? '',
+        name: x.name ?? '',
+      }));
+    } catch {
+      return [];
     }
+  }
+}
+
+attachAutocomplete(poCustEl, {
+  fetchItems: searchCustomers,
+  getDisplayValue: (it) => it ? `${it.code} — ${it.name}` : '',
+  renderItem: (it) => `<div class="ac-row"><b>${it.code}</b> — ${it.name}</div>`,
+  onPick: (it) => {
+    selectedCustomer = it || null;
+    poCustEl.value = it ? `${it.code} — ${it.name}` : '';
+  },
+  openOnFocus: true,
+  minChars: 1,
+  debounceMs: 200,
+  maxHeight: 260,
+});
+
+// ถ้าผู้ใช้พิมพ์แก้เอง ให้ล้าง selection เพื่อบังคับ validate ตอน create
+poCustEl?.addEventListener('input', () => { selectedCustomer = null; });
+
+/* ===================== Table / Pager ===================== */
+function safe(s){ return String(s ?? '').replaceAll('<','&lt;'); }
+function fmtDate(s){ if(!s) return ''; const d=new Date(s); return isNaN(d)?'':d.toLocaleString(); }
+const debounce = (fn,ms=300)=>{let t;return(...a)=>{clearTimeout(t);t=setTimeout(()=>fn(...a),ms);};};
+
+function computeTotalPages() {
+  if (state.total && state.pageSize) return Math.max(1, Math.ceil(state.total / state.pageSize));
+  return state.items.length < state.pageSize && state.page === 1 ? 1 : state.page;
+}
+
+function syncPager() {
+  const totalPages = computeTotalPages();
+  const label = `Page ${state.page}${state.total ? ` / ${totalPages}` : ''}`;
+  if (pageInfoTop) pageInfoTop.textContent = label;
+  if (pageInfoBot) pageInfoBot.textContent = label;
+
+  const canPrev = state.page > 1;
+  const canNext = state.total ? state.page < totalPages : state.items.length === state.pageSize;
+
+  [btnPrevTop, btnPrevBot].forEach(b => b && b.toggleAttribute('disabled', !canPrev));
+  [btnNextTop, btnNextBot].forEach(b => b && b.toggleAttribute('disabled', !canNext));
+}
+
+function renderPosTable(container, rows, ctx={}) {
+  renderTableX(container, rows, {
+    rowStart: ctx.rowStart || 0,
+    getRowId: r => r.id,
+    onRowClick: r => { if (r?.id) location.href = posUrl(r.id); },
+    columns: [
+      { key: '__no',        title: 'No.',        width: '64px',  align: 'right' },
+      { key: 'po_number',   title: 'PO No.',     width: '140px',
+        render: r => `<a href="${posUrl(r.id)}">${safe(r.po_number ?? '')}</a>` },
+      { key: 'customer',    title: 'Customer',   width: '260px',
+        render: r => `${safe(r.customer?.code ?? '')} — ${safe(r.customer?.name ?? '')}` },
+      { key: 'description', title: 'Description', render: r => safe(r.description ?? '') },
+      { key: 'created_at',  title: 'Created',    width: '180px', render: r => fmtDate(r.created_at) },
+    ],
+    emptyText: 'No POs found',
   });
-
-  on(qs('#btnCreate'), 'click', createPO);
 }
 
-function init() {
-  initTopbar?.();
-  hookEvents();
-  load();
+async function loadPOs() {
+  if (!table) return;
+  table.innerHTML = `<div style="padding:12px">Loading…</div>`;
+  try {
+    const params = new URLSearchParams({
+      page: String(state.page),
+      page_size: String(state.pageSize),
+      q: state.q || '',
+      _: String(Date.now()),
+    });
+    const data = await jfetch(`/pos?${params.toString()}`);
+    state.items = data.items ?? [];
+    state.total = Number(data.total ?? 0);
+
+    const rows = state.items.map(it => ({
+      id: it.id,
+      po_number: it.po_number,
+      customer: it.customer,
+      description: it.description ?? '',
+      created_at: it.created_at,
+    }));
+
+    renderPosTable(table, rows, { rowStart: (state.page - 1) * state.pageSize });
+    syncPager();
+  } catch (e) {
+    console.error(e);
+    table.innerHTML = `<div style="padding:12px;color:#b91c1c">Load error</div>`;
+    toast('Load POs failed');
+    syncPager();
+  }
 }
 
-document.addEventListener('DOMContentLoaded', init);
+/* ===================== Create PO ===================== */
+// กรณีผู้ใช้ไม่กดเลือกลิสต์: ลอง resolve ให้ครั้งเดียวด้วยคำค้นปัจจุบัน
+async function resolveCustomerIfNeeded() {
+  if (selectedCustomer) return selectedCustomer;
+  const term = (poCustEl?.value || '').trim();
+  if (!term) return null;
+  const list = await searchCustomers(term);
+  if (list.length === 1) {
+    selectedCustomer = list[0];
+    poCustEl.value = `${selectedCustomer.code} — ${selectedCustomer.name}`;
+    return selectedCustomer;
+  }
+  return null;
+}
+
+btnCreate?.addEventListener('click', async () => {
+  try {
+    const po_number   = (poNoEl?.value || '').trim() || null;
+    const description = (poDescEl?.value || '').trim() || '';
+
+    let cust = selectedCustomer;
+    if (!cust) cust = await resolveCustomerIfNeeded();
+
+    if (!cust?.id) {
+      toast('เลือก Customer จากลิสต์ก่อนครับ', false);
+      poCustEl?.focus();
+      return;
+    }
+
+    const payload = { po_number, customer_id: cust.id, description };
+    await jfetch('/pos', { method: 'POST', body: JSON.stringify(payload) });
+
+    toast('PO created');
+    if (poNoEl) poNoEl.value = '';
+    if (poCustEl) poCustEl.value = '';
+    if (poDescEl) poDescEl.value = '';
+    selectedCustomer = null;
+
+    state.page = 1;
+    await loadPOs();
+  } catch (e) {
+    console.error(e);
+    toast(e?.message || 'Create PO failed', false);
+  }
+});
+
+/* ===================== events ===================== */
+inputSearch?.addEventListener('input', debounce(() => {
+  state.q = inputSearch.value || '';
+  state.page = 1;
+  loadPOs();
+}, 250));
+
+selPerPage?.addEventListener('change', () => {
+  state.pageSize = Number(selPerPage.value || 20);
+  state.page = 1;
+  loadPOs();
+});
+
+btnReload?.addEventListener('click', () => loadPOs());
+
+[btnPrevTop, btnPrevBot].forEach(b => b?.addEventListener('click', () => {
+  if (state.page > 1) { state.page--; loadPOs(); }
+}));
+[btnNextTop, btnNextBot].forEach(b => b?.addEventListener('click', () => {
+  const totalPages = computeTotalPages();
+  if (state.total ? state.page < totalPages : state.items.length === state.pageSize) {
+    state.page++; loadPOs();
+  }
+}));
+
+/* ===================== boot ===================== */
+document.addEventListener('DOMContentLoaded', loadPOs);
