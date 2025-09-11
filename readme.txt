@@ -54,3 +54,4 @@ pip install -r requirements.txt
 runserver.bat 
 
 test new brunch
+add2 
