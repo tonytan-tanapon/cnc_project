@@ -5,329 +5,451 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Kiosk — Time Clock (PIN only, colored buttons, protected actions)</title>
   <style>
-    :root{
-      --bg:#fff; --text:#111; --muted:#6b7280; --line:#e5e7eb; --shadow:0 2px 10px rgba(0,0,0,.07);
-      --in:#10b981;        /* green */
-      --out:#ef4444;       /* red   */
-      --sbr:#f59e0b;       /* amber */
-      --ebr:#6366f1;       /* indigo*/
-      --disabled:#e5e7eb;  /* gray  */
-    }
-    *{ box-sizing:border-box }
-    body{ margin:0; background:var(--bg); color:var(--text); font:20px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Arial }
-    .wrap{ max-width:980px; margin:24px auto; padding:0 14px }
-    h1{ margin:0 0 16px; font-size:28px }
-    .muted{ color:var(--muted) }
+:root{
+  --bg:#fff; --text:#111; --muted:#6b7280; --line:#e5e7eb; --shadow:0 2px 10px rgba(0,0,0,.07);
+  --in:#10b981; --out:#ef4444; --sbr:#f59e0b; --ebr:#6366f1; --disabled:#e5e7eb;
 
-    .view{ display:none }
-    .view.active{ display:block }
+  /* Action button sizing (tweak these) */
+  --btn-min: 220px;         /* minimum height */
+  --btn-vh: 24vh;           /* responsive chunk of viewport height */
+  --btn-max: 360px;         /* maximum height */
+  --btn-radius: 12px;
 
-    .panel{ background:#fff; border:2px solid var(--line); border-radius:16px; box-shadow:var(--shadow); padding:16px }
-    .row{ display:flex; gap:12px; align-items:center }
-
-    .display {
-  font-size: 28px;
-  font-weight: 700;
-  border: 2px solid var(--line);
-  border-radius: 12px;
-  padding: 12px 14px;
-  min-height: 56px;
-
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
+  --btn-fs-min: 42px;   /* minimum font size */
+  --btn-fs-vw:  4.8vw;  /* responsive scaling */
+  --btn-fs-max: 84px;   /* maximum font size */
 }
-    .display span.value{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace }
 
-    .keypad{ display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-top:16px }
-    .key{ font-size:28px; font-weight:700; border:2px solid var(--line); border-radius:14px; padding:18px 0; background:#fff; cursor:pointer }
-    .key:active{ transform:scale(.98) }
-    .key.action{ font-weight:600 }
+*{ box-sizing:border-box }
+body{ margin:0; background:var(--bg); color:var(--text); font:20px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Arial }
+.wrap{ max-width:980px; margin:24px auto; padding:0 14px }
+h1{ margin:0 0 16px; font-size:28px }
+.muted{ color:var(--muted) }
 
-    .chip{ display:inline-flex; align-items:center; gap:8px; border:2px solid var(--line); border-radius:999px; padding:6px 12px; font-size:16px }
-    .dot{ width:14px; height:14px; border-radius:999px; display:inline-block }
-    .dot.off{ background:#9ca3af }
-    .dot.in{ background:#16a34a }
-    .dot.break{ background:#d97706 }
+/* View toggling */
+.view{ display:none }
+.view.active{ display:block }
 
-    .grid-2{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px }
-    .bigbtn{ display:flex; align-items:center; justify-content:center; border:2px solid transparent; border-radius:18px; padding:26px 18px; font-size:28px; font-weight:800; color:#fff; cursor:pointer; box-shadow:var(--shadow) }
-    .bigbtn:active{ transform:scale(.98) }
-    .btn-in{ background:var(--in); }
-    .btn-out{ background:var(--out); }
-    .btn-sbr{ background:var(--sbr); }
-    .btn-ebr{ background:var(--ebr); }
+/* Panels & rows */
+.panel{ background:#fff; border:2px solid var(--line); border-radius:16px; box-shadow:var(--shadow); padding:16px }
+.row{ display:flex; gap:12px; align-items:center }
 
-    .bigbtn[disabled]{ background:var(--disabled); color:#9ca3af; cursor:not-allowed; box-shadow:none; transform:none }
+/* Top display strip */
+.display{
+  font-size:28px; font-weight:700; border:2px solid var(--line); border-radius:12px;
+  padding:12px 14px; min-height:56px; display:flex; align-items:center; justify-content:space-between; gap:20px;
+}
+.display span.value{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace }
 
-    table{ border-collapse:collapse; width:100%; font-size:18px }
-    th,td{ padding:10px; border-bottom:1px solid var(--line); text-align:left }
-    th{ background:#f9fafb }
-    .badge{ display:inline-block; padding:4px 8px; border-radius:999px; font-size:14px; color:#fff }
-    .b-in{ background:var(--in) } .b-out{ background:var(--out) } .b-sbr{ background:var(--sbr) } .b-ebr{ background:var(--ebr) }
+/* Keypad */
+.keypad{ display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-top:16px }
+.key{ font-size:32px; font-weight:700; border:2px solid var(--line); border-radius:10px; padding:22px 0; background:#fff; cursor:pointer }
+.key:active{ transform:scale(.98) }
 
-    .passdots{
-    display:flex; gap:14px; align-items:center; justify-content:center; width:100%;
-  }
-  .passdot{
-    width:16px; height:16px; border-radius:999px;
-    border:2px solid var(--line);
-    display:inline-block;
-  }
-  .passdot.filled{
-    background:#111;
-    border-color:#111;
-  }
+/* Status chip */
+.chip{ display:inline-flex; align-items:center; gap:8px; border:2px solid var(--line); border-radius:999px; padding:6px 12px; font-size:16px }
+.dot{ width:14px; height:14px; border-radius:999px; display:inline-block }
+.dot.off{ background:#9ca3af } .dot.in{ background:#16a34a } .dot.break{ background:#d97706 }
+
+/* Button layout */
+.grid-actions{ display:grid; grid-template-columns:1fr; gap:16px }
+/* (legacy two-column layout if you ever switch back) */
+.grid-2{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px }
+
+/* BIG ACTION BUTTONS — single source of truth */
+.bigbtn{
+  display:flex; align-items:center; justify-content:center;
+  border:2px solid transparent; border-radius:var(--btn-radius);
+  min-height: clamp(var(--btn-min), var(--btn-vh), var(--btn-max));
+  padding:36px 28px;
+  font-size:38px; font-weight:800;
+  color:#fff; box-shadow:var(--shadow);
+  cursor:pointer;
+
+  font-size: clamp(var(--btn-fs-min), var(--btn-fs-vw), var(--btn-fs-max));
+  line-height: 1.1;           /* tighter lines for big text */
+  white-space: normal;         /* allow wrap if needed */
+  text-wrap: balance;          /* nicer multi-line centering (supported modern browsers) */
+}
 
 
-  .topbar{
+/* Icons inside big action buttons */
+.bigbtn{ gap:14px } /* you already have display:flex on .bigbtn */
+.bigbtn .ico{
+  width:1.6em; height:1.6em;
+  flex:0 0 auto;
+  stroke-width:2.2;
+}
+.bigbtn:hover:not([disabled]){ filter:saturate(1.08) brightness(0.98) }
+.bigbtn:active:not([disabled]){ transform:scale(.98); filter:brightness(0.92) }
+.bigbtn:focus-visible{ outline:3px solid rgba(0,0,0,.2); outline-offset:2px }
+.bigbtn[disabled]{ background:var(--disabled); color:#9ca3af; cursor:not-allowed; box-shadow:none; transform:none }
+
+/* Action colors (placed AFTER .bigbtn so they win) */
+.btn-in  { background:var(--in) }
+.btn-sbr { background:var(--sbr) }
+.btn-ebr { background:var(--ebr) }
+.btn-out { background:var(--out) }
+
+/* Table & badges */
+table{ border-collapse:collapse; width:100%; font-size:18px }
+th,td{ padding:10px; border-bottom:1px solid var(--line); text-align:left }
+th{ background:#f9fafb }
+.badge{ display:inline-block; padding:4px 8px; border-radius:999px; font-size:14px; color:#fff }
+.b-in{ background:var(--in) } .b-out{ background:var(--out) } .b-sbr{ background:var(--sbr) } .b-ebr{ background:var(--ebr) }
+
+/* Passcode dots */
+.passdots{ display:flex; gap:14px; align-items:center; justify-content:center; width:100% }
+.passdot{ width:16px; height:16px; border-radius:999px; border:2px solid var(--line); display:inline-block }
+.passdot.filled{ background:#111; border-color:#111 }
+
+/* Topbar (if used) */
+.topbar{
   display:flex; align-items:center; justify-content:space-between;
   padding:12px 14px; margin:0 0 12px;
   border:2px solid var(--line); border-radius:12px; background:#fff; box-shadow:var(--shadow);
   font-weight:700; font-size:22px;
 }
+#top_title{ font-weight:700; font-size:22px }
+#id_val{ flex:1; display:flex; justify-content:center; letter-spacing:3px }
+#clock{ font-size:20px; font-weight:600; white-space:nowrap }
 
-#top_title {
-  font-weight: 700;
-  font-size: 22px;
+
+.kiosk-xl .bigbtn{
+  --btn-fs-min: 56px;
+  --btn-fs-vw:  6vw;
+  --btn-fs-max: 110px;
 }
 
-/* Only the passcode dots get tracking */
-#id_val {
-  flex: 1;
-  display: flex;
-  justify-content: center;
-  letter-spacing: 3px;   /* moved here */
+
+/* Row for Start Break + Clock Out side-by-side */
+.row-2{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap:16px;
 }
 
-/* Keep the clock on one line and sized nicely */
-#clock {
-  font-size: 20px;
-  font-weight: 600;
-  white-space: nowrap;
+/* ถ้าปุ่มใดปุ่มหนึ่งถูกซ่อน (display:none) ให้ปุ่มที่เหลือขยายเต็มแถว */
+.row-2:has(.bigbtn[style*="display: none"]) .bigbtn:not([style*="display: none"]) {
+  grid-column: 1 / -1;
 }
+
+/* มือถือจอแคบ ให้ซ้อนกัน */
+@media (max-width: 540px){
+  .row-2{ grid-template-columns: 1fr; }
+}
+
   </style>
 </head>
 <body>
-    
-
-    <!-- View 1: 4‑digit User ID -->
-    <section id="v_id" class="view active">
-      <div class="panel">
-        <div class="display" style="margin-top:12px">
-  <span id="top_title">TopNotch v1.0</span>
-  <span id="id_val" class="passdots" aria-label="Enter 4-digit code" aria-live="polite"></span>
-  <span id="clock" aria-live="polite"></span>
-</div>
-        <div class="keypad" id="id_pad" style="margin-top:16px"></div>
+  <!-- View 1: 4-digit User ID -->
+  <section id="v_id" class="view active">
+    <div class="panel">
+      <div class="display" style="margin-top:12px">
+        <span id="top_title">TopNotch v1.0</span>
+        <span id="id_val" class="passdots" aria-label="Enter 4-digit code" aria-live="polite"></span>
+        <span id="clock" aria-live="polite"></span>
       </div>
-    </section>
+      <div class="keypad" id="id_pad" style="margin-top:16px"></div>
+    </div>
+  </section>
 
-    <!-- View 2: Actions -->
-    <section id="v_act" class="view">
-      <div class="panel">
-        <div class="row" style="justify-content:space-between;gap:16px;flex-wrap:wrap">
-          <div>
-            <!-- <div class="muted" style="margin-bottom:6px">Step 2 of 2</div> -->
-            <div style="font-size:22px;font-weight:800">Welcome, <span id="emp_name"></span></div>
-          </div>
-          <div class="chip" id="chip">
-  <span class="dot off"></span>
-  <span id="chip_status">Off Duty</span>
-  <span id="chip_time" style="margin-left:8px; font-weight:600; font-size:16px;"></span>
-</div>
+  <!-- View 2: Actions -->
+  <section id="v_act" class="view">
+    <div class="panel">
+      <div class="row" style="justify-content:space-between;gap:16px;flex-wrap:wrap">
+        <div>
+          <div style="font-size:22px;font-weight:800">Welcome, <span id="emp_name"></span></div>
         </div>
-
-        <div class="grid-2" style="margin-top:16px">
-          <button class="bigbtn btn-in"  id="btn_in">Clock In</button>
-          
-          <button class="bigbtn btn-sbr" id="btn_sbr">Start Break</button>
-          <button class="bigbtn btn-ebr" id="btn_ebr">Stop Break</button>
-          <button class="bigbtn btn-out" id="btn_out">Clock Out</button>
-        </div>
-
-        <div class="row" style="justify-content:space-between;margin-top:16px">
-          <button class="key action" id="btn_logout" style="padding:12px 16px">Logout</button>
-          <!-- <div class="muted">Calling: <code>/time-entries/start|stop</code> & <code>/breaks/start|stop</code></div> -->
+        <div class="chip" id="chip">
+          <span class="dot off"></span>
+          <span id="chip_status">Off Duty</span>
+          <span id="chip_time" style="margin-left:8px; font-weight:600; font-size:16px;"></span>
         </div>
       </div>
 
-      <div class="panel" style="margin-top:16px">
-        <div style="font-size:22px;font-weight:700;margin-bottom:8px">Last 4 Activities Today</div>
-        <table>
-          <thead><tr><th style="width:220px">Time</th>
-            <th style="width:160px">Action</th><th>Notes</th></tr></thead>
-          <tbody id="log"></tbody>
-        </table>
-      </div>
-    </section>
+ <div class="grid-actions" style="margin-top:16px">
+
+  <button class="bigbtn btn-in" id="btn_in">
+    <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M5 4v16"></path>
+      <path d="M10 12h10"></path>
+      <path d="M16 8l4 4-4 4"></path>
+    </svg>
+    <span>Clock In</span>
+  </button>
+
+  <!-- Start Break + Clock Out on the same row -->
+  <div class="row-2">
+    <button class="bigbtn btn-sbr" id="btn_sbr">
+      <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="10" width="12" height="6" rx="2"></rect>
+        <path d="M15 11h3a2 2 0 0 1 0 4h-3"></path>
+        <path d="M7 7v2M9 6v2M11 7v2"></path>
+      </svg>
+      <span>Start Break</span>
+    </button>
+
+    <button class="bigbtn btn-out" id="btn_out">
+      <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M19 4v16"></path>
+        <path d="M14 12H4"></path>
+        <path d="M8 8l-4 4 4 4"></path>
+      </svg>
+      <span>Clock Out</span>
+    </button>
   </div>
+
+  <!-- Stop Break full-width below -->
+  <button class="bigbtn btn-ebr" id="btn_ebr">
+    <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="8" width="18" height="12" rx="2"></rect>
+      <path d="M9 8V6h6v2"></path>
+      <path d="M3 13h18"></path>
+    </svg>
+    <span>Stop Break</span>
+  </button>
+
+</div>
+
+      </div>
+
+      <div class="row" style="justify-content:space-between;margin-top:16px">
+        <button class="key action" id="btn_logout" style="padding:12px 16px">Logout</button>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:16px">
+      <div style="font-size:22px;font-weight:700;margin-bottom:8px">Last 4 Activities Today</div>
+      <table>
+        <thead>
+          <tr><th style="width:220px">Time</th><th style="width:160px">Action</th><th>Notes</th></tr>
+        </thead>
+        <tbody id="log"></tbody>
+      </table>
+    </div>
+  </section>
 
   <script type="module">
     import { $, jfetch, toast } from "/static/js/api.js?v=1";
 
     /* ----------------- API base ----------------- */
-    const API_BASE = ''//'http://127.0.0.1:8000/api/v1'; // change to '' if served from same origin
+    const API_BASE = ''; // e.g. '' for same origin
     const api = (p) => `${API_BASE}${p}`;
 
-    /* ----------------- util ----------------- */
+    /* ----------------- utils ----------------- */
     const pad = (n)=> String(n).padStart(2,'0');
     const fmtTime = (ts)=>{ if(!ts) return ''; const d = new Date(ts); return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; };
     const startOfTodayISO = ()=>{ const d=new Date(); d.setHours(0,0,0,0); return d.toISOString(); };
     const startOfTomorrowISO = ()=>{ const d=new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()+1); return d.toISOString(); };
     const setView = (id)=>{ ['v_id','v_act'].forEach(v=>$(v).classList.remove('active')); $(id).classList.add('active'); };
-   function setChip(status){
-  const dot = document.querySelector('#chip .dot');
-  const txt = document.getElementById('chip_status');
-  const timeEl = document.getElementById('chip_time');
-
-  dot.className = 'dot ' + (status || 'off');
-  txt.textContent = status==='in' ? 'Clocked In' :
-                    status==='break' ? 'On Break' : 'Off Duty';
-
-  // Show current local time when status is set
-  const now = new Date();
-  timeEl.textContent = now.toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: true
-  });
-}
     const confirmAction = (label, name)=> window.confirm(`Confirm: ${label} for ${name}?`);
 
-    /* ----------------- state ----------------- */
-    const state = { code:'', idDigits:'', empName:'', employeeId:null, timeEntryId:null, breakId:null, status:'off', busy:false };
-
-    /* ----------------- UI gating ----------------- */
-    function setDisabled(btn, disabled){
-      btn.disabled = !!disabled; btn.setAttribute('aria-disabled', disabled? 'true':'false');
-    }
-    function updateButtons(){
-      const inBtn = $('btn_in'); const outBtn = $('btn_out'); const sbrBtn = $('btn_sbr'); const ebrBtn = $('btn_ebr');
-      const st = state.status; const hasBreak = !!state.breakId;
-      if(st === 'off'){
-        setDisabled(inBtn,false); setDisabled(outBtn,true); setDisabled(sbrBtn,true); setDisabled(ebrBtn,true);
-      } else if(st === 'in'){
-        setDisabled(inBtn,true); setDisabled(outBtn,false); setDisabled(sbrBtn,hasBreak); setDisabled(ebrBtn,!hasBreak);
-      } else if(st === 'break'){
-        setDisabled(inBtn,true); setDisabled(outBtn,false); setDisabled(sbrBtn,true); setDisabled(ebrBtn,false);
-      } else {
-        setDisabled(inBtn,true); setDisabled(outBtn,true); setDisabled(sbrBtn,true); setDisabled(ebrBtn,true);
-      }
-    }
-
-
-function logout() {
-  setView('v_id');
-  clearId();
-  const title = document.getElementById('top_title');
-  if (title) title.textContent = 'TopNotch v1.0';
-  toast('Logged out');
-  state.code = '';
-  state.empName = '';
-  state.employeeId = null;
-  state.timeEntryId = null;
-  state.breakId = null;
-  state.status = 'off';
-  setChip('off');
-  updateButtons();
-  renderLog([]);
+    function hide(el){
+  if (!el) return;
+  if (document.activeElement === el) el.blur();
+  el.style.display = 'none';
 }
+function show(el){
+  if (!el) return;
+  el.style.display = '';
+}
+
+
+
+    function setChip(status){
+      const dot = document.querySelector('#chip .dot');
+      const txt = document.getElementById('chip_status');
+      const timeEl = document.getElementById('chip_time');
+      dot.className = 'dot ' + (status || 'off');
+      txt.textContent = status==='in' ? 'Clocked In' :
+                        status==='break' ? 'On Break' : 'Off Duty';
+      const now = new Date();
+      timeEl.textContent = now.toLocaleTimeString([], {
+        hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true
+      });
+    }
+
+    /* ----------------- state ----------------- */
+    const state = {
+      code:'', idDigits:'', empName:'', employeeId:null, timeEntryId:null,
+      breakId:null, status:'off', busy:false,
+      hasBreakUsed:false   // track if any break occurred this shift (today)
+    };
+
+    /* ----------------- UI logic (hide/show buttons) ----------------- */
+    function updateButtons(){
+  const inBtn  = $('btn_in');
+  const outBtn = $('btn_out');
+  const sbrBtn = $('btn_sbr');
+  const ebrBtn = $('btn_ebr');
+
+  // hide everything first
+  [inBtn,outBtn,sbrBtn,ebrBtn].forEach(hide);
+
+  const st = state.status;             // 'off' | 'in' | 'break'
+  const onBreak = !!state.breakId;     // currently open break?
+  const usedBreakThisShift = !!state.hasBreakUsed; // based on current time entry only (see fetchTodayLog)
+
+  if (st === 'off') {
+    // first login of the day / after clock out -> only Clock In
+    show(inBtn);
+    return;
+  }
+
+  if (st === 'break' || onBreak) {
+    // when on break -> only Stop Break
+    show(ebrBtn);
+    return;
+  }
+
+  // st === 'in'
+  if (usedBreakThisShift) {
+    // already took and finished a break in THIS shift -> only Clock Out
+    show(outBtn);
+  } else {
+    // no break yet in THIS shift -> Start Break and Clock Out
+    show(sbrBtn);
+    show(outBtn);
+  }
+}
+
+    function logout() {
+      setView('v_id');
+      clearId();
+      const title = document.getElementById('top_title');
+      if (title) title.textContent = 'TopNotch v1.0';
+      toast('Logged out');
+      state.code = '';
+      state.empName = '';
+      state.employeeId = null;
+      state.timeEntryId = null;
+      state.breakId = null;
+      state.status = 'off';
+      state.hasBreakUsed = false;   // reset; will re-evaluate on next login
+      setChip('off');
+      updateButtons();
+      renderLog([]);
+    }
 
     /* ----------------- log renderer ----------------- */
     function renderLog(rows){
-  const tb = $('log');
-  if(!rows || rows.length===0){
-    tb.innerHTML = `<tr><td colspan="3"><span class="muted">No entries yet today</span></td></tr>`;
-    return;
-  }
-  tb.innerHTML = rows.map(r=>{
-    const badgeCls = r.kind==='in'?'b-in': r.kind==='out'?'b-out': r.kind==='sbr'?'b-sbr':'b-ebr';
-    const label = r.kind==='in'?'Clock In': r.kind==='out'?'Clock Out': r.kind==='sbr'?'Start Break':'Stop Break';
-    return `<tr>
-              <td>${fmtDateTime(r.ts)}</td>
-              <td><span class="badge ${badgeCls}">${label}</span></td>
-              <td>${r.note||''}</td>
-            </tr>`;
-  }).join('');
-}
+      const tb = $('log');
+      if(!rows || rows.length===0){
+        tb.innerHTML = `<tr><td colspan="3"><span class="muted">No entries yet today</span></td></tr>`;
+        return;
+      }
+      tb.innerHTML = rows.map(r=>{
+        const badgeCls = r.kind==='in' ? 'b-in' :
+                         r.kind==='out'? 'b-out' :
+                         r.kind==='sbr'? 'b-sbr' : 'b-ebr';
+        const label = r.kind==='in' ? 'Clock In' :
+                      r.kind==='out'? 'Clock Out' :
+                      r.kind==='sbr'? 'Start Break':'Stop Break';
+        return `<tr>
+                  <td>${fmtDateTime(r.ts)}</td>
+                  <td><span class="badge ${badgeCls}">${label}</span></td>
+                  <td>${r.note||''}</td>
+                </tr>`;
+      }).join('');
+    }
+
     async function fetchTodayLog(){
-      if(!state.employeeId) { renderLog([]); return; }
-      const qs = new URLSearchParams({
-        employee_id: String(state.employeeId),
-        start_at: startOfTodayISO(),
-        end_at: startOfTomorrowISO()
-      }).toString();
-      try{
-        // Try /time-entries/range first; if your server doesn't include that alias, fall back to /time-entries
-        let rows;
-        try {
-          rows = await jfetch(api(`/time-entries/range?${qs}`));
-        } catch (e) {
-          rows = await jfetch(api(`/time-entries?${qs}`));
-        }
-        const events = [];
-        for(const te of rows){
-          if(te.clock_in_at) events.push({ kind:'in', ts: te.clock_in_at });
-          if(Array.isArray(te.breaks)){
-            for(const br of te.breaks){
-              if(br.start_at) events.push({ kind:'sbr', ts: br.start_at });
-              if(br.end_at)   events.push({ kind:'ebr', ts: br.end_at });
-            }
-          }
-          if(te.clock_out_at) events.push({ kind:'out', ts: te.clock_out_at });
-        }
-        events.sort((a,b)=> new Date(b.ts) - new Date(a.ts)); // newest first
-const last4 = events.slice(0,4); // just take first 4
-renderLog(last4);
-      }catch(e){ renderLog([]); toast(e.message || 'Load log failed', false); }
+  if(!state.employeeId) { renderLog([]); return; }
+
+  const qs = new URLSearchParams({
+    employee_id: String(state.employeeId),
+    start_at: startOfTodayISO(),
+    end_at: startOfTomorrowISO()
+  }).toString();
+
+  try{
+    let rows;
+    try {
+      rows = await jfetch(api(`/time-entries/range?${qs}`));
+    } catch {
+      rows = await jfetch(api(`/time-entries?${qs}`));
     }
 
-    /* ----------------- API helpers ----------------- */
+    // Find the current time entry by id (if any)
+    let currentTE = null;
+    if (state.timeEntryId != null) {
+      currentTE = rows.find(te => te.id === state.timeEntryId) || null;
+    }
+
+    // Compute hasBreakUsed from the current time entry only
+    if (currentTE && Array.isArray(currentTE.breaks)) {
+      // “used” means they started (and typically ended) at least one break this shift
+      state.hasBreakUsed = currentTE.breaks.some(b => b.start_at != null);
+    } else {
+      state.hasBreakUsed = false;
+    }
+
+    // Build the events list just for the "Last 4" table (from all rows today)
+    const events = [];
+    for(const te of rows){
+      if(te.clock_in_at) events.push({ kind:'in', ts: te.clock_in_at });
+      if(Array.isArray(te.breaks)){
+        for(const br of te.breaks){
+          if(br.start_at) events.push({ kind:'sbr', ts: br.start_at });
+          if(br.end_at)   events.push({ kind:'ebr', ts: br.end_at });
+        }
+      }
+      if(te.clock_out_at) events.push({ kind:'out', ts: te.clock_out_at });
+    }
+
+    events.sort((a,b)=> new Date(b.ts) - new Date(a.ts));
+    renderLog(events.slice(0,4));
+
+    // reflect in UI
+    updateButtons();
+
+  } catch(e){
+    renderLog([]);
+    toast(e.message || 'Load log failed', false);
+  }
+}
+
+
+    /* ----------------- server state ----------------- */
     async function fetchStateByCode(code){
-      const data = await jfetch(api(`/time-entries/state/${encodeURIComponent(code)}`));
-      state.status = data.status || 'off';
-      state.timeEntryId = data.time_entry_id || null;
-      state.breakId = data.break_id || null;
-      state.employeeId = data.employee_id || null;
-      state.empName = data.name || state.empName || 'Employee';
-      $('emp_name').textContent = state.empName;
-      // also reflect name in the top title while on the Actions view
-const title = document.getElementById('top_title');
-if (title) title.textContent = `TopNotch v1.0 — ${state.empName}`;
-      setChip(state.status);
-      updateButtons();
-      await fetchTodayLog();
-    }
+  const data = await jfetch(api(`/time-entries/state/${encodeURIComponent(code)}`));
+  state.status      = data.status || 'off';          // 'off' | 'in' | 'break'
+  state.timeEntryId = data.time_entry_id || null;    // <-- needed
+  state.breakId     = data.break_id || null;         // <-- needed when on break
+  state.employeeId  = data.employee_id || null;
+  state.empName     = data.name || state.empName || 'Employee';
 
+  $('emp_name').textContent = state.empName;
+  const title = document.getElementById('top_title');
+  if (title) title.textContent = `TopNotch v1.0 — ${state.empName}`;
+
+  setChip(state.status);
+  updateButtons();
+  await fetchTodayLog();
+}
+
+    /* ----------------- actions (auto-logout on success) ----------------- */
     async function clockIn(){
-      
       if(state.busy) return; state.busy = true;
       try{
-        if(!confirmAction('Clock In', state.empName)) return;
+        // if(!confirmAction('Clock In', state.empName)) return;
         await jfetch(api('/time-entries/start'), { method:'POST', body: JSON.stringify({ code: state.code, method:'web' }) });
-        
-        
         await fetchStateByCode(state.code);
         toast('Clocked in');
-        logout()
+        logout();
       }catch(e){ toast(e.message||'Clock in failed', false); }
-      finally{ state.busy=false;
-        
-       }
+      finally{ state.busy=false; }
     }
 
     async function clockOut(){
       if(state.busy) return; state.busy = true;
       try{
-        if(!confirmAction('Clock Out', state.empName)) return;
+        // if(!confirmAction('Clock Out', state.empName)) return;
         await jfetch(api('/time-entries/stop'), { method:'POST', body: JSON.stringify({ code: state.code, method:'web' }) });
-        
         await fetchStateByCode(state.code);
         toast('Clocked out');
-        logout()
+        logout();
       }catch(e){ toast(e.message||'Clock out failed', false); }
       finally{ state.busy=false; }
     }
@@ -335,12 +457,11 @@ if (title) title.textContent = `TopNotch v1.0 — ${state.empName}`;
     async function startBreak(){
       if(state.busy) return; state.busy = true;
       try{
-        if(!confirmAction('Start Break', state.empName)) return;
+        // if(!confirmAction('Start Break', state.empName)) return;
         await jfetch(api('/breaks/start'), { method:'POST', body: JSON.stringify({ code: state.code, break_type:'lunch', is_paid:false, method:'web' }) });
-        
         await fetchStateByCode(state.code);
         toast('Break started');
-        logout()
+        logout();
       }catch(e){ toast(e.message||'Start break failed', false); }
       finally{ state.busy=false; }
     }
@@ -348,12 +469,11 @@ if (title) title.textContent = `TopNotch v1.0 — ${state.empName}`;
     async function stopBreak(){
       if(state.busy) return; state.busy = true;
       try{
-        if(!confirmAction('Stop Break', state.empName)) return;
+        // if(!confirmAction('Stop Break', state.empName)) return;
         await jfetch(api('/breaks/stop'), { method:'POST', body: JSON.stringify({ code: state.code }) });
-        
         await fetchStateByCode(state.code);
         toast('Break stopped');
-        logout()
+        logout();
       }catch(e){ toast(e.message||'Stop break failed', false); }
       finally{ state.busy=false; }
     }
@@ -387,83 +507,61 @@ if (title) title.textContent = `TopNotch v1.0 — ${state.empName}`;
     document.addEventListener('DOMContentLoaded', () => {
       renderPad($('id_pad'));
       renderIdDots();
-       startClock(); // <— start the clock
-       
-      // $('id_clear').addEventListener('click', clearId);
+      startClock();
       $('btn_in').addEventListener('click', clockIn);
       $('btn_out').addEventListener('click', clockOut);
       $('btn_sbr').addEventListener('click', startBreak);
       $('btn_ebr').addEventListener('click', stopBreak);
-      $('btn_logout').addEventListener('click', () => { 
-        setView('v_id'); clearId(); 
-        const title = document.getElementById('top_title');
-        if (title) title.textContent = 'TopNotch v1.0';
-          toast('Logged out'); 
-          state.code=''; 
-          state.empName=''; 
-          state.employeeId=null; 
-          state.timeEntryId=null; 
-          state.breakId=null; 
-          state.status='off'; 
-          setChip('off'); updateButtons(); renderLog([]); 
-        });
-        updateButtons();
-        startChipClock();
-        });
-
+      $('btn_logout').addEventListener('click', () => { logout(); });
+      updateButtons();
+      startChipClock();
+    });
 
     function renderIdDots(){
-  const n = state.idDigits.length;
-  const dots = Array.from({length:4}, (_,i)=>
-    `<span class="passdot${i < n ? ' filled' : ''}"></span>`
-  ).join('');
-  $('id_val').innerHTML = dots;
-}
+      const n = state.idDigits.length;
+      const dots = Array.from({length:4}, (_,i)=>
+        `<span class="passdot${i < n ? ' filled' : ''}"></span>`
+      ).join('');
+      $('id_val').innerHTML = dots;
+    }
 
+    function startClock() {
+      const el = document.getElementById("clock");
+      const tick = () => {
+        const now = new Date();
+        let hh = now.getHours();
+        const ampm = hh >= 12 ? "PM" : "AM";
+        hh = hh % 12 || 12; // convert 0 → 12
+        const mm = String(now.getMinutes()).padStart(2, '0');
+        const ss = String(now.getSeconds()).padStart(2, '0');
+        el.textContent = `${hh}:${mm}:${ss} ${ampm}`;
+      };
+      tick();
+      return setInterval(tick, 1000);
+    }
 
-function startClock() {
-  const el = document.getElementById("clock");
-  const tick = () => {
-    const now = new Date();
-    let hh = now.getHours();
-    const ampm = hh >= 12 ? "PM" : "AM";
-    hh = hh % 12 || 12; // convert 0 → 12
-    const mm = String(now.getMinutes()).padStart(2, '0');
-    const ss = String(now.getSeconds()).padStart(2, '0');
-    el.textContent = `${hh}:${mm}:${ss} ${ampm}`;
-  };
-  tick();
-  return setInterval(tick, 1000);
-}
+    function fmtDateTime(ts){
+      if(!ts) return '';
+      const d = new Date(ts);
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth()+1).padStart(2,'0');
+      const dd = String(d.getDate()).padStart(2,'0');
+      const hh = String(d.getHours()).padStart(2,'0');
+      const mi = String(d.getMinutes()).padStart(2,'0');
+      const ss = String(d.getSeconds()).padStart(2,'0');
+      return `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss}`;
+    }
 
-
-
-function fmtDateTime(ts){
-  if(!ts) return '';
-  const d = new Date(ts);
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth()+1).padStart(2,'0');
-  const dd = String(d.getDate()).padStart(2,'0');
-  const hh = String(d.getHours()).padStart(2,'0');
-  const mi = String(d.getMinutes()).padStart(2,'0');
-  const ss = String(d.getSeconds()).padStart(2,'0');
-  return `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss}`;
-}
-
-function startChipClock(){
-  const timeEl = document.getElementById('chip_time');
-  if(!timeEl) return;
-  setInterval(()=>{
-    const now = new Date();
-    timeEl.textContent = now.toLocaleTimeString([], {
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: true
-    });
-  }, 1000);
-}
-
+    function startChipClock(){
+      const timeEl = document.getElementById('chip_time');
+      if(!timeEl) return;
+      setInterval(()=>{
+        const now = new Date();
+        timeEl.textContent = now.toLocaleTimeString([], {
+          hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true
+        });
+      }, 1000);
+    }
   </script>
 </body>
 </html>
