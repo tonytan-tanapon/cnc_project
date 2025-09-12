@@ -47,8 +47,8 @@ alembic upgrade head
 7b9ab10e8cdd
 
 install
-Clone
+Clone Ctrl + Shift + P : git: Clone
 python -m venv venv
 venv\Scripts\activate
 pip install -r requirements.txt
-runserver.bat 
+rundev.bat 
