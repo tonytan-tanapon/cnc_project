@@ -1,28 +1,34 @@
-// /static/js/page-lots.js
-// ใช้ jfetch จาก /static/js/api.js โดยตรง (ตัวนั้นจัดการ API Base ให้แล้ว)
-// Autocomplete Part + โหลด revision ปัจจุบัน + Autocomplete PO ด้วย po_number
-// POST /lots พร้อม part_id / part_revision_id / po_id ที่ถูกต้อง
-// ตาราง Reload: แสดง lot_no, part_number, po_number, planned_qty, started_at, finished_at, status
+// /static/js/page-lots.js (v2.1) — TableX + attachAutocomplete + pager + tokenized search
+import { $, jfetch, toast, initTopbar } from '/static/js/api.js';
+import { renderTableX } from '/static/js/tablex.js';
+import { attachAutocomplete } from '/static/js/autocomplete.js';
 
-import { jfetch, renderTable, toast, initTopbar } from '/static/js/api.js';
+/* ---------------- element refs ---------------- */
+const inputSearch = $('l_q') || $('globalSearch');
+const selPerPage  = $('l_per_page');
+const btnReload   = $('l_reload');
+const tableEl     = $('l_table');
 
-const gid = (id) => document.getElementById(id);
-const on  = (el, ev, fn) => el && el.addEventListener(ev, fn);
+const lotNoEl     = $('l_no');
+const partEl      = $('l_part');
+const revSelEl    = $('l_rev_id');
+const poEl        = $('l_poid');
+const qtyEl       = $('l_qty');
+const statusEl    = $('l_status');
+const btnCreate   = $('l_create');
 
-// ---------- ใช้ /pos ตาม routers/pos.py ----------
+const LOT_DETAIL_URL = (id) => `/static/lot-detail.html?id=${encodeURIComponent(id)}`;
 const PO_PATH = '/pos';
 
-// ---------- Utils ----------
+/* ---------------- utils ---------------- */
 const esc = (s) => String(s ?? '')
   .replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;')
   .replaceAll('"','&quot;').replaceAll("'",'&#39;');
 
-const debounce = (fn, ms=200) => { let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms);} };
 const fmtDate = (ts) => {
   if (!ts) return '';
   const d = new Date(ts);
-  if (Number.isNaN(d.getTime())) return String(ts);
-  // แสดงเป็น YYYY-MM-DD HH:mm
+  if (isNaN(d)) return '';
   const y = d.getFullYear();
   const m = String(d.getMonth()+1).padStart(2,'0');
   const day = String(d.getDate()).padStart(2,'0');
@@ -31,474 +37,375 @@ const fmtDate = (ts) => {
   return `${y}-${m}-${day} ${hh}:${mm}`;
 };
 
-// ---------- สร้าง overlay dropdown ----------
-function makeOverlay() {
-  const el = document.createElement('div');
-  el.className = 'ac-dropdown';
-  el.style.cssText =
-    'position:fixed;z-index:9999;background:#fff;border:1px solid #e5e7eb;border-radius:12px;' +
-    'box-shadow:0 10px 30px rgba(0,0,0,.15);max-height:300px;overflow:auto;display:none;';
-  document.body.appendChild(el);
-  return el;
-}
-function placeOverlay(box, anchor) {
-  const r = anchor.getBoundingClientRect();
-  box.style.left  = `${r.left}px`;
-  box.style.top   = `${r.bottom + 6}px`;
-  box.style.width = `${r.width}px`;
-}
+const debounce = (fn, ms=250)=>{ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; };
 
-// ------------------------------------------------------------------
-// Autocomplete สำหรับ Part (+ โหลด/ผูก Revision)
-// ------------------------------------------------------------------
-const partAC = {
-  anchor: null,
-  box: null,
+/* ---------------- state ---------------- */
+const state = {
+  page: 1,
+  pageSize: Number(selPerPage?.value || 20),
+  q: '',
+  total: 0,
   items: [],
-  active: -1,
-  selectedId: null,        // part_id
-  selectedRevId: null,     // part_revision_id
-  lastChosenCode: '',
-
-  ensureBox(){
-    if (this.box) return;
-    this.box = makeOverlay();
-
-    if (!document.getElementById('ac-style')) {
-      const style = document.createElement('style');
-      style.id = 'ac-style';
-      style.textContent = `
-        .ac-item{display:flex;gap:10px;padding:10px 12px;cursor:pointer}
-        .ac-item.active,.ac-item:hover{background:#f8fafc}
-        .ac-text{display:flex;flex-direction:column}
-        .ac-name{font-weight:700}
-        .ac-meta{font-size:12px;color:#64748b}
-        .badge{display:inline-block;padding:.2rem .6rem;border:1px solid #e2e8f0;border-radius:999px;font-size:12px}
-        .ac-empty{padding:10px 12px;color:#64748b}
-      `;
-      document.head.appendChild(style);
-    }
-
-    this.box.addEventListener('click', (e)=>{
-      const it = e.target.closest('.ac-item');
-      if (it) this.choose(Number(it.dataset.idx));
-    });
-  },
-
-  position(){ if (this.anchor && this.box) placeOverlay(this.box, this.anchor); },
-
-  async search(q){
-    if (!q){ this.render([]); return; }
-    try{
-      const rows = await jfetch(`/parts?q=${encodeURIComponent(q)}`); // [{id, part_no, name}]
-      this.render(rows || []);
-    }catch{ this.render([]); }
-  },
-
-  render(list){
-    this.ensureBox();
-    this.items = Array.isArray(list) ? list.slice(0, 20) : [];
-    this.active = -1;
-    this.box.innerHTML = this.items.length
-      ? this.items.map((p,i)=>`
-          <div class="ac-item" data-idx="${i}">
-            <span class="badge">${esc(p.part_no||'')}</span>
-            <div class="ac-text">
-              <div class="ac-name">${esc(p.name||'')}</div>
-              <div class="ac-meta">#${p.id}</div>
-            </div>
-          </div>`).join('')
-      : `<div class="ac-empty">No results</div>`;
-    this.position();
-    this.box.style.display = 'block';
-  },
-
-  async choose(idx){
-    const r = this.items[idx]; if (!r) return;
-    this.selectedId = r.id;
-    this.lastChosenCode = r.part_no || '';
-    this.anchor.value = r.part_no || '';
-    this.anchor.dataset.id = String(r.id);
-    this.hide();
-    await loadRevisionsForPart(r.id);   // เติม select และตั้ง selectedRevId
-  },
-
-  changedByTyping(){
-    if ((this.anchor.value || '').toUpperCase() !== (this.lastChosenCode || '').toUpperCase()){
-      this.selectedId = null;
-      this.selectedRevId = null;
-      this.anchor.dataset.id = '';
-      const sel = gid('l_rev_id'); if (sel) sel.innerHTML = '';
-    }
-  },
-
-  hide(){ if (this.box) this.box.style.display = 'none'; },
-
-  highlight(move){
-    if (!this.items.length) return;
-    this.active = (this.active + move + this.items.length) % this.items.length;
-    [...this.box.querySelectorAll('.ac-item')]
-      .forEach((n,i)=> n.classList.toggle('active', i===this.active));
-    const el = this.box.querySelector(`.ac-item[data-idx="${this.active}"]`);
-    if (el) el.scrollIntoView({ block: 'nearest' });
-  }
 };
 
-function initPartAutocomplete(){
-  const input = gid('l_part'); if (!input) return;
-  partAC.anchor = input; partAC.ensureBox(); partAC.position();
+/* ---------------- Part autocomplete + revisions ---------------- */
+let selectedPart = null;        // { id, part_no, name }
+let selectedRevisionId = null;  // number|null
 
-  const doSearch = debounce(()=>{
-    partAC.changedByTyping();
-    const q = input.value.trim();
-    if (!q) { partAC.render([]); return; }
-    partAC.search(q);
-  }, 180);
-
-  on(input,'input', doSearch);
-  on(input,'focus', ()=>{ if (input.value.trim()) doSearch(); partAC.position(); });
-  on(input,'blur',  ()=> setTimeout(()=> partAC.hide(), 120));
-  on(window,'resize',()=> partAC.position());
-  on(window,'scroll',()=> partAC.position());
-
-  on(input,'keydown', (e)=>{
-    if (partAC.box.style.display !== 'block') return;
-    if (e.key==='ArrowDown'){ e.preventDefault(); partAC.highlight(+1); }
-    if (e.key==='ArrowUp'){   e.preventDefault(); partAC.highlight(-1); }
-    if (e.key==='Enter'){     if (partAC.active>=0){ e.preventDefault(); partAC.choose(partAC.active); } }
-    if (e.key==='Escape') partAC.hide();
-  });
+function resetRevisionSelect(placeholder = '— Select revision —') {
+  if (!revSelEl) return;
+  revSelEl.disabled = true;
+  revSelEl.innerHTML = `<option value="">${placeholder}</option>`;
+  selectedRevisionId = null;
 }
 
-// โหลด Revisions → เติม select#l_rev_id และตั้ง selectedRevId
-async function loadRevisionsForPart(partId){
-  const sel = gid('l_rev_id'); if (sel) sel.innerHTML = '';
-  try{
-    const revs = await jfetch(`/part-revisions?part_id=${partId}`);
-    if (!Array.isArray(revs) || !revs.length){ partAC.selectedRevId = null; return; }
+resetRevisionSelect(); // initial
 
-    if (sel) {
-      sel.innerHTML = revs.map(r =>
-        `<option value="${r.id}" ${r.is_current ? 'selected' : ''}>${esc(r.rev || '')}${r.is_current ? ' (current)' : ''}</option>`
-      ).join('');
+async function loadRevisionsForPart(partId) {
+  if (!revSelEl) return;
+  selectedRevisionId = null;
+
+  revSelEl.disabled = true;
+  revSelEl.innerHTML = `<option value="">Loading…</option>`;
+
+  try {
+    // Try multiple endpoints for compatibility
+    const endpoints = [
+      `/part-revisions?part_id=${partId}`,
+      `/part_revisions?part_id=${partId}`,
+      `/parts/${partId}/revisions`,
+    ];
+    let res = null, list = [];
+    for (const url of endpoints) {
+      try {
+        const r = await jfetch(url);
+        list = Array.isArray(r) ? r : (r?.items ?? []);
+        if (Array.isArray(list)) { res = list; break; }
+      } catch { /* try next */ }
     }
-    const current = revs.find(r => r.is_current) || revs[0];
-    partAC.selectedRevId = current?.id ?? null;
-  }catch{
-    partAC.selectedRevId = null;
+    const rows = Array.isArray(res) ? res : [];
+
+    if (!rows.length) {
+      // No revisions: optional revision
+      revSelEl.innerHTML = `<option value="">— No revision —</option>`;
+      revSelEl.disabled = false;
+      selectedRevisionId = null;
+      return;
+    }
+
+    // Render options
+    revSelEl.innerHTML = rows.map(r =>
+      `<option value="${r.id}" ${r.is_current ? 'selected' : ''}>${esc(r.rev || '')}${r.is_current ? ' (current)' : ''}</option>`
+    ).join('');
+
+    // Pick current if available, else first
+    const current = rows.find(r => r.is_current) || rows[0];
+    selectedRevisionId = current?.id ?? null;
+    if (selectedRevisionId) revSelEl.value = String(selectedRevisionId);
+  } catch (e) {
+    console.error('loadRevisionsForPart error:', e);
+    resetRevisionSelect('— No revision —');
+    toast('Load revisions failed', false);
+  } finally {
+    revSelEl.disabled = false;
   }
 }
 
-// ถ้าไม่ได้คลิกเลือก → resolve จากข้อความที่พิมพ์ (พร้อมเติม select)
-async function resolveFromTyped(){
-  const input = gid('l_part');
-  const code = (input?.value || '').trim();
-  if (!code) return { part_id:null, part_revision_id:null };
+async function searchParts(term) {
+  const q = (term || '').trim();
 
-  try{
-    const rows = await jfetch(`/parts?q=${encodeURIComponent(code)}`);
-    const pick = rows.find(p => (p.part_no||'').toUpperCase() === code.toUpperCase())
-             ||  rows.find(p => (p.name||'').toLowerCase() === code.toLowerCase())
-             ||  (rows.length === 1 ? rows[0] : null);
-    if (!pick) return { part_id:null, part_revision_id:null };
-
-    input.value = pick.part_no || input.value;
-    input.dataset.id = String(pick.id);
-    await loadRevisionsForPart(pick.id);
-
-    return { part_id: pick.id, part_revision_id: partAC.selectedRevId };
-  }catch{
-    return { part_id:null, part_revision_id:null };
-  }
-}
-
-// ------------------------------------------------------------------
-// Autocomplete สำหรับ PO (ค้นด้วย po_number; endpoint /pos ไม่มีพารามิเตอร์ q)
-// โหลดทั้งหมดครั้งเดียวแล้วกรองฝั่งหน้าเว็บ
-// ------------------------------------------------------------------
-const poAC = {
-  anchor: null,
-  box: null,
-  items: [],
-  active: -1,
-  selectedId: null,   // po_id จริง
-  displayText: '',
-  _all: null,         // cache รายการทั้งหมด
-
-  ensureBox(){
-    if (this.box) return;
-    this.box = makeOverlay();
-    this.box.addEventListener('click', (e)=>{
-      const it = e.target.closest('.ac-item');
-      if (it) this.choose(Number(it.dataset.idx));
-    });
-  },
-
-  position(){ if (this.anchor) placeOverlay(this.box, this.anchor); },
-
-  async ensureAll(){
-    if (Array.isArray(this._all)) return this._all;
+  // When empty: show first 10 parts (for open-on-focus UX)
+  if (!q) {
     try {
-      const rows = await jfetch(`${PO_PATH}`); // GET /pos → ทั้งหมด
-      this._all = Array.isArray(rows) ? rows : [];
-    } catch {
-      this._all = [];
-    }
-    return this._all;
-  },
-
-  async search(q){
-    const qU = (q||'').toUpperCase();
-    if (!qU){ this.render([]); return; }
-    const all = await this.ensureAll();
-    // กรองด้วย po_number (และ description เผื่อสะดวก)
-    const list = all.filter(p =>
-      (p.po_number || '').toUpperCase().includes(qU) ||
-      (p.description || '').toUpperCase().includes(qU)
-    ).slice(0, 20);
-    this.render(list);
-  },
-
-  render(list){
-    this.ensureBox();
-    this.items = Array.isArray(list) ? list : [];
-    this.active = -1;
-    this.box.innerHTML = this.items.length
-      ? this.items.map((p,i)=>`
-          <div class="ac-item" data-idx="${i}">
-            <span class="badge">${esc(p.po_number || String(p.id))}</span>
-            <div class="ac-text">
-              <div class="ac-name">${esc(p.description || '')}</div>
-              <div class="ac-meta">#${p.id}</div>
-            </div>
-          </div>`).join('')
-      : `<div class="ac-empty">No results</div>`;
-    this.position();
-    this.box.style.display = 'block';
-  },
-
-  choose(idx){
-    const r = this.items[idx]; if (!r) return;
-    this.selectedId = r.id;
-    this.displayText = r.po_number || String(r.id);
-    this.anchor.value = this.displayText;
-    this.anchor.dataset.id = String(r.id);
-    this.hide();
-  },
-
-  hide(){ if (this.box) this.box.style.display='none'; },
-
-  highlight(move){
-    if (!this.items.length) return;
-    this.active = (this.active + move + this.items.length) % this.items.length;
-    [...this.box.querySelectorAll('.ac-item')]
-      .forEach((el,i)=> el.classList.toggle('active', i===this.active));
-    const el = this.box.querySelector(`.ac-item[data-idx="${this.active}"]`);
-    if (el) el.scrollIntoView({ block:'nearest' });
+      const res = await jfetch(`/parts?page=1&per_page=10`);
+      const items = Array.isArray(res) ? res : (res.items ?? []);
+      return items.map(p => ({
+        id: p.id ?? p.part_id,
+        part_no: p.part_no ?? '',
+        name: p.name ?? '',
+      }));
+    } catch { return []; }
   }
-};
 
-function initPoAutocomplete(){
-  const input = gid('l_poid'); if (!input) return;
-  poAC.anchor = input; poAC.ensureBox(); poAC.position();
+  try {
+    // main: offset list
+    const res = await jfetch(`/parts?q=${encodeURIComponent(q)}&page=1&per_page=10`);
+    const items = Array.isArray(res) ? res : (res.items ?? []);
+    return items.map(p => ({
+      id: p.id ?? p.part_id,
+      part_no: p.part_no ?? '',
+      name: p.name ?? '',
+    }));
+  } catch {
+    // fallback: keyset if you have it
+    try {
+      const res2 = await jfetch(`/parts/keyset?q=${encodeURIComponent(q)}&limit=10`);
+      const items2 = Array.isArray(res2) ? res2 : (res2.items ?? []);
+      return items2.map(p => ({
+        id: p.id ?? p.part_id,
+        part_no: p.part_no ?? '',
+        name: p.name ?? '',
+      }));
+    } catch { return []; }
+  }
+}
 
-  const doSearch = debounce(async ()=>{
-    const q = input.value.trim();
-    if (!q) { poAC.render([]); return; }
-    await poAC.search(q);
-  }, 180);
+attachAutocomplete(partEl, {
+  fetchItems: searchParts,
+  getDisplayValue: it => it ? `${it.part_no} — ${it.name}` : '',
+  renderItem: it => `<div class="ac-row"><b>${esc(it.part_no)}</b> — ${esc(it.name)}</div>`,
+  onPick: async (it) => {
+    selectedPart = it || null;
+    partEl.value = it ? `${it.part_no} — ${it.name}` : '';
+    resetRevisionSelect();
+    if (it?.id) await loadRevisionsForPart(it.id);
+  },
+  openOnFocus: true,   // will call fetch with current value; we support empty → first 10
+  minChars: 0,         // allow showing suggestions even when empty
+  debounceMs: 200,
+  maxHeight: 260,
+});
 
-  on(input, 'input', doSearch);
-  on(input, 'focus', ()=>{ if (input.value.trim()) poAC.search(input.value.trim()); poAC.position(); });
-  on(input, 'blur',  ()=> setTimeout(()=> poAC.hide(), 120));
-  on(window,'resize',()=> poAC.position());
-  on(window,'scroll',()=> poAC.position());
+partEl?.addEventListener('input', () => {
+  selectedPart = null;
+  resetRevisionSelect();
+});
 
-  on(input, 'keydown', (e)=>{
-    if (poAC.box.style.display !== 'block') return;
-    if (e.key==='ArrowDown'){ e.preventDefault(); poAC.highlight(+1); }
-    if (e.key==='ArrowUp'){   e.preventDefault(); poAC.highlight(-1); }
-    if (e.key==='Enter'){     if (poAC.active>=0){ e.preventDefault(); poAC.choose(poAC.active); } }
-    if (e.key==='Escape') poAC.hide();
+revSelEl?.addEventListener('change', () => {
+  const v = Number(revSelEl.value || 0);
+  selectedRevisionId = Number.isFinite(v) && v > 0 ? v : null;
+});
+
+/* ---------------- PO autocomplete ---------------- */
+let selectedPO = null; // { id, po_number, description }
+
+async function searchPOs(term) {
+  const q = (term || '').trim();
+
+  // When empty: show first 10 POs
+  if (!q) {
+    try {
+      const res = await jfetch(`${PO_PATH}?page=1&page_size=10`);
+      const items = Array.isArray(res) ? res : (res.items ?? []);
+      return items.map(p => ({
+        id: p.id,
+        po_number: p.po_number ?? String(p.id),
+        description: p.description ?? '',
+      }));
+    } catch { return []; }
+  }
+
+  try {
+    const res = await jfetch(`${PO_PATH}?q=${encodeURIComponent(q)}&page=1&page_size=10`);
+    const items = Array.isArray(res) ? res : (res.items ?? []);
+    return items.map(p => ({
+      id: p.id,
+      po_number: p.po_number ?? String(p.id),
+      description: p.description ?? '',
+    }));
+  } catch { return []; }
+}
+
+attachAutocomplete(poEl, {
+  fetchItems: searchPOs,
+  getDisplayValue: it => it ? `${it.po_number} — ${it.description || ''}` : '',
+  renderItem: it => `<div class="ac-row"><b>${esc(it.po_number)}</b> — ${esc(it.description || '')}</div>`,
+  onPick: (it) => {
+    selectedPO = it || null;
+    poEl.value = it ? `${it.po_number} — ${it.description || ''}` : '';
+  },
+  openOnFocus: true,
+  minChars: 0,      // show suggestions on focus even when empty
+  debounceMs: 200,
+  maxHeight: 260,
+});
+poEl?.addEventListener('input', () => { selectedPO = null; });
+
+/* ---------------- table render ---------------- */
+function renderLotsTable(container, rows, ctx={}) {
+  renderTableX(container, rows, {
+    rowStart: ctx.rowStart || 0,
+    getRowId: r => r.id,
+    onRowClick: r => { if (r?.id) location.href = LOT_DETAIL_URL(r.id); },
+    columns: [
+      { key: '__no',       title: 'No.',         width: '64px',  align: 'right' },
+      { key: 'lot_no',     title: 'Lot No.',     width: '160px',
+        render: r => r?.id
+          ? `<a href="${LOT_DETAIL_URL(r.id)}">${esc(r.lot_no ?? '')}</a>`
+          : esc(r.lot_no ?? '') },
+      { key: 'part_no',    title: 'Part Number', width: '200px',
+        render: r => esc(r.part?.part_no ?? r.part_no ?? '') },
+      { key: 'po_number',  title: 'PO Number',   width: '160px',
+        render: r => esc(r.po?.po_number ?? r.po_number ?? '') },
+      { key: 'travs',      title: 'Travelers',   width: '220px',
+        render: r => (r.traveler_ids ?? [])
+          .map(id => `<a href="/static/traveler-detail.html?id=${id}">#${id}</a>`).join(', ') },
+      { key: 'planned_qty',title: 'Planned Qty', width: '120px', align: 'right',
+        render: r => String(r.planned_qty ?? 0) },
+      { key: 'started_at', title: 'Started',     width: '180px',
+        render: r => esc(fmtDate(r.started_at)) },
+      { key: 'finished_at',title: 'Finished',    width: '180px',
+        render: r => esc(fmtDate(r.finished_at)) },
+      { key: 'status',     title: 'Status',      width: '140px',
+        render: r => esc(r.status ?? '') },
+    ],
+    emptyText: 'No lots found',
   });
 }
 
-// แปลงค่าที่พิมพ์เป็น po_id:
-// - ถ้าเป็นตัวเลข: ใช้เป็น id ได้เลย
-// - ถ้าเป็นรหัส (เช่น "PO-2025-0001"): หา exact match ที่ po_number เท่ากัน (case-insensitive)
-async function resolvePoIdFromTyped(){
-  const t = (gid('l_poid')?.value || '').trim();
-  if (!t) return null;
-  const n = Number(t);
-  if (Number.isFinite(n) && n > 0) return n;
-
-  // หา exact po_number
-  const all = await poAC.ensureAll();
-  const hit = all.find(p => (p.po_number || '').toUpperCase() === t.toUpperCase());
-  return hit ? hit.id : null;
+/* ---------------- paging helpers ---------------- */
+function computeTotalPages() {
+  if (state.total && state.pageSize) return Math.max(1, Math.ceil(state.total / state.pageSize));
+  return state.items.length < state.pageSize && state.page === 1 ? 1 : state.page;
+}
+function syncPager() {
+  // If you add pager labels/buttons, update here.
 }
 
-// ------------------------------------------------------------------
-// Helpers สำหรับตาราง: สร้าง lookup ของ part_no / po_number จาก id
-// ------------------------------------------------------------------
-async function buildLookups(rows){
-  const partIds = [...new Set(rows.map(r => r.part_id).filter(Boolean))];
-  const poIds   = [...new Set(rows.map(r => r.po_id).filter(Boolean))];
+/* ---------------- load lots ---------------- */
+async function loadLots() {
+  if (!tableEl) return;
+  tableEl.innerHTML = `<div style="padding:12px">Loading…</div>`;
+  try {
+    const params = new URLSearchParams({
+      page: String(state.page),
+      per_page: String(state.pageSize),
+      q: state.q || '',
+      _: String(Date.now()),
+    });
+    const data = await jfetch(`/lots?${params.toString()}`);
 
-  const partMap = {};
-  const poMap = {};
+    // Accept either {items:[]} or [] for compatibility
+    const items = Array.isArray(data) ? data : (data.items ?? []);
+    state.items = items;
+    state.total = Number((data && data.total) ?? 0);
 
-  await Promise.all([
-    Promise.all(partIds.map(id =>
-      jfetch(`/parts/${id}`).then(p => { partMap[id] = p; }).catch(()=>{})
-    )),
-    Promise.all(poIds.map(id =>
-      jfetch(`${PO_PATH}/${id}`).then(po => { poMap[id] = po; }).catch(()=>{})
-    ))
-  ]);
+    const rows = state.items.map(it => ({
+      id: it.id,
+      lot_no: it.lot_no,
+      part_no: it.part?.part_no,
+      po_number: it.po?.po_number,
+      traveler_ids: it.traveler_ids ?? [],
+      planned_qty: it.planned_qty,
+      started_at: it.started_at,
+      finished_at: it.finished_at,
+      status: it.status,
+      part: it.part ?? null,
+      po: it.po ?? null,
+      revision: it.revision ?? null,   // <- NEW
+    }));
 
-  return { partMap, poMap };
-}
-
-// ------------------------------------------------------------------
-// Lots ops (ตารางคอลัมน์ใหม่)
-// ------------------------------------------------------------------
-async function loadLots(){
-  const holder = gid('l_table'); if (!holder) return;
-  try{
-    const rows = await jfetch('/lots'); // [{id, lot_no, part_id, part_revision_id, po_id, planned_qty, started_at, finished_at, status, ...}]
-    const { partMap, poMap } = await buildLookups(rows);
-
-    // สร้างตารางตามคอลัมน์ที่ต้องการ
-    const thead = `
-      <thead><tr>
-        <th>Lot No</th>
-        <th>Part Number</th>
-        <th>PO Number</th>
-        <th>Travelers</th>   <!-- ✅ เพิ่มคอลัมน์ -->
-        <th>Planned Qty</th>
-        <th>Started At</th>
-        <th>Finished At</th>
-        <th>Status</th>
-        
-      </tr></thead>`;
-
-   const tbody = rows.map(r => {
-  const partNo = partMap[r.part_id]?.part_no || '';
-  const poNo   = poMap[r.po_id]?.po_number || '';
-
-  // ✅ render traveler list เป็นลิงก์
-  const travelers = (r.traveler_ids || []).map(id =>
-    `<a href="/static/traveler-detail.html?id=${id}">#${id}</a>`
-  ).join(', ');
-
-  return `
-    <tr>
-      <td>${esc(r.lot_no || '')}</td>
-      <td>${esc(partNo)}</td>
-      <td>${esc(poNo)}</td>
-      <td>${travelers}</td>   <!-- ✅ cell travelers -->
-      <td>${r.planned_qty ?? 0}</td>
-      <td>${esc(fmtDate(r.started_at))}</td>
-      <td>${esc(fmtDate(r.finished_at))}</td>
-      <td>${esc(r.status || '')}</td>
-      
-    </tr>`;
-}).join('');
-
-    holder.innerHTML = `<table>${thead}<tbody>${tbody}</tbody></table>`;
-  }catch(e){
-    holder.innerHTML = `<div class="hint">โหลดรายการไม่ได้: ${esc(e.message||'error')}</div>`;
+    renderLotsTable(tableEl, rows, { rowStart: (state.page - 1) * state.pageSize });
+    syncPager();
+  } catch (e) {
+    console.error(e);
+    tableEl.innerHTML = `<div style="padding:12px;color:#b91c1c">Load error</div>`;
+    toast('Load lots failed');
   }
 }
 
-async function createLot(){
-  const lot_no = (gid('l_no')?.value || 'AUTO').trim().toUpperCase();
-
-  // part_id + revision
-  let part_id = partAC.selectedId || Number(partAC.anchor?.dataset?.id || 0) || null;
-  let part_revision_id = partAC.selectedRevId || Number(gid('l_rev_id')?.value || 0) || null;
-
-  if (!part_id || !part_revision_id){
-    const r = await resolveFromTyped();
-    part_id = part_id || r.part_id;
-    part_revision_id = part_revision_id || r.part_revision_id;
+/* ---------------- create lot ---------------- */
+async function resolvePartIfNeeded() {
+  if (selectedPart) return selectedPart;
+  const term = (partEl?.value || '').trim();
+  if (!term) return null;
+  const list = await searchParts(term);
+  if (list.length === 1) {
+    selectedPart = list[0];
+    partEl.value = `${selectedPart.part_no} — ${selectedPart.name}`;
+    resetRevisionSelect();
+    if (selectedPart.id) {
+      try {
+        await loadRevisionsForPart(selectedPart.id);
+      } catch {}
+    }
+    return selectedPart;
   }
+  return null;
+}
 
-  if (!part_id){ toast('โปรดเลือก/ระบุ Part ให้ชัดเจน'); gid('l_part')?.focus(); return; }
-  if (!part_revision_id){ toast('Part นี้ยังไม่มี Revision หรือยังไม่ได้เลือก'); return; }
+async function resolvePOIfNeeded() {
+  if (selectedPO) return selectedPO;
+  const term = (poEl?.value || '').trim();
+  if (!term) return null;
+  const list = await searchPOs(term);
+  if (list.length === 1) {
+    selectedPO = list[0];
+    poEl.value = `${selectedPO.po_number} — ${selectedPO.description || ''}`;
+    return selectedPO;
+  }
+  return null;
+}
 
-  // po_id จาก autocomplete หรือที่พิมพ์เป็นตัวเลข/po_number
-  let po_id = poAC.selectedId || Number(poAC.anchor?.dataset?.id || 0) || null;
-  if (!po_id) po_id = await resolvePoIdFromTyped();
+async function createLot() {
+  try {
+    const lot_no = (lotNoEl?.value || 'AUTO').trim().toUpperCase();
 
-  const planned_qty = Number(gid('l_qty')?.value || 0) || 0;
-  const status = gid('l_status')?.value || 'in_process';
+    if (!selectedPart) await resolvePartIfNeeded();
+    if (!selectedPO)   await resolvePOIfNeeded();
 
-  const payload = { lot_no, part_id, part_revision_id, po_id, planned_qty, status };
+    const part_id = selectedPart?.id || null;
 
-  try{
-    await jfetch('/lots', { method:'POST', body: JSON.stringify(payload) });
+    // Try selected value from <select>, else whatever we resolved, else null
+    let part_revision_id = selectedRevisionId;
+    if (!part_revision_id) {
+      const v = Number(revSelEl?.value || 0);
+      part_revision_id = Number.isFinite(v) && v > 0 ? v : null; // may stay null (optional)
+    }
+
+    const po_id = selectedPO?.id || null;
+
+    if (!part_id) {
+      toast('Please choose a Part', false);
+      partEl?.focus();
+      return;
+    }
+
+    const planned_qty = Number(qtyEl?.value || 0) || 0;
+    const status = statusEl?.value || 'in_process';
+
+    const payload = { lot_no, part_id, part_revision_id, po_id, planned_qty, status };
+    await jfetch('/lots', { method: 'POST', body: JSON.stringify(payload) });
+
     toast('Lot created');
-    // reset ฟอร์ม
-    ['l_no','l_part','l_poid','l_qty'].forEach(id=>{ const el = gid(id); if (el) el.value=''; });
-    const sel = gid('l_rev_id'); if (sel) sel.innerHTML = '';
-    if (partAC.anchor) { partAC.anchor.dataset.id = ''; }
-    if (poAC.anchor)   { poAC.anchor.dataset.id   = ''; }
-    partAC.selectedId = null; partAC.selectedRevId = null; partAC.lastChosenCode = '';
-    poAC.selectedId = null;    poAC.displayText = '';
+    // reset (keep status)
+    ['l_no','l_part','l_poid','l_qty'].forEach(id => { const el = $(id); if (el) el.value = ''; });
+    resetRevisionSelect();
+    selectedPart = null; selectedPO = null;
+
+    state.page = 1;
     await loadLots();
-  }catch(e){
-    toast(e.message || 'Create failed');
+  } catch (e) {
+    console.error(e);
+    toast(e?.message || 'Create failed', false);
   }
 }
 
-// ------------------------------------------------------------------
-// Boot
-// ------------------------------------------------------------------
-document.addEventListener('DOMContentLoaded', ()=>{
-  initTopbar?.();              // ให้ jfetch ตัวกลางรู้ base จากช่อง #apiBase
+/* ---------------- events ---------------- */
+inputSearch?.addEventListener('input', debounce(() => {
+  state.q = inputSearch.value || '';
+  state.page = 1;
+  loadLots();
+}, 250));
 
-  initPartAutocomplete();
-  initPoAutocomplete();
+selPerPage?.addEventListener('change', () => {
+  state.pageSize = Number(selPerPage.value || 20);
+  state.page = 1;
+  loadLots();
+});
+btnReload?.addEventListener('click', () => loadLots());
+btnCreate?.addEventListener('click', createLot);
 
-  // เปลี่ยน revision ด้วยตัวเองได้
-  on(gid('l_rev_id'),'change', ()=>{
-    const v = Number(gid('l_rev_id')?.value || 0);
-    partAC.selectedRevId = v > 0 ? v : null;
-  });
+/* Optional: Enter to create directly from Part input */
+partEl?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') createLot();
+});
+poEl?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') createLot();
+});
 
-  on(gid('l_reload'), 'click', loadLots);
-  on(gid('l_create'), 'click', createLot);
-
-  // Enter ที่ช่อง Part
-  on(gid('l_part'), 'keydown', (e)=>{
-    if (e.key === 'Enter'){
-      if (partAC.box?.style.display === 'block' && partAC.active >= 0){
-        e.preventDefault();
-        partAC.choose(partAC.active);
-      }else{
-        createLot();
-      }
-    }
-  });
-  // Enter ที่ช่อง PO
-  on(gid('l_poid'), 'keydown', async (e)=>{
-    if (e.key === 'Enter'){
-      if (poAC.box?.style.display === 'block' && poAC.active >= 0){
-        e.preventDefault();
-        poAC.choose(poAC.active);
-      }else{
-        // เผื่อพิมพ์ po_number ตรง ๆ ให้ลอง resolve ก่อนยิง create
-        await createLot();
-      }
-    }
-  });
-
-  // Ping ใช้ base เดียวกัน (jfetch จะดูแลให้)
-  on(gid('btnPing'), 'click', ()=>{
-    jfetch('/health').then(()=>toast('API OK')).catch(()=>toast('API ไม่ตอบ'));
-  });
-
+/* ---------------- boot ---------------- */
+document.addEventListener('DOMContentLoaded', () => {
+  initTopbar?.();
   loadLots();
 });

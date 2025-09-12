@@ -1,54 +1,75 @@
 # routers/lots.py
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import or_
+from sqlalchemy import or_, func
 from typing import List, Optional
 
 from database import get_db
 from models import ProductionLot, Part, PartRevision, PO
 from schemas import ProductionLotCreate, ProductionLotUpdate, ProductionLotOut
-from utils.code_generator import next_code_yearly  # หรือ next_code ถ้าไม่ผูกปี
+from utils.code_generator import next_code_yearly
 
 router = APIRouter(prefix="/lots", tags=["lots"])
 
+# ---------- paging schema ----------
+from pydantic import BaseModel
+
+class LotPage(BaseModel):
+    items: List[ProductionLotOut]
+    total: int
+    page: int
+    per_page: int
+    pages: int
+
+def _like_escape(term: str) -> str:
+    esc = term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return f"%{esc}%"
+
+def _with_joined(db: Session, lot_id: int):
+    return (db.query(ProductionLot)
+             .options(
+                 joinedload(ProductionLot.part),
+                 joinedload(ProductionLot.po),
+                 joinedload(ProductionLot.part_revision),  # <- NEW
+             )
+             .filter(ProductionLot.id == lot_id)
+             .first())
 
 @router.post("", response_model=ProductionLotOut)
 def create_lot(payload: ProductionLotCreate, db: Session = Depends(get_db)):
-    """
-    สร้าง Lot ใหม่
-    - รองรับ lot_no = "", "AUTO", "AUTOGEN" -> gen อัตโนมัติ
-    - กันเลขซ้ำ + กัน race ด้วย retry
-    - ตรวจความสัมพันธ์ part / part_revision / po ให้ถูกต้อง
-    """
-    # ตรวจ PO (ถ้าส่งมา)
     if payload.po_id is not None and not db.get(PO, payload.po_id):
         raise HTTPException(404, "PO not found")
 
-    # ตรวจ Part
     part = db.get(Part, payload.part_id)
     if not part:
         raise HTTPException(404, "Part not found")
 
-    # ตรวจ Revision ให้ตรงกับ Part (ถ้าส่งมา)
-    if payload.part_revision_id is not None:
-        prv = db.get(PartRevision, payload.part_revision_id)
+    # ✅ Revision optional: if provided, validate it belongs to the part;
+    #    if not provided, try auto-pick current; else keep None.
+    rev_id = payload.part_revision_id
+    if rev_id is not None:
+        prv = db.get(PartRevision, rev_id)
         if not prv or prv.part_id != part.id:
             raise HTTPException(400, "part_revision_id does not belong to part_id")
+    else:
+        prv = db.query(PartRevision).filter(
+            PartRevision.part_id == part.id,
+            PartRevision.is_current == True
+        ).first()
+        rev_id = prv.id if prv else None
 
-    # lot_no รองรับ autogen
     raw = (payload.lot_no or "").strip().upper()
     autogen = raw in ("", "AUTO", "AUTOGEN")
     lot_no = next_code_yearly(db, ProductionLot, "lot_no", prefix="LOT") if autogen else raw
 
-    # กันเลขซ้ำแบบ pre-check
     if db.query(ProductionLot).filter(ProductionLot.lot_no == lot_no).first():
         raise HTTPException(409, "Lot number already exists")
 
     lot = ProductionLot(
         lot_no=lot_no,
         part_id=payload.part_id,
-        part_revision_id=payload.part_revision_id,
+        part_revision_id=rev_id,          # ✅ may be None
         po_id=payload.po_id,
         planned_qty=payload.planned_qty or 0,
         started_at=payload.started_at,
@@ -56,46 +77,80 @@ def create_lot(payload: ProductionLotCreate, db: Session = Depends(get_db)):
         status=payload.status or "in_process",
     )
 
-    # กัน race condition ตอน autogen
     for _ in range(3):
         try:
-            db.add(lot)
-            db.commit()
-            db.refresh(lot)
-            return lot
+            db.add(lot); db.commit(); db.refresh(lot)
+            return _with_joined(db, lot.id)
         except IntegrityError:
             db.rollback()
             if autogen:
                 lot.lot_no = next_code_yearly(db, ProductionLot, "lot_no", prefix="LOT")
             else:
-                # ไม่ autogen แต่ชน unique -> รายงานออกไป
                 raise HTTPException(409, "Lot number already exists")
 
     raise HTTPException(500, "Failed to generate unique lot number")
 
-
-@router.get("", response_model=List[ProductionLotOut])
+@router.get("", response_model=LotPage)
 def list_lots(
-    q: Optional[str] = Query(None, description="ค้นหา lot_no / status"),
+    q: Optional[str] = Query(None, description="Search lot/part/po/status"),
+    page: int = Query(1, ge=1),
+    per_page: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
 ):
-    query = db.query(ProductionLot)
-    if q:
-        ql = f"%{q}%"
-        query = query.filter(or_(
-            ProductionLot.lot_no.ilike(ql),
-            ProductionLot.status.ilike(ql),
-        ))
-    return query.order_by(ProductionLot.id.desc()).all()
+    qry = (
+        db.query(ProductionLot)
+        .join(Part, Part.id == ProductionLot.part_id)
+        .outerjoin(PO, PO.id == ProductionLot.po_id)
+        .options(
+            joinedload(ProductionLot.part),
+            joinedload(ProductionLot.po),
+            joinedload(ProductionLot.part_revision),
+        )
+    )
 
+    if q and q.strip():
+        for tok in q.strip().split():
+            pat = _like_escape(tok)
+            qry = qry.filter(or_(
+                ProductionLot.lot_no.ilike(pat),
+                ProductionLot.status.ilike(pat),
+                Part.part_no.ilike(pat),
+                Part.name.ilike(pat),
+                PO.po_number.ilike(pat),
+                PO.description.ilike(pat),
+                func.concat("[", func.coalesce(Part.part_no, ""), "] ", func.coalesce(Part.name, "")).ilike(pat),
+            ))
+
+    total = qry.count()
+    items = (qry.order_by(ProductionLot.id.desc())
+                .offset((page - 1) * per_page)
+                .limit(per_page)
+                .all())
+    pages = (total + per_page - 1) // per_page if per_page else 1
+
+    return {
+        "items": items,
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+        "pages": max(pages, 1),
+    }
 
 @router.get("/{lot_id}", response_model=ProductionLotOut)
 def get_lot(lot_id: int, db: Session = Depends(get_db)):
-    lot = db.get(ProductionLot, lot_id)
+    lot = (
+        db.query(ProductionLot)
+          .options(
+              joinedload(ProductionLot.part),
+              joinedload(ProductionLot.po),
+              joinedload(ProductionLot.part_revision),
+          )
+          .filter(ProductionLot.id == lot_id)
+          .first()
+    )
     if not lot:
         raise HTTPException(404, "Lot not found")
     return lot
-
 
 @router.put("/{lot_id}", response_model=ProductionLotOut)
 def update_lot(lot_id: int, payload: ProductionLotUpdate, db: Session = Depends(get_db)):
@@ -105,7 +160,6 @@ def update_lot(lot_id: int, payload: ProductionLotUpdate, db: Session = Depends(
 
     data = payload.dict(exclude_unset=True)
 
-    # เปลี่ยนเลข lot_no ต้องไม่ซ้ำ + normalize เป็น upper().strip()
     if "lot_no" in data and data["lot_no"]:
         new_no = data["lot_no"].strip().upper()
         dup = db.query(ProductionLot).filter(
@@ -117,17 +171,14 @@ def update_lot(lot_id: int, payload: ProductionLotUpdate, db: Session = Depends(
         lot.lot_no = new_no
         del data["lot_no"]
 
-    # ตรวจ PO (ถ้าจะเปลี่ยน)
     if "po_id" in data and data["po_id"] is not None:
         if not db.get(PO, data["po_id"]):
             raise HTTPException(404, "PO not found")
 
-    # ตรวจ Part (ถ้าจะเปลี่ยน)
     if "part_id" in data and data["part_id"] is not None:
         if not db.get(Part, data["part_id"]):
             raise HTTPException(404, "Part not found")
 
-    # ตรวจ Revision ให้ตรง Part (เผื่อมีการเปลี่ยนฝั่งใดฝั่งหนึ่ง)
     if "part_revision_id" in data and data["part_revision_id"] is not None:
         prv = db.get(PartRevision, data["part_revision_id"])  # type: ignore[index]
         if not prv:
@@ -136,23 +187,64 @@ def update_lot(lot_id: int, payload: ProductionLotUpdate, db: Session = Depends(
         if prv.part_id != part_id:
             raise HTTPException(400, "part_revision_id does not belong to part_id")
 
-    # อัปเดตฟิลด์อื่น ๆ
     for k, v in data.items():
         setattr(lot, k, v)
 
     db.commit()
     db.refresh(lot)
-    return lot
+    return _with_joined(db, lot.id)
+    
 
+@router.patch("/{lot_id}", response_model=ProductionLotOut)
+def update_lot(lot_id: int, payload: ProductionLotUpdate, db: Session = Depends(get_db)):
+    lot = db.get(ProductionLot, lot_id)
+    if not lot:
+        raise HTTPException(404, "Lot not found")
+
+    data = payload.dict(exclude_unset=True)
+
+    if "lot_no" in data and data["lot_no"]:
+        new_no = data["lot_no"].strip().upper()
+        dup = db.query(ProductionLot).filter(
+            ProductionLot.lot_no == new_no,
+            ProductionLot.id != lot_id
+        ).first()
+        if dup:
+            raise HTTPException(409, "Lot number already exists")
+        lot.lot_no = new_no
+        del data["lot_no"]
+
+    if "po_id" in data and data["po_id"] is not None:
+        if not db.get(PO, data["po_id"]):
+            raise HTTPException(404, "PO not found")
+
+    if "part_id" in data and data["part_id"] is not None:
+        if not db.get(Part, data["part_id"]):
+            raise HTTPException(404, "Part not found")
+
+    if "part_revision_id" in data and data["part_revision_id"] is not None:
+        prv = db.get(PartRevision, data["part_revision_id"])  # type: ignore[index]
+        if not prv:
+            raise HTTPException(404, "Part revision not found")
+        part_id = data.get("part_id", lot.part_id)
+        if prv.part_id != part_id:
+            raise HTTPException(400, "part_revision_id does not belong to part_id")
+
+    for k, v in data.items():
+        setattr(lot, k, v)
+
+    db.commit()
+    db.refresh(lot)
+    return _with_joined(db, lot.id)
 
 @router.delete("/{lot_id}")
 def delete_lot(lot_id: int, db: Session = Depends(get_db)):
     lot = db.get(ProductionLot, lot_id)
     if not lot:
         raise HTTPException(404, "Lot not found")
-    # ตัวอย่าง rule ธุรกิจ: มีการใช้วัตถุดิบแล้วห้ามลบ
     if lot.material_uses and len(lot.material_uses) > 0:
         raise HTTPException(400, "Lot has material usage; cannot delete")
-    db.delete(lot)
-    db.commit()
+    db.delete(lot); db.commit()
     return {"message": "Lot deleted"}
+
+

@@ -308,23 +308,43 @@ class ProductionLotUpdate(BaseModel):
     finished_at: Optional[datetime] = None
     status: Optional[LotStatus] = None
 
-class ProductionLotOut(APIBase):
+class PartTiny(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    part_no: str
+    name: Optional[str] = None
+
+class POTiny(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    po_number: Optional[str] = None
+    description: Optional[str] = None
+
+class PartRevisionTiny(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    rev: str
+    is_current: Optional[bool] = None
+
+class ProductionLotOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     lot_no: str
     part_id: int
     part_revision_id: Optional[int] = None
     po_id: Optional[int] = None
+
     planned_qty: int
     started_at: Optional[datetime] = None
     finished_at: Optional[datetime] = None
-    status: LotStatus
-    # from ORM property
-    part_no: Optional[str] = None
-    traveler_ids: list[int] = []        # ✅ list ทั้งหมด
-    traveler_ids_str: Optional[str] = None  # ✅ แสดงเป็น string คั่นด้วย ,
+    status: Optional[str] = None
 
-    class Config:
-        from_attributes = True
+    # ✅ nested objects
+    part: Optional[PartTiny] = None
+    po: Optional[POTiny] = None
+    revision: Optional[PartRevisionTiny] = None  # <- NEW
+    traveler_ids: List[int] = []
 
 # =========================================
 # ============ Lot Material Use ===========

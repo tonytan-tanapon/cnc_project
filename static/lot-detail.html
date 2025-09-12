@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Lot · Topnotch MFG</title>
+  <link rel="stylesheet" href="/static/css/app.css" />
+</head>
+<body>
+  <div class="app">
+    <!-- Sidebar (optional: load by partial) -->
+    <aside class="sidebar">
+      <div class="logo">
+        <span class="logo-badge">TN</span>
+        <span>Topnotch – MFG</span>
+      </div>
+      <div id="navSlot" data-nav-slot></div>
+    </aside>
+
+    <main class="main">
+      <!-- Topbar -->
+      <div class="topbar">
+        <div class="search">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zM9.5 14C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+          </svg>
+          <input id="globalSearch" type="search" placeholder="Search…" />
+        </div>
+        <input id="apiBase" placeholder="API Base (default /api/v1)" />
+        <button class="btn" id="btnPing" type="button">Ping</button>
+      </div>
+
+      <!-- Page header -->
+      <section class="page-head">
+        <h2 class="page-title">🏷️ Lot Detail <small id="subTitle" class="muted"></small></h2>
+        <div class="actions">
+          <button class="btn" id="btnHeaderEdit" type="button">Edit Lot</button>
+        </div>
+      </section>
+
+      <!-- Inline error -->
+      <div id="errorBox" class="card" style="display:none;color:#b91c1c;"></div>
+
+      <!-- Header editor -->
+      <section id="page-lot-detail" class="card" hidden>
+        <div class="grid">
+          <div class="col-3">
+            <label>Lot No.</label>
+            <input id="lot_no" placeholder="AUTO" />
+          </div>
+
+          <div class="col-4">
+            <label>Part</label>
+            <input id="lot_part" placeholder="Search part…" autocomplete="off" />
+            <small class="muted">Current: <a id="link_part" class="link" href="#" target="_blank"></a>
+              <span id="partNameHint" class="muted"></span></small>
+          </div>
+
+          <div class="col-2">
+            <label>Revision</label>
+            <select id="lot_rev" disabled>
+              <option value="">— Select revision —</option>
+            </select>
+          </div>
+
+          <div class="col-3">
+            <label>PO</label>
+            <input id="lot_poid" placeholder="Search PO…" autocomplete="off" />
+            <small class="muted">Current: <a id="link_po" class="link" href="#" target="_blank"></a></small>
+          </div>
+
+          <div class="col-2">
+            <label>Planned Qty</label>
+            <input id="lot_qty" type="number" value="0" />
+          </div>
+
+          <div class="col-2">
+            <label>Status</label>
+            <select id="lot_status">
+              <option value="in_process">in_process</option>
+              <option value="completed">completed</option>
+              <option value="hold">hold</option>
+            </select>
+          </div>
+
+          <div class="col-3">
+            <label>Started</label>
+            <input id="lot_started" type="datetime-local" />
+          </div>
+          <div class="col-3">
+            <label>Finished</label>
+            <input id="lot_finished" type="datetime-local" />
+          </div>
+
+          <div class="col-12">
+            <button class="btn" id="btnSave" type="button">Save</button>
+            <button class="btn ghost" id="btnReset" type="button">Reset</button>
+            <button class="btn danger" id="btnDelete" type="button">Delete</button>
+            <span id="hint" class="hint"></span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Travelers / Activity -->
+      <section class="card">
+        <div class="toolbar">
+          <h3 style="margin:0">Travelers</h3>
+        </div>
+        <table class="table">
+          <thead>
+            <tr>
+              <th style="width:80px;text-align:right">#</th>
+              <th style="width:160px">Traveler ID</th>
+              <th>Notes</th>
+              <th style="width:200px">Created</th>
+            </tr>
+          </thead>
+          <tbody id="tblTravBody">
+            <tr><td colspan="4" class="empty">No travelers</td></tr>
+          </tbody>
+        </table>
+      </section>
+    </main>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span></div>
+
+  <script type="module" src="/static/js/nav-loader.js"></script>
+  <script type="module" src="/static/js/page-lot-detail.js?v=1"></script>
+</body>
+</html>
