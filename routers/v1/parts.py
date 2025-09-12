@@ -281,3 +281,11 @@ def delete_revision(rev_id: int, db: Session = Depends(get_db)):
 
     # ✅ 204: no content
     return Response(status_code=204)
+
+@parts_router.get("/revisions", response_model=List[RevOut])
+def list_revisions_qs(part_id: int, db: Session = Depends(get_db)):
+    return list_revisions(part_id, db)
+
+@parts_router.get("/part-revisions", response_model=List[RevOut])
+def list_revisions_dash(part_id: int, db: Session = Depends(get_db)):
+    return list_revisions(part_id, db)

@@ -179,7 +179,7 @@ function initPartAutocomplete(){
 async function loadRevisionsForPart(partId){
   const sel = gid('l_rev_id'); if (sel) sel.innerHTML = '';
   try{
-    const revs = await jfetch(`/parts/${partId}/revisions`);   // ← FIXED
+    const revs = await jfetch(`/part-revisions?part_id=${partId}`);
     if (!Array.isArray(revs) || !revs.length){ partAC.selectedRevId = null; return; }
 
     if (sel) {
