@@ -52,7 +52,12 @@ function placeOverlay(box, anchor) {
   box.style.top   = `${r.bottom + 6}px`;
   box.style.width = `${r.width}px`;
 }
-
+async function fetchPartsArray(q) {
+  const res = await jfetch(`/parts?q=${encodeURIComponent(q)}`);
+  if (Array.isArray(res)) return res;               // in case API ever returns raw array
+  if (Array.isArray(res?.items)) return res.items;  // current API shape
+  return [];
+}
 // ------------------------------------------------------------------
 // Part Autocomplete (+ load/link Revisions)
 // ------------------------------------------------------------------
@@ -95,8 +100,8 @@ const partAC = {
   async search(q){
     if (!q){ this.render([]); return; }
     try{
-      const rows = await jfetch(`/parts?q=${encodeURIComponent(q)}`); // [{id, part_no, name}]
-      this.render(rows || []);
+    const rows = await fetchPartsArray(q); // normalize to array
+      this.render(rows);
     }catch{ this.render([]); }
   },
 
@@ -150,13 +155,19 @@ const partAC = {
 };
 
 function initPartAutocomplete(){
+ 
   const input = gid('l_part'); if (!input) return;
+ 
   partAC.anchor = input; partAC.ensureBox(); partAC.position();
 
   const doSearch = debounce(()=>{
     partAC.changedByTyping();
     const q = input.value.trim();
-    if (!q) { partAC.render([]); return; }
+      
+    if (!q) { 
+      partAC.render([]); 
+      partAC.hide();      // collapse the dropdown when input is empty
+      return;  return; }
     partAC.search(q);
   }, 180);
 
@@ -201,7 +212,7 @@ async function resolveFromTyped(){
   if (!code) return { part_id:null, part_revision_id:null };
 
   try{
-    const rows = await jfetch(`/parts?q=${encodeURIComponent(code)}`);
+    const rows = await fetchPartsArray(code);
     const pick = rows.find(p => (p.part_no||'').toUpperCase() === code.toUpperCase())
              ||  rows.find(p => (p.name||'').toLowerCase() === code.toLowerCase())
              ||  (rows.length === 1 ? rows[0] : null);
@@ -363,10 +374,14 @@ async function buildLookups(rows){
 // ------------------------------------------------------------------
 // Load Lots → build table (Lot link + Travelers links + +Traveler)
 // ------------------------------------------------------------------
-async function loadLots(){
-  const holder = gid('l_table'); if (!holder) return;
-  try{
-    const rows = await jfetch('/lots'); // [{id, lot_no, part_id, part_revision_id, po_id, planned_qty, started_at, finished_at, status, traveler_ids?}]
+async function loadLots() {
+  const holder = gid('l_table'); 
+  if (!holder) return;
+
+  try {
+    const resp = await jfetch('/lots'); 
+    const rows = resp.items ?? [];   // ✅ ดึง array ออกมา
+
     const { partMap, poMap } = await buildLookups(rows);
 
     const thead = `
@@ -385,7 +400,7 @@ async function loadLots(){
       const partNo = partMap[r.part_id]?.part_no || '';
       const poNo   = poMap[r.po_id]?.po_number || '';
 
-      const lotNoCell  = r.id   ? `<a href="${lotDetailUrl(r.id)}">${esc(r.lot_no || '')}</a>` : esc(r.lot_no || '');
+      const lotNoCell  = r.id ? `<a href="${lotDetailUrl(r.id)}">${esc(r.lot_no || '')}</a>` : esc(r.lot_no || '');
       const partCell   = r.part_id ? `<a href="${partDetailUrl(r.part_id)}">${esc(partNo)}</a>` : esc(partNo);
       const poCell     = r.po_id   ? `<a href="${poDetailUrl(r.po_id)}">${esc(poNo)}</a>`       : esc(poNo);
 
@@ -411,11 +426,10 @@ async function loadLots(){
     }).join('');
 
     holder.innerHTML = `<table>${thead}<tbody>${tbody}</tbody></table>`;
-  }catch(e){
-    holder.innerHTML = `<div class="hint">โหลดรายการไม่ได้: ${esc(e.message||'error')}</div>`;
+  } catch (e) {
+    holder.innerHTML = `<div class="hint">โหลดรายการไม่ได้: ${esc(e.message || 'error')}</div>`;
   }
 }
-
 // ------------------------------------------------------------------
 // Create Lot
 // ------------------------------------------------------------------
@@ -432,8 +446,8 @@ async function createLot(){
     part_revision_id = part_revision_id || r.part_revision_id;
   }
 
-  if (!part_id){ toast('โปรดเลือก/ระบุ Part ให้ชัดเจน'); gid('l_part')?.focus(); return; }
-  if (!part_revision_id){ toast('Part นี้ยังไม่มี Revision หรือยังไม่ได้เลือก'); return; }
+  if (!part_id){ toast('Enter Part'); gid('l_part')?.focus(); return; }
+  // if (!part_revision_id){ toast('Part นี้ยังไม่มี Revision หรือยังไม่ได้เลือก'); return; }
 
   // po_id from AC or resolve
   let po_id = poAC.selectedId || Number(poAC.anchor?.dataset?.id || 0) || null;
@@ -441,7 +455,7 @@ async function createLot(){
 
   const planned_qty = Number(gid('l_qty')?.value || 0) || 0;
   const status = gid('l_status')?.value || 'in_process';
-
+  if (!part_revision_id) part_revision_id = null;
   const payload = { lot_no, part_id, part_revision_id, po_id, planned_qty, status };
 
   try{

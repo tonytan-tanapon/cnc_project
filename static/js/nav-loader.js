@@ -1,5 +1,6 @@
 // โหลดพาร์เชียลเมนูแล้วแปะลงหน้า + ทำ active ให้อัตโนมัติ
 export async function injectNav(slotSelector = '#navSlot') {
+  console.log("injectNav")
   const slot = document.querySelector(slotSelector) || document.querySelector('.sidebar');
   if (!slot) return;
 
@@ -25,6 +26,7 @@ export async function injectNav(slotSelector = '#navSlot') {
         <a href="/static/subcon.html">Subcontracting</a>
         <a href="/static/suppliers.html">Suppliers</a>
         <a href="/static/reports.html">Reports</a>
+        <a href="/static/payroll.html">Payrolls</a>
       </nav>`;
   }
 
@@ -48,3 +50,5 @@ export async function injectNav(slotSelector = '#navSlot') {
 
 // auto-run
 document.addEventListener('DOMContentLoaded', () => injectNav());
+
+

@@ -53,6 +53,7 @@ async function loadNavHTML(navURL) {
         <a href="/static/subcon.html">Subcontracting</a>
         <a href="/static/suppliers.html">Suppliers</a>
         <a href="/static/reports.html">Reports</a>
+        <a href="/static/payroll.html">Payrolls</a>
       </nav>`;
   }
   return _navHTMLCache;
