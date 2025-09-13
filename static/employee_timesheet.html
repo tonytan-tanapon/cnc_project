@@ -84,7 +84,22 @@
   const getQS = k => new URL(location.href).searchParams.get(k);
   const utcDateKey = iso => iso ? new Date(iso).toISOString().slice(0,10) : null;
   
-  
+  const fmtMDY = (v) => {
+  if (!v) return '';
+  const s = String(v);
+  // If already "YYYY-MM-DD", just rearrange
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    const [y, m, d] = s.split('-');
+    return `${m}/${d}/${y}`;
+  }
+  // Otherwise parse as Date (ISO or similar)
+  const dt = new Date(s);
+  if (isNaN(dt)) return '';
+  const mm = String(dt.getMonth() + 1).padStart(2, '0');
+  const dd = String(dt.getDate()).padStart(2, '0');
+  const yy = dt.getFullYear();
+  return `${mm}/${dd}/${yy}`;
+};
   // cache
   let lastSummary = null, lastBreaksByDate = {}, lastShiftsByDate = {};
   let currentEmployeeId = null, currentPpId = null;
@@ -148,7 +163,7 @@
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td class="num mono"><a class="link" href="${editUrl}" title="Edit this day">${idx}</a></td>
-        <td class="nowrap mono">${row.date}</td>
+        <td class="nowrap mono">${fmtMDY(row.date)}</td>
         <td class="left mono">${shiftsTxt}</td>
         <td class="left mono">${breaksTxt}</td>
         <td class="num mono">${Number(row.unpaid_break_hours||0).toFixed(2)}</td>
@@ -230,7 +245,8 @@
 
     let emp=null; try{ emp = await apiGET(`${EMP}/${employee_id}`);}catch{}
     document.getElementById('header').textContent =
-      `Payroll — ${emp?.name ?? ('Emp #'+employee_id)} (${fmtDate(pp.start_at)} → ${fmtDate(pp.end_at)})`;
+  `Payroll — ${emp?.name ?? ('Emp #'+employee_id)} (${fmtMDY(pp.start_at)} → ${fmtMDY(pp.end_at)})`;
+
 
     currentEmpName = emp?.name ?? `Emp_${employee_id}`;
     currentPpStart = fmtDate(pp.start_at); // YYYY-MM-DD

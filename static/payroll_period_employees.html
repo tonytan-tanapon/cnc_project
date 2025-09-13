@@ -60,7 +60,8 @@
     const selPeriod = document.getElementById('f_period');
     const listBox   = document.getElementById('rows');
     const EMP_MAP = new Map();
-
+    const fmtMMDDYYYY = (dt) =>
+  `${pad(dt.getMonth()+1)}/${pad(dt.getDate())}/${dt.getFullYear()}`;
     // รองรับทั้ง array และ {items,...}
     const toItems = (res) => Array.isArray(res) ? res : (res?.items || []);
 
@@ -88,17 +89,19 @@
     }
 
     async function loadPayPeriods(){
-      const periods = await fetchAllPayPeriods(200);   // ทั้งหมดเพื่อทำ dropdown
-      selPeriod.innerHTML = '<option value="">— Select Pay Period —</option>';
-      for(const p of periods){
-        const opt = document.createElement('option');
-        opt.value = p.id;
-        opt.textContent = `(${p.id}) ${toLocalISODate(new Date(p.start_at))} → ${toLocalISODate(new Date(p.end_at))}`;
-        opt.dataset.start = p.start_at; opt.dataset.end = p.end_at;
-        selPeriod.appendChild(opt);
-      }
-      return periods;
-    }
+  const periods = await fetchAllPayPeriods(200);   // ทั้งหมดเพื่อทำ dropdown
+  selPeriod.innerHTML = '<option value="">— Select Pay Period —</option>';
+  for(const p of periods){
+    const opt = document.createElement('option');
+    opt.value = p.id;
+    // opt.textContent = `(${p.id}) ${fmtMMDDYYYY(new Date(p.start_at))} → ${fmtMMDDYYYY(new Date(p.end_at))}`;
+    opt.textContent = `${fmtMMDDYYYY(new Date(p.start_at))} → ${fmtMMDDYYYY(new Date(p.end_at))}`;
+    opt.dataset.start = p.start_at; 
+    opt.dataset.end = p.end_at;
+    selPeriod.appendChild(opt);
+  }
+  return periods;
+}
 
     async function loadEmployeesForSelectedPeriod(){
   const opt = selPeriod.options[selPeriod.selectedIndex];
