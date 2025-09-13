@@ -71,6 +71,7 @@ class Employee(Base):
     id = Column(Integer, primary_key=True, index=True)
     emp_code = Column(String, unique=True, index=True, nullable=False)
     name = Column(String, nullable=False)
+    lastname = Column(String, nullable=False)
     position = Column(String, nullable=True)
     department = Column(String, nullable=True)
     email = Column(String, nullable=True)
