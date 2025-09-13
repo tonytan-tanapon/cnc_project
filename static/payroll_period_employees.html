@@ -101,33 +101,50 @@
     }
 
     async function loadEmployeesForSelectedPeriod(){
-      const opt = selPeriod.options[selPeriod.selectedIndex];
-      if(!opt || !opt.value){ listBox.innerHTML = `<div class="empty">No pay period</div>`; return; }
-      const ppId = opt.value;
+  const opt = selPeriod.options[selPeriod.selectedIndex];
+  if(!opt || !opt.value){ 
+    listBox.innerHTML = `<div class="empty">No pay period</div>`; 
+    return; 
+  }
+  const ppId = opt.value;
 
-      const rows = await apiGET(`/payroll/pay-periods/${ppId}/employees`);
-      listBox.innerHTML = '';
-      if(!rows?.length){
-        listBox.innerHTML = `<div class="empty">No employees with entries in this pay period.</div>`;
-        return;
-      }
+  let rows = await apiGET(`/payroll/pay-periods/${ppId}/employees`);
+  listBox.innerHTML = '';
+  if(!rows?.length){
+    listBox.innerHTML = `<div class="empty">No employees with entries in this pay period.</div>`;
+    return;
+  }
 
-      for(const r of rows){
-        const emp = EMP_MAP.get(String(r.employee_id)) || {};
-        const name = r.name ?? emp.name ?? `Employee #${r.employee_id}`;
-        const code = r.emp_code ?? emp.emp_code ?? r.employee_id;
-        const link = `employee_timesheet.html?pp_id=${encodeURIComponent(ppId)}&employee_id=${encodeURIComponent(r.employee_id)}`;
+  // 🔹 Sort rows by last name
+  rows.sort((a,b)=>{
+    const empA = EMP_MAP.get(String(a.employee_id)) || {};
+    const empB = EMP_MAP.get(String(b.employee_id)) || {};
 
-        const row = document.createElement('div');
-        row.className = 'row';
-        row.innerHTML = `
-          <div><span class="pill">${code}</span></div>
-          <div><a href="${link}" target="_blank" rel="noopener noreferrer" target="_blank">${name}</a></div>
-          <div>${Number(r.total_hours ?? 0).toFixed(2)} h</div>
-          <div>${r.entry_count ?? 0}</div>`;
-        listBox.appendChild(row);
-      }
-    }
+    const nameA = a.name ?? empA.name ?? `Employee #${a.employee_id}`;
+    const nameB = b.name ?? empB.name ?? `Employee #${b.employee_id}`;
+
+    const lastA = nameA.trim().split(/\s+/).pop().toLowerCase();
+    const lastB = nameB.trim().split(/\s+/).pop().toLowerCase();
+
+    return lastA.localeCompare(lastB);
+  });
+
+  for(const r of rows){
+    const emp = EMP_MAP.get(String(r.employee_id)) || {};
+    const name = r.name ?? emp.name ?? `Employee #${r.employee_id}`;
+    const code = r.emp_code ?? emp.emp_code ?? r.employee_id;
+    const link = `employee_timesheet.html?pp_id=${encodeURIComponent(ppId)}&employee_id=${encodeURIComponent(r.employee_id)}`;
+
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.innerHTML = `
+      <div><span class="pill">${code}</span></div>
+      <div><a href="${link}" target="_blank" rel="noopener noreferrer">${name}</a></div>
+      <div>${Number(r.total_hours ?? 0).toFixed(2)} h</div>
+      <div>${r.entry_count ?? 0}</div>`;
+    listBox.appendChild(row);
+  }
+}
 
     selPeriod.addEventListener('change', async ()=>{ await loadEmployeesForSelectedPeriod(); });
 
