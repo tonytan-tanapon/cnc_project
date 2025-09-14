@@ -14,10 +14,188 @@
         background: #111;
         color: #fff;
         cursor: pointer;
-        transition: background 0.2s;
+      }
+      .btn-small.secondary {
+        background: #eee;
+        color: #333;
+      }
+      .btn-small.btn-danger {
+        background: #fff;
+        color: #ef4444;
+        border-color: #ef4444;
       }
       .btn-small:hover {
-        background: #333;
+        filter: brightness(0.95);
+      }
+
+      /* layout */
+      .split-2col {
+        display: grid;
+        grid-template-columns: 1fr min(420px, 40vw);
+        gap: 16px;
+        margin-top: 12px;
+        min-height: calc(100vh - 220px);
+      }
+      .panel {
+        border: 1px solid var(--line, #e5e7eb);
+        border-radius: 12px;
+        background: #fff;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        overflow: hidden;
+      }
+
+      /* left panel: topbar */
+      .list-topbar {
+        display: flex;
+        gap: 8px;
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--line, #e5e7eb);
+        align-items: center;
+      }
+      .search-lg {
+        flex: 1;
+        min-width: 0;
+        height: 40px;
+        font-size: 16px;
+        padding: 0 12px;
+      }
+      .perpage-sm {
+        width: 96px;
+        height: 34px;
+        font-size: 13px;
+      }
+      .list-nav {
+        display: flex;
+        gap: 6px;
+      }
+      .list-body {
+        overflow: auto;
+      }
+      .list-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        border-top: 1px solid var(--line, #e5e7eb);
+      }
+      .muted,
+      .hint {
+        color: #6b7280;
+        font-size: 12px;
+      }
+
+      /* left panel: header row + rows (No.|Code|Name) */
+      .list-head {
+        display: grid;
+        grid-template-columns: 64px 120px 1fr;
+        gap: 8px;
+        padding: 8px 12px;
+        border-bottom: 1px solid var(--line, #e5e7eb);
+        background: #fafafa;
+        font-weight: 600;
+        color: #374151;
+      }
+      .list-head .col-no {
+        text-align: right;
+        padding-right: 8px;
+      }
+
+      .cust-item {
+        display: grid;
+        grid-template-columns: 64px 120px 1fr;
+        gap: 8px;
+        padding: 10px 12px;
+        border-bottom: 1px solid #f1f5f9;
+        cursor: pointer;
+        align-items: center;
+      }
+      .cust-item:hover {
+        background: #fafafa;
+      }
+      .cust-item.active {
+        background: #eef6ff;
+      }
+      .cust-no {
+        text-align: right;
+        padding-right: 8px;
+        color: #6b7280;
+      }
+      .cust-code {
+        font-weight: 600;
+        color: #111;
+      }
+      .cust-name {
+        color: #111;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .cust-sub {
+        color: #6b7280;
+        font-size: 12px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      /* right panel: details */
+      .detail-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--line, #e5e7eb);
+      }
+      .detail-body {
+        padding: 12px;
+        overflow: auto;
+      }
+      .detail-footer {
+        padding: 10px 12px;
+        border-top: 1px solid var(--line, #e5e7eb);
+        display: flex;
+        justify-content: flex-end;
+      }
+
+      .kv-row {
+        display: grid;
+        grid-template-columns: 120px 1fr;
+        gap: 10px;
+        padding: 8px 0;
+        border-bottom: 1px dashed #f1f5f9;
+      }
+      .kv-key {
+        color: #6b7280;
+      }
+      .kv-val {
+        color: #111;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      .kv-input {
+        width: 100%;
+        box-sizing: border-box;
+        border: 1px solid var(--line, #e5e7eb);
+        border-radius: 10px;
+        padding: 8px 10px;
+        font: 14px/1.4 system-ui;
+      }
+      .kv-row.editing .kv-val {
+        background: #fffbe6;
+        border-radius: 8px;
+      }
+
+      @media (max-width: 960px) {
+        .split-2col {
+          grid-template-columns: 1fr;
+        }
+        .kv-row {
+          grid-template-columns: 110px 1fr;
+        }
       }
     </style>
   </head>
@@ -26,10 +204,8 @@
       <!-- Sidebar -->
       <aside class="sidebar">
         <div class="logo">
-          <span class="logo-badge">TN</span>
-          <span>Topnotch – MFG</span>
+          <span class="logo-badge">TN</span><span>Topnotch – MFG</span>
         </div>
-        <!-- เมนูจะถูก inject จาก /static/partials/nav.html -->
         <div id="navSlot" data-nav-slot></div>
       </aside>
 
@@ -58,7 +234,7 @@
           <input
             id="apiBase"
             value="/api/v1"
-            placeholder="API Base (ว่าง = /api/v1) เช่น http://localhost:8000/api/v1"
+            placeholder="API Base (ว่าง = /api/v1)"
             aria-label="API Base"
           />
           <button class="btn" id="btnPing" type="button">Ping</button>
@@ -71,127 +247,122 @@
             style="display: flex; align-items: center; gap: 8px"
           >
             <h2 class="page-title" style="margin: 0">👤 Customers</h2>
-            <button
-              id="btnToggleCreate"
-              type="button"
-              class="btn-small"
-              aria-label="Add Customer"
-            >
-              + Add
-            </button>
           </div>
 
-          <!-- Create Customer (ซ่อนก่อน) -->
-          <div class="card" id="createCard" hidden>
-            <b>Create Customer</b>
-            <div class="grid" style="margin-top: 8px">
-              <div class="col-4">
-                <label>Code</label><input id="_code" placeholder="Auto" />
+          <div class="split-2col" id="custSplit">
+            <!-- LEFT LIST -->
+            <section class="panel" id="listPanel">
+              <div class="list-topbar">
+                <div class="list-nav">
+                  <button
+                    id="_prev_top"
+                    type="button"
+                    class="btn-small secondary"
+                  >
+                    Prev
+                  </button>
+                  <button
+                    id="_next_top"
+                    type="button"
+                    class="btn-small secondary"
+                  >
+                    Next
+                  </button>
+                </div>
+                <input
+                  id="_q"
+                  type="search"
+                  class="search-lg"
+                  placeholder="Search customers…"
+                />
+                <select id="_per_page" class="perpage-sm">
+                  <option value="10">10</option>
+                  <option value="20" selected>20</option>
+                  <option value="50">50</option>
+                </select>
               </div>
-              <div class="col-4">
-                <label>Name</label
-                ><input id="_name" placeholder="Ex. Acme Corp" />
-              </div>
-              <div class="col-4">
-                <label>Contact</label
-                ><input id="_contact" placeholder="PO vendor" />
-              </div>
-              <div class="col-4"><label>Email</label><input id="_email" /></div>
-              <div class="col-4"><label>Phone</label><input id="_phone" /></div>
-              <div class="col-12">
-                <label>Address</label><input id="_addr" />
-              </div>
-              <div class="col-12">
-                <button class="btn" id="_create" type="button">Create</button>
-                <span class="hint">POST /api/v1/customers</span>
-              </div>
-            </div>
-          </div>
 
-          <div class="card">
-            <div
-              class="toolbar"
-              style="display: flex; gap: 8px; align-items: center"
-            >
-              <input id="_q" placeholder="search code/name" style="flex: 1" />
-              <button class="btn" id="c_reload" type="button">Reload</button>
+              <!-- หัวคอลัมน์ -->
+              <div id="listHead" class="list-head">
+                <div class="col-no">No.</div>
+                <div class="col-code">Code</div>
+                <div class="col-name">Name</div>
+              </div>
 
-              <div
-                style="
-                  margin-left: auto;
-                  display: flex;
-                  gap: 8px;
-                  align-items: center;
-                "
-              >
-                <label
-                  >Per page:
-                  <select id="_per_page">
-                    <option value="10">10</option>
-                    <option value="20" selected>20</option>
-                    <option value="50">50</option>
-                    <option value="100">100</option>
-                  </select>
-                </label>
+              <div id="listBody" class="list-body"></div>
+
+              <div class="list-footer">
+                <div>
+                  <button id="_prev" type="button" class="btn-small secondary">
+                    Prev
+                  </button>
+                  <button id="_next" type="button" class="btn-small secondary">
+                    Next
+                  </button>
+                </div>
+                <div id="_page_info" class="muted">—</div>
+              </div>
+            </section>
+
+            <!-- RIGHT DETAIL -->
+            <section class="panel" id="detailPanel">
+              <div class="detail-head">
+                <div class="title">Details</div>
                 <div
-                  class="pager"
+                  class="actions"
                   style="display: flex; gap: 6px; align-items: center"
                 >
+                  <span id="hint" class="hint"></span>
+                  <!-- ตามคำขอ: Edit ก่อน New; Save/Cancel โผล่ตอนแก้ไข -->
                   <button
-                    class="btn-small"
-                    id="_prev"
+                    id="btnEdit"
+                    class="btn-small secondary"
                     type="button"
-                    aria-label="Previous page"
                   >
-                    « Prev
+                    Edit
                   </button>
-                  <span id="_page_info" class="muted" aria-live="polite"
-                    >Page 1</span
-                  >
+                  <button id="btnNew" class="btn-small" type="button">
+                    New
+                  </button>
                   <button
+                    id="btnSave"
                     class="btn-small"
-                    id="_next"
                     type="button"
-                    aria-label="Next page"
+                    style="display: none"
                   >
-                    Next »
+                    Save
+                  </button>
+                  <button
+                    id="btnCancel"
+                    class="btn-small secondary"
+                    type="button"
+                    style="display: none"
+                  >
+                    Cancel
                   </button>
                 </div>
               </div>
-            </div>
 
-            <div id="_table" style="min-height: 120px">Loading</div>
+              <div class="detail-body">
+                <div id="errorBox" class="hint" style="display: none"></div>
+                <div
+                  id="detailView"
+                  class="kv-list"
+                  title="Double-click a row to edit"
+                ></div>
+              </div>
 
-            <div
-              class="toolbar"
-              style="
-                display: flex;
-                gap: 8px;
-                align-items: center;
-                justify-content: flex-end;
-                margin-top: 8px;
-              "
-            >
-              <button
-                class="btn-small"
-                id="_prev2"
-                type="button"
-                aria-label="Previous page (bottom)"
-              >
-                « Prev
-              </button>
-              <span id="_page_info2" class="muted" aria-live="polite"
-                >Page 1</span
-              >
-              <button
-                class="btn-small"
-                id="_next2"
-                type="button"
-                aria-label="Next page (bottom)"
-              >
-                Next »
-              </button>
-            </div>
+              <!-- Delete ย้ายลงมาล่างสุด -->
+              <div class="detail-footer">
+                <button
+                  id="btnDelete"
+                  class="btn-small btn-danger"
+                  type="button"
+                >
+                  Delete
+                </button>
+              </div>
+            </section>
           </div>
         </section>
       </main>
@@ -201,6 +372,6 @@
       <span id="toastText"></span>
     </div>
     <script type="module" src="/static/js/nav-loader.js"></script>
-    <script type="module" src="/static/js/page-customers.js?v=3"></script>
+    <script type="module" src="/static/js/page-customers.js?v=5"></script>
   </body>
 </html>

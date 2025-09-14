@@ -85,7 +85,7 @@ function getWorkingData() {
   return { ...base, ...tempEdits };
 }
 
-/* RENDER: key:value (+ inputs ทุกแถวเมื่อ edit/create) */
+/* RENDER: key:value + (edit/create => inputs ทุกแถว) */
 function renderKV(data = {}) {
   const holder = els[CTRL_IDS.view];
   if (!holder) return;
@@ -175,7 +175,7 @@ function focusField(key) {
   el?.focus();
 }
 
-/* LIST SIDE (มีหัวคอลัมน์ + No. โดยใช้ ctx.rowStart) */
+/* LIST SIDE */
 function highlightSelected() {
   const nodes = els[LIST_EL_IDS.listBody]?.querySelectorAll(".cust-item");
   nodes?.forEach((n) =>
@@ -316,7 +316,6 @@ async function saveDetail() {
       renderKV(updated);
       setMode("view");
       toast("Saved");
-      // sync แถบซ้าย
       const node = els[LIST_EL_IDS.listBody]?.querySelector(
         `.cust-item[data-id="${CSS.escape(String(selectedId))}"]`
       );

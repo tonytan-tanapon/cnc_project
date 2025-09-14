@@ -1,108 +1,376 @@
 <!DOCTYPE html>
 <html lang="th">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Materials · Topnotch – MFG</title>
-  <link rel="stylesheet" href="/static/css/app.css" />
-  <style>
-    .btn-small {
-      padding: 4px 8px;
-      font-size: 14px;
-      border: 1px solid var(--line,#ccc);
-      border-radius: 6px;
-      background:#111;
-      color:#fff;
-      cursor:pointer;
-    }
-    .btn-small:hover { background:#333; }
-  </style>
-</head>
-<body>
-  <div class="app">
-    <!-- Sidebar -->
-    <aside class="sidebar">
-      <div class="logo">
-        <span class="logo-badge">TN</span>
-        <span>Topnotch – MFG</span>
-      </div>
-      <div id="navSlot" data-nav-slot></div>
-    </aside>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Materials · Topnotch – MFG</title>
+    <link rel="stylesheet" href="/static/css/app.css" />
+    <style>
+      .btn-small {
+        padding: 4px 8px;
+        font-size: 14px;
+        border: 1px solid var(--line, #ccc);
+        border-radius: 6px;
+        background: #111;
+        color: #fff;
+        cursor: pointer;
+      }
+      .btn-small.secondary {
+        background: #eee;
+        color: #333;
+      }
+      .btn-small.btn-danger {
+        background: #fff;
+        color: #ef4444;
+        border-color: #ef4444;
+      }
+      .btn-small:hover {
+        filter: brightness(0.95);
+      }
 
-    <!-- Main -->
-    <main class="main">
-      <!-- Topbar -->
-      <div class="topbar">
-        <div class="search">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zM9.5 14C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
-          </svg>
-          <input id="globalSearch" type="search" placeholder="Search…" />
+      /* layout */
+      .split-2col {
+        display: grid;
+        grid-template-columns: 1fr min(420px, 40vw);
+        gap: 16px;
+        margin-top: 12px;
+        min-height: calc(100vh - 220px);
+      }
+      .panel {
+        border: 1px solid var(--line, #e5e7eb);
+        border-radius: 12px;
+        background: #fff;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        overflow: hidden;
+      }
+
+      /* left panel: topbar */
+      .list-topbar {
+        display: flex;
+        gap: 8px;
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--line, #e5e7eb);
+        align-items: center;
+      }
+      .search-lg {
+        flex: 1;
+        min-width: 0;
+        height: 40px;
+        font-size: 16px;
+        padding: 0 12px;
+      }
+      .perpage-sm {
+        width: 96px;
+        height: 34px;
+        font-size: 13px;
+      }
+      .list-nav {
+        display: flex;
+        gap: 6px;
+      }
+      .list-body {
+        overflow: auto;
+      }
+      .list-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        border-top: 1px solid var(--line, #e5e7eb);
+      }
+      .muted,
+      .hint {
+        color: #6b7280;
+        font-size: 12px;
+      }
+
+      /* left: header row + rows (No.|Code|Name) */
+      .list-head {
+        display: grid;
+        grid-template-columns: 64px 140px 1fr;
+        gap: 8px;
+        padding: 8px 12px;
+        border-bottom: 1px solid var(--line, #e5e7eb);
+        background: #fafafa;
+        font-weight: 600;
+        color: #374151;
+      }
+      .list-head .col-no {
+        text-align: right;
+        padding-right: 8px;
+      }
+
+      .mat-item {
+        display: grid;
+        grid-template-columns: 64px 140px 1fr;
+        gap: 8px;
+        padding: 10px 12px;
+        border-bottom: 1px solid #f1f5f9;
+        cursor: pointer;
+        align-items: center;
+      }
+      .mat-item:hover {
+        background: #fafafa;
+      }
+      .mat-item.active {
+        background: #eef6ff;
+      }
+      .mat-no {
+        text-align: right;
+        padding-right: 8px;
+        color: #6b7280;
+      }
+      .mat-code {
+        font-weight: 600;
+        color: #111;
+      }
+      .mat-name {
+        color: #111;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .mat-sub {
+        color: #6b7280;
+        font-size: 12px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      /* right panel: details */
+      .detail-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--line, #e5e7eb);
+      }
+      .detail-body {
+        padding: 12px;
+        overflow: auto;
+      }
+      .detail-footer {
+        padding: 10px 12px;
+        border-top: 1px solid var(--line, #e5e7eb);
+        display: flex;
+        justify-content: flex-end;
+      }
+
+      .kv-row {
+        display: grid;
+        grid-template-columns: 120px 1fr;
+        gap: 10px;
+        padding: 8px 0;
+        border-bottom: 1px dashed #f1f5f9;
+      }
+      .kv-key {
+        color: #6b7280;
+      }
+      .kv-val {
+        color: #111;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      .kv-input {
+        width: 100%;
+        box-sizing: border-box;
+        border: 1px solid var(--line, #e5e7eb);
+        border-radius: 10px;
+        padding: 8px 10px;
+        font: 14px/1.4 system-ui;
+      }
+      .kv-row.editing .kv-val {
+        background: #fffbe6;
+        border-radius: 8px;
+      }
+
+      @media (max-width: 960px) {
+        .split-2col {
+          grid-template-columns: 1fr;
+        }
+        .kv-row {
+          grid-template-columns: 110px 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <!-- Sidebar -->
+      <aside class="sidebar">
+        <div class="logo">
+          <span class="logo-badge">TN</span><span>Topnotch – MFG</span>
         </div>
-        <input id="apiBase" value="/api/v1" placeholder="API Base (default /api/v1)" />
-        <button class="btn" id="btnPing" type="button">Ping</button>
-      </div>
+        <div id="navSlot" data-nav-slot></div>
+      </aside>
 
-      <!-- Page -->
-      <section id="page-materials">
-        <div class="page-header" style="display:flex;align-items:center;gap:8px;">
-          <h2 class="page-title" style="margin:0;">🧱 Materials</h2>
-          <button id="m_toggle_create" type="button" class="btn-small" aria-label="Add Material">+ Add</button>
-        </div>
-
-        <!-- Create Material (hidden by default) -->
-        <div class="card" id="m_create_card" hidden>
-          <b>Create Material</b>
-          <div class="grid" style="margin-top:8px">
-            <div class="col-4"><label>Code</label><input id="m_code" placeholder="AL6061" /></div>
-            <div class="col-4"><label>Name</label><input id="m_name" placeholder="Aluminium 6061" /></div>
-            <div class="col-4"><label>Spec</label><input id="m_spec" placeholder="AMS/ASTM" /></div>
-            <div class="col-4"><label>UoM</label><input id="m_uom" value="kg" /></div>
-            <div class="col-8"><label>Remark</label><input id="m_remark" /></div>
-            <div class="col-12">
-              <button class="btn" id="m_create" type="button">Create</button>
-              <span class="hint">POST /materials</span>
-            </div>
+      <!-- Main -->
+      <main class="main">
+        <!-- Topbar -->
+        <div class="topbar">
+          <div class="search">
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              aria-hidden="true"
+            >
+              <path
+                d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zM9.5 14C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"
+              />
+            </svg>
+            <input
+              id="globalSearch"
+              type="search"
+              placeholder="Search PO / Lot / Tracking…"
+            />
           </div>
+          <input
+            id="apiBase"
+            value="/api/v1"
+            placeholder="API Base (ว่าง = /api/v1)"
+            aria-label="API Base"
+          />
+          <button class="btn" id="btnPing" type="button">Ping</button>
         </div>
 
-        <div class="card">
-          <div class="toolbar" style="display:flex; gap:8px; align-items:center;">
-            <input id="m_q" placeholder="search code/name/spec" style="flex:1;" />
-            <button class="btn" id="m_reload" type="button">Reload</button>
+        <!-- Materials -->
+        <section id="page-materials">
+          <div
+            class="page-header"
+            style="display: flex; align-items: center; gap: 8px"
+          >
+            <h2 class="page-title" style="margin: 0">🧱 Materials</h2>
+          </div>
 
-            <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
-              <label>Per page:
-                <select id="m_per_page">
+          <div class="split-2col" id="matSplit">
+            <!-- LEFT LIST -->
+            <section class="panel" id="listPanel">
+              <div class="list-topbar">
+                <div class="list-nav">
+                  <button
+                    id="m_prev_top"
+                    type="button"
+                    class="btn-small secondary"
+                  >
+                    Prev
+                  </button>
+                  <button
+                    id="m_next_top"
+                    type="button"
+                    class="btn-small secondary"
+                  >
+                    Next
+                  </button>
+                </div>
+                <input
+                  id="m_q"
+                  type="search"
+                  class="search-lg"
+                  placeholder="Search materials…"
+                />
+                <select id="m_per_page" class="perpage-sm">
                   <option value="10">10</option>
                   <option value="20" selected>20</option>
                   <option value="50">50</option>
-                  <option value="100">100</option>
                 </select>
-              </label>
-              <div class="pager" style="display:flex;gap:6px;align-items:center;">
-                <button class="btn-small" id="m_prev" type="button" aria-label="Previous page">« Prev</button>
-                <span id="m_page_info" class="muted" aria-live="polite">Page 1</span>
-                <button class="btn-small" id="m_next" type="button" aria-label="Next page">Next »</button>
               </div>
-            </div>
+
+              <!-- หัวคอลัมน์ -->
+              <div id="m_list_head" class="list-head">
+                <div class="col-no">No.</div>
+                <div class="col-code">Code</div>
+                <div class="col-name">Name</div>
+              </div>
+
+              <div id="m_list_body" class="list-body"></div>
+
+              <div class="list-footer">
+                <div>
+                  <button id="m_prev" type="button" class="btn-small secondary">
+                    Prev
+                  </button>
+                  <button id="m_next" type="button" class="btn-small secondary">
+                    Next
+                  </button>
+                </div>
+                <div id="m_page_info" class="muted">—</div>
+              </div>
+            </section>
+
+            <!-- RIGHT DETAIL -->
+            <section class="panel" id="detailPanel">
+              <div class="detail-head">
+                <div class="title">Details</div>
+                <div
+                  class="actions"
+                  style="display: flex; gap: 6px; align-items: center"
+                >
+                  <span id="m_hint" class="hint"></span>
+                  <!-- Edit ก่อน New; Save/Cancel โผล่ตอนแก้ไข -->
+                  <button
+                    id="m_btn_edit"
+                    class="btn-small secondary"
+                    type="button"
+                  >
+                    Edit
+                  </button>
+                  <button id="m_btn_new" class="btn-small" type="button">
+                    New
+                  </button>
+                  <button
+                    id="m_btn_save"
+                    class="btn-small"
+                    type="button"
+                    style="display: none"
+                  >
+                    Save
+                  </button>
+                  <button
+                    id="m_btn_cancel"
+                    class="btn-small secondary"
+                    type="button"
+                    style="display: none"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+
+              <div class="detail-body">
+                <div id="m_error" class="hint" style="display: none"></div>
+                <div
+                  id="m_detail"
+                  class="kv-list"
+                  title="Double-click a row to edit"
+                ></div>
+              </div>
+
+              <div class="detail-footer">
+                <button
+                  id="m_btn_delete"
+                  class="btn-small btn-danger"
+                  type="button"
+                >
+                  Delete
+                </button>
+              </div>
+            </section>
           </div>
+        </section>
+      </main>
+    </div>
 
-          <div id="m_table" style="min-height:120px;"></div>
-
-          <div class="toolbar" style="display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:8px;">
-            <button class="btn-small" id="m_prev2" type="button" aria-label="Previous page (bottom)">« Prev</button>
-            <span id="m_page_info2" class="muted" aria-live="polite">Page 1</span>
-            <button class="btn-small" id="m_next2" type="button" aria-label="Next page (bottom)">Next »</button>
-          </div>
-        </div>
-      </section>
-    </main>
-  </div>
-
-  <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span></div>
-
-  <script type="module" src="/static/js/nav-loader.js"></script>
-  <script type="module" src="/static/js/page-material.js?v=1"></script>
-</body>
+    <div class="toast" id="toast" role="status" aria-live="polite">
+      <span id="toastText"></span>
+    </div>
+    <script type="module" src="/static/js/nav-loader.js"></script>
+    <script type="module" src="/static/js/page-materials-split.js?v=1"></script>
+  </body>
 </html>
