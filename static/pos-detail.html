@@ -6,36 +6,133 @@
     <title>PO Detail · Topnotch – MFG</title>
     <link rel="stylesheet" href="/static/css/app.css" />
     <style>
-      .page-header-row {
-        display: flex;
-        align-items: center; /* จัดกลางแนวตั้ง */
-        gap: 12px; /* ระยะห่างระหว่าง item */
-      }
-
-      .page-header-row .page-title {
-        margin: 0;
-      }
-
-      .page-header-row .subtitle {
-        margin: 0;
-        color: #64748b;
+      .btn-small {
+        padding: 4px 8px;
         font-size: 14px;
+        border: 1px solid var(--line, #e5e7eb);
+        border-radius: 6px;
+        background: #111;
+        color: #fff;
+        cursor: pointer;
+      }
+      .btn-small.secondary {
+        background: #eee;
+        color: #333;
+      }
+      .btn-small.btn-danger {
+        background: #fff;
+        color: #ef4444;
+        border-color: #ef4444;
+      }
+      .btn-small:hover {
+        filter: brightness(0.95);
+      }
+
+      .panel {
+        border: 1px solid var(--line, #e5e7eb);
+        border-radius: 12px;
+        background: #fff;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+      .detail-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--line, #e5e7eb);
+      }
+      .detail-body {
+        padding: 12px;
+        overflow: auto;
+      }
+      .detail-footer {
+        padding: 10px 12px;
+        border-top: 1px solid var(--line, #e5e7eb);
+        display: flex;
+        justify-content: flex-end;
+        gap: 6px;
+      }
+
+      .kv-row {
+        display: grid;
+        grid-template-columns: 140px 1fr;
+        gap: 10px;
+        padding: 8px 0;
+        border-bottom: 1px dashed #f1f5f9;
+      }
+      .kv-key {
+        color: #6b7280;
+      }
+      .kv-val {
+        color: #111;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      .kv-input {
+        width: 100%;
+        box-sizing: border-box;
+        border: 1px solid var(--line, #e5e7eb);
+        border-radius: 10px;
+        padding: 8px 10px;
+        font: 14px/1.4 system-ui;
+      }
+      .kv-row.editing .kv-val {
+        background: #fffbe6;
+        border-radius: 8px;
+      }
+      .muted {
+        color: #6b7280;
+      }
+
+      table.grid {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      table.grid th,
+      table.grid td {
+        padding: 8px 10px;
+        border-bottom: 1px solid #f1f5f9;
+      }
+      table.grid th {
+        background: #fafafa;
+        text-align: left;
+        color: #374151;
+        font-weight: 600;
+      }
+      table.grid tr:hover {
+        background: #fafafa;
+      }
+      .btn {
+        padding: 6px 10px;
+        border-radius: 8px;
+        cursor: pointer;
+      }
+      .btn-sm {
+        padding: 4px 8px;
+        font-size: 13px;
+      }
+
+      @media (max-width: 960px) {
+        .kv-row {
+          grid-template-columns: 120px 1fr;
+        }
       }
     </style>
   </head>
   <body>
     <div class="app">
-      <!-- Sidebar -->
       <aside class="sidebar">
         <div class="logo">
-          <span class="logo-badge">TN</span>
-          <span>Topnotch – MFG</span>
+          <span class="logo-badge">TN</span><span>Topnotch – MFG</span>
         </div>
         <div id="navSlot" data-nav-slot></div>
       </aside>
 
-      <!-- Main -->
       <main class="main">
+        <!-- Topbar -->
         <div class="topbar">
           <div class="search">
             <svg
@@ -55,113 +152,96 @@
               placeholder="Search PO / Lot / Tracking…"
             />
           </div>
-
-          <a class="btn" href="/static/pos.html">← Back</a>
+          <input
+            id="apiBase"
+            value="/api/v1"
+            placeholder="API Base (ว่าง = /api/v1)"
+            aria-label="API Base"
+          />
+          <button class="btn" id="btnPing" type="button">Ping</button>
         </div>
 
-        <section class="page-header">
-          <div class="page-header-row">
-            <h2 class="page-title">📦 PO Detail</h2>
-            <!-- @#$ แสดง PO id, number  -->
-            <p class="subtitle" id="subTitle"></p>
-            <!-- @#$ ปุ๋มเปิด/ปิด section ตอนแรกแสดง Edit, ส่วน Cancel กำหนดฝน js-->
-            <button class="btn ghost" id="btnHeaderEdit" type="button">
-              Edit PO
+        <!-- Header Detail (เหมือนโครง customers) -->
+        <section class="panel" id="detailPanel" style="margin-top: 12px">
+          <div class="detail-head">
+            <div>
+              <h2 class="page-title" style="margin: 0">PO Details</h2>
+              <div id="po_subTitle" class="muted">—</div>
+            </div>
+            <div style="display: flex; gap: 6px; align-items: center">
+              <span id="po_hint" class="muted"></span>
+              <button id="po_btnEdit" class="btn-small secondary" type="button">
+                Edit
+              </button>
+              <button id="po_btnNew" class="btn-small" type="button">
+                New
+              </button>
+              <button
+                id="po_btnSave"
+                class="btn-small"
+                type="button"
+                style="display: none"
+              >
+                Save
+              </button>
+              <button
+                id="po_btnCancel"
+                class="btn-small secondary"
+                type="button"
+                style="display: none"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+
+          <div class="detail-body">
+            <div id="po_error" class="muted" style="display: none"></div>
+            <div
+              id="po_view"
+              class="kv-list"
+              title="Double-click a row to edit"
+            ></div>
+          </div>
+
+          <div class="detail-footer">
+            <button
+              id="po_btnDelete"
+              class="btn-small btn-danger"
+              type="button"
+            >
+              Delete
             </button>
           </div>
         </section>
 
-        <!-- ซ่อน section header ตอนแรก -->
-        <section id="page-po-detail" hidden>
-          <!-- ปุ่มสลับ Edit / Cancel -->
-
-          <div class="card">
-            <div class="grid" style="margin-top: 8px">
-              <div class="col-4">
-                <label>PO Number</label>
-                <input id="po_no" />
-              </div>
-
-              <div class="col-4">
-                <label>Customer</label>
-                <input
-                  id="po_cust"
-                  type="text"
-                  autocomplete="off"
-                  inputmode="latin"
-                  placeholder="Customer code or name"
-                  style="text-transform: uppercase"
-                />
-                <div class="hint">
-                  <a id="link_cust" href="#" target="_self">Customer</a>
-                </div>
-                <div
-                  class="hint"
-                  id="custNameHint"
-                  style="color: #64748b"
-                ></div>
-              </div>
-
-              <div class="col-12">
-                <label>Description</label>
-                <input id="po_desc" />
-              </div>
-
-              <div class="col-12">
-                <button class="btn" id="btnSave" type="button">Save</button>
-                <button class="btn ghost" id="btnReset" type="button">
-                  Reset
-                </button>
-                <button
-                  class="btn danger"
-                  id="btnDelete"
-                  type="button"
-                  style="float: right"
-                >
-                  Delete
-                </button>
-                <span class="hint" id="hint"></span>
-              </div>
+        <!-- Lines -->
+        <section class="panel" id="linesPanel" style="margin-top: 12px">
+          <div class="detail-head">
+            <div class="title">Lines</div>
+            <div>
+              <button id="btnAddLine" type="button" class="btn-small">
+                + Add Line
+              </button>
             </div>
           </div>
-
-          <div id="errorBox" class="hint" style="display: none"></div>
-        </section>
-
-        <!-- ===== PO Lines (inline edit) ===== -->
-        <section id="po-lines" class="card" style="margin-top: 16px">
-          <div class="table-wrap">
-            <table class="table" id="tblLines">
+          <div class="detail-body" style="padding: 0">
+            <table class="grid">
               <thead>
                 <tr>
-                  <th style="width: 60px; text-align: right">No.</th>
-                  <!-- เพิ่ม -->
-                  <th style="width: 140px">Part No</th>
-                  <th style="width: 80px">Rev</th>
-                  <th style="width: 110px; text-align: right">Qty</th>
-                  <th style="width: 120px; text-align: right">Unit Price</th>
-                  <th style="width: 120px">Due Date</th>
+                  <th style="width: 64px; text-align: right">No.</th>
+                  <th style="width: 200px">Part No.</th>
+                  <th style="width: 160px">Revision</th>
+                  <th style="width: 120px; text-align: right">Qty</th>
+                  <th style="width: 140px; text-align: right">Unit Price</th>
+                  <th style="width: 160px">Due</th>
                   <th>Notes</th>
-                  <th style="width: 180px; text-align: right">
-                    <div
-                      style="
-                        display: flex;
-                        align-items: center;
-                        justify-content: space-between;
-                        gap: 8px;
-                      "
-                    >
-                      <span>Action</span>
-                      <button class="btn" id="btnAddLine" type="button">
-                        + Add Line
-                      </button>
-                    </div>
-                  </th>
+                  <th style="width: 180px; text-align: right">Actions</th>
                 </tr>
               </thead>
               <tbody id="tblLinesBody">
                 <tr>
-                  <td colspan="7" class="empty">No lines</td>
+                  <td colspan="8" class="empty">Loading…</td>
                 </tr>
               </tbody>
             </table>
@@ -175,9 +255,6 @@
     </div>
 
     <script type="module" src="/static/js/nav-loader.js"></script>
-    <script
-      type="module"
-      src="/static/js/page-pos-detail.js?v=inline_header001"
-    ></script>
+    <script type="module" src="/static/js/page-pos-detail.js?v=2"></script>
   </body>
 </html>

@@ -55,11 +55,19 @@ let els = {};
 let selectedId = null;
 let initial = null; // ข้อมูลลูกค้าที่โหลดล่าสุด
 let mode = "view"; // view | edit | create
-let tempEdits = {}; // ค่า draft ของทุกฟิลด์ตอนแก้ไข
-let prevSelectedIdBeforeNew = null; // จำ id ก่อนกด New เพื่อ Cancel กลับมา
+let tempEdits = {}; // ค่า draft ตอนแก้ไข
+let prevSelectedIdBeforeNew = null; // จำ id ก่อนกด New
+let isSubmitting = false; // กัน double-submit
+let lp;
 
 /* UTILS */
 const trim = (v) => (v == null ? "" : String(v).trim());
+const setAriaDisabled = (node, disabled) => {
+  if (!node) return;
+  node.disabled = disabled;
+  node.setAttribute("aria-disabled", String(disabled));
+  node.classList.toggle("is-busy", !!disabled);
+};
 function setBusy(b) {
   [
     CTRL_IDS.btnEdit,
@@ -67,25 +75,56 @@ function setBusy(b) {
     CTRL_IDS.btnSave,
     CTRL_IDS.btnCancel,
     CTRL_IDS.btnDelete,
-  ].forEach((id) => {
-    els[id] && (els[id].disabled = b);
-  });
-  els[CTRL_IDS.hint] && (els[CTRL_IDS.hint].textContent = b ? "Working…" : "");
+  ].forEach((id) => setAriaDisabled(els[id], b));
+  if (els[CTRL_IDS.hint]) els[CTRL_IDS.hint].textContent = b ? "Working…" : "";
 }
-function setMode(next) {
-  mode = next;
-  const editing = mode === "edit" || mode === "create";
-  els[CTRL_IDS.btnSave].style.display = editing ? "" : "none";
-  els[CTRL_IDS.btnCancel].style.display = editing ? "" : "none";
-  els[CTRL_IDS.btnEdit].style.display = editing ? "none" : "";
-  els[CTRL_IDS.btnNew].style.display = editing ? "none" : "";
+function primeTempEdits(base) {
+  return FIELD_KEYS.reduce((acc, k) => {
+    acc[k] = base?.[k] ?? "";
+    return acc;
+  }, {});
 }
 function getWorkingData() {
   const base = mode === "create" ? {} : initial ?? {};
   return { ...base, ...tempEdits };
 }
+function focusField(key) {
+  const el = els[CTRL_IDS.view]?.querySelector(
+    `.kv-input[data-field="${CSS.escape(key)}"]`
+  );
+  el?.focus();
+}
+function setError(message) {
+  if (!els[CTRL_IDS.errorBox]) return;
+  if (!message) {
+    els[CTRL_IDS.errorBox].style.display = "none";
+    els[CTRL_IDS.errorBox].textContent = "";
+  } else {
+    els[CTRL_IDS.errorBox].style.display = "";
+    els[CTRL_IDS.errorBox].textContent = message;
+  }
+}
 
-/* RENDER: key:value (+ inputs ทุกแถวเมื่อ edit/create) */
+/* MODE + RENDER (single entry point) */
+function applyMode(nextMode) {
+  if (nextMode) mode = nextMode;
+  const editing = mode === "edit" || mode === "create";
+
+  // ปุ่ม
+  if (els[CTRL_IDS.btnSave])
+    els[CTRL_IDS.btnSave].style.display = editing ? "" : "none";
+  if (els[CTRL_IDS.btnCancel])
+    els[CTRL_IDS.btnCancel].style.display = editing ? "" : "none";
+  if (els[CTRL_IDS.btnEdit])
+    els[CTRL_IDS.btnEdit].style.display = editing ? "none" : "";
+  if (els[CTRL_IDS.btnNew])
+    els[CTRL_IDS.btnNew].style.display = editing ? "none" : "";
+
+  // เนื้อหา
+  renderKV(getWorkingData());
+}
+
+/* RENDER: key:value (+ inputs เมื่อ edit/create) */
 function renderKV(data = {}) {
   const holder = els[CTRL_IDS.view];
   if (!holder) return;
@@ -99,7 +138,7 @@ function renderKV(data = {}) {
   const isEditing = mode === "edit" || mode === "create";
   const rows = FIELD_KEYS.map((key) => {
     const label = FIELD_LABELS[key];
-    const current = tempEdits.hasOwnProperty(key)
+    const current = Object.prototype.hasOwnProperty.call(tempEdits, key)
       ? tempEdits[key]
       : data[key] ?? "";
     const safeText = trim(current) === "" ? "—" : escapeHtml(String(current));
@@ -129,19 +168,13 @@ function renderKV(data = {}) {
 
   holder.innerHTML = rows.join("");
 
-  // double-click แถวไหน => ถ้าอยู่ view ให้เข้าโหมดแก้ทุกฟิลด์ และ focus แถวที่คลิก
+  // double-click แถวไหน => เข้าโหมดแก้ (focus แถวที่คลิก)
   holder.querySelectorAll(".kv-row").forEach((row) => {
     row.addEventListener("dblclick", () => {
       const key = row.dataset.key;
       if (mode === "view") {
-        // เตรียม tempEdits จากค่าปัจจุบันทุกฟิลด์
-        const base = initial ?? {};
-        tempEdits = FIELD_KEYS.reduce((acc, k) => {
-          acc[k] = base[k] ?? "";
-          return acc;
-        }, {});
-        setMode("edit");
-        renderKV(getWorkingData());
+        tempEdits = primeTempEdits(initial);
+        applyMode("edit");
         focusField(key);
       } else {
         focusField(key);
@@ -157,7 +190,11 @@ function renderKV(data = {}) {
         tempEdits[k] = e.target.value;
       });
       input.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") {
+        if (
+          e.key === "Enter" &&
+          !e.shiftKey &&
+          e.target.tagName !== "TEXTAREA"
+        ) {
           e.preventDefault();
           saveDetail();
         } else if (e.key === "Escape") {
@@ -168,14 +205,8 @@ function renderKV(data = {}) {
     });
   }
 }
-function focusField(key) {
-  const el = els[CTRL_IDS.view]?.querySelector(
-    `.kv-input[data-field="${CSS.escape(key)}"]`
-  );
-  el?.focus();
-}
 
-/* LIST SIDE (มีหัวคอลัมน์ + No. โดยใช้ ctx.rowStart) */
+/* LIST SIDE */
 function highlightSelected() {
   const nodes = els[LIST_EL_IDS.listBody]?.querySelectorAll(".cust-item");
   nodes?.forEach((n) =>
@@ -188,11 +219,9 @@ function renderList(container, rows, ctx = {}) {
     container.innerHTML = `<div class="muted" style="padding:12px">No customers</div>`;
     selectedId = null;
     initial = null;
-    mode = "view";
     tempEdits = {};
-    renderKV({});
-    setMode("view");
     document.title = "Customers · Topnotch MFG";
+    applyMode("view");
     return;
   }
 
@@ -206,13 +235,13 @@ function renderList(container, rows, ctx = {}) {
       const name = escapeHtml(r.name ?? "");
       const sub = escapeHtml(r.contact || r.email || r.phone || "");
       return `<div class="cust-item" data-id="${id}">
-      <div class="cust-no">${no}</div>
-      <div class="cust-code">${code || "—"}</div>
-      <div>
-        <div class="cust-name">${name || "(no name)"}</div>
-        <div class="cust-sub">${sub}</div>
-      </div>
-    </div>`;
+        <div class="cust-no">${no}</div>
+        <div class="cust-code">${code || "—"}</div>
+        <div>
+          <div class="cust-name">${name || "(no name)"}</div>
+          <div class="cust-sub">${sub}</div>
+        </div>
+      </div>`;
     })
     .join("");
 
@@ -228,6 +257,7 @@ function renderList(container, rows, ctx = {}) {
     .map((x) => x.dataset.id)
     .filter(Boolean)
     .map(String);
+
   if (!selectedId || !idsInPage.includes(String(selectedId))) {
     selectedId = idsInPage[0];
     highlightSelected();
@@ -240,25 +270,19 @@ function renderList(container, rows, ctx = {}) {
 /* DATA IO */
 async function loadDetail(id) {
   setBusy(true);
+  setError("");
   try {
     const c = await jfetch(ENDPOINTS.byId(id));
     initial = c;
-    mode = "view";
     tempEdits = {};
-    renderKV(c);
-    setMode("view");
     document.title = `Customer · ${c.name ?? c.code ?? c.id}`;
-    els[CTRL_IDS.errorBox] && (els[CTRL_IDS.errorBox].style.display = "none");
+    applyMode("view");
   } catch (e) {
-    if (els[CTRL_IDS.errorBox]) {
-      els[CTRL_IDS.errorBox].style.display = "";
-      els[CTRL_IDS.errorBox].textContent = e?.message || "Load failed";
-    }
+    setError(e?.message || "Load failed");
     initial = null;
-    mode = "view";
     tempEdits = {};
-    renderKV({});
-    setMode("view");
+    document.title = "Customers · Topnotch MFG";
+    applyMode("view");
   } finally {
     setBusy(false);
   }
@@ -275,22 +299,22 @@ function buildPayload() {
   };
 }
 async function saveDetail() {
+  if (isSubmitting) return;
   const payload = buildPayload();
   if (!payload.name) {
     toast("Enter Name", false);
     if (mode === "view") {
-      setMode("edit");
-      tempEdits = FIELD_KEYS.reduce((a, k) => {
-        a[k] = initial?.[k] ?? "";
-        return a;
-      }, {});
+      tempEdits = primeTempEdits(initial);
+      applyMode("edit");
+    } else {
+      applyMode(); // re-render
     }
-    renderKV(getWorkingData());
     focusField("name");
     return;
   }
 
   setBusy(true);
+  isSubmitting = true;
   try {
     if (mode === "create" || !selectedId) {
       const created = await jfetch(ENDPOINTS.base, {
@@ -300,21 +324,18 @@ async function saveDetail() {
       toast("Customer created");
       selectedId = created.id ?? created.customer_id ?? created.customerId;
       initial = created;
-      mode = "view";
       tempEdits = {};
-      renderKV(created);
-      setMode("view");
+      applyMode("view");
       await lp.reloadFirst();
+      highlightSelected();
     } else {
       const updated = await jfetch(ENDPOINTS.byId(selectedId), {
         method: "PUT",
         body: JSON.stringify(payload),
       });
       initial = updated;
-      mode = "view";
       tempEdits = {};
-      renderKV(updated);
-      setMode("view");
+      applyMode("view");
       toast("Saved");
       // sync แถบซ้าย
       const node = els[LIST_EL_IDS.listBody]?.querySelector(
@@ -331,6 +352,7 @@ async function saveDetail() {
   } catch (e) {
     toast(e?.message || "Save failed", false);
   } finally {
+    isSubmitting = false;
     setBusy(false);
   }
 }
@@ -341,15 +363,18 @@ function cancelEdits() {
       const backId = prevSelectedIdBeforeNew;
       prevSelectedIdBeforeNew = null;
       mode = "view";
-      selectCustomer(backId); // จะ loadDetail เอง
+      selectCustomer(backId);
       return;
     } else {
+      selectedId = null;
+      initial = null;
+      document.title = "Customers · Topnotch MFG";
       renderKV({});
     }
   } else {
     renderKV(initial || {});
   }
-  setMode("view");
+  applyMode("view");
 }
 async function deleteDetail() {
   if (!selectedId) return;
@@ -364,11 +389,10 @@ async function deleteDetail() {
     node?.remove();
     selectedId = null;
     initial = null;
-    mode = "view";
     tempEdits = {};
-    renderKV({});
-    setMode("view");
     document.title = "Customers · Topnotch MFG";
+    renderKV({});
+    applyMode("view");
   } catch (e) {
     toast(e?.message || "Delete failed", false);
   } finally {
@@ -384,40 +408,26 @@ async function selectCustomer(id) {
 }
 
 /* BOOT */
-let lp;
 document.addEventListener("DOMContentLoaded", () => {
   // cache
   Object.values(LIST_EL_IDS).forEach((id) => (els[id] = $(id)));
   Object.values(CTRL_IDS).forEach((id) => (els[id] = $(id)));
 
-  // Edit: แก้ทุกฟิลด์
+  // Edit all fields
   els[CTRL_IDS.btnEdit]?.addEventListener("click", () => {
     if (!initial) return;
-    tempEdits = FIELD_KEYS.reduce((acc, k) => {
-      acc[k] = initial?.[k] ?? "";
-      return acc;
-    }, {});
-    setMode("edit");
-    renderKV(getWorkingData());
+    tempEdits = primeTempEdits(initial);
+    applyMode("edit");
     focusField("name");
   });
 
-  // New: เข้าโหมดสร้าง, จดจำ id เดิมไว้สำหรับ Cancel
+  // New
   els[CTRL_IDS.btnNew]?.addEventListener("click", () => {
     prevSelectedIdBeforeNew = selectedId;
     selectedId = null;
     initial = null;
-    mode = "create";
-    tempEdits = {
-      name: "",
-      code: "",
-      contact: "",
-      email: "",
-      phone: "",
-      address: "",
-    };
-    setMode("create");
-    renderKV(getWorkingData());
+    tempEdits = primeTempEdits({});
+    applyMode("create");
     focusField("name");
   });
 
@@ -425,7 +435,7 @@ document.addEventListener("DOMContentLoaded", () => {
   els[CTRL_IDS.btnCancel]?.addEventListener("click", cancelEdits);
   els[CTRL_IDS.btnDelete]?.addEventListener("click", deleteDetail);
 
-  // pager (ส่ง ctx เข้า render เพื่อคำนวณ No.)
+  // pager
   lp = createListPager({
     url: ENDPOINTS.listKeyset,
     pageSize: Number(els[LIST_EL_IDS.selPerPage]?.value || 20),
@@ -441,6 +451,6 @@ document.addEventListener("DOMContentLoaded", () => {
   lp.bindPerPage(els[LIST_EL_IDS.selPerPage]);
 
   renderKV({});
-  setMode("view");
+  applyMode("view");
   lp.reloadFirst();
 });
