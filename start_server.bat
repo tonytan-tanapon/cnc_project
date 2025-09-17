@@ -1,5 +1,5 @@
 @echo off
-cd /d "C:\Users\TPSERVER\dev\cnc_project"
+cd /d "C:\Users\TPSERVER\cnc_project"
 call venv\Scripts\activate.bat
 
 echo === Starting server (port 8000) ===
