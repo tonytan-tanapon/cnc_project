@@ -1,6 +1,5 @@
 # routers/time_clock.py
-from datetime import datetime, timezone, time, timedelta  # ⬅ add time, timedelta
-from zoneinfo import ZoneInfo    
+from datetime import datetime, timezone
 from typing import Optional, List, Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -10,49 +9,6 @@ from sqlalchemy.orm import Session, joinedload
 
 from database import get_db
 from models import TimeEntry, BreakEntry, Employee, User
-
-# Timezone used for day cutoff (change if you need another local tz)
-LOCAL_TZ = ZoneInfo("America/Los_Angeles")
-
-def to_local(dt_utc: datetime) -> datetime:
-    return dt_utc.astimezone(LOCAL_TZ)
-
-def to_utc(dt_local: datetime) -> datetime:
-    return dt_local.astimezone(timezone.utc)
-
-def end_of_local_day(dt_utc: datetime) -> datetime:
-    """
-    Given a UTC timestamp, compute 23:59:59 (local) of that same LOCAL date,
-    return as UTC.
-    """
-    dloc = to_local(dt_utc).date()
-    eod_local = datetime.combine(dloc, time(23, 59, 59), tzinfo=LOCAL_TZ)
-    return to_utc(eod_local)
-def _auto_close_open_entry(db: Session, te: TimeEntry, reason: str = "System-close at local day end") -> datetime:
-    """
-    Close any open breaks, then close the time entry at local day end based on the entry's clock_in_at.
-    Returns the UTC timestamp used for the auto clock_out.
-    """
-    auto_out_utc = end_of_local_day(te.clock_in_at)
-
-    # Close open breaks 1 second before shift end (nice invariant)
-    open_breaks = (
-        db.query(BreakEntry)
-          .filter(BreakEntry.time_entry_id == te.id, BreakEntry.end_at.is_(None))
-          .all()
-    )
-    for br in open_breaks:
-        br.end_at = auto_out_utc - timedelta(seconds=1)
-        # (Optional) annotate
-        br.notes = (br.notes or "") + f"\n[AUTO] {reason}"
-
-    te.clock_out_at = auto_out_utc
-    te.clock_out_method = te.clock_out_method or "auto"
-    te.status = "closed"
-    te.notes = (te.notes or "") + f"\n[AUTO] {reason}"
-    db.flush()
-
-    return auto_out_utc
 
 # ============================================================
 # Routers (declare ONCE)
@@ -394,101 +350,43 @@ def state_by_code(code: Annotated[str, Field(min_length=4, max_length=4, pattern
     })
     return payload
 
-# @timeclock_router.post("/start", summary="Kiosk: clock in by code")
-# def kiosk_start(payload: KioskStartPayload, db: Session = Depends(get_db)):
-#     emp = _emp_by_code(db, payload.code)
-
-#     open_te = _current_open_time_entry(db, emp.id)
-#     if open_te:
-#         open_te.clock_out_at = now_utc()
-#         open_te.status = "closed"
-#         db.flush()
-
-#     pay_user = db.query(User).filter(User.employee_id == emp.id).order_by(User.id.asc()).first()
-
-#     te = TimeEntry(
-#         employee_id=emp.id,
-#         created_by_user_id=None,
-#         work_user_id=pay_user.id if pay_user else None,
-#         clock_in_at=now_utc(),
-#         clock_in_method=payload.method or "web",
-#         clock_in_location=payload.location,
-#         status="open",
-#         notes=payload.notes,
-#     )
-#     db.add(te); db.commit(); db.refresh(te)
-#     return {
-#         "id": te.id,
-#         "employee_id": te.employee_id,
-#         "work_user_id": te.work_user_id,
-#         "clock_in_at": te.clock_in_at,
-#         "status": te.status,
-#     }
 @timeclock_router.post("/start", summary="Kiosk: clock in by code")
 def kiosk_start(payload: KioskStartPayload, db: Session = Depends(get_db)):
     emp = _emp_by_code(db, payload.code)
 
     open_te = _current_open_time_entry(db, emp.id)
-    now = now_utc()
-    now_local_date = to_local(now).date()
-
-    auto_closed_info = None
-
     if open_te:
-        in_local_date = to_local(open_te.clock_in_at).date()
-        if in_local_date < now_local_date:
-            # Auto-close yesterday's (or earlier) open entry at that day's end
-            auto_out_utc = _auto_close_open_entry(db, open_te)
-            auto_closed_info = {
-                "repaired_time_entry_id": open_te.id,
-                "auto_clock_out_at": auto_out_utc,
-                "reason": "System-close at local day end",
-            }
-            db.commit()
-        else:
-            # Same-local-day open entry exists: policy choice -> forbid new start
-            raise HTTPException(400, "Already clocked in today. Please clock out first.")
+        open_te.clock_out_at = now_utc()
+        open_te.status = "closed"
+        db.flush()
 
-    pay_user = (
-        db.query(User)
-          .filter(User.employee_id == emp.id)
-          .order_by(User.id.asc())
-          .first()
-    )
+    pay_user = db.query(User).filter(User.employee_id == emp.id).order_by(User.id.asc()).first()
 
     te = TimeEntry(
         employee_id=emp.id,
         created_by_user_id=None,
         work_user_id=pay_user.id if pay_user else None,
-        clock_in_at=now,
+        clock_in_at=now_utc(),
         clock_in_method=payload.method or "web",
         clock_in_location=payload.location,
         status="open",
         notes=payload.notes,
     )
     db.add(te); db.commit(); db.refresh(te)
-
-    resp = {
+    return {
         "id": te.id,
         "employee_id": te.employee_id,
         "work_user_id": te.work_user_id,
         "clock_in_at": te.clock_in_at,
         "status": te.status,
     }
-    if auto_closed_info:
-        resp["auto_repair"] = auto_closed_info  # front end can toast this if desired
-    return resp
 
 @timeclock_router.post("/stop", summary="Kiosk: clock out (auto-closes open breaks)")
 def kiosk_stop(payload: KioskStopPayload, db: Session = Depends(get_db)):
     emp = _emp_by_code(db, payload.code)
     te = _current_open_time_entry(db, emp.id)
-    if te:
-        in_local_date = to_local(te.clock_in_at).date()
-        if in_local_date < to_local(now_utc()).date():
-            _auto_close_open_entry(db, te)
-            db.commit()
-            te = None  # treat as no open entry now
+    if not te:
+        raise HTTPException(400, "No open time entry to stop")
 
     now = now_utc()
 
