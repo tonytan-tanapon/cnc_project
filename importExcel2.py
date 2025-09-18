@@ -25,8 +25,8 @@ def preview_rows(df, n=10):
     print(df[cols].head(n))
 
 if __name__ == "__main__":
-    path = "C:/Users/Tanapon/Downloads/2040364-1.xlsm"
-    sheet = "2040364-1"
+    path = "Z:/Topnotch Group/Public/Data Base & Inventory Stock/02-2409.xlsm"
+    sheet = "02-2409"
 
     df = load_excel(path, sheet)
     print("=== Columns ===")
