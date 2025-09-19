@@ -4,8 +4,8 @@ import { escapeHtml } from "./utils.js";
 
 /* CONFIG */
 const ENDPOINTS = {
-  listKeyset: "/customers/keyset", // keyset/cursor listing
-  base: "/customers", // CRUD base
+  listKeyset: "/customers/keyset",       // keyset/cursor listing
+  base: "/customers",                    // CRUD base
   byId: (id) => `/customers/${encodeURIComponent(id)}`,
 };
 
@@ -48,14 +48,14 @@ const FIELD_INPUT_TYPE = {
 /* STATE */
 let els = {};
 let selectedId = null;
-let initial = null; // ข้อมูลลูกค้าที่โหลดล่าสุด
-let mode = "view"; // view | edit | create
-let tempEdits = {}; // ค่า draft ตอนแก้ไข
+let initial = null;           // ข้อมูลลูกค้าที่โหลดล่าสุด
+let mode = "view";            // view | edit | create
+let tempEdits = {};           // ค่า draft ตอนแก้ไข
 let prevSelectedIdBeforeNew = null;
 let isSubmitting = false;
 
-let table = null; // Tabulator instance
-let cursorBook = {}; // mapping page -> cursor (สำหรับ keyset)
+let table = null;             // Tabulator instance
+let cursorBook = {};          // mapping page -> cursor (สำหรับ keyset)
 let currentPage = 1;
 let pageSize = 20;
 
@@ -84,7 +84,7 @@ function primeTempEdits(base) {
   }, {}); // ✅ has the {} initial value
 }
 function getWorkingData() {
-  const base = mode === "create" ? {} : initial ?? {};
+  const base = mode === "create" ? {} : (initial ?? {});
   return { ...base, ...tempEdits };
 }
 function focusField(key) {
@@ -363,25 +363,18 @@ function makeColumns() {
       width: 72,
       hozAlign: "right",
       headerHozAlign: "right",
-      headerSort: true,
+      headerSort: false,
       formatter: (cell) => {
         const pos = cell.getRow().getPosition(true); // 1-based
         return (currentPage - 1) * pageSize + pos;
       },
     },
-    { title: "Code", field: "code", width: 130, headerSort: true },
-    { title: "Name", field: "name", headerSort: true },
+    { title: "Code",    field: "code",    width: 130, headerSort: true },
+    { title: "Name",    field: "name",                 headerSort: true },
     { title: "Contact", field: "contact", width: 160, tooltip: true },
-    { title: "Email", field: "email", width: 220, tooltip: true },
-    { title: "Phone", field: "phone", width: 140, tooltip: true },
+    { title: "Email",   field: "email",   width: 220, tooltip: true },
+    { title: "Phone",   field: "phone",   width: 140, tooltip: true },
     { title: "Address", field: "address", widthGrow: 3, tooltip: true },
-    // title คือ header text
-    // field คือ key ใน data
-    // width, widthGrow, minWidth, maxWidth
-    // hozAlign: "left" | "center" | "right"
-    // headerHozAlign: "left" | "center" | "right"
-    // headerSort: true (default) | false
-    // tooltip: true แสดง full text เมื่อ hover (ถ้าโดนตัด)
   ];
 }
 
@@ -424,9 +417,7 @@ function updatePageInfo() {
   const info = els[LIST_EL_IDS.pageInfo];
   if (!info) return;
   const hasNext = cursorBook[currentPage + 1] != null;
-  info.textContent = `Page ${currentPage} • ${pageSize}/page${
-    hasNext ? " • more…" : ""
-  }`;
+  info.textContent = `Page ${currentPage} • ${pageSize}/page${hasNext ? " • more…" : ""}`;
 }
 
 function initCustomersTable() {
