@@ -165,18 +165,51 @@ function initTable(){
     paginationCounter: "rows",
 
     columns: [
-      { title: "No.", field: "_no", width: 60, hozAlign: "right", headerHozAlign: "right",
-        headerSort: true,
-        sorter: (a, b, aRow, bRow) => aRow.getPosition(true) - bRow.getPosition(true),
-        formatter: "rownum",
+      { title: "No.", field: "_no", width: 60, hozAlign: "right", headerHozAlign: "right", headerSort: false,
+        formatter: (cell) => cell.getRow().getPosition(true)
       },
-      { title: "Lot Number", field: "lot_no",    minWidth: 140, headerSort: true },
-      { title: "PO Number",  field: "po_number", minWidth: 140, headerSort: true },
-      { title: "Qty",        field: "qty",       width: 120, hozAlign: "right", headerHozAlign: "right",
-        sorter: "number",
-        formatter: (cell) => fmtQty(cell.getValue()),
+      { title: "Lot Number", field: "lot_no", minWidth: 110, headerSort: true },
+      { title: "PO Number",  field: "po_number", minWidth: 110, headerSort: true },
+      { title: "Prod Qty",  field: "po_number", minWidth: 110, headerSort: true },
+      { title: "PO Date",  field: "po_number", minWidth: 110, headerSort: true },
+      { title: "Qty PO",  field: "po_number", minWidth: 110, headerSort: true },
+      { title: "Due Date",  field: "po_number", minWidth: 110, headerSort: true },
+      { title: "Qty",        field: "qty", width: 110, hozAlign: "right", headerHozAlign: "right",
+        formatter: (cell) => fmtQty(cell.getValue())
       },
+      { title: "First article No:",  field: "po_number", minWidth: 110, headerSort: true },
+    { title: "*Remark Product Control",  field: "po_number", minWidth: 110, headerSort: true },
+    { title: "Tracking no.",  field: "po_number", minWidth: 110, headerSort: true },
+    { title: "Real Shipped Date",  field: "po_number", minWidth: 110, headerSort: true },
+    { title: "INCOMING STOCK",  field: "po_number", minWidth: 110, headerSort: true },
+    
+    { title: "QA Inspection/AQL",  field: "po_number", minWidth: 110, headerSort: true },
+    { title: "Name Inspection" ,  field: "po_number", minWidth: 110, headerSort: true },
+    { title: "*Remark (QA Inspection)",  field: "po_number", minWidth: 110, headerSort: true },
+    { title: "Rework/Repair",  field: "po_number", minWidth: 110, headerSort: true },
+    { title: "*Remark (Rework)",  field: "po_number", minWidth: 110, headerSort: true },
+    { title: "Qty Reject",  field: "po_number", minWidth: 110, headerSort: true },
+    { title: "*Remark (Reject)",  field: "po_number", minWidth: 110, headerSort: true },
+    { title: "Incoming Rework",  field: "po_number", minWidth: 110, headerSort: true },
+    { title: "Finish goods in stock",  field: "po_number", minWidth: 110, headerSort: true },
+    { title: "Lot Number",  field: "po_number", minWidth: 110, headerSort: true },    
+    { title: "",  field: "po_number", minWidth: 110, headerSort: true },
+    { title: "PO Number",  field: "po_number", minWidth: 110, headerSort: true }, 
+    { title: "Qty Take Out",  field: "po_number", minWidth: 110, headerSort: true }, 
+    { title: "Date Take Out Stock",  field: "po_number", minWidth: 110, headerSort: true }, 
+    { title: "WIP	WIP Cont.",  field: "po_number", minWidth: 110, headerSort: true }, 
+    { title: "QTY Rework",  field: "po_number", minWidth: 110, headerSort: true }, 
+    { title: "Green Tag No.",  field: "po_number", minWidth: 110, headerSort: true }, 
+    { title: "Rework w/Lot",  field: "po_number", minWidth: 110, headerSort: true }, 
+    { title: "QTY Prod",  field: "po_number", minWidth: 110, headerSort: true }, 
+    { title: "QTY Shipped",  field: "po_number", minWidth: 110, headerSort: true }, 
+    { title: "Residual",  field: "po_number", minWidth: 110, headerSort: true }, 
+    { title: "QTY Use",  field: "po_number", minWidth: 110, headerSort: true }, 
+
+    // 							 	QTY Use	Balance	Scrap Later	From Lot	ST Status	Note	Date
+																																						
     ],
+
   });
 
   table.on("tableBuilt", () => {
