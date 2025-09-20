@@ -4,198 +4,42 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Customers · Topnotch – MFG</title>
+
+    <!-- App styles -->
     <link rel="stylesheet" href="/static/css/app.css" />
+
+    <!-- Tabulator (LOCAL theme css) -->
+    <link
+      rel="stylesheet"
+      href="/static/vendor/tabulator/tabulator_modern.min.css"
+    />
+
     <style>
-      .btn-small {
-        padding: 4px 8px;
-        font-size: 14px;
-        border: 1px solid var(--line, #ccc);
-        border-radius: 6px;
-        background: #111;
-        color: #fff;
-        cursor: pointer;
-      }
-      .btn-small.secondary {
-        background: #eee;
-        color: #333;
-      }
-      .btn-small.btn-danger {
-        background: #fff;
-        color: #ef4444;
-        border-color: #ef4444;
-      }
-      .btn-small:hover {
-        filter: brightness(0.95);
+      /* We use Tabulator header, so hide the manual header */
+      #listHead {
+        display: none;
       }
 
-      /* layout */
-      .split-2col {
-        display: grid;
-        grid-template-columns: 1fr min(420px, 40vw);
-        gap: 16px;
-        margin-top: 12px;
-        min-height: calc(100vh - 220px);
+      /* Ensure Tabulator header is visible and styled */
+      #listBody .tabulator-header {
+        display: block !important;
       }
-      .panel {
-        border: 1px solid var(--line, #e5e7eb);
-        border-radius: 12px;
-        background: #fff;
-        display: flex;
-        flex-direction: column;
-        min-height: 0;
-        overflow: hidden;
-      }
-
-      /* left panel: topbar */
-      .list-topbar {
-        display: flex;
-        gap: 8px;
-        padding: 10px 12px;
-        border-bottom: 1px solid var(--line, #e5e7eb);
-        align-items: center;
-      }
-      .search-lg {
-        flex: 1;
-        min-width: 0;
-        height: 40px;
-        font-size: 16px;
-        padding: 0 12px;
-      }
-      .perpage-sm {
-        width: 96px;
-        height: 34px;
-        font-size: 13px;
-      }
-      .list-nav {
-        display: flex;
-        gap: 6px;
-      }
-      .list-body {
-        overflow: auto;
-      }
-      .list-footer {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 8px;
-        padding: 8px 12px;
-        border-top: 1px solid var(--line, #e5e7eb);
-      }
-      .muted,
-      .hint {
-        color: #6b7280;
-        font-size: 12px;
-      }
-
-      /* left panel: header row + rows (No.|Code|Name) */
-      .list-head {
-        display: grid;
-        grid-template-columns: 64px 120px 1fr;
-        gap: 8px;
-        padding: 8px 12px;
-        border-bottom: 1px solid var(--line, #e5e7eb);
-        background: #fafafa;
+      #listBody .tabulator-col-title {
         font-weight: 600;
-        color: #374151;
       }
-      .list-head .col-no {
-        text-align: right;
-        padding-right: 8px;
+      #listBody .tabulator {
+        border: 0;
+        min-width: 720px;
       }
 
-      .cust-item {
-        display: grid;
-        grid-template-columns: 64px 120px 1fr;
-        gap: 8px;
-        padding: 10px 12px;
-        border-bottom: 1px solid #f1f5f9;
-        cursor: pointer;
-        align-items: center;
-      }
-      .cust-item:hover {
-        background: #fafafa;
-      }
-      .cust-item.active {
-        background: #eef6ff;
-      }
-      .cust-no {
-        text-align: right;
-        padding-right: 8px;
-        color: #6b7280;
-      }
-      .cust-code {
-        font-weight: 600;
-        color: #111;
-      }
-      .cust-name {
-        color: #111;
+      /* Let Address wrap; other columns ellipsize */
+      #listBody .tabulator-cell {
         white-space: nowrap;
-        overflow: hidden;
         text-overflow: ellipsis;
-      }
-      .cust-sub {
-        color: #6b7280;
-        font-size: 12px;
-        white-space: nowrap;
         overflow: hidden;
-        text-overflow: ellipsis;
       }
-
-      /* right panel: details */
-      .detail-head {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 8px;
-        padding: 10px 12px;
-        border-bottom: 1px solid var(--line, #e5e7eb);
-      }
-      .detail-body {
-        padding: 12px;
-        overflow: auto;
-      }
-      .detail-footer {
-        padding: 10px 12px;
-        border-top: 1px solid var(--line, #e5e7eb);
-        display: flex;
-        justify-content: flex-end;
-      }
-
-      .kv-row {
-        display: grid;
-        grid-template-columns: 120px 1fr;
-        gap: 10px;
-        padding: 8px 0;
-        border-bottom: 1px dashed #f1f5f9;
-      }
-      .kv-key {
-        color: #6b7280;
-      }
-      .kv-val {
-        color: #111;
-        white-space: pre-wrap;
-        word-break: break-word;
-      }
-      .kv-input {
-        width: 100%;
-        box-sizing: border-box;
-        border: 1px solid var(--line, #e5e7eb);
-        border-radius: 10px;
-        padding: 8px 10px;
-        font: 14px/1.4 system-ui;
-      }
-      .kv-row.editing .kv-val {
-        background: #fffbe6;
-        border-radius: 8px;
-      }
-
-      @media (max-width: 960px) {
-        .split-2col {
-          grid-template-columns: 1fr;
-        }
-        .kv-row {
-          grid-template-columns: 110px 1fr;
-        }
+      #listBody .tabulator-cell[tabulator-field="address"] {
+        white-space: normal;
       }
     </style>
   </head>
@@ -253,22 +97,7 @@
             <!-- LEFT LIST -->
             <section class="panel" id="listPanel">
               <div class="list-topbar">
-                <div class="list-nav">
-                  <button
-                    id="_prev_top"
-                    type="button"
-                    class="btn-small secondary"
-                  >
-                    Prev
-                  </button>
-                  <button
-                    id="_next_top"
-                    type="button"
-                    class="btn-small secondary"
-                  >
-                    Next
-                  </button>
-                </div>
+                <!-- removed: _prev_top / _next_top -->
                 <input
                   id="_q"
                   type="search"
@@ -282,24 +111,21 @@
                 </select>
               </div>
 
-              <!-- หัวคอลัมน์ -->
+              <!-- manual header (not used) -->
               <div id="listHead" class="list-head">
                 <div class="col-no">No.</div>
                 <div class="col-code">Code</div>
                 <div class="col-name">Name</div>
               </div>
 
+              <!-- Tabulator renders here -->
               <div id="listBody" class="list-body"></div>
 
-              <div class="list-footer">
-                <div>
-                  <button id="_prev" type="button" class="btn-small secondary">
-                    Prev
-                  </button>
-                  <button id="_next" type="button" class="btn-small secondary">
-                    Next
-                  </button>
-                </div>
+              <div
+                class="list-footer"
+                style="display: flex; justify-content: flex-end"
+              >
+                <!-- removed: _prev / _next -->
                 <div id="_page_info" class="muted">—</div>
               </div>
             </section>
@@ -313,7 +139,6 @@
                   style="display: flex; gap: 6px; align-items: center"
                 >
                   <span id="hint" class="hint"></span>
-                  <!-- ตามคำขอ: Edit ก่อน New; Save/Cancel โผล่ตอนแก้ไข -->
                   <button
                     id="btnEdit"
                     class="btn-small secondary"
@@ -352,7 +177,6 @@
                 ></div>
               </div>
 
-              <!-- Delete ย้ายลงมาล่างสุด -->
               <div class="detail-footer">
                 <button
                   id="btnDelete"
@@ -371,7 +195,14 @@
     <div class="toast" id="toast" role="status" aria-live="polite">
       <span id="toastText"></span>
     </div>
-    <script type="module" src="/static/js/nav-loader.js"></script>
-    <script type="module" src="/static/js/page-customers.js?v=5"></script>
+
+    <!-- (Optional) Nav loader -->
+    <script type="module" src="/static/js/nav-loader.js?v=1"></script>
+
+    <!-- Tabulator JS (LOCAL) – MUST load BEFORE your page script -->
+    <script src="/static/vendor/tabulator/tabulator.min.js"></script>
+
+    <!-- Your page script (uses Tabulator) -->
+    <script type="module" src="/static/js/page-customers.js"></script>
   </body>
 </html>

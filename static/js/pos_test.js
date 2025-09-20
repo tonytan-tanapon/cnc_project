@@ -369,40 +369,20 @@ function makeColumns() {
       headerHozAlign: "right",
       headerSort: false,
       formatter: (cell) => {
-        const pos = cell.getRow().getPosition(true);
+        const pos = cell.getRow().getPosition(true); // 1-based index in current page
         return (currentPage - 1) * pageSize + pos;
       },
     },
-    {
-      title: "PO No.",
-      field: "po_number",
-      width: 140,
-      headerSort: true,
-      formatter: (cell) => {
+    { title: "PO No.", field: "po_number", width: 140, headerSort: true, formatter: (cell) => {
         const v = cell.getValue() ?? "";
-        const id = cell.getRow()?.getData()?.id;
-        if (!id) return safe(v);
-        // point this to the actual HTML for your PO detail page
-        const href = `/static/pos-detail.html?id=${encodeURIComponent(id)}`;
-        return `<a class="link po-link" href="${href}">${safe(v)}</a>`;
-      },
-      // optional: stop rowClick when the anchor itself is clicked
-      cellClick: (e, cell) => {
-        const a = e.target.closest("a.po-link");
-        if (a) {
-          e.stopPropagation();
-          // let the browser follow the link naturally (supports Ctrl/Cmd-click)
-          return;
-        }
-        // (else) normal rowClick behavior is fine
-      },
+        return `<a href="javascript:void(0)">${safe(v)}</a>`;
+      }
     },
     { title: "Customer", field: "customer_disp", width: 260, headerSort: true },
     { title: "Description", field: "description", headerSort: false, tooltip: true },
     { title: "Created", field: "created_at", width: 180, headerSort: true, formatter: (cell) => fmtDate(cell.getValue()) },
   ];
 }
-
 
 function computeLastPage(total, size) {
   if (!total || !size) return currentPage; // fallback

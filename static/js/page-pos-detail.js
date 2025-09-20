@@ -1,18 +1,19 @@
-// /static/js/page-pos-detail.js (v2)
+// /static/js/page-pos-detail.js (v3 – Tabulator lines)
 import { $, jfetch, toast } from "./api.js";
 import { attachAutocomplete } from "./autocomplete.js";
 
 const qs = new URLSearchParams(location.search);
-const poId = qs.get("id"); // ถ้ามี = โหมด view/edit, ถ้าไม่มี = โหมด create
+const poIdQS = qs.get("id"); // if present => view/edit, else => create
 
 /* ---------- STATE ---------- */
-let mode = poId ? "view" : "create"; // view | edit | create
-let initial = null; // PO object ปัจจุบัน
-let tempEdits = {}; // draft สำหรับ header
+let mode = poIdQS ? "view" : "create"; // view | edit | create
+let initial = null;     // current PO object
+let tempEdits = {};     // draft header
 let isSubmitting = false;
 let selectedCustomer = null; // {id, code, name}
+let linesTable = null;  // Tabulator instance
 
-// fields + labels (เหมือนโครง customers)
+// fields + labels
 const FIELD_KEYS = ["po_number", "customer", "description", "created_at"];
 const FIELD_LABELS = {
   po_number: "PO No.",
@@ -32,6 +33,7 @@ const btnNew = $("po_btnNew");
 const btnSave = $("po_btnSave");
 const btnCancel = $("po_btnCancel");
 const btnDelete = $("po_btnDelete");
+const btnAddLine = $("btnAddLine");
 
 /* ---------- UTILS ---------- */
 const safe = (s) => String(s ?? "").replaceAll("<", "&lt;");
@@ -41,11 +43,13 @@ const fmtDate = (s) => {
   return isNaN(d) ? "" : d.toLocaleString();
 };
 const trim = (v) => (v == null ? "" : String(v).trim());
+
 function setBusy(b) {
-  [btnEdit, btnNew, btnSave, btnCancel, btnDelete].forEach((el) => {
+  [btnEdit, btnNew, btnSave, btnCancel, btnDelete, btnAddLine].forEach((el) => {
     if (!el) return;
     el.disabled = !!b;
     el.setAttribute("aria-disabled", String(b));
+    el.classList.toggle("is-busy", !!b);
   });
   if (hintEl) hintEl.textContent = b ? "Working…" : "";
 }
@@ -59,34 +63,207 @@ function setError(msg) {
     errEl.textContent = msg;
   }
 }
-
-/* ---------- Customer autocomplete (เหมือนหน้า POS หลัก) ---------- */
-async function searchCustomers(term) {
+// ------- async suggests for Tabulator cell editors -------
+async function suggestParts(term) {
   const q = (term || "").trim();
+  const url = q
+    ? `/parts?q=${encodeURIComponent(q)}&page=1&per_page=20`
+    : `/parts?page=1&per_page=10`;
   try {
-    if (!q) {
-      // first 10
-      const res0 = await jfetch(`/customers/keyset?limit=10`);
-      const items0 = Array.isArray(res0) ? res0 : res0.items ?? [];
-      return items0.map((x) => ({
-        id: x.id,
-        code: x.code ?? "",
-        name: x.name ?? "",
-      }));
-    }
-    const res = await jfetch(
-      `/customers?q=${encodeURIComponent(q)}&page=1&page_size=10`
-    );
-    const items = Array.isArray(res) ? res : res.items ?? [];
-    return items.map((x) => ({
-      id: x.id,
-      code: x.code ?? "",
-      name: x.name ?? "",
+    const resp = await jfetch(url);
+    const arr = Array.isArray(resp) ? resp : resp.items || [];
+    return arr.map(p => ({
+      id: p.id,
+      part_no: String(p.part_no || "").toUpperCase(),
+      name: p.name || "",
     }));
   } catch {
     return [];
   }
 }
+
+async function suggestRevisions(partId, term) {
+  if (!partId) return [];
+  const tryUrls = [
+    `/part-revisions?part_id=${encodeURIComponent(partId)}`,
+    `/parts/${encodeURIComponent(partId)}/revisions`,
+  ];
+  for (const url of tryUrls) {
+    try {
+      const data = await jfetch(url);
+      const arr = Array.isArray(data) ? data : data?.items || [];
+      const list = (arr || []).map(r => ({
+        id: r.id,
+        rev: r.rev || r.revision || r.code || "",
+        is_current: !!(r.is_current ?? r.current ?? r.active),
+      }));
+      if (list.length || url.includes("/revisions")) return list;
+    } catch {}
+  }
+  return [];
+}
+
+/* ---------- Customer autocomplete ---------- */
+async function searchCustomers(term) {
+  const q = (term || "").trim();
+  try {
+    if (!q) {
+      const res0 = await jfetch(`/customers/keyset?limit=10`);
+      const items0 = Array.isArray(res0) ? res0 : res0.items ?? [];
+      return items0.map((x) => ({ id: x.id, code: x.code ?? "", name: x.name ?? "" }));
+    }
+    const res = await jfetch(`/customers?q=${encodeURIComponent(q)}&page=1&page_size=10`);
+    const items = Array.isArray(res) ? res : res.items ?? [];
+    return items.map((x) => ({ id: x.id, code: x.code ?? "", name: x.name ?? "" }));
+  } catch {
+    return [];
+  }
+}
+// ------- Tabulator custom editor: Part Autocomplete -------
+function partAutocompleteEditor(cell, onRendered, success, cancel) {
+  const startVal = String(cell.getValue() ?? "");
+  const input = document.createElement("input");
+  input.type = "text";
+  input.className = "tabulator-editing";
+  input.value = startVal;
+  input.autocomplete = "off";
+  input.style.width = "100%";
+
+  // Wire your shared autocomplete helper
+  attachAutocomplete(input, {
+    fetchItems: suggestParts,
+    getDisplayValue: (it) => (it ? `${it.part_no} — ${it.name}` : ""),
+    renderItem: (it) =>
+      `<div class="ac-row"><b>${safe(it.part_no)}</b> — ${safe(it.name)}</div>`,
+    openOnFocus: true,
+    minChars: 0,
+    debounceMs: 200,
+    maxHeight: 260,
+    onPick: (it) => {
+      // 1) Commit the visible cell value
+      success(it.part_no);
+      // 2) Also update backing fields in the row
+      const row = cell.getRow();
+      // clear any stale revision on part change
+      row.update({
+        part_id: it.id,
+        part_no: it.part_no,
+        revision_id: null,
+        revision_text: "",
+      });
+    },
+  });
+
+  onRendered(() => {
+    input.focus();
+    input.select();
+  });
+
+  // keyboard: Enter -> commit typed value (try to resolve), Esc -> cancel
+  input.addEventListener("keydown", async (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const raw = input.value.trim();
+      if (!raw) { success(""); return; }
+      // Try to resolve typed part to id if user didn't pick from list
+      const found = await resolvePart(raw);
+      if (found) {
+        const row = cell.getRow();
+        row.update({
+          part_id: found.id,
+          part_no: found.part_no,
+          revision_id: null,
+          revision_text: "",
+        });
+        success(found.part_no);
+      } else {
+        toast("Unknown Part No", false);
+        // keep editor open
+      }
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      cancel();
+    }
+  });
+
+  // blur -> do not auto-commit unresolved text (prevents stale state)
+  input.addEventListener("blur", () => {
+    // optional: cancel on blur if not resolved
+    // cancel();
+  });
+
+  return input;
+}
+
+// ------- Tabulator custom editor: Revision Autocomplete (depends on part) -------
+function revisionAutocompleteEditor(cell, onRendered, success, cancel) {
+  const row = cell.getRow();
+  const rowData = row.getData();
+  const partId = rowData.part_id;
+
+  if (!partId) {
+    // No part chosen yet
+    const span = document.createElement("span");
+    span.textContent = "Select part first";
+    span.style.opacity = "0.7";
+    // auto close shortly so user can pick part
+    setTimeout(() => cancel(), 700);
+    return span;
+  }
+
+  const startVal = String(cell.getValue() ?? "");
+  const input = document.createElement("input");
+  input.type = "text";
+  input.className = "tabulator-editing";
+  input.value = startVal;
+  input.autocomplete = "off";
+  input.style.width = "100%";
+
+  attachAutocomplete(input, {
+    fetchItems: (term) => suggestRevisions(partId, term),
+    getDisplayValue: (it) => (it ? String(it.rev) : ""),
+    renderItem: (it) =>
+      `<div class="ac-row"><b>${safe(it.rev)}</b>${it.is_current ? ' <span class="muted">(current)</span>' : ""}</div>`,
+    openOnFocus: true,
+    minChars: 0,
+    debounceMs: 200,
+    maxHeight: 240,
+    onPick: (it) => {
+      // commit visible value
+      success(it.rev);
+      // sync backing id field
+      row.update({ revision_id: it.id, revision_text: it.rev });
+    },
+  });
+
+  onRendered(() => {
+    input.focus();
+    input.select();
+  });
+
+  input.addEventListener("keydown", async (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const raw = input.value.trim();
+      if (!raw) { success(""); row.update({ revision_id: null, revision_text: "" }); return; }
+      const rid = await resolveRevision(partId, raw);
+      if (rid) {
+        row.update({ revision_id: rid, revision_text: raw });
+        success(raw);
+      } else {
+        toast("Unknown revision for this part", false);
+        // keep editor open
+      }
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      cancel();
+    }
+  });
+
+  return input;
+}
+
+
 function buildCustomerInput(current) {
   const input = document.createElement("input");
   input.className = "kv-input";
@@ -102,8 +279,7 @@ function buildCustomerInput(current) {
   attachAutocomplete(input, {
     fetchItems: searchCustomers,
     getDisplayValue: (it) => (it ? `${it.code} — ${it.name}` : ""),
-    renderItem: (it) =>
-      `<div class="ac-row"><b>${it.code}</b> — ${it.name}</div>`,
+    renderItem: (it) => `<div class="ac-row"><b>${it.code}</b> — ${it.name}</div>`,
     onPick: (it) => {
       selectedCustomer = it || null;
       input.value = it ? `${it.code} — ${it.name}` : "";
@@ -114,14 +290,9 @@ function buildCustomerInput(current) {
     maxHeight: 260,
   });
 
-  input.addEventListener("input", () => {
-    selectedCustomer = null;
-  });
+  input.addEventListener("input", () => { selectedCustomer = null; });
   input.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") {
-      e.preventDefault();
-      cancelEdits();
-    }
+    if (e.key === "Escape") { e.preventDefault(); cancelEdits(); }
   });
   return input;
 }
@@ -130,13 +301,9 @@ function buildCustomerInput(current) {
 function primeEdits(base) {
   return {
     po_number: base?.po_number ?? "",
-    customer: base?.customer
-      ? {
-          id: base.customer.id,
-          code: base.customer.code,
-          name: base.customer.name,
-        }
-      : null,
+    customer: base?.customer ? {
+      id: base.customer.id, code: base.customer.code, name: base.customer.name,
+    } : null,
     description: base?.description ?? "",
     created_at: base?.created_at ?? null,
   };
@@ -146,9 +313,7 @@ function getWorkingData() {
   return { ...base, ...tempEdits };
 }
 function focusField(key) {
-  const el = viewEl?.querySelector(
-    `.kv-input[data-field="${CSS.escape(key)}"]`
-  );
+  const el = viewEl?.querySelector(`.kv-input[data-field="${CSS.escape(key)}"]`);
   el?.focus();
 }
 function applyMode(nextMode) {
@@ -166,9 +331,7 @@ function renderHeader(data = {}) {
 
   const editing = mode === "edit" || mode === "create";
   const pick = (k, def = "") =>
-    Object.prototype.hasOwnProperty.call(tempEdits, k)
-      ? tempEdits[k]
-      : data[k] ?? def;
+    Object.prototype.hasOwnProperty.call(tempEdits, k) ? tempEdits[k] : data[k] ?? def;
 
   const rows = FIELD_KEYS.map((key) => {
     const label = FIELD_LABELS[key];
@@ -177,9 +340,7 @@ function renderHeader(data = {}) {
     let valHtml = "";
     if (!editing) {
       if (key === "customer") {
-        valHtml = cur
-          ? `${safe(cur.code ?? "")} — ${safe(cur.name ?? "")}`
-          : "—";
+        valHtml = cur ? `${safe(cur.code ?? "")} — ${safe(cur.name ?? "")}` : "—";
       } else if (key === "created_at") {
         valHtml = fmtDate(cur);
       } else {
@@ -190,15 +351,11 @@ function renderHeader(data = {}) {
       if (key === "customer") {
         valHtml = '<div data-field="customer"></div>';
       } else if (INPUT_TYPE[key] === "textarea") {
-        valHtml = `<textarea class="kv-input" data-field="${key}" rows="3">${safe(
-          cur ?? ""
-        )}</textarea>`;
+        valHtml = `<textarea class="kv-input" data-field="${key}" rows="3">${safe(cur ?? "")}</textarea>`;
       } else if (key === "created_at") {
         valHtml = fmtDate(cur) || "—";
       } else {
-        valHtml = `<input class="kv-input" data-field="${key}" type="${
-          INPUT_TYPE[key] || "text"
-        }" value="${safe(cur ?? "")}" />`;
+        valHtml = `<input class="kv-input" data-field="${key}" type="${INPUT_TYPE[key] || "text"}" value="${safe(cur ?? "")}" />`;
       }
     }
 
@@ -213,9 +370,7 @@ function renderHeader(data = {}) {
   viewEl.innerHTML = rows;
 
   // subtitle
-  subTitle.textContent = initial?.id
-    ? `#${initial.id} — ${initial.po_number ?? ""}`
-    : "(new)";
+  subTitle.textContent = initial?.id ? `#${initial.id} — ${initial.po_number ?? ""}` : "(new)";
 
   // dblclick -> edit
   viewEl.querySelectorAll(".kv-row").forEach((row) => {
@@ -232,29 +387,19 @@ function renderHeader(data = {}) {
   });
 
   if (editing) {
-    // mount autocomplete for customer
     const holder = viewEl.querySelector('.kv-val[data-key="customer"]');
-    if (holder) {
-      holder.replaceChildren(buildCustomerInput(pick("customer", null)));
-    }
+    if (holder) holder.replaceChildren(buildCustomerInput(pick("customer", null)));
 
-    // bind text inputs
     viewEl.querySelectorAll(".kv-input").forEach((input) => {
       input.addEventListener("input", (e) => {
         const k = e.target.dataset.field;
         tempEdits[k] = e.target.value;
       });
       input.addEventListener("keydown", (e) => {
-        if (
-          e.key === "Enter" &&
-          !e.shiftKey &&
-          e.target.tagName !== "TEXTAREA"
-        ) {
-          e.preventDefault();
-          saveHeader();
+        if (e.key === "Enter" && !e.shiftKey && e.target.tagName !== "TEXTAREA") {
+          e.preventDefault(); saveHeader();
         } else if (e.key === "Escape") {
-          e.preventDefault();
-          cancelEdits();
+          e.preventDefault(); cancelEdits();
         }
       });
     });
@@ -269,8 +414,7 @@ function renderHeader(data = {}) {
 
 /* ---------- IO: load/save/delete header ---------- */
 async function loadHeader() {
-  if (!poId) {
-    // create mode
+  if (!poIdQS) {
     initial = null;
     tempEdits = primeEdits({});
     applyMode("create");
@@ -279,7 +423,7 @@ async function loadHeader() {
   setBusy(true);
   setError("");
   try {
-    const po = await jfetch(`/pos/${encodeURIComponent(poId)}`);
+    const po = await jfetch(`/pos/${encodeURIComponent(poIdQS)}`);
     initial = po;
     tempEdits = {};
     applyMode("view");
@@ -314,19 +458,14 @@ async function saveHeader() {
   isSubmitting = true;
   try {
     if (mode === "create" || !initial?.id) {
-      const created = await jfetch(`/pos`, {
-        method: "POST",
-        body: JSON.stringify(payload),
-      });
+      const created = await jfetch(`/pos`, { method: "POST", body: JSON.stringify(payload) });
       toast("PO created");
       initial = created;
       tempEdits = {};
       mode = "view";
       renderHeader(initial);
-      // redirect to self with id
-      location.replace(
-        `/static/pos-detail.html?id=${encodeURIComponent(created.id)}`
-      );
+      // redirect to self with id (keep history clean)
+      location.replace(`/static/pos-detail.html?id=${encodeURIComponent(created.id)}`);
       return;
     } else {
       const updated = await jfetch(`/pos/${encodeURIComponent(initial.id)}`, {
@@ -356,9 +495,7 @@ async function deleteHeader() {
   if (!confirm("ลบ PO นี้?\nThis action cannot be undone.")) return;
   setBusy(true);
   try {
-    await jfetch(`/pos/${encodeURIComponent(initial.id)}`, {
-      method: "DELETE",
-    });
+    await jfetch(`/pos/${encodeURIComponent(initial.id)}`, { method: "DELETE" });
     toast("Deleted");
     location.href = "/static/pos.html";
   } catch (e) {
@@ -368,541 +505,338 @@ async function deleteHeader() {
   }
 }
 
-/* ---------- LINES (นำมาจากสคริปต์เดิม ปรับ id ให้ตรง) ---------- */
-let poLines = [];
-let editingLineId = null; // 'new' | number
-function fmtMoney(n) {
-  return n == null
-    ? ""
-    : Number(n).toLocaleString(undefined, {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      });
-}
-function fmtQty(n) {
-  return Number(n ?? 0).toLocaleString(undefined, { maximumFractionDigits: 3 });
-}
+/* ============= LINES: Tabulator Grid ============= */
+// Helpers used by lines
+function numOrNull(v) { const n = Number(v); return isFinite(n) ? n : null; }
+function strOrNull(v) { v = (v ?? "").trim(); return v ? v : null; }
 
-async function loadLines() {
-  if (!initial?.id && !poId) return; // create mode ยังไม่มีบรรทัด
-  const id = initial?.id ?? poId;
+// Resolve part text (part_no) to {id, part_no, name}
+async function resolvePart(text) {
+  const t = (text || "").trim();
+  if (!t) return null;
   try {
-    const rows = await jfetch(`/pos/${encodeURIComponent(id)}/lines`);
-    poLines = rows || [];
-    renderLines();
-  } catch (e) {
-    poLines = [];
-    renderLines();
-  }
+    const resp = await jfetch(`/parts?q=${encodeURIComponent(t)}&page=1&per_page=1`);
+    const arr = Array.isArray(resp) ? resp : resp.items || [];
+    const it = arr[0];
+    if (it?.id) return { id: it.id, part_no: String(it.part_no || "").toUpperCase(), name: it.name || "" };
+  } catch {}
+  return null;
 }
-function renderLines() {
-  const tb = $("tblLinesBody");
-  if (!tb) return;
-
-  const rows =
-    editingLineId === "new"
-      ? [{ __isNew: true, id: null }].concat(poLines)
-      : poLines.slice();
-
-  if (!rows.length) {
-    tb.innerHTML = `<tr><td colspan="8" class="empty">No lines</td></tr>`;
-    return;
-  }
-
-  tb.innerHTML = rows
-    .map((row, idxInRows) => {
-      const displayNo = row.__isNew
-        ? ""
-        : editingLineId === "new"
-        ? idxInRows
-        : idxInRows + 1;
-      const isEdit =
-        editingLineId === row.id || (row.__isNew && editingLineId === "new");
-
-      if (!isEdit) {
-        const qty = fmtQty(row.qty);
-        const price = fmtMoney(row.unit_price);
-        const due = row.due_date ?? "";
-        const partId = row.part?.id ?? row.part_id ?? null;
-        const partNo = row.part?.part_no ?? row.part_id ?? "";
-
-        const revText =
-          row.revision?.rev ?? row.rev?.rev ?? row.revision_id ?? "";
-        const note = row.note ?? row.notes ?? "";
-
-        return `
-      <tr data-id="${row.id}">
-        <td style="text-align:right">${safe(String(displayNo))}</td>
-        <td>${
-          partId
-            ? `<a href="/static/part-detail.html?id=${encodeURIComponent(
-                partId
-              )}" class="link">${safe(String(partNo))}</a>`
-            : safe(String(partNo))
-        }</td>
-        <td>${safe(String(revText ?? ""))}</td>
-        <td style="text-align:right">${qty}</td>
-        <td style="text-align:right">${price}</td>
-        <td>${safe(String(due))}</td>
-        <td>${safe(String(note))}</td>
-        <td style="text-align:right; white-space:nowrap">
-          <button class="btn ghost btn-sm" data-edit="${row.id}">Edit</button>
-          <button class="btn danger btn-sm" data-del="${row.id}">Delete</button>
-        </td>
-      </tr>`;
-      } else {
-        const rid = row.__isNew ? "new" : row.id;
-        const partNo = row.part?.part_no ?? "";
-        const revText = row.revision?.rev ?? row.rev?.rev ?? "";
-        const qty = row.qty ?? "";
-        const price = row.unit_price ?? "";
-        const due = row.due_date ?? "";
-        const note = row.note ?? row.notes ?? "";
-        const partId = row.part_id ?? row.part?.id ?? "";
-        const revisionId =
-          row.revision_id ?? row.revision?.id ?? row.rev?.id ?? "";
-
-        return `
-      <tr data-id="${row.id ?? ""}" data-editing="1">
-        <td style="text-align:right">${safe(String(displayNo))}</td>
-        <td>
-          <input id="r_part_code_${rid}" value="${safe(
-          partNo
-        )}" placeholder="e.g. P-10001" />
-          <input id="r_part_id_${rid}" type="hidden" value="${safe(
-          String(partId)
-        )}">
-        </td>
-        <td>
-          <select id="r_rev_select_${rid}" disabled>
-            <option value="">— Select revision —</option>
-          </select>
-          <input id="r_revision_id_${rid}" type="hidden" value="${safe(
-          String(revisionId)
-        )}">
-        </td>
-        <td style="text-align:right">
-          <input id="r_qty_${rid}" type="number" step="1" value="${safe(
-          String(qty)
-        )}" style="text-align:right; width:120px">
-        </td>
-        <td style="text-align:right">
-          <input id="r_price_${rid}" type="number" step="1" value="${safe(
-          String(price)
-        )}" style="text-align:right; width:140px">
-        </td>
-        <td><input id="r_due_${rid}" type="date" value="${safe(
-          String(due)
-        )}"></td>
-        <td><input id="r_notes_${rid}" value="${safe(String(note))}"></td>
-        <td style="text-align:right; white-space:nowrap">
-          <button class="btn btn-sm" data-save="${rid}">Save</button>
-          <button class="btn ghost btn-sm" data-cancel="${rid}">Cancel</button>
-          ${
-            row.__isNew
-              ? ""
-              : `<button class="btn danger btn-sm" data-del="${rid}">Delete</button>`
-          }
-        </td>
-      </tr>`;
-      }
-    })
-    .join("");
-
-  tb.querySelectorAll("[data-edit]").forEach((b) =>
-    b.addEventListener("click", () => startEdit(+b.dataset.edit))
-  );
-  tb.querySelectorAll("[data-del]").forEach((b) =>
-    b.addEventListener("click", () => deleteLine(+b.dataset.del))
-  );
-  tb.querySelectorAll("[data-save]").forEach((b) =>
-    b.addEventListener("click", () => saveLineInline(b.dataset.save))
-  );
-  tb.querySelectorAll("[data-cancel]").forEach((b) =>
-    b.addEventListener("click", cancelEdit)
-  );
-
-  if (editingLineId != null) {
-    const rid = editingLineId;
-    const sel = $(`r_rev_select_${rid}`);
-    sel?.addEventListener("change", () => {
-      $(`r_revision_id_${rid}`).value = sel.value || "";
-    });
-
-    const partInputEl = $(`r_part_code_${rid}`);
-    if (partInputEl) attachRowPartAutocomplete(rid, partInputEl);
-
-    if (rid !== "new") {
-      const rowData = poLines.find((x) => x.id === Number(rid));
-      const partIdCandidate = rowData?.part_id ?? rowData?.part?.id ?? null;
-      const prevRevId =
-        rowData?.revision_id ??
-        rowData?.revision?.id ??
-        rowData?.rev?.id ??
-        null;
-      const prevRevText = rowData?.revision?.rev ?? rowData?.rev?.rev ?? "";
-      if (partIdCandidate) {
-        loadRevisionsForInto(partIdCandidate, rid, {
-          preferId: prevRevId,
-          preferText: prevRevText,
-        });
-      } else {
-        resetRevChoicesInto(rid);
-      }
-    }
-  }
-}
-function startEdit(id) {
-  if (editingLineId != null) cancelEdit();
-  editingLineId = id;
-  renderLines();
-}
-function startAddLine() {
-  if (mode === "create" && !initial?.id) {
-    toast("Save header first", false);
-    return;
-  }
-  if (editingLineId != null) cancelEdit();
-  editingLineId = "new";
-  renderLines();
-}
-function cancelEdit() {
-  editingLineId = null;
-  renderLines();
-}
-
-async function saveLineInline(rid) {
-  const isNew = rid === "new";
-  const id = initial?.id ?? poId;
-
-  const partId = numOrNull($(`r_part_id_${rid}`).value);
-  const revSel = $(`r_rev_select_${rid}`);
-  const revHidden = $(`r_revision_id_${rid}`);
-  const revRaw = (revSel?.value || revHidden?.value || "").trim();
-  const revId = numOrNull(revRaw);
-
-  const payload = {
-    part_id: partId,
-    qty: numOrNull($(`r_qty_${rid}`).value),
-    unit_price: numOrNull($(`r_price_${rid}`).value),
-    note: strOrNull($(`r_notes_${rid}`).value),
-  };
-
-  if (!payload.part_id) {
-    toast("Enter Part No", false);
-    return;
-  }
-
-  const partIdForRev = revListPartId[rid];
-  if (revId && partIdForRev === partId) payload.revision_id = revId;
-  else if (revId && partIdForRev !== partId) {
-    const hid = $(`r_revision_id_${rid}`);
-    if (hid) hid.value = "";
-    if (revSel) revSel.value = "";
-    toast("Revision cleared: it didn’t belong to the selected part.", false);
-  }
-
-  if (payload.qty == null) delete payload.qty;
-  if (payload.unit_price == null) delete payload.unit_price;
-  if (payload.note == null) delete payload.note;
-
-  try {
-    if (isNew) {
-      const created = await jfetch(`/pos/${encodeURIComponent(id)}/lines`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      poLines.unshift(created);
-      toast("Line added");
-    } else {
-      const updated = await jfetch(
-        `/pos/${encodeURIComponent(id)}/lines/${rid}`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        }
-      );
-      const idx = poLines.findIndex((x) => x.id === Number(rid));
-      if (idx >= 0) poLines[idx] = updated;
-      toast("Line updated");
-    }
-    editingLineId = null;
-    renderLines();
-  } catch (e) {
-    const msg = String(e?.message || "").toLowerCase();
-    if (
-      msg.includes("revision_id does not belong") ||
-      msg.includes("belongs to part")
-    ) {
-      const hid = $(`r_revision_id_${rid}`);
-      if (hid) hid.value = "";
-      if (revSel) revSel.value = "";
-      toast(
-        "Selected revision doesn’t belong to this part. Revision cleared — try saving again.",
-        false
-      );
-    } else {
-      toast(e?.message || "Save failed", false);
-    }
-  }
-}
-async function deleteLine(id) {
-  const poid = initial?.id ?? poId;
-  if (!confirm("Delete line?")) return;
-  try {
-    await jfetch(`/pos/${encodeURIComponent(poid)}/lines/${id}`, {
-      method: "DELETE",
-    });
-    poLines = poLines.filter((x) => x.id !== Number(id));
-    toast("Line deleted");
-    renderLines();
-  } catch (e) {
-    toast(e?.message || "Delete failed", false);
-  }
-}
-
-/* ---- Part+Revision autocomplete utils (ยกจากสคริปต์เดิม) ---- */
-let partAcBox,
-  partItems = [],
-  partActive = -1,
-  partInput;
-let currentPartRid = null;
-function ensurePartBox() {
-  if (partAcBox) return partAcBox;
-  partAcBox = document.createElement("div");
-  Object.assign(partAcBox.style, {
-    position: "absolute",
-    zIndex: "9999",
-    minWidth: "240px",
-    maxHeight: "260px",
-    overflow: "auto",
-    background: "#fff",
-    border: "1px solid #e2e8f0",
-    borderRadius: "10px",
-    boxShadow: "0 10px 20px rgba(2,6,23,.08), 0 2px 6px rgba(2,6,23,.06)",
-    display: "none",
-  });
-  partAcBox.className = "ac-box";
-  document.body.appendChild(partAcBox);
-  return partAcBox;
-}
-function positionPartBox(input) {
-  const r = input.getBoundingClientRect();
-  partAcBox.style.left = `${window.scrollX + r.left}px`;
-  partAcBox.style.top = `${window.scrollY + r.bottom + 4}px`;
-  partAcBox.style.width = `${r.width}px`;
-}
-function hidePartAc() {
-  if (!partAcBox) return;
-  partAcBox.style.display = "none";
-  partItems = [];
-  partActive = -1;
-}
-function setPartActive(i) {
-  partActive = i;
-  [...partAcBox.querySelectorAll(".ac-item")].forEach((el, idx) => {
-    el.style.background = idx === partActive ? "rgba(0,0,0,.04)" : "";
-  });
-}
-function renderPartAc(list) {
-  const box = ensurePartBox();
-  partItems = list || [];
-  partActive = -1;
-  if (!partItems.length) {
-    hidePartAc();
-    return;
-  }
-  box.innerHTML = list
-    .map(
-      (p, i) =>
-        `<div class="ac-item" data-i="${i}" style="padding:8px 10px; cursor:pointer; display:flex; gap:8px; align-items:center"><span class="badge" style="font-size:11px">${safe(
-          p.part_no
-        )}</span><div style="flex:1"><div style="font-weight:600">${safe(
-          p.name || ""
-        )}</div></div></div>`
-    )
-    .join("");
-  [...box.querySelectorAll(".ac-item")].forEach((el) => {
-    el.addEventListener("mouseenter", () =>
-      setPartActive(parseInt(el.dataset.i, 10))
-    );
-    el.addEventListener("mousedown", (e) => {
-      e.preventDefault();
-      if (currentPartRid != null)
-        choosePartForRow(currentPartRid, parseInt(el.dataset.i, 10));
-    });
-  });
-  box.style.display = "";
-  if (partInput) positionPartBox(partInput);
-}
-function normalizeItems(resp) {
-  if (Array.isArray(resp)) return resp;
-  if (resp && typeof resp === "object") return resp.items || [];
-  return [];
-}
-function debounce(fn, ms = 220) {
-  let t;
-  return (...a) => {
-    clearTimeout(t);
-    t = setTimeout(() => fn(...a), ms);
-  };
-}
-
-const fetchPartSuggest = debounce(async (term) => {
-  try {
-    const url =
-      !term || term.trim().length === 0
-        ? `/parts?page=1&per_page=10`
-        : `/parts?q=${encodeURIComponent(term)}&page=1&per_page=20`;
-    const resp = await jfetch(url);
-    const rows = normalizeItems(resp).map((p) => ({
-      id: p.id,
-      part_no: (p.part_no || "").toUpperCase(),
-      name: p.name || "",
-    }));
-    renderPartAc(rows.slice(0, 20));
-  } catch {
-    renderPartAc([]);
-  }
-}, 220);
-
-const revFetchToken = {}; // map: rid -> running token
-const revListPartId = {}; // map: rid -> part_id ล่าสุด
-function attachRowPartAutocomplete(rid, input) {
-  currentPartRid = rid;
-  partInput = input;
-  input.setAttribute("autocomplete", "off");
-  input.addEventListener("input", () => {
-    const term = (input.value || "").trim();
-    $(`r_part_id_${rid}`).value = "";
-    resetRevChoicesInto(rid);
-    fetchPartSuggest(term);
-    ensurePartBox();
-    positionPartBox(input);
-  });
-  input.addEventListener("focus", () => {
-    const term = (input.value || "").trim();
-    fetchPartSuggest(term);
-    ensurePartBox();
-    positionPartBox(input);
-  });
-  input.addEventListener("blur", () => setTimeout(hidePartAc, 100));
-  input.addEventListener("keydown", (e) => {
-    if (!partAcBox || partAcBox.style.display === "none") return;
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      setPartActive(Math.min(partActive + 1, partItems.length - 1));
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      setPartActive(Math.max(partActive - 1, 0));
-    } else if (e.key === "Enter") {
-      if (partActive >= 0) {
-        e.preventDefault();
-        choosePartForRow(rid, partActive);
-      }
-    } else if (e.key === "Escape") {
-      hidePartAc();
-    }
-  });
-}
-async function choosePartForRow(rid, idx) {
-  if (idx < 0 || idx >= partItems.length) return;
-  const p = partItems[idx];
-  $(`r_part_code_${rid}`).value = (p.part_no || "").toUpperCase();
-  $(`r_part_id_${rid}`).value = p.id;
-  const sel = $(`r_rev_select_${rid}`);
-  if (sel) {
-    sel.disabled = true;
-    sel.innerHTML = `<option value="">Loading…</option>`;
-  }
-  hidePartAc();
-  await loadRevisionsForInto(p.id, rid);
-}
-function resetRevChoicesInto(rid) {
-  const sel = $(`r_rev_select_${rid}`);
-  const hid = $(`r_revision_id_${rid}`);
-  if (sel) {
-    sel.disabled = true;
-    sel.innerHTML = `<option value="">— Select revision —</option>`;
-  }
-  if (hid) hid.value = "";
-  revListPartId[rid] = undefined;
-}
-async function fetchPartRevisions(partId) {
-  const tries = [
+// Fetch revisions for a part_id
+async function fetchRevisions(partId) {
+  const tryUrls = [
     `/part-revisions?part_id=${encodeURIComponent(partId)}`,
     `/parts/${encodeURIComponent(partId)}/revisions`,
   ];
-  for (const url of tries) {
+  for (const url of tryUrls) {
     try {
       const data = await jfetch(url);
       const arr = Array.isArray(data) ? data : data?.items || [];
       if (Array.isArray(arr)) {
-        const rows = arr.map((r) => ({
+        return arr.map(r => ({
           id: r.id,
           rev: r.rev || r.revision || r.code || "",
           is_current: !!(r.is_current ?? r.current ?? r.active),
         }));
-        if (rows.length || url.includes("/revisions")) return rows;
       }
     } catch {}
   }
   return [];
 }
-async function loadRevisionsForInto(partId, rid, opts = {}) {
-  revFetchToken[rid] = (revFetchToken[rid] || 0) + 1;
-  const my = revFetchToken[rid];
-  const sel = $(`r_rev_select_${rid}`);
-  const hid = $(`r_revision_id_${rid}`);
-  if (!sel || !hid) return;
-  sel.disabled = true;
-  sel.innerHTML = `<option value="">Loading…</option>`;
-  hid.value = "";
-  try {
-    const revs = await fetchPartRevisions(partId);
-    if (my !== revFetchToken[rid]) return;
-    sel.innerHTML = [`<option value="">— No revision —</option>`]
-      .concat(
-        revs.map((r) => `<option value="${r.id}">${safe(r.rev)}</option>`)
-      )
-      .join("");
-    sel.disabled = false;
-    revListPartId[rid] = partId;
+// Resolve revision text (like 'A') for a given partId to id
+async function resolveRevision(partId, revText) {
+  if (!partId || !revText) return null;
+  const revs = await fetchRevisions(partId);
+  const found = revs.find(r => String(r.rev) === String(revText));
+  return found ? found.id : null;
+}
 
-    let chosenId = null;
-    if (opts.preferId && revs.some((r) => r.id === opts.preferId))
-      chosenId = String(opts.preferId);
-    else if (opts.preferText) {
-      const f = revs.find((r) => String(r.rev) === String(opts.preferText));
-      if (f) chosenId = String(f.id);
-    } else {
-      const cur = revs.find((r) => r.is_current);
-      if (cur) chosenId = String(cur.id);
-      else if (revs[0]) chosenId = String(revs[0].id);
+// Build payload to POST/PATCH
+function buildLinePayload(rowData) {
+  const payload = {};
+  if (rowData.part_id != null) payload.part_id = rowData.part_id;
+  if (rowData.revision_id != null) payload.revision_id = rowData.revision_id;
+  if (rowData.qty != null) payload.qty = numOrNull(rowData.qty);
+  if (rowData.unit_price != null) payload.unit_price = numOrNull(rowData.unit_price);
+  if (rowData.note != null) payload.note = strOrNull(rowData.note);
+  if (rowData.due_date != null) payload.due_date = strOrNull(rowData.due_date); // <-- add this
+
+  if (payload.qty == null) delete payload.qty;
+  if (payload.unit_price == null) delete payload.unit_price;
+  if (payload.note == null) delete payload.note;
+  if (!payload.due_date) delete payload.due_date; // keep payload clean
+
+  return payload;
+}
+
+
+function fmtMoney(n) {
+  return n == null ? "" : Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function fmtQty(n) {
+  return Number(n ?? 0).toLocaleString(undefined, { maximumFractionDigits: 3 });
+}
+
+// Install Tabulator
+function initLinesTable() {
+  const holder = document.getElementById("po_lines_table");
+  if (!holder) return;
+
+  let tableReady = false;
+
+  // Helper that only redraws when the table is fully ready & visible
+  const safeRedraw = () => {
+    if (!tableReady) return;
+    if (!holder.isConnected) return;
+    // Avoid redrawing when the container has no layout width (e.g. hidden tab)
+    if (!holder.offsetWidth) return;
+    try {
+      linesTable.redraw(true);
+    } catch (_) {
+      /* no-op: avoid crashing on transient states */
     }
+  };
 
-    sel.value = chosenId ?? "";
-    hid.value = sel.value || "";
+  linesTable = new Tabulator(holder, {
+    layout: "fitColumns",
+    height: "calc(100vh - 420px)",
+    placeholder: "No lines",
+    selectableRows: false,        // <-- replace deprecated `selectable`
+    reactiveData: true,
+    index: "id",
+
+    columns: [
+      {
+        title: "No.",
+        field: "_rowno",
+        width: 70,
+        hozAlign: "right",
+        headerHozAlign: "right",
+        headerSort: false,
+        formatter: (cell) => cell.getRow().getPosition(true),
+      },
+      {
+        title: "Part No.",
+        field: "part_no",
+        width: 200,
+        editor: partAutocompleteEditor,
+        formatter: (cell) => {
+          const d = cell.getData();
+          const pid = d.part_id ?? d.part?.id ?? null;
+          const pno = d.part_no ?? d.part?.part_no ?? "";
+          return pid
+            ? `<a class="link" href="/static/part-detail.html?id=${encodeURIComponent(pid)}">${safe(String(pno))}</a>`
+            : safe(String(pno || ""));
+        },
+      },
+      { title: "Revision", field: "revision_text", width: 140, editor: revisionAutocompleteEditor },
+      {
+        title: "Qty",
+        field: "qty",
+        width: 120,
+        hozAlign: "right",
+        headerHozAlign: "right",
+        formatter: (cell) => fmtQty(cell.getValue()),
+        editor: "number",
+        editorParams: { step: "1" },
+      },
+      {
+        title: "Unit Price",
+        field: "unit_price",
+        width: 140,
+        hozAlign: "right",
+        headerHozAlign: "right",
+        formatter: (cell) => fmtMoney(cell.getValue()),
+        editor: "number",
+        editorParams: { step: "0.01" },
+      },
+      { title: "Due", field: "due_date", width: 160, editor: "input" },
+      { title: "Notes", field: "note", editor: "input" },
+      {
+        title: "Actions",
+        field: "_actions",
+        width: 260,               // was 180
+        minWidth: 240,            // ensures room for 3 buttons
+        hozAlign: "right",
+        headerHozAlign: "right",
+        headerSort: false,
+        cssClass: "cell-actions", // <-- add this
+        formatter: () => `
+          <button class="btn-small" data-act="save">Save</button>
+          <button class="btn-small secondary" data-act="cancel">Cancel</button>
+          <button class="btn-small btn-danger" data-act="del">Delete</button>
+        `,
+        cellClick: async (e, cell) => {
+          const btn = e.target.closest("button[data-act]");
+          if (!btn) return;
+          const act = btn.dataset.act;
+          const row = cell.getRow();
+          if (act === "cancel") {
+            row.reformat();
+            if (!row.getData().id) {
+              row.delete();
+            } else {
+              await reloadLines();
+            }
+          } else if (act === "del") {
+            await handleDeleteRow(row);
+          } else if (act === "save") {
+            await handleSaveRow(row);
+          }
+        },
+      },
+    ],
+  });
+
+  // Only mark ready & redraw after Tabulator has finished building
+  linesTable.on("tableBuilt", () => {
+    tableReady = true;
+    // first stable layout pass (after fonts/layout settle)
+    requestAnimationFrame(safeRedraw);
+    setTimeout(safeRedraw, 0); // extra safety for some flex layouts
+  });
+
+  // Redraw on window resize (guarded)
+  const onResize = () => safeRedraw();
+  window.addEventListener("resize", onResize);
+
+  // Redraw when the container size changes
+  const ro = new ResizeObserver(onResize);
+  ro.observe(holder);
+
+  // (optional) cleanup if you ever tear the page down dynamically:
+  // return () => { ro.disconnect(); window.removeEventListener("resize", onResize); };
+}
+
+
+function normalizeServerLine(row) {
+  // Map server line -> table row
+  return {
+    id: row.id,
+    part_id: row.part?.id ?? row.part_id ?? null,
+    part_no: row.part?.part_no ?? row.part_no ?? "",
+    revision_id: row.revision?.id ?? row.rev?.id ?? row.revision_id ?? null,
+    revision_text: row.revision?.rev ?? row.rev?.rev ?? row.revision_text ?? "",
+    qty: row.qty ?? null,
+    unit_price: row.unit_price ?? null,
+    due_date: row.due_date ?? "",
+    note: row.note ?? row.notes ?? "",
+    part: row.part ?? null,  // keep original for link formatter fallback
+    rev: row.rev ?? row.revision ?? null,
+  };
+}
+
+async function reloadLines() {
+  if (!initial?.id && !poIdQS) {
+    linesTable?.setData([]);
+    return;
+  }
+  const id = initial?.id ?? poIdQS;
+  try {
+    const rows = await jfetch(`/pos/${encodeURIComponent(id)}/lines`);
+    const mapped = (rows || []).map(normalizeServerLine);
+    linesTable?.setData(mapped);
   } catch {
-    sel.disabled = false;
-    sel.innerHTML = `<option value="">— No revision —</option>`;
-    hid.value = "";
+    linesTable?.setData([]);
   }
 }
 
-/* ---------- helpers ---------- */
-function numOrNull(v) {
-  const n = Number(v);
-  return isFinite(n) ? n : null;
-}
-function strOrNull(v) {
-  v = (v ?? "").trim();
-  return v ? v : null;
+btnAddLine?.addEventListener("click", () => {
+  if (mode === "create" && !initial?.id) {
+    toast("Save header first", false);
+    return;
+  }
+  // add an editable row at top
+  linesTable?.addRow({
+    part_no: "",
+    revision_text: "",
+    qty: null,
+    unit_price: null,
+    due_date: "",
+    note: "",
+  }, true /* add at top */);
+});
+
+/* ----- Save/Delete handlers ----- */
+async function handleDeleteRow(row) {
+  const d = row.getData();
+  const id = d.id;
+  const poid = initial?.id ?? poIdQS;
+  if (!id) {
+    row.delete();
+    return;
+  }
+  if (!confirm("Delete line?\nThis action cannot be undone.")) return;
+  try {
+    await jfetch(`/pos/${encodeURIComponent(poid)}/lines/${id}`, { method: "DELETE" });
+    toast("Deleted");
+    row.delete();
+  } catch (e) {
+    toast(e?.message || "Delete failed", false);
+  }
 }
 
-/* ---------- EVENTS ---------- */
+async function handleSaveRow(row) {
+  const poid = initial?.id ?? poIdQS;
+  if (!poid) {
+    toast("Save header first", false);
+    return;
+  }
+
+  // Get current edit values
+  const d = row.getData();
+  let { id, part_id, part_no, revision_id, revision_text } = d;
+  const qty = d.qty;
+  const unit_price = d.unit_price;
+  const note = d.note;
+  const due_date = d.due_date; // if you later support due_date on server, include it
+
+  // Resolve part/revision if needed
+  if (!part_id && part_no) {
+    const rp = await resolvePart(part_no);
+    if (!rp) { toast("Unknown Part No", false); return; }
+    part_id = rp.id;
+    part_no = rp.part_no;
+  }
+  if (revision_text && part_id && !revision_id) {
+    const rid = await resolveRevision(part_id, revision_text);
+    revision_id = rid ?? null; // allow empty
+  }
+
+  const payload = buildLinePayload({ part_id, revision_id, qty, unit_price, note });
+  try {
+    if (!id) {
+      // create
+      const created = await jfetch(`/pos/${encodeURIComponent(poid)}/lines`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      toast("Line added");
+      // merge server echo
+      row.update(normalizeServerLine(created));
+    } else {
+      // update
+      const updated = await jfetch(`/pos/${encodeURIComponent(poid)}/lines/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      toast("Line updated");
+      row.update(normalizeServerLine(updated));
+    }
+  } catch (e) {
+    const msg = String(e?.message || "").toLowerCase();
+    if (msg.includes("revision_id does not belong") || msg.includes("belongs to part")) {
+      row.update({ revision_id: null });
+      toast("Selected revision doesn’t belong to this part. Cleared revision.", false);
+    } else {
+      toast(e?.message || "Save failed", false);
+    }
+  }
+}
+
+/* ---------- EVENTS (header) ---------- */
 btnEdit?.addEventListener("click", () => {
   if (!initial) return;
   tempEdits = primeEdits(initial);
@@ -920,12 +854,14 @@ btnCancel?.addEventListener("click", () => {
   tempEdits = {};
   applyMode("view");
 });
-
 btnDelete?.addEventListener("click", deleteHeader);
-$("btnAddLine")?.addEventListener("click", startAddLine);
 
 /* ---------- BOOT ---------- */
 document.addEventListener("DOMContentLoaded", async () => {
+  // Init Tabulator first (empty)
+  initLinesTable();
+
+  // Load header + then lines
   await loadHeader();
-  await loadLines();
+  await reloadLines();
 });

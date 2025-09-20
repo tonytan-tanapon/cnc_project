@@ -89,7 +89,7 @@ def to_part_out(p: Part, include_revs: bool = False) -> PartOut:
 def list_parts(
     q: Optional[str] = Query(default=None, description="search part_no/name"),
     page: int = 1,
-    page_size: int = 20,
+    page_size: int = 100,
     include: Optional[str] = Query(default=None, description="e.g. 'revisions'"),
     db: Session = Depends(get_db),
 ):

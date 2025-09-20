@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # ✅ Summary order:
-# Customer → Part → Revision → Purchase Order → PO Line → Lot → Shipment → Shipment Item → Invoice → Invoice Line
+# Customer |→ Part → Revision |→ Purchase Order → PO Line |→ Lot → Shipment → Shipment Item |→ Invoice → Invoice Line
 import re
 import json
 from decimal import Decimal
@@ -114,6 +114,7 @@ xls = pd.ExcelFile(EXCEL_PATH, engine="xlrd")
 def pick_sheet(xls_file: pd.ExcelFile) -> str:
     best = (0, xls_file.sheet_names[0])
     for sh in xls_file.sheet_names:
+        # print(sh)
         try:
             tmp = pd.read_excel(EXCEL_PATH, sheet_name=sh, nrows=1, header=0, dtype=str, engine="xlrd")
         except Exception:
@@ -128,6 +129,7 @@ def pick_sheet(xls_file: pd.ExcelFile) -> str:
     return best[1]
 
 sheet_to_use = pick_sheet(xls)
+# sheet_to_use = "Lot start 08-02-21"
 df_raw = pd.read_excel(EXCEL_PATH, sheet_name=sheet_to_use, header=0, dtype=str, engine="xlrd")
 
 # Normalize headers
@@ -136,6 +138,7 @@ for c in df_raw.columns:
     k = norm_header(c)
     if k in HEADER_MAP:
         rename[c] = HEADER_MAP[k]
+print(rename)
 df = df_raw.rename(columns=rename).copy()
 
 # Preview file (first 25 rows) so you can verify quickly

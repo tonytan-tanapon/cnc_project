@@ -4,7 +4,7 @@ from fastapi import APIRouter
 from . import (
     auth, customers, pos, employees, materials, batches, lots, lot_uses,
     travelers, traveler_steps, suppliers, subcon, payroll, time_clock,
-    parts, users, pay_periods, payroll_extras
+    parts, users, pay_periods, payroll_extras, data
 )
 
 api_v1 = APIRouter()
@@ -24,6 +24,7 @@ api_v1.include_router(subcon.router)
 api_v1.include_router(users.router)
 api_v1.include_router(pay_periods.router)
 api_v1.include_router(payroll_extras.router)
+api_v1.include_router(data.router)
 
 # time_clock แยกเป็น 2 ตัว
 api_v1.include_router(time_clock.timeclock_router)

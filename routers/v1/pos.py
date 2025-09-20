@@ -105,7 +105,7 @@ class PoLineOut(BaseModel):
 def list_pos(
     q: Optional[str] = Query(default=None, description="po_number/customer code/name"),
     page: int = 1,
-    page_size: int = 20,
+    page_size: int = 100,
     db: Session = Depends(get_db),
 ):
     query = db.query(PO).options(joinedload(PO.customer))

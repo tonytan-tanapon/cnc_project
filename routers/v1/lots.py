@@ -94,7 +94,7 @@ def create_lot(payload: ProductionLotCreate, db: Session = Depends(get_db)):
 def list_lots(
     q: Optional[str] = Query(None, description="Search lot/part/po/status"),
     page: int = Query(1, ge=1),
-    per_page: int = Query(20, ge=1, le=100),
+    per_page: int = Query(50, ge=1, le=100),
     db: Session = Depends(get_db),
 ):
     qry = (

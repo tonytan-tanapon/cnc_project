@@ -454,3 +454,28 @@ table.grid.lines-table th:nth-child(8),
 table.grid.lines-table td:nth-child(8){
   text-align: right;
 }
+
+
+/* put this in app.css (after Tabulator’s CSS) */
+
+/* Don’t let the page-size <select> take full width inside the footer */
+.tabulator .tabulator-footer select,
+.tabulator .tabulator-footer .tabulator-page-size {
+  width: auto !important;
+  max-width: 180px;      /* tweak as you like */
+}
+
+/* Put paginator and page-size on one line */
+.tabulator .tabulator-footer{
+  display: flex;
+  align-items: center;
+  justify-content: space-between; /* paginator left, page-size right */
+  gap: 8px;
+  flex-wrap: wrap;                /* allow wrap on small widths */
+}
+
+/* Make sure the paginator is visible */
+.tabulator .tabulator-footer .tabulator-paginator{
+  display: flex !important;
+  gap: 6px;
+}

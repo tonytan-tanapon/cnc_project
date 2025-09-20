@@ -1,18 +1,32 @@
-// /static/js/page-part.js  (v7 - TableX + Revisions inline)
-// Requirements: api.js (export $, jfetch, showToast, initTopbar), tablex.js (export renderTableX)
-
+// /static/js/page-parts.js  (v8 - Tabulator)
 import { $, jfetch, showToast as toast, initTopbar } from './api.js';
-import { renderTableX } from './tablex.js';
+
+const partDetail = (id) => `./part-detail.html?id=${encodeURIComponent(id)}`;
 
 /* ---------- helpers ---------- */
-const partDetail = (id) => `./part-detail.html?id=${encodeURIComponent(id)}`;
-const safe = (s) => String(s ?? '').replaceAll('<', '&lt;');
+const safe = (s) =>
+  String(s ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+
 const fmtDate = (v) => {
   if (!v) return '';
   const d = new Date(v);
   return isNaN(d) ? '' : d.toLocaleString();
 };
 const debounce = (fn, ms = 300) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
+
+const renderRevisionsInline = (revs) => {
+  const list = Array.isArray(revs) ? revs : [];
+  if (!list.length) return `<span class="muted">—</span>`;
+  return list.map(r => {
+    const cls = r.is_current ? 'rev current' : 'rev';
+    return `<span class="${cls}" title="Revision ${safe(r.rev)}">${safe(r.rev)}</span>`;
+  }).join(`<span class="rev-sep">, </span>`);
+};
 
 /* ---------- UI refs ---------- */
 const inputSearch = $('p_q');
@@ -23,147 +37,189 @@ const pageInfoTop = $('p_page_info');
 const btnPrevBot  = $('p_prev2');
 const btnNextBot  = $('p_next2');
 const pageInfoBot = $('p_page_info2');
-const tableEl     = $('p_table');
+const tableMount  = $('p_table');
 const btnReload   = $('p_reload');
 
 /* Create form */
-const inNo    = $('p_no');
-const inName  = $('p_name');
-const inDesc  = $('p_desc');
-const inUom   = $('p_uom');
-const inStat  = $('p_status');
+const inNo      = $('p_no');
+const inName    = $('p_name');
+const inDesc    = $('p_desc');
+const inUom     = $('p_uom');
+const inStatus  = $('p_status');
 const btnCreate = $('p_create');
 
 /* ---------- state ---------- */
-const state = {
-  page: 1,
-  pageSize: Number(selPerPage?.value || 20),
-  q: '',
-  total: 0,
-  items: [],
-};
-const AUTO_MAGIC = 'AUTO';
+let table = null;
+let totalItems = 0;
+let pageSize = Number(selPerPage?.value || 20);
 
+/* ---------- next code helper ---------- */
 async function peekNextPartNo() {
   try {
     const res = await jfetch('/parts/next-code'); // { next_code: "P00001", ... }
-    // if (inNo && !inNo.value) {
-    //   inNo.placeholder = res?.next_code || '';
-    // }
     if (inNo && !inNo.value) {
       inNo.value = res?.next_code || '';
     }
-  } catch (_) {
-    // ignore
-  }
+  } catch {_}
 }
 
-/* ---------- pager utils ---------- */
-function computeTotalPages() {
-  if (!state.pageSize) return 1;
-  if (state.total) return Math.max(1, Math.ceil(state.total / state.pageSize));
-  return state.items.length < state.pageSize && state.page === 1 ? 1 : state.page;
-}
-
-function syncPager() {
-  const pages = computeTotalPages();
-  const label = `Page ${state.page}${state.total ? ` / ${pages}` : ''}`;
+/* ---------- pager label ---------- */
+function updatePagerLabel() {
+  if (!table) return;
+  const cur = table.getPage() || 1;
+  const size = table.getPageSize() || pageSize;
+  const totalPages = totalItems ? Math.max(1, Math.ceil(totalItems / size)) : cur;
+  const label = totalItems ? `Page ${cur} / ${totalPages}` : `Page ${cur}`;
   if (pageInfoTop) pageInfoTop.textContent = label;
   if (pageInfoBot) pageInfoBot.textContent = label;
 
-  const canPrev = state.page > 1;
-  const canNext = state.total ? state.page < pages : state.items.length === state.pageSize;
-
-  [btnPrevTop, btnPrevBot].forEach(b => b && b.toggleAttribute('disabled', !canPrev));
-  [btnNextTop, btnNextBot].forEach(b => b && b.toggleAttribute('disabled', !canNext));
+  const canPrev = cur > 1;
+  const canNext = totalItems ? cur < totalPages : (table.getDataCount() === size);
+  [btnPrevTop, btnPrevBot].forEach(b => b?.toggleAttribute('disabled', !canPrev));
+  [btnNextTop, btnNextBot].forEach(b => b?.toggleAttribute('disabled', !canNext));
 }
 
-/* ---------- revisions render ---------- */
-function renderRevisionsInline(part) {
-  const revs = Array.isArray(part.revisions) ? part.revisions : [];
-  if (!revs.length) return `<span class="muted">—</span>`;
-  return revs
-    .map(r => {
-      const cls = r.is_current ? 'rev current' : 'rev';
-      return `<span class="${cls}" title="Revision ${safe(r.rev)}">${safe(r.rev)}</span>`;
-    })
-    .join(`<span class="rev-sep">, </span>`);
-}
+/* ---------- Tabulator init ---------- */
+function initTable() {
+  if (!tableMount) return;
 
-/* ---------- render ---------- */
-function renderRows() {
-  const rows = state.items.map(p => ({
-    id: p.id,
-    part_no: p.part_no,
-    name: p.name ?? '',
-    uom: p.uom ?? 'ea',
-    description: p.description ?? '',
-    status: p.status ?? 'active',
-    created_at: p.created_at ?? null, // อาจไม่มีคอลัมน์นี้ในแบ็กเอนด์
-    revisions: p.revisions ?? [],     // ใช้จาก include=revisions
-  }));
+  table = new Tabulator(tableMount, {
+    layout: "fitColumns",
+    height: "calc(100vh - 420px)",
+    selectableRows: false,
+    reactiveData: false,
+    placeholder: "No parts found",
+    index: "id",
 
-  renderTableX(tableEl, rows, {
-    rowStart: (state.page - 1) * state.pageSize,
-    getRowId: r => r.id,
-    onRowClick: r => { if (r?.id) location.href = partDetail(r.id); },
+    pagination: true,
+    paginationMode: "remote",
+    paginationSize: pageSize,
+
+    ajaxURL: "/parts",           // not used directly; we use ajaxRequestFunc
+    ajaxRequestFunc: async (_url, _config, params) => {
+      // params.page, params.size, params.sorters, params.filters
+      const page = params.page || 1;
+      const size = params.size || pageSize;
+
+      const q = (inputSearch?.value || "").trim();
+      const usp = new URLSearchParams();
+      usp.set("page", String(page));
+      usp.set("page_size", String(size));
+      usp.set("include", "revisions");
+      if (q) usp.set("q", q);
+      usp.set("_", String(Date.now()));
+
+      const data = await jfetch(`/parts?${usp.toString()}`);
+      const items = data.items ?? [];
+      totalItems = Number(data.total ?? 0);
+
+      // map -> flat fields used by columns
+      const rows = items.map(p => ({
+        id: p.id,
+        part_no: p.part_no,
+        name: p.name ?? '',
+        uom: p.uom ?? 'ea',
+        description: p.description ?? '',
+        status: p.status ?? 'active',
+        created_at: p.created_at ?? null,
+        revisions: p.revisions ?? [],
+      }));
+
+      // Tabulator expects {data, last_page}
+      const last_page = totalItems && size ? Math.max(1, Math.ceil(totalItems / size)) : page;
+      return { data: rows, last_page };
+    },
+
     columns: [
-      { key: '__no',       title: 'No.',        width: '64px',  align: 'right' },
-      { key: 'part_no',    title: 'Part No.',   width: '160px',
-        render: r => `<a class="code-link" href="${partDetail(r.id)}">${safe(r.part_no ?? '')}</a>` },
-      { key: 'name',       title: 'Name',       grow: 1,        render: r => safe(r.name ?? '') },
-
-      // ✅ New column: Revisions (comma-separated, highlight current)
-      { key: 'revisions',  title: 'Revisions',  grow: 1.2,      render: r => renderRevisionsInline(r) },
-
-      { key: 'uom',        title: 'UoM',        width: '90px',  render: r => safe(r.uom ?? '') },
-      { key: 'description',title: 'Description',grow: 2,        render: r => safe(r.description ?? '') },
-      { key: 'status',     title: 'Status',     width: '110px', render: r => safe(r.status ?? '') },
-      { key: 'created_at', title: 'Created',    width: '180px', render: r => fmtDate(r.created_at) },
-      { key: '__act',      title: '',           width: '200px', align: 'right',
-        render: r => `
-          <button class="btn-small" data-act="edit" data-id="${r.id}">Edit</button>
-          <button class="btn-small" data-act="del"  data-id="${r.id}">Delete</button>
-        `
+      { title: "No.", field: "_rowno", width: 70, hozAlign: "right", headerHozAlign: "right", headerSort: false,
+        formatter: (cell) => {
+          const pos = cell.getRow().getPosition(true);
+          const curPage = table.getPage() || 1;
+          const size = table.getPageSize() || pageSize;
+          return (curPage - 1) * size + pos;
+        },
+      },
+      { title: "Part No.", field: "part_no", width: 160, headerSort: true,
+        formatter: (cell) => {
+          const d = cell.getData();
+          return `<a class="code-link" href="${partDetail(d.id)}">${safe(d.part_no ?? "")}</a>`;
+        },
+        cellClick: (e, cell) => {
+          // allow link click default; rowClick will also navigate
+          e.stopPropagation();
+          const d = cell.getData();
+          if (d?.id) location.href = partDetail(d.id);
+        },
+      },
+      { title: "Name", field: "name", headerSort: true, minWidth: 200 },
+      { title: "Revisions", field: "revisions", headerSort: false, minWidth: 220,
+        formatter: (cell) => renderRevisionsInline(cell.getValue()),
+      },
+      { title: "UoM", field: "uom", width: 90, headerSort: false },
+      { title: "Description", field: "description", headerSort: false, minWidth: 240 },
+      { title: "Status", field: "status", width: 110, headerSort: true },
+      { title: "Created", field: "created_at", width: 180, headerSort: true,
+        formatter: (cell) => fmtDate(cell.getValue()),
+      },
+      { title: "", field: "_actions", width: 180, hozAlign: "right", headerSort: false,
+        formatter: (cell) => {
+          const d = cell.getData();
+          const id = d?.id ? Number(d.id) : 0;
+          return `
+            <button class="btn-small" data-act="edit" data-id="${id}">Edit</button>
+            <button class="btn-small" data-act="del"  data-id="${id}">Delete</button>
+          `;
+        },
+        cellClick: async (e, cell) => {
+          const btn = e.target.closest('button[data-act]');
+          if (!btn) return;
+          const id = Number(btn.dataset.id);
+          if (!id) return;
+          if (btn.dataset.act === 'edit') {
+            location.href = partDetail(id);
+            return;
+          }
+          if (btn.dataset.act === 'del') {
+            if (!confirm('Delete this part?')) return;
+            try {
+              await jfetch(`/parts/${id}`, { method: 'DELETE' });
+              toast('Deleted');
+              // refresh current page
+              table.replaceData();
+            } catch (err) {
+              toast(err?.message || 'Delete failed', false);
+            }
+          }
+        },
       },
     ],
-    emptyText: 'No parts found',
   });
-}
 
-/* ---------- load ---------- */
-async function load() {
-  if (!tableEl) return;
-  tableEl.innerHTML = `<div style="padding:12px">Loading…</div>`;
-  try {
-    const params = new URLSearchParams({
-      page: String(state.page),
-      page_size: String(state.pageSize),
-      include: 'revisions',                 // ✅ ดึง revisions มาพร้อมกัน
-      ...(state.q ? { q: state.q } : {}),
-      _: String(Date.now()),
-    });
-    const data = await jfetch(`/parts?${params.toString()}`);
-    state.items = data.items ?? [];
-    state.total = Number(data.total ?? 0);
-    renderRows();
-    syncPager();
-  } catch (err) {
-    console.error(err);
-    tableEl.innerHTML = `<div style="padding:12px;color:#b91c1c">Load error</div>`;
-    syncPager();
-    toast('Load parts failed', false);
-  }
+  // navigate by clicking row anywhere (except on buttons/links)
+  table.on("rowClick", (_e, row) => {
+    const d = row.getData();
+    if (d?.id) location.href = partDetail(d.id);
+  });
+
+  // Keep external pager in sync
+  table.on("pageLoaded", () => updatePagerLabel());
+  table.on("dataProcessed", () => updatePagerLabel());
+  table.on("dataLoaded", () => updatePagerLabel());
+
+  // Make sure flex containers don’t cause horizontal overflow
+  requestAnimationFrame(() => table.redraw(true));
+  window.addEventListener("resize", () => table.redraw(true));
+  new ResizeObserver(() => table.redraw(true)).observe(tableMount);
 }
 
 /* ---------- create ---------- */
 async function createPart() {
   const raw_no = inNo?.value?.trim().toUpperCase();
-  const part_no = raw_no || AUTO_MAGIC;   // ⬅️ if blank → "AUTO" for backend autogen
+  const part_no = raw_no || 'AUTO';   // let backend autogen when supported
   const name = inName?.value?.trim() || null;
   const description = inDesc?.value?.trim() || '';
   const uom = inUom?.value?.trim() || null;
-  const status = inStat?.value || 'active';
+  const status = inStatus?.value || 'active';
 
   try {
     await jfetch('/parts', {
@@ -174,80 +230,46 @@ async function createPart() {
 
     // clear inputs
     [inNo, inName, inDesc, inUom].forEach(el => el && (el.value = ''));
-    if (inStat) inStat.value = 'active';
+    if (inStatus) inStatus.value = 'active';
 
-    // refresh placeholder with the next number
     await peekNextPartNo();
-
-    // reload list from first page
-    state.page = 1;
-    await load();
+    // reload from first page
+    table?.setPage(1);
+    table?.replaceData();
   } catch (e) {
     toast(e?.message || 'Create failed', false);
   }
 }
 
-
 /* ---------- bindings ---------- */
 inputSearch?.addEventListener('input', debounce(() => {
-  state.q = inputSearch.value || '';
-  state.page = 1;
-  load();
+  table?.setPage(1);
+  table?.replaceData();
 }, 250));
 
 selPerPage?.addEventListener('change', () => {
-  state.pageSize = Number(selPerPage.value || 20);
-  state.page = 1;
-  load();
+  pageSize = Number(selPerPage.value || 20);
+  table?.setPageSize(pageSize);
+  table?.setPage(1);
 });
 
-btnReload?.addEventListener('click', () => load());
+btnReload?.addEventListener('click', () => table?.replaceData());
 
 [btnPrevTop, btnPrevBot].forEach(b => b?.addEventListener('click', () => {
-  if (state.page > 1) { state.page--; load(); }
+  const cur = table?.getPage() || 1;
+  if (cur > 1) table?.setPage(cur - 1);
 }));
 [btnNextTop, btnNextBot].forEach(b => b?.addEventListener('click', () => {
-  const pages = computeTotalPages();
-  if (state.total ? state.page < pages : state.items.length === state.pageSize) {
-    state.page++; load();
-  }
+  const cur = table?.getPage() || 1;
+  table?.setPage(cur + 1);
 }));
 
-// row actions (edit/delete)
-tableEl?.addEventListener('click', async (e) => {
-  const btn = e.target.closest('button[data-act]');
-  if (!btn) return;
-  const id = Number(btn.dataset.id);
-  if (!id) return;
-
-  if (btn.dataset.act === 'edit') {
-    location.href = partDetail(id);
-    return;
-  }
-  if (btn.dataset.act === 'del') {
-    if (!confirm('Delete this part?')) return;
-    try {
-      await jfetch(`/parts/${id}`, { method: 'DELETE' });
-      toast('Deleted');
-      if (state.items.length === 1 && state.page > 1) state.page--;
-      load();
-    } catch (e) {
-      toast(e?.message || 'Delete failed', false);
-    }
-  }
-});
-
-// create button
+// Create
 btnCreate?.addEventListener('click', createPart);
 
 /* ---------- boot ---------- */
 document.addEventListener('DOMContentLoaded', () => {
   initTopbar?.();
-  peekNextPartNo();       // ⬅️ show next code as placeholder on load
-  load();
-});
-
-// Optional: refresh placeholder when focusing the field if it’s still empty
-inNo?.addEventListener('focus', () => {
-  if (!inNo.value?.trim()) peekNextPartNo();
+  peekNextPartNo();
+  initTable();
 });

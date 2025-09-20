@@ -36,6 +36,16 @@
     .rev.current { font-weight:600; text-decoration: underline; }
     .rev-sep { opacity:.6; }
     .muted { opacity:.6; }
+
+    /* allow children (like Tabulator) to actually scroll inside flex boxes */
+.main, .panel, .card, .detail-body, #p_table {
+  min-height: 0;  /* key line for flex layouts */
+}
+
+/* make sure the tableholder can scroll */
+.tabulator .tabulator-tableholder {
+  overflow-y: auto !important;
+}
   </style>
 </head>
 <body>
@@ -65,41 +75,8 @@
 
       <!-- Page -->
       <section id="page-parts">
-        <h2 class="page-title">🧩 Parts</h2>
 
-        <!-- Create Part -->
-        <div class="card">
-          <b>Create Part</b>
-          <div class="grid" style="margin-top:8px">
-            <div class="col-6">
-              <label>Part No.</label>
-              <input id="p_no" placeholder="(Autogen if backend supports)" />
-            </div>
-            <div class="col-6">
-              <label>Name</label>
-              <input id="p_name" placeholder="Widget A" />
-            </div>
-            <div class="col-12">
-              <label>Description</label>
-              <input id="p_desc" placeholder="Optional description" />
-            </div>
-            <div class="col-6">
-              <label>Default UoM</label>
-              <input id="p_uom" value="ea" />
-            </div>
-            <div class="col-6">
-              <label>Status</label>
-              <select id="p_status">
-                <option value="active" selected>active</option>
-                <option value="inactive">inactive</option>
-              </select>
-            </div>
-            <div class="col-12">
-              <button class="btn" id="p_create" type="button">Create</button>
-            </div>
-          </div>
-        </div>
-
+        
         <!-- Table + Pager -->
         <div class="card">
           <div class="toolbar" style="display:flex; gap:8px; align-items:center;">
@@ -116,22 +93,22 @@
                 </select>
               </label>
 
-              <div class="pager" style="display:flex;gap:6px;align-items:center;">
+              <!-- <div class="pager" style="display:flex;gap:6px;align-items:center;">
                 <button class="btn-small" id="p_prev" type="button">« Prev</button>
                 <span id="p_page_info" class="muted">Page 1</span>
                 <button class="btn-small" id="p_next" type="button">Next »</button>
-              </div>
+              </div> -->
             </div>
           </div>
 
           <!-- Tabulator mount -->
           <div id="p_table" style="min-height:200px;"></div>
 
-          <div class="toolbar" style="display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:8px;">
+          <!-- <div class="toolbar" style="display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:8px;">
             <button class="btn-small" id="p_prev2" type="button">« Prev</button>
             <span id="p_page_info2" class="muted">Page 1</span>
             <button class="btn-small" id="p_next2" type="button">Next »</button>
-          </div>
+          </div> -->
         </div>
       </section>
     </main>
@@ -144,6 +121,6 @@
 
   <!-- Scripts -->
   <script type="module" src="/static/js/nav-loader.js"></script>
-  <script type="module" src="/static/js/page-parts.js?v=8"></script>
+  <script type="module" src="/static/js/manage-parts.js?v=8"></script>
 </body>
 </html>
