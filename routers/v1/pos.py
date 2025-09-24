@@ -1,4 +1,3 @@
-# routers/v1/pos.py
 from __future__ import annotations
 
 from typing import List, Optional, Tuple
@@ -12,7 +11,6 @@ from sqlalchemy.orm import Session, joinedload
 from database import get_db
 from models import PO, POLine, Customer, Part, PartRevision
 
-# export ตาม __init__.py
 pos_router = APIRouter(prefix="/pos", tags=["pos"])
 
 # ---------- Helpers ----------
@@ -49,19 +47,19 @@ class CustomerBrief(BaseModel):
 
 class PoCreate(BaseModel):
     customer_id: int
-    description: str = ""               # ← ใช้ description
+    description: str = ""
     po_number: Optional[str] = None
 
 class PoUpdate(BaseModel):
     customer_id: Optional[int] = None
-    description: Optional[str] = None   # ← ใช้ description
+    description: Optional[str] = None
 
 class PoOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
     po_number: str
     customer: CustomerBrief
-    description: Optional[str] = None   # ← ใช้ description
+    description: Optional[str] = None
     created_at: Optional[datetime] = None
 
 class PartBrief(BaseModel):
@@ -100,6 +98,43 @@ class PoLineOut(BaseModel):
     amount: float
     note: Optional[str] = None
 
+# ---------- Keyset endpoint (for infinite scroll) ----------
+@pos_router.get("/keyset", response_model=dict)
+def list_pos_keyset(
+    q: Optional[str] = Query(default=None),
+    after_id: Optional[int] = Query(default=None, description="Return items with id < after_id"),
+    limit: int = Query(default=100, ge=1, le=500),
+    db: Session = Depends(get_db),
+):
+    query = db.query(PO).options(joinedload(PO.customer))
+
+    if q:
+        like = f"%{q}%"
+        query = query.join(Customer).filter(
+            or_(
+                PO.po_number.ilike(like),
+                Customer.code.ilike(like),
+                Customer.name.ilike(like),
+            )
+        )
+
+    query = query.order_by(PO.id.desc())
+    if after_id is not None:
+        query = query.filter(PO.id < after_id)
+
+    items = query.limit(limit).all()
+    data = [PoOut.model_validate(i) for i in items]
+
+    next_cursor = data[-1].id if data else None
+    has_more = len(data) == limit   # clearer signal for client
+    return {
+        "items": data,
+        "next_cursor": next_cursor,
+        "has_more": has_more,
+        "limit": limit,
+    }
+
+
 # ---------- PO (header) ----------
 @pos_router.get("/", response_model=dict)
 def list_pos(
@@ -130,9 +165,9 @@ def create_po(payload: PoCreate, db: Session = Depends(get_db)):
 
     po_number = payload.po_number or _next_po_number_yearly(db)
     po = PO(
-        po_number=po_number,
-        customer_id=cust.id,
-        description=payload.description,   # ← ตรงนี้
+      po_number=po_number,
+      customer_id=cust.id,
+      description=payload.description,
     )
     db.add(po)
     db.commit()
@@ -151,7 +186,7 @@ def update_po(po_id: int, payload: PoUpdate, db: Session = Depends(get_db)):
             raise HTTPException(404, "Customer not found")
         po.customer_id = payload.customer_id
 
-    if payload.description is not None:      # ← ตรงนี้
+    if payload.description is not None:
         po.description = payload.description
 
     db.commit()
@@ -164,8 +199,6 @@ def get_po(po_id: int, db: Session = Depends(get_db)):
     if not po:
         raise HTTPException(404, "PO not found")
     return PoOut.model_validate(po)
-
-
 
 @pos_router.delete("/{po_id}", status_code=204)
 def delete_po(po_id: int, db: Session = Depends(get_db)):
@@ -228,10 +261,9 @@ def create_line(po_id: int, payload: PoLineCreate, db: Session = Depends(get_db)
         po_id=po.id,
         part_id=part.id,
         revision_id=rev.id if rev else None,
-        qty_ordered=payload.qty,          # ✅ ใช้ qty_ordered
+        qty_ordered=payload.qty,
         unit_price=payload.unit_price,
-        notes=payload.note,               # ✅ ใช้ notes
-        # due_date=... (ถ้าจะรองรับในอนาคต)
+        notes=payload.note,
     )
     db.add(line)
     db.commit()
@@ -276,11 +308,11 @@ def update_line(po_id: int, line_id: int, payload: PoLineUpdate, db: Session = D
             line.revision_id = rev.id
 
     if payload.qty is not None:
-        line.qty_ordered = payload.qty          # ✅
+        line.qty_ordered = payload.qty
     if payload.unit_price is not None:
         line.unit_price = payload.unit_price
     if payload.note is not None:
-        line.notes = payload.note               # ✅
+        line.notes = payload.note
 
     db.commit()
     db.refresh(line)
@@ -289,7 +321,7 @@ def update_line(po_id: int, line_id: int, payload: PoLineUpdate, db: Session = D
         id=line.id,
         po_id=line.po_id,
         part=line.part,
-        revision=line.rev,                      # ✅ เดิมใช้ line.revision (ผิด attr)
+        revision=line.rev,
         qty=float(line.qty_ordered or 0),
         unit_price=float(line.unit_price or 0),
         amount=amount,

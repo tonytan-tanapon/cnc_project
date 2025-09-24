@@ -229,7 +229,7 @@ class ProductionLot(Base):
     planned_qty = Column(Integer, nullable=False, default=0)
     started_at  = Column(DateTime(timezone=True), nullable=True)
     finished_at = Column(DateTime(timezone=True), nullable=True)
-
+    lot_due_date = Column(Date, nullable=True, index=True)
     status = Column(String, nullable=False, default="in_process")
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     # CHANGED: add foreign_keys + back_populates
@@ -299,6 +299,9 @@ class ShopTraveler(Base):
     created_by_id = Column(Integer, ForeignKey("employees.id"), nullable=True)
     status = Column(String, nullable=False, default="open")
     notes = Column(Text, nullable=True)
+
+    # ✅ NEW: production due date for this traveler
+    production_due_date = Column(Date, nullable=True, index=True)
 
     lot = relationship("ProductionLot", back_populates="travelers")
     created_by = relationship("Employee", foreign_keys=[created_by_id])

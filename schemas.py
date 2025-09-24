@@ -373,6 +373,7 @@ class ShopTravelerCreate(APIBase):
     created_by_id: Optional[int] = None
     notes: Optional[str] = None
     status: Optional[TravelerStatus] = "open"
+    production_due_date: date | None = None
 
 class ShopTravelerUpdate(APIBase):
     created_by_id: Optional[int] = None
@@ -386,6 +387,7 @@ class ShopTravelerOut(APIBase):
     status: TravelerStatus
     notes: Optional[str] = None
     created_at: datetime
+    production_due_date: date | None = None
     
 
 StepStatus = Literal["pending", "running", "passed", "failed", "skipped"]

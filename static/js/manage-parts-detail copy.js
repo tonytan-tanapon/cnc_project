@@ -1,29 +1,34 @@
-// /static/js/manage-parts-detail.js  (v19 — all inline row, no checkbox borders, grouped sections, no API wiring)
+// /static/js/manage-parts-detail.js  (v13 — one /data endpoint)
 import { $, jfetch, showToast as toast, initTopbar } from './api.js';
 
 const fmtQty = (v) => (v == null ? '' : Number(v).toLocaleString(undefined, { maximumFractionDigits: 3 }));
 const debounce = (fn, ms=250)=>{ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a),ms);} };
-// put near the top of the file
-const sortAlpha = (arr) => [...arr].sort((a, b) =>
-  a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
-);
+
 // ---- DOM refs
 const tableMount  = $('p_table');
 const inputSearch = $('p_q');
 
 let table = null;
-let currentSearch = '';
-const fmtDate = (s) => {
-  if (!s) return '';
-  const d = new Date(s);
-  return isNaN(d) ? '' : d.toLocaleDateString(); // or toLocaleString() if you want time
-};
+const DEFAULT_PAGE_SIZE = 100;
 
 // ---- styles (once)
 (() => {
-  if (!document.getElementById('parts-detail-styles')) {
+  if (!document.getElementById('tab-foot-right')) {
     const st = document.createElement('style');
-    st.id = 'parts-detail-styles';
+    st.id = 'tab-foot-right';
+    st.textContent = `
+      .tabulator .tabulator-footer{
+        display:flex;align-items:center;justify-content:flex-end;gap:10px
+      }
+      .tabulator .tabulator-footer .tabulator-paginator{order:1}
+      .tabulator .tabulator-footer .tabulator-page-size{order:2}
+      .tabulator .tabulator-footer .tabulator-page-size select{width:84px;height:28px;padding:2px 6px}
+    `;
+    document.head.appendChild(st);
+  }
+  if (!document.getElementById('part-header-style')) {
+    const st = document.createElement('style');
+    st.id = 'part-header-style';
     st.textContent = `
       .card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;box-shadow:0 2px 10px rgba(0,0,0,.04);margin-bottom:12px}
       .card .hd{padding:12px 14px;border-bottom:1px solid #eef2f7;font-weight:700}
@@ -31,40 +36,6 @@ const fmtDate = (s) => {
       .fields{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
       .f .lab{font-size:12px;color:#64748b;margin-bottom:4px}
       .f .val{font-size:16px;font-weight:600}
-
-      /* ALL FILTERS INLINE */
-      .filters{display:flex;flex-wrap:wrap;align-items:center;gap:16px}
-      .fg{border:none;padding:0;background:transparent}
-      .ttl-inline{font-weight:700;margin-right:8px;font-size:13px;color:#0f172a}
-      .chips{display:flex;flex-wrap:wrap;gap:14px;align-items:center}
-
-      /* minimalist checkboxes: no chip borders */
-      .chip{display:inline-flex;align-items:center;gap:6px;padding:0;margin:0;background:transparent;border:none}
-      .chip input{margin-right:6px}
-
-      .btnlink{border:none;background:transparent;color:#2563eb;cursor:pointer;font-size:12px;padding:0 6px}
-      .btnlink:hover{color:#1d4ed8;text-decoration:underline}
-
-      .fg input[type="text"]{width:320px;max-width:40vw;height:32px;border:1px solid #e5e7eb;border-radius:8px;padding:4px 8px}
-
-      .tabulator .tabulator-footer{display:none}
-
-      
-    /* keep every checkbox label on ONE line */
-.chip{
-  display:inline-flex;
-  align-items:center;
-  gap:6px;
-  padding:0;
-  margin:0;
-  background:transparent;
-  border:none;
-
-  /* the fixes */
-  white-space: nowrap;   /* don’t break inside a chip */
-  flex-wrap: nowrap;     /* belt-and-suspenders for some browsers */
-}
-.chip span{ white-space: inherit; } /* ensure the label text inherits nowrap */
     `;
     document.head.appendChild(st);
   }
@@ -90,7 +61,7 @@ function buildQS(params){
   return usp.toString();
 }
 
-// ---- header & filters scaffold
+// ---- inject header ABOVE THE SEARCH
 function ensureHeaderCard(){
   let wrap = document.getElementById('p_header');
   if (wrap) return wrap;
@@ -106,46 +77,6 @@ function ensureHeaderCard(){
         <div class="f"><div class="lab">Part Name</div> <div id="h_part_name" class="val">—</div></div>
         <div class="f"><div class="lab">Revision</div>  <div id="h_part_rev"  class="val">—</div></div>
         <div class="f"><div class="lab">Customer</div>  <div id="h_customer"  class="val">—</div></div>
-      </div>
-    </div>
-    <div class="hd">Filters</div>
-    <div class="bd">
-      <div id="filters_panel" class="filters">
-
-        <!-- Cutting & Heat: plain inline checkboxes -->
-        <div class="fg" id="fg_basic">
-          <div class="chips">
-            <label class="chip"><input type="checkbox" id="g_cutting" value="Cutting"><span>Cutting</span></label>
-            <label class="chip"><input type="checkbox" id="g_heat" value="Heat Treating & Stress Relieve"><span>Heat Treating & Stress Relieve</span></label>
-          </div>
-        </div>
-
-        <!-- Manufacturing Processes group -->
-        <div class="fg" id="fg_mproc">
-          <div class="chips">
-            <span class="ttl-inline">Manufacturing Processes</span>
-            
-            <span id="g_mproc"></span>
-          </div>
-        </div>
-
-        <!-- Chemical Finishing group -->
-        <div class="fg" id="fg_chem">
-          <div class="chips">
-            <span class="ttl-inline">Chemical Finishing</span>
-   
-            <span id="g_chem"></span>
-          </div>
-        </div>
-
-        <!-- Other -->
-        <div class="fg" id="fg_other">
-          <div class="chips">
-            <span class="ttl-inline">Other</span>
-            <input type="text" id="g_other_text" placeholder="Type other process / keyword..." />
-          </div>
-        </div>
-
       </div>
     </div>
   `;
@@ -165,7 +96,7 @@ function ensureHeaderCard(){
   return wrap;
 }
 
-// ---- fill header meta (filters are static)
+// ---- fill header with meta from /data?view=detail
 function fillHeaderMeta(meta){
   ensureHeaderCard();
   const elPartNo   = document.getElementById('h_part_no');
@@ -181,79 +112,9 @@ function fillHeaderMeta(meta){
   elPartName.textContent = p.name ?? '—';
   elPartRev.textContent  = r.rev ?? '—';
   elCust.textContent     = c.code || c.name || '—';
-
-  setupStaticFilters();
 }
 
-// ---- static filters
-function setupStaticFilters(){
-  ensureHeaderCard();
-
-  const byId = (id)=>document.getElementById(id);
-  const elMproc = byId('g_mproc');
-  const elChem  = byId('g_chem');
-  const btnMAll = byId('btn_mproc_all');
-  const btnMNon = byId('btn_mproc_none');
-  const btnCAll = byId('btn_chem_all');
-  const btnCNon = byId('btn_chem_none');
-  const cbCut   = byId('g_cutting');
-  const cbHeat  = byId('g_heat');
-  const otherTxt= byId('g_other_text');
-
-  const manufacturing = sortAlpha([
-  'Gear Cutting','Double Disc','Honing','Grinding','Gun drilling',
-  'Broaching','Marking','Thread rolling'
-]);
-
-const chemical = sortAlpha([
-  'Anodize','Chem Film','Coating Processes','Magnetic Particle Inspection',
-  'Passivate','Plating','Prime & Paint'
-]);
-
-  const makeChip = (value) => {
-    const l = document.createElement('label');
-    l.className = 'chip';
-    l.innerHTML = `<input type="checkbox" value="${value}"><span>${value}</span>`;
-    return l;
-  };
-
-  elMproc.innerHTML = '';
-  manufacturing.forEach(v => elMproc.appendChild(makeChip(v)));
-  elChem.innerHTML = '';
-  chemical.forEach(v => elChem.appendChild(makeChip(v)));
-
-  const toggleAll = (wrap, checked) => {
-    wrap.querySelectorAll('input[type=checkbox]').forEach(cb => { cb.checked = !!checked; });
-  };
-  const getChecked = (wrap) => Array.from(wrap.querySelectorAll('input[type=checkbox]:checked')).map(i=>i.value);
-
-  btnMAll?.addEventListener('click', ()=>{ toggleAll(elMproc, true); applyFiltersToTable(); });
-  btnMNon?.addEventListener('click', ()=>{ toggleAll(elMproc, false); applyFiltersToTable(); });
-  btnCAll?.addEventListener('click', ()=>{ toggleAll(elChem, true); applyFiltersToTable(); });
-  btnCNon?.addEventListener('click', ()=>{ toggleAll(elChem, false); applyFiltersToTable(); });
-
-  [elMproc, elChem].forEach(el => el.addEventListener('change', applyFiltersToTable));
-  cbCut?.addEventListener('change', applyFiltersToTable);
-  cbHeat?.addEventListener('change', applyFiltersToTable);
-  otherTxt?.addEventListener('input', debounce(applyFiltersToTable, 200));
-
-  window.getPartsDetailFilters = () => ({
-    cutting: !!cbCut?.checked,
-    heat:    !!cbHeat?.checked,
-    mprocs:  getChecked(elMproc),
-    chemical:getChecked(elChem),
-    other:   (otherTxt?.value || '').trim()
-  });
-
-  applyFiltersToTable();
-}
-
-// ---- filtering (local only; combines search + filters)
-function applyFiltersToTable(){
-  
-}
-
-// ---- fetch rows & meta (show ALL rows; no pagination)
+// ---- fetch rows & meta from ONE endpoint
 async function fetchDetail(){
   const { part_id, customer_id, part_revision_id } = qsParams();
   if (!part_id || !customer_id){
@@ -266,14 +127,13 @@ async function fetchDetail(){
     customer_id,
     revision_id: part_revision_id ?? undefined,
   });
-  const res = await jfetch(`/data_detail?${qs}`);
+  const res = await jfetch(`/data?${qs}`);
   const items = Array.isArray(res?.items) ? res.items : [];
   const meta  = res?.meta ?? null;
-  console.log(items)
   return { items, meta };
 }
 
-// ---- Tabulator table (pagination disabled so ALL API rows are visible)
+// ---- Tabulator table
 function initTable(){
   if (!tableMount) return;
   table = new Tabulator(tableMount, {
@@ -282,8 +142,11 @@ function initTable(){
     placeholder: "No rows",
     index: "lot_no",
 
-    pagination: false,       // << show ALL rows
-    // (no paginationSize / selector)
+    pagination: true,
+    paginationMode: "local",
+    paginationSize: DEFAULT_PAGE_SIZE,
+    paginationSizeSelector: [20, 50, 100, 200, true],
+    paginationCounter: "rows",
 
     columns: [
       { title: "No.", field: "_no", width: 60, hozAlign: "right", headerHozAlign: "right", headerSort: false,
@@ -291,17 +154,11 @@ function initTable(){
       },
       { title: "Lot Number", field: "lot_no", minWidth: 110, headerSort: true },
       { title: "PO Number",  field: "po_number", minWidth: 110, headerSort: true },
-
-      // { title: "Supplier", field: "supplier", minWidth: 160 },
-      // { title: "Process Tags", field: "process_tags", minWidth: 200 },
-
-      // keep your placeholders
-      { title: "Prod Qty",  field: "", minWidth: 110, headerSort: true },
+      // keep your placeholders; you can wire them later as the API grows
+      { title: "Prod Qty",  field: "aa", minWidth: 110, headerSort: true },
       { title: "PO Date",  field: "po_number", minWidth: 110, headerSort: true },
       { title: "Qty PO",  field: "po_number", minWidth: 110, headerSort: true },
-      { title: "Due Date", field: "lot_due_date", minWidth: 130, sorter: "date",
-   formatter: (cell) => fmtDate(cell.getValue())
- },
+      { title: "Due Date",  field: "po_number", minWidth: 110, headerSort: true },
       { title: "Qty", field: "qty", width: 110, hozAlign: "right", headerHozAlign: "right",
         formatter: (cell) => fmtQty(cell.getValue())
       },
@@ -334,32 +191,42 @@ function initTable(){
       { title: "QTY Use",  field: "po_number", minWidth: 110, headerSort: true },
     ],
   });
+
+  table.on("tableBuilt", () => {
+    const ro = new ResizeObserver(() => table.redraw(true));
+    ro.observe(tableMount);
+    window.addEventListener("resize", () => table.redraw(true));
+  });
 }
 
-// ---- load
+// ---- load (single endpoint)
 async function loadData(){
   try{
     const { items, meta } = await fetchDetail();
     fillHeaderMeta(meta);
-    table?.setData(items);   // all rows visible (no pagination)
-    applyFiltersToTable();
+    table?.setData(items);
+    if (inputSearch?.value) applySearch(inputSearch.value);
   }catch(e){
     toast?.(e?.message || 'Load failed', false);
   }
 }
 
 // ---- search
-function onSearchChange(){
-  currentSearch = (inputSearch?.value || '').trim();
-  applyFiltersToTable();
+function applySearch(q){
+  if (!table) return;
+  const s = (q || '').trim().toUpperCase();
+  if (!s) { table.clearFilter(true); return; }
+  table.setFilter((data) =>
+    String(data.lot_no || '').toUpperCase().includes(s) ||
+    String(data.po_number || '').toUpperCase().includes(s)
+  );
 }
 
 /* ---------- boot ---------- */
-inputSearch?.addEventListener('input', debounce(onSearchChange, 250));
+inputSearch?.addEventListener('input', debounce(() => applySearch(inputSearch.value), 250));
 
 document.addEventListener('DOMContentLoaded', async () => {
   initTopbar?.();
-  ensureHeaderCard();
   initTable();
   await loadData();
 });

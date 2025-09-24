@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session, joinedload
 # routers/v1/data.py  (add this)
 
 from pydantic import BaseModel
-from sqlalchemy import and_
+from sqlalchemy import and_, or_
 
 from database import get_db
 from models import ProductionLot, PO, PartRevision
@@ -43,9 +43,11 @@ def _normalize_size(s: int) -> int:
     return min(max(1, s), 500)
 
 
-@router.get("", summary="Paged lots with PO/Customer/Part + qty_po aggregated")
+from sqlalchemy import func, or_
+
+@router.get("", summary="One row per Part (latest lot) + PO/Customer/Part, qty_po aggregated")
 def list_lots(
-    q: Optional[str] = Query(default=None, description="filter by lot_no (ILIKE)"),
+    q: Optional[str] = Query(default=None, description="filter by lot_no or part_no (ILIKE)"),
     page: int = Query(1, ge=1),
     page_size: int = Query(100, ge=1, le=500),
     all: bool = Query(False),
@@ -54,33 +56,69 @@ def list_lots(
     page = _normalize_page(page)
     page_size = _normalize_size(page_size)
 
-    base_q = db.query(ProductionLot)
+    # ---- Subquery: pick ONE representative lot per part (latest by ProductionLot.id)
+    rn = func.row_number().over(
+        partition_by=ProductionLot.part_id,
+        order_by=ProductionLot.id.desc()
+    ).label("rn")
+
+    # Select the minimal set of columns we need from the representative lot
+    pl_latest_sq = (
+        db.query(
+            ProductionLot.id.label("id"),
+            ProductionLot.lot_no.label("lot_no"),
+            ProductionLot.planned_qty.label("planned_qty"),
+            ProductionLot.status.label("status"),
+            ProductionLot.created_at.label("created_at"),
+            ProductionLot.po_id.label("po_id"),
+            ProductionLot.part_id.label("part_id"),
+            ProductionLot.part_revision_id.label("part_revision_id"),
+            rn,
+        )
+        .subquery("pl_latest_sq")
+    )
+
+    # Base query = only rn = 1 rows (=> one row per part)
+    base_q = db.query(pl_latest_sq).filter(pl_latest_sq.c.rn == 1)
+
+    # Optional keyword search across lot_no and part_no
     if q:
         like = f"%{q}%"
-        base_q = base_q.filter(ProductionLot.lot_no.ilike(like))
+        base_q = (
+            base_q.join(Part, Part.id == pl_latest_sq.c.part_id)
+                  .filter(
+                      or_(
+                          pl_latest_sq.c.lot_no.ilike(like),
+                          Part.part_no.ilike(like),
+                      )
+                  )
+        )
 
+    # Count AFTER filters (how many unique parts matched)
     total = base_q.count()
 
+    # Paging
     if all:
-        lots: List[ProductionLot] = base_q.order_by(ProductionLot.id.desc()).all()
+        rows = base_q.order_by(pl_latest_sq.c.id.desc()).all()
         page = 1
-        page_size = len(lots)
+        page_size = len(rows)
     else:
-        lots = (
-            base_q.order_by(ProductionLot.id.desc())
+        rows = (
+            base_q.order_by(pl_latest_sq.c.id.desc())
                   .offset((page - 1) * page_size)
                   .limit(page_size)
                   .all()
         )
 
-    if not lots:
+    if not rows:
         return {"items": [], "total": total, "page": page, "page_size": page_size}
 
-    po_ids   = {l.po_id   for l in lots if l.po_id}
-    part_ids = {l.part_id for l in lots if l.part_id}
-    rev_ids  = {l.part_revision_id for l in lots if l.part_revision_id}
+    # Collect ids for batch lookups (preserves your existing enrich pattern)
+    po_ids   = {r.po_id for r in rows if r.po_id}
+    part_ids = {r.part_id for r in rows if r.part_id}
+    rev_ids  = {r.part_revision_id for r in rows if r.part_revision_id}
 
-    # qty_po aggregated once for visible rows
+    # Aggregate qty_po for these visible rows
     qty_map: Dict[Tuple[int, int], float] = {}
     if po_ids and part_ids:
         agg_rows = (
@@ -91,7 +129,7 @@ def list_lots(
         )
         qty_map = {(po_id, part_id): float(qty or 0) for po_id, part_id, qty in agg_rows}
 
-    # batch POs (+ customer)
+    # Batch POs (+ customer)
     po_map: Dict[int, PO] = {}
     if po_ids:
         for p in (
@@ -102,48 +140,49 @@ def list_lots(
         ):
             po_map[p.id] = p
 
-    # batch parts
+    # Batch Parts
     part_map: Dict[int, Part] = {}
     if part_ids:
         for p in db.query(Part).filter(Part.id.in_(part_ids)).all():
             part_map[p.id] = p
 
-    # batch revisions
+    # Batch Revisions
     rev_map: Dict[int, PartRevision] = {}
     if rev_ids:
         for r in db.query(PartRevision).filter(PartRevision.id.in_(rev_ids)).all():
             rev_map[r.id] = r
 
+    # Build response items (one row per Part)
     items = []
-    for l in lots:
-        po    = po_map.get(l.po_id)
-        part  = part_map.get(l.part_id)
-        rev   = rev_map.get(l.part_revision_id)
+    for r in rows:
+        po   = po_map.get(r.po_id)
+        part = part_map.get(r.part_id)
+        rev  = rev_map.get(r.part_revision_id)
         items.append({
-            "id": l.id,
-            "lot_no": l.lot_no,
-            "planned_qty": float(l.planned_qty or 0),
-            "status": l.status,
-            "created_at": l.created_at,
+            "id": r.id,                         # representative lot id (latest)
+            "lot_no": r.lot_no,
+            "planned_qty": float(r.planned_qty or 0),
+            "status": r.status,
+            "created_at": r.created_at,
 
-            "po_id": l.po_id,
+            "po_id": r.po_id,
             "po_number": (po.po_number if po else None),
-            "po_date": None,  # PO model has no created_at/po_date; keep None or add a date field to PO
+            "po_date": None,
             "customer_code": (po.customer.code if po and po.customer else None),
 
-            "part_id": l.part_id,
+            "part_id": r.part_id,
             "part_no": (part.part_no if part else None),
+            "part_name": (part.name if part else None),
 
-            "part_revision_id": l.part_revision_id,
+            "part_revision_id": r.part_revision_id,
             "part_rev": (rev.rev if rev else None),
 
-            "qty_po": qty_map.get((l.po_id, l.part_id)),
-
+            "qty_po": qty_map.get((r.po_id, r.part_id)),
             "customer_id": (po.customer.id if po and po.customer else None),
-            "part_revision_id": l.part_revision_id,
         })
 
     return {"items": items, "total": total, "page": page, "page_size": page_size}
+
 
 
 #####
