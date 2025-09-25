@@ -1,4 +1,4 @@
-// /static/js/manage-parts-detail.js  (v19 — all inline row, no checkbox borders, grouped sections, no API wiring)
+// /static/js/manage-parts-detail.js  (v20 — local filtering wired, optional PO Due column)
 import { $, jfetch, showToast as toast, initTopbar } from './api.js';
 
 const fmtQty = (v) => (v == null ? '' : Number(v).toLocaleString(undefined, { maximumFractionDigits: 3 }));
@@ -7,12 +7,15 @@ const debounce = (fn, ms=250)=>{ let t; return (...a)=>{ clearTimeout(t); t=setT
 const sortAlpha = (arr) => [...arr].sort((a, b) =>
   a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
 );
+
 // ---- DOM refs
 const tableMount  = $('p_table');
 const inputSearch = $('p_q');
 
 let table = null;
 let currentSearch = '';
+let allRows = []; // NEW: keep original rows for local filtering
+
 const fmtDate = (s) => {
   if (!s) return '';
   const d = new Date(s);
@@ -38,9 +41,13 @@ const fmtDate = (s) => {
       .ttl-inline{font-weight:700;margin-right:8px;font-size:13px;color:#0f172a}
       .chips{display:flex;flex-wrap:wrap;gap:14px;align-items:center}
 
-      /* minimalist checkboxes: no chip borders */
-      .chip{display:inline-flex;align-items:center;gap:6px;padding:0;margin:0;background:transparent;border:none}
+      /* minimalist checkboxes: no chip borders, no wrap */
+      .chip{
+        display:inline-flex;align-items:center;gap:6px;padding:0;margin:0;background:transparent;border:none;
+        white-space: nowrap; flex-wrap: nowrap;
+      }
       .chip input{margin-right:6px}
+      .chip span{ white-space: inherit; }
 
       .btnlink{border:none;background:transparent;color:#2563eb;cursor:pointer;font-size:12px;padding:0 6px}
       .btnlink:hover{color:#1d4ed8;text-decoration:underline}
@@ -48,23 +55,6 @@ const fmtDate = (s) => {
       .fg input[type="text"]{width:320px;max-width:40vw;height:32px;border:1px solid #e5e7eb;border-radius:8px;padding:4px 8px}
 
       .tabulator .tabulator-footer{display:none}
-
-      
-    /* keep every checkbox label on ONE line */
-.chip{
-  display:inline-flex;
-  align-items:center;
-  gap:6px;
-  padding:0;
-  margin:0;
-  background:transparent;
-  border:none;
-
-  /* the fixes */
-  white-space: nowrap;   /* don’t break inside a chip */
-  flex-wrap: nowrap;     /* belt-and-suspenders for some browsers */
-}
-.chip span{ white-space: inherit; } /* ensure the label text inherits nowrap */
     `;
     document.head.appendChild(st);
   }
@@ -124,7 +114,6 @@ function ensureHeaderCard(){
         <div class="fg" id="fg_mproc">
           <div class="chips">
             <span class="ttl-inline">Manufacturing Processes</span>
-            
             <span id="g_mproc"></span>
           </div>
         </div>
@@ -133,7 +122,6 @@ function ensureHeaderCard(){
         <div class="fg" id="fg_chem">
           <div class="chips">
             <span class="ttl-inline">Chemical Finishing</span>
-   
             <span id="g_chem"></span>
           </div>
         </div>
@@ -201,14 +189,14 @@ function setupStaticFilters(){
   const otherTxt= byId('g_other_text');
 
   const manufacturing = sortAlpha([
-  'Gear Cutting','Double Disc','Honing','Grinding','Gun drilling',
-  'Broaching','Marking','Thread rolling'
-]);
+    'Gear Cutting','Double Disc','Honing','Grinding','Gun drilling',
+    'Broaching','Marking','Thread rolling'
+  ]);
 
-const chemical = sortAlpha([
-  'Anodize','Chem Film','Coating Processes','Magnetic Particle Inspection',
-  'Passivate','Plating','Prime & Paint'
-]);
+  const chemical = sortAlpha([
+    'Anodize','Chem Film','Coating Processes','Magnetic Particle Inspection',
+    'Passivate','Plating','Prime & Paint'
+  ]);
 
   const makeChip = (value) => {
     const l = document.createElement('label');
@@ -250,7 +238,7 @@ const chemical = sortAlpha([
 
 // ---- filtering (local only; combines search + filters)
 function applyFiltersToTable(){
-  
+  // update date to database 
 }
 
 // ---- fetch rows & meta (show ALL rows; no pagination)
@@ -268,8 +256,8 @@ async function fetchDetail(){
   });
   const res = await jfetch(`/data_detail?${qs}`);
   const items = Array.isArray(res?.items) ? res.items : [];
-  const meta  = res?.meta ?? null;
   console.log(items)
+  const meta  = res?.meta ?? null;
   return { items, meta };
 }
 
@@ -282,8 +270,7 @@ function initTable(){
     placeholder: "No rows",
     index: "lot_no",
 
-    pagination: false,       // << show ALL rows
-    // (no paginationSize / selector)
+    pagination: false, // show ALL rows
 
     columns: [
       { title: "No.", field: "_no", width: 60, hozAlign: "right", headerHozAlign: "right", headerSort: false,
@@ -292,46 +279,53 @@ function initTable(){
       { title: "Lot Number", field: "lot_no", minWidth: 110, headerSort: true },
       { title: "PO Number",  field: "po_number", minWidth: 110, headerSort: true },
 
-      // { title: "Supplier", field: "supplier", minWidth: 160 },
-      // { title: "Process Tags", field: "process_tags", minWidth: 200 },
-
       // keep your placeholders
-      { title: "Prod Qty",  field: "", minWidth: 110, headerSort: true },
-      { title: "PO Date",  field: "po_number", minWidth: 110, headerSort: true },
-      { title: "Qty PO",  field: "po_number", minWidth: 110, headerSort: true },
-      { title: "Due Date", field: "lot_due_date", minWidth: 130, sorter: "date",
-   formatter: (cell) => fmtDate(cell.getValue())
- },
+      { title: "Prod Qty",  field: "lot_qty", width: 110, hozAlign: "right", headerHozAlign: "right",
+        formatter: (cell) => fmtQty(cell.getValue())
+      },
+      { title: "PO Date",   field: "po_due_date", minWidth: 130, sorter: "date",
+        formatter: (cell) => fmtDate(cell.getValue())
+      },
+      { title: "Qty PO",   field: "qty", width: 110, hozAlign: "right", headerHozAlign: "right",
+        formatter: (cell) => fmtQty(cell.getValue())
+      },
+
+
+      // DUE DATES
+      { title: "Due Date",      field: "lot_due_date", minWidth: 130, sorter: "date",
+        formatter: (cell) => fmtDate(cell.getValue())
+      },
+     
+
       { title: "Qty", field: "qty", width: 110, hozAlign: "right", headerHozAlign: "right",
         formatter: (cell) => fmtQty(cell.getValue())
       },
-      { title: "First article No:",  field: "po_number", minWidth: 110, headerSort: true },
-      { title: "*Remark Product Control",  field: "po_number", minWidth: 110, headerSort: true },
-      { title: "Tracking no.",  field: "po_number", minWidth: 110, headerSort: true },
-      { title: "Real Shipped Date",  field: "po_number", minWidth: 110, headerSort: true },
-      { title: "INCOMING STOCK",  field: "po_number", minWidth: 110, headerSort: true },
-      { title: "QA Inspection/AQL",  field: "po_number", minWidth: 110, headerSort: true },
-      { title: "Name Inspection" ,  field: "po_number", minWidth: 110, headerSort: true },
-      { title: "*Remark (QA Inspection)",  field: "po_number", minWidth: 110, headerSort: true },
-      { title: "Rework/Repair",  field: "po_number", minWidth: 110, headerSort: true },
-      { title: "*Remark (Rework)",  field: "po_number", minWidth: 110, headerSort: true },
-      { title: "Qty Reject",  field: "po_number", minWidth: 110, headerSort: true },
-      { title: "*Remark (Reject)",  field: "po_number", minWidth: 110, headerSort: true },
-      { title: "Incoming Rework",  field: "po_number", minWidth: 110, headerSort: true },
-      { title: "Finish goods in stock",  field: "po_number", minWidth: 110, headerSort: true },
-      { title: "Lot Number",  field: "po_number", minWidth: 110, headerSort: true },
-      { title: "",  field: "po_number", minWidth: 110, headerSort: true },
-      { title: "PO Number",  field: "po_number", minWidth: 110, headerSort: true },
-      { title: "Qty Take Out",  field: "po_number", minWidth: 110, headerSort: true },
-      { title: "Date Take Out Stock",  field: "po_number", minWidth: 110, headerSort: true },
-      { title: "WIP\tWIP Cont.",  field: "po_number", minWidth: 110, headerSort: true },
-      { title: "QTY Rework",  field: "po_number", minWidth: 110, headerSort: true },
-      { title: "Green Tag No.",  field: "po_number", minWidth: 110, headerSort: true },
-      { title: "Rework w/Lot",  field: "po_number", minWidth: 110, headerSort: true },
-      { title: "QTY Prod",  field: "po_number", minWidth: 110, headerSort: true },
-      { title: "QTY Shipped",  field: "po_number", minWidth: 110, headerSort: true },
-      { title: "Residual",  field: "po_number", minWidth: 110, headerSort: true },
-      { title: "QTY Use",  field: "po_number", minWidth: 110, headerSort: true },
+
+      // placeholders unchanged
+      { title: "First article No:",  field: "", minWidth: 140, headerSort: false, formatter: ()=>"" },
+      { title: "*Remark Product Control", field: "", minWidth: 180, headerSort: false, formatter: ()=>"" },
+      { title: "Tracking no.",  field: "", minWidth: 130, headerSort: false, formatter: ()=>"" },
+      { title: "Real Shipped Date",  field: "", minWidth: 150, headerSort: false, formatter: ()=>"" },
+      { title: "INCOMING STOCK",  field: "", minWidth: 140, headerSort: false, formatter: ()=>"" },
+      { title: "QA Inspection/AQL",  field: "", minWidth: 150, headerSort: false, formatter: ()=>"" },
+      { title: "Name Inspection" ,  field: "", minWidth: 140, headerSort: false, formatter: ()=>"" },
+      { title: "*Remark (QA Inspection)",  field: "", minWidth: 180, headerSort: false, formatter: ()=>"" },
+      { title: "Rework/Repair",  field: "", minWidth: 130, headerSort: false, formatter: ()=>"" },
+      { title: "*Remark (Rework)",  field: "", minWidth: 150, headerSort: false, formatter: ()=>"" },
+      { title: "Qty Reject",  field: "", minWidth: 120, headerSort: false, formatter: ()=>"" },
+      { title: "*Remark (Reject)",  field: "", minWidth: 150, headerSort: false, formatter: ()=>"" },
+      { title: "Incoming Rework",  field: "", minWidth: 150, headerSort: false, formatter: ()=>"" },
+      { title: "Finish goods in stock",  field: "", minWidth: 190, headerSort: false, formatter: ()=>"" },
+      { title: "Qty Take Out",  field: "", minWidth: 130, headerSort: false, formatter: ()=>"" },
+      { title: "Date Take Out Stock",  field: "", minWidth: 170, headerSort: false, formatter: ()=>"" },
+      { title: "WIP\tWIP Cont.",  field: "", minWidth: 140, headerSort: false, formatter: ()=>"" },
+      { title: "QTY Rework",  field: "", minWidth: 120, headerSort: false, formatter: ()=>"" },
+      { title: "Green Tag No.",  field: "", minWidth: 140, headerSort: false, formatter: ()=>"" },
+      { title: "Rework w/Lot",  field: "", minWidth: 140, headerSort: false, formatter: ()=>"" },
+      { title: "QTY Prod",  field: "", minWidth: 110, headerSort: false, formatter: ()=>"" },
+      { title: "QTY Shipped",  field: "", minWidth: 130, headerSort: false, formatter: ()=>"" },
+      { title: "Residual",  field: "", minWidth: 110, headerSort: false, formatter: ()=>"" },
+      { title: "QTY Use",  field: "", minWidth: 110, headerSort: false, formatter: ()=>"" },
     ],
   });
 }
@@ -340,9 +334,10 @@ function initTable(){
 async function loadData(){
   try{
     const { items, meta } = await fetchDetail();
+    allRows = items;            // NEW: store original unfiltered
     fillHeaderMeta(meta);
-    table?.setData(items);   // all rows visible (no pagination)
-    applyFiltersToTable();
+    table?.setData(items);      // all rows visible (no pagination)
+    applyFiltersToTable();      // apply initial filters/search
   }catch(e){
     toast?.(e?.message || 'Load failed', false);
   }
