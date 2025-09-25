@@ -1,4 +1,6 @@
-/* ===== Design Tokens ===================================================== */
+/* ==========================================================================
+   Design Tokens
+   ========================================================================== */
 :root{
   --bg:#0f172a;
   --bg-2:#111827;
@@ -18,9 +20,15 @@
     0 2px 6px rgba(2,6,23,.06);
 
   --radius:14px;
+
+  /* Sidebar sizing (unified) */
+  --sidebar-w: 260px;          /* ปกติ */
+  --sidebar-w-collapsed: 64px; /* ย่อ */
 }
 
-/* ===== Base =============================================================== */
+/* ==========================================================================
+   Base
+   ========================================================================== */
 *{ box-sizing:border-box }
 html,body{ height:100% }
 body{
@@ -33,19 +41,32 @@ body{
 }
 a{ color:inherit }
 
-/* ===== Layout ============================================================= */
+/* ==========================================================================
+   App Layout (Grid + Collapsible Sidebar)
+   ========================================================================== */
 .app{
   display:grid;
-  grid-template-columns:260px 1fr;
+  grid-template-columns: var(--sidebar-w) 1fr; /* sidebar | main */
   min-height:100vh;
+  transition: grid-template-columns .25s ease;
 }
 
-/* Sidebar */
+/* เมื่อย่อ: เปลี่ยนความกว้างคอลัมน์ซ้าย */
+.app.is-collapsed{
+  grid-template-columns: var(--sidebar-w-collapsed) 1fr;
+}
+
+/* ==========================================================================
+   Sidebar
+   ========================================================================== */
 .sidebar{
   background:linear-gradient(180deg,var(--bg),var(--bg-2));
   color:var(--text);
   padding:20px 18px;
+  overflow:hidden; /* สำคัญ: ไม่ให้ล้นตอนย่อ */
 }
+
+/* โลโก้ */
 .logo{
   font-weight:800;
   letter-spacing:.2px;
@@ -61,9 +82,32 @@ a{ color:inherit }
   border-radius:8px;
   background:var(--brand);
   font-weight:700;
+  color:#fff;
 }
 
-.nav{ margin-top:22px; display:flex; flex-direction:column; gap:6px }
+/* Nav (ภายใน sidebar) */
+.nav{
+  margin-top:22px;
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  height:100%;
+  color:#fff;
+  overflow-x:hidden;
+}
+
+/* ปุ่มย่อ/ขยาย */
+.nav .toggle-btn{
+  background:transparent;
+  border:0;
+  color:#fff;
+  font-size:20px;
+  padding:12px 16px;
+  cursor:pointer;
+  text-align:left;
+}
+
+/* รายการเมนู */
 .nav a{
   color:var(--text);
   text-decoration:none;
@@ -78,10 +122,22 @@ a{ color:inherit }
 .nav a:hover{ background:rgba(255,255,255,.06); opacity:1 }
 .nav a.active{ background:rgba(37,99,235,.18); color:#fff; opacity:1 }
 
-/* Main */
+/* ไอคอน/ป้ายชื่อในเมนู */
+.nav .icon{ font-size:18px; width:24px; min-width:24px; text-align:center }
+.nav .label{ white-space:nowrap }
+
+/* ซ่อน label และจัดปุ่มตอนย่อ */
+.app.is-collapsed .nav .label{ display:none }
+.app.is-collapsed .nav .toggle-btn{ text-align:center; width:100% }
+
+/* ==========================================================================
+   Main
+   ========================================================================== */
 .main{ padding:20px 24px 48px }
 
-/* Topbar */
+/* ==========================================================================
+   Topbar
+   ========================================================================== */
 .topbar{ display:flex; align-items:center; gap:14px; flex-wrap:wrap }
 .search{ flex:1; position:relative; min-width:220px }
 .search input{
@@ -104,7 +160,18 @@ a{ color:inherit }
   pointer-events:none;
 }
 
-/* Buttons */
+/* Inputs inside topbar */
+#apiBase{
+  width:320px;
+  padding:10px 12px;
+  border:1px solid #e2e8f0;
+  border-radius:10px;
+  background:#fff;
+}
+
+/* ==========================================================================
+   Buttons
+   ========================================================================== */
 .btn{
   background:var(--brand);
   color:#fff;
@@ -120,7 +187,9 @@ a{ color:inherit }
 .btn:active{ transform: translateY(1px) }
 .btn[disabled]{ opacity:.6; cursor:not-allowed }
 
-/* Page headers & tiles */
+/* ==========================================================================
+   Page headers & tiles
+   ========================================================================== */
 .page-title{ font-size:28px; font-weight:800; margin:18px 4px }
 .subtitle{ margin:0 4px 18px; color:#475569 }
 
@@ -149,7 +218,9 @@ a{ color:inherit }
 .tile .desc{ color:#64748b; font-size:14px }
 .tile .emoji{ font-size:28px }
 
-/* Cards */
+/* ==========================================================================
+   Cards
+   ========================================================================== */
 .card{
   background:#fff;
   border:1px solid var(--border);
@@ -159,7 +230,9 @@ a{ color:inherit }
   margin:10px 0;
 }
 
-/* Grid helpers */
+/* ==========================================================================
+   Grid helpers
+   ========================================================================== */
 .grid{ display:grid; grid-template-columns:repeat(12,1fr); gap:10px }
 .col-3{ grid-column:span 3 }
 .col-4{ grid-column:span 4 }
@@ -169,7 +242,9 @@ a{ color:inherit }
   .col-3,.col-4,.col-6{ grid-column:span 12 }
 }
 
-/* Forms */
+/* ==========================================================================
+   Forms
+   ========================================================================== */
 label{ font-size:12px; color:#334155; display:block; margin-bottom:4px }
 input,select,textarea{
   width:100%;
@@ -186,7 +261,9 @@ input:focus,select:focus,textarea:focus{
 }
 input[readonly],input[disabled],select[disabled],textarea[disabled]{ background:#f3f4f6 }
 
-/* Tables */
+/* ==========================================================================
+   Tables
+   ========================================================================== */
 table{ width:100%; border-collapse:collapse; min-width:600px }
 th,td{
   padding:10px;
@@ -206,12 +283,16 @@ th{ background:#f8fafc; position:sticky; top:0; z-index:1 }
   background:#f8fafc
 }
 
-/* Toolbars & misc */
+/* ==========================================================================
+   Toolbars & misc
+   ========================================================================== */
 .toolbar{ display:flex; gap:8px; flex-wrap:wrap; margin:6px 0 }
 .hint{ font-size:12px; color:#64748b }
 .hidden{ display:none !important }
 
-/* Toast */
+/* ==========================================================================
+   Toast
+   ========================================================================== */
 .toast{
   position:fixed;
   right:16px; bottom:16px;
@@ -228,23 +309,54 @@ th{ background:#f8fafc; position:sticky; top:0; z-index:1 }
 }
 .toast.show{ opacity:1; transform:translateY(0) }
 
-/* Inputs inside topbar */
-#apiBase{
-  width:320px;
-  padding:10px 12px;
-  border:1px solid #e2e8f0;
-  border-radius:10px;
-  background:#fff;
-}
-
-/* Scroll containers inside tables */
+/* ==========================================================================
+   Scrollable table containers (by id)
+   ========================================================================== */
 #c_table, #e_table, #po_table, #m_table, #b_table, #l_table, #t_table, #s_table, #sc_table, #sup_table, #rpt_area {
   overflow:auto;
 }
 
-/* Print (hide sidebar when printing) */
+/* ==========================================================================
+   Print
+   ========================================================================== */
 @media print{
   .sidebar{ display:none }
   .app{ grid-template-columns:1fr }
   .btn, .toolbar, #apiBase{ display:none !important }
+}
+
+/* ==========================================================================
+   Tabulator (ถ้าใช้ในหน้า listBody)
+   ========================================================================== */
+/* ทำ scrollbar ของพื้นที่ตารางอ่านง่ายขึ้น */
+#listBody,
+#listBody .tabulator { width: 100%; max-width: 100% }
+.tabulator .tabulator-tableholder { overflow: auto !important }
+#listBody .tabulator-tableholder { scrollbar-gutter: stable both-edges }
+
+/* WebKit (Chrome/Edge/Safari) */
+#listBody .tabulator-tableholder::-webkit-scrollbar { width: 16px; height: 16px }
+#listBody .tabulator-tableholder::-webkit-scrollbar-track {
+  background: #f1f5f9; border-radius: 8px
+}
+#listBody .tabulator-tableholder::-webkit-scrollbar-thumb {
+  background: #cbd5e1; border-radius: 8px; border: 3px solid #f1f5f9
+}
+#listBody .tabulator-tableholder::-webkit-scrollbar-thumb:hover { background: #94a3b8 }
+/* Firefox */
+#listBody .tabulator-tableholder {
+  scrollbar-width: auto;
+  scrollbar-color: #cbd5e1 #f1f5f9;
+}
+
+/* เซลล์ default truncate */
+#listBody .tabulator-cell {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* อนุญาต wrap เฉพาะคอลัมน์ที่ต้องการ */
+#listBody .tabulator-cell.wrap {
+  white-space: normal;
+  word-break: break-word;
 }

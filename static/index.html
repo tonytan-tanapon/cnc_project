@@ -1,109 +1,127 @@
 <!DOCTYPE html>
 <html lang="th">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Topnotch – MFG · CNC Tracking</title>
-  <link rel="stylesheet" href="/static/css/app.css" />
-</head>
-<body>
-  <div class="app">
-    <!-- Sidebar -->
-    <aside class="sidebar">
-      <div class="logo">
-        <span class="logo-badge">TN</span>
-        <span>Topnotch – MFG</span>
-      </div>
-      <!-- ให้สคริปต์มา inject เมนู (partials/nav.html) -->
-      <div id="navSlot" data-nav-slot></div>
-    </aside>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Topnotch – MFG · CNC Tracking</title>
+    <link rel="stylesheet" href="/static/css/app.css" />
+  </head>
+  <body>
+    <div class="app">
+      <!-- Sidebar -->
+      <aside class="sidebar">
+        <!-- ให้สคริปต์มา inject เมนู (partials/nav.html) -->
+        <div id="navSlot" data-nav-slot></div>
+      </aside>
 
-    <!-- Main -->
-    <main class="main">
-      <!-- Topbar -->
-      <div class="topbar">
-        <div class="search">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zM9.5 14C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
-          </svg>
-          <input id="globalSearch" type="search" placeholder="Search PO / Lot / Tracking…" />
+      <!-- Main -->
+      <main class="main">
+        <!-- Topbar -->
+        <div class="topbar">
+          <div class="search">
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              aria-hidden="true"
+            >
+              <path
+                d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zM9.5 14C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"
+              />
+            </svg>
+            <input
+              id="globalSearch"
+              type="search"
+              placeholder="Search PO / Lot / Tracking…"
+            />
+          </div>
+          <input
+            id="apiBase"
+            value="/api/v1"
+            placeholder="API Base (ว่าง = /api/v1) เช่น http://localhost:8000/api/v1"
+          />
+          <button class="btn" id="btnPing" type="button">Ping</button>
         </div>
-        <input id="apiBase" value="/api/v1" placeholder="API Base (ว่าง = /api/v1) เช่น http://localhost:8000/api/v1" />
-        <button class="btn" id="btnPing" type="button">Ping</button>
-      </div>
 
-      <!-- Dashboard -->
-      <section id="page-dash">
-        <h1 class="page-title">🚀 CNC Tracking System</h1>
-        <p class="subtitle">Quick Access</p>
+        <!-- Dashboard -->
+        <section id="page-dash">
+          <h1 class="page-title">🚀 CNC Tracking System</h1>
+          <p class="subtitle">Quick Access</p>
 
-        <section class="tiles">
-          <a class="tile" href="/static/materials.html">
-            <div class="info">
-              <span class="title">Materials</span>
-              <span class="desc">+ Add new material / Stock</span>
+          <section class="tiles">
+            <a class="tile" href="/static/materials.html">
+              <div class="info">
+                <span class="title">Materials</span>
+                <span class="desc">+ Add new material / Stock</span>
+              </div>
+              <div class="emoji">🧱</div>
+            </a>
+            <a class="tile" href="/static/lots.html">
+              <div class="info">
+                <span class="title">Lots</span>
+                <span class="desc">Add lot / track lot</span>
+              </div>
+              <div class="emoji">🏷️</div>
+            </a>
+            <a class="tile" href="/static/travelers.html">
+              <div class="info">
+                <span class="title">Traveler/Steps</span>
+                <span class="desc">Start/Complete step, QA</span>
+              </div>
+              <div class="emoji">🛠️</div>
+            </a>
+            <a class="tile" href="/static/subcon.html">
+              <div class="info">
+                <span class="title">Subcon</span>
+                <span class="desc">Order / Shipment / Receipt</span>
+              </div>
+              <div class="emoji">🚚</div>
+            </a>
+            <a class="tile" href="/static/employees.html">
+              <div class="info">
+                <span class="title">Employees</span>
+                <span class="desc">Add/Employee lists</span>
+              </div>
+              <div class="emoji">👷</div>
+            </a>
+          </section>
+
+          <div class="grid" style="margin-top: 16px">
+            <div class="col-6">
+              <div class="card">
+                <b>Lots – Summary</b>
+                <div class="toolbar">
+                  <button class="btn" id="btnDashLots" type="button">
+                    Reload
+                  </button>
+                </div>
+                <div id="dashLots"></div>
+              </div>
             </div>
-            <div class="emoji">🧱</div>
-          </a>
-          <a class="tile" href="/static/lots.html">
-            <div class="info">
-              <span class="title">Lots</span>
-              <span class="desc">Add lot / track lot</span>
+            <div class="col-6">
+              <div class="card">
+                <b>Subcon – Orders</b>
+                <div class="toolbar">
+                  <button class="btn" id="btnDashSubcon" type="button">
+                    Reload
+                  </button>
+                </div>
+                <div id="dashSubcon"></div>
+              </div>
             </div>
-            <div class="emoji">🏷️</div>
-          </a>
-          <a class="tile" href="/static/travelers.html">
-            <div class="info">
-              <span class="title">Traveler/Steps</span>
-              <span class="desc">Start/Complete step, QA</span>
-            </div>
-            <div class="emoji">🛠️</div>
-          </a>
-          <a class="tile" href="/static/subcon.html">
-            <div class="info">
-              <span class="title">Subcon</span>
-              <span class="desc">Order / Shipment / Receipt</span>
-            </div>
-            <div class="emoji">🚚</div>
-          </a>
-          <a class="tile" href="/static/employees.html">
-            <div class="info">
-              <span class="title">Employees</span>
-              <span class="desc">Add/Employee lists</span>
-            </div>
-            <div class="emoji">👷</div>
-          </a>
+          </div>
         </section>
+      </main>
+    </div>
 
-        <div class="grid" style="margin-top:16px">
-          <div class="col-6">
-            <div class="card">
-              <b>Lots – Summary</b>
-              <div class="toolbar">
-                <button class="btn" id="btnDashLots" type="button">Reload</button>
-              </div>
-              <div id="dashLots"></div>
-            </div>
-          </div>
-          <div class="col-6">
-            <div class="card">
-              <b>Subcon – Orders</b>
-              <div class="toolbar">
-                <button class="btn" id="btnDashSubcon" type="button">Reload</button>
-              </div>
-              <div id="dashSubcon"></div>
-            </div>
-          </div>
-        </div>
-      </section>
-    </main>
-  </div>
+    <div class="toast" id="toast" role="status" aria-live="polite">
+      <span id="toastText"></span>
+    </div>
 
-  <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span></div>
-
-  <!-- ใส่สคริปต์โหลดเมนู + ไฮไลท์ active อัตโนมัติ -->
-  <script type="module" src="/static/js/nav-loader.js"></script>
-  <!-- สคริปต์หน้า Dashboard (โหลดการ์ด, ปุ่ม ping, คุม apiBase, search) -->
-  <script type="module" src="/static/js/page-dashboard.js"></script>
-</body>
+    <!-- ใส่สคริปต์โหลดเมนู + ไฮไลท์ active อัตโนมัติ -->
+    <script type="module" src="/static/js/nav-loader.js"></script>
+    <!-- สคริปต์หน้า Dashboard (โหลดการ์ด, ปุ่ม ping, คุม apiBase, search) -->
+    <script type="module" src="/static/js/page-dashboard.js"></script>
+  </body>
 </html>
