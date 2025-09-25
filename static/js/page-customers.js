@@ -1,11 +1,9 @@
-// /static/js/page-customers.js — show ALL, inline CRUD, +Add, delete per row (auto-fetch-all)
+// /static/js/page-customers.js — inline CRUD + per-row Save/Cancel (row.reformat style like page-pos.js)
 import { $, jfetch, toast } from "./api.js";
 
 /* ===== CONFIG ===== */
 const ENDPOINTS = { base: "/customers" };
-// ถ้าต้องการบังคับใช้ param แบบไหน ให้ตั้งค่าตามนี้ได้: "auto" | "all-param" | "paged"
-const FETCH_ALL_STRATEGY = "auto";
-// per_page สูงสุดตามที่แบ็กเอนด์อนุญาต (โค้ดเดิมคุณ le=100)
+const FETCH_ALL_STRATEGY = "auto"; // "auto" | "all-param" | "paged"
 const PAGED_PER_PAGE = 100;
 
 const UI = { q: "_q", btnAdd: "_add", tableMount: "listBody" };
@@ -27,16 +25,137 @@ function buildPayload(row) {
     address: row.address ? trim(row.address) : null,
   };
 }
+
 function normalizeRow(r) {
   return {
-    id: r.id ?? r.customer_id ?? r.customerId,
+    id: r.id ?? r.customer_id ?? r.customerId ?? null,
     code: r.code ?? "",
     name: r.name ?? "",
     contact: r.contact ?? "",
     email: r.email ?? "",
     phone: r.phone ?? "",
     address: r.address ?? "",
+    _dirty: false,
   };
+}
+function setDirtyClass(row, on) {
+  // ปลอดภัย: ป้องกัน row.getElement() เป็น undefined เมื่อยังไม่ render
+  const el = typeof row.getElement === "function" ? row.getElement() : null;
+  if (el && el.classList) {
+    if (on) el.classList.add("is-dirty");
+    else el.classList.remove("is-dirty");
+  }
+}
+function injectStylesOnce() {
+  if (document.getElementById("cust-inline-styles")) return;
+  const st = document.createElement("style");
+  st.id = "cust-inline-styles";
+  st.textContent = `
+    .tabulator-row.is-dirty { background:#fff7ed } /* amber-50 */
+    .row-actions { display:flex; gap:6px; justify-content:flex-end; }
+    .btn-small { font:inherit; padding:4px 8px; border-radius:6px; border:1px solid #e5e7eb; background:#f8fafc; cursor:pointer }
+    .btn-small:hover { background:#f1f5f9 }
+    .btn-primary { background:#2563eb; color:#fff; border-color:#1d4ed8 }
+    .btn-primary:hover { background:#1d4ed8 }
+    .btn-danger { background:#ef4444; color:#fff; border-color:#dc2626 }
+    .btn-danger:hover { background:#dc2626 }
+    .wrap { white-space: normal; }
+  `;
+  document.head.appendChild(st);
+}
+
+/* ===== ROW OPS ===== */
+async function saveRow(row) {
+  const d = row.getData();
+  if (!trim(d.name)) {
+    toast("Name required", false);
+    row.getCell("name")?.edit(true);
+    return;
+  }
+  const payload = buildPayload(d);
+
+  try {
+    if (!d.id) {
+      const created = await jfetch(ENDPOINTS.base, {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      const norm = normalizeRow(created || d);
+      row.update({ ...norm, _dirty: false });
+      toast("Created");
+    } else {
+      const updated = await jfetch(
+        `${ENDPOINTS.base}/${encodeURIComponent(d.id)}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify(payload),
+        }
+      );
+      const norm = normalizeRow(updated || d);
+      // keep id just in case backend omits it
+      row.update({ ...d, ...norm, id: norm.id ?? d.id, _dirty: false });
+      toast("Saved");
+    }
+  } catch (e) {
+    toast(e?.message || "Save failed", false);
+  } finally {
+    // row.getElement()?.classList.remove("is-dirty");
+    // row.reformat(); // refresh Actions column
+    setDirtyClass(row, false);
+    row.reformat();
+    table?.redraw(true);
+  }
+}
+
+async function cancelRow(row) {
+  // const d = row.getData();
+  // if (!d.id) {
+  //   row.delete();
+  // } else {
+
+  const d = row.getData();
+  if (!d.id) {
+    // แถวใหม่: เอาออกก่อน แล้วไม่ต้องแตะ DOM ต่อ
+    row.delete();
+    return;
+  } else {
+    // reload fresh one (simple/robust)
+    try {
+      const fresh = await jfetch(
+        `${ENDPOINTS.base}/${encodeURIComponent(d.id)}`
+      );
+      const norm = normalizeRow(fresh || d);
+      row.update({ ...norm, _dirty: false });
+    } catch {
+      row.update({ _dirty: false }); // fallback
+    }
+  }
+  // row.getElement()?.classList.remove("is-dirty");
+  // row.reformat();
+  // table?.redraw(true);
+
+  setDirtyClass(row, false);
+  row.reformat();
+  table?.redraw(true);
+}
+
+async function deleteRow(row) {
+  const d = row.getData();
+  if (!d.id) {
+    row.delete();
+    table?.redraw(true);
+    return;
+  }
+  if (!confirm("Delete this customer?\nThis action cannot be undone.")) return;
+  try {
+    await jfetch(`${ENDPOINTS.base}/${encodeURIComponent(d.id)}`, {
+      method: "DELETE",
+    });
+    row.delete();
+    toast("Deleted");
+  } catch (e) {
+    toast(e?.message || "Delete failed", false);
+  }
 }
 
 /* ===== TABLE ===== */
@@ -58,9 +177,9 @@ function makeColumns() {
       editor: "input",
       validator: "required",
     },
-    { title: "Contact", field: "contact", width: 110, editor: "input" },
-    { title: "Email", field: "email", width: 110, editor: "input" },
-    { title: "Phone", field: "phone", width: 110, editor: "input" },
+    { title: "Contact", field: "contact", width: 130, editor: "input" },
+    { title: "Email", field: "email", width: 180, editor: "input" },
+    { title: "Phone", field: "phone", width: 140, editor: "input" },
     {
       title: "Address",
       field: "address",
@@ -73,44 +192,42 @@ function makeColumns() {
     {
       title: "Actions",
       field: "_actions",
-      width: 100,
+      width: 200,
       hozAlign: "right",
       headerSort: false,
-      formatter: () =>
-        `<button class="btn-small btn-danger" data-act="del">Delete</button>`,
+      formatter: (cell) => {
+        const d = cell.getRow().getData();
+        const show = d._dirty === true || !d.id;
+        return `
+    <div class="row-actions">
+      <button class="btn-small btn-primary" ${
+        show ? "" : "style='display:none'"
+      } data-act="save">Save</button>
+      <button class="btn-small btn-secondary" ${
+        show ? "" : "style='display:none'"
+      } data-act="cancel">Cancel</button>
+      <button class="btn-small btn-danger" data-act="del">Delete</button>
+    </div>`;
+      },
       cellClick: async (e, cell) => {
-        const btn = e.target.closest("button[data-act='del']");
+        const btn = e.target.closest("button[data-act]");
         if (!btn) return;
         const row = cell.getRow();
-        const d = row.getData();
-        if (!d.id) {
-          row.delete();
-          table.redraw(true);
-          return;
-        }
-        if (!confirm("Delete this customer?\nThis action cannot be undone."))
-          return;
-        try {
-          await jfetch(`${ENDPOINTS.base}/${encodeURIComponent(d.id)}`, {
-            method: "DELETE",
-          });
-          toast("Deleted");
-          row.delete();
-          table.redraw(true);
-        } catch (err) {
-          toast(err?.message || "Delete failed", false);
-        }
+        const act = btn.getAttribute("data-act");
+        if (act === "save") return saveRow(row);
+        if (act === "cancel") return cancelRow(row);
+        if (act === "del") return deleteRow(row);
       },
     },
   ];
 }
 
 function initTable() {
+  injectStylesOnce();
+
   table = new Tabulator(`#${UI.tableMount}`, {
     layout: "fitColumns",
-    // height: "calc(100vh - 180px)",
     height: "75vh",
-    // height: "100%",
     columns: makeColumns(),
     placeholder: "No customers",
     reactiveData: true,
@@ -122,49 +239,20 @@ function initTable() {
     setTimeout(() => table.redraw(true), 0);
   });
 
-  // AUTOSAVE เมื่อแก้ไขจบ
-  table.on("cellEdited", async (cell) => {
+  // เปลี่ยนจาก autosave → เพียง mark dirty + reformat (เหมือน page-pos.js)
+  table.on("cellEdited", (cell) => {
     const row = cell.getRow();
     const d = row.getData();
-    if (!trim(d.name)) {
-      toast("Name required", false);
-      return;
+    if (!d._dirty) {
+      row.update({ _dirty: true });
+      setDirtyClass(row, true);
     }
-    const payload = buildPayload(d);
-
-    try {
-      if (!d.id) {
-        const created = await jfetch(ENDPOINTS.base, {
-          method: "POST",
-          body: JSON.stringify(payload),
-        });
-        if (created && typeof created === "object")
-          row.update(normalizeRow(created));
-        else await loadAll(els[UI.q]?.value || "");
-        toast("Created");
-      } else {
-        const updated = await jfetch(
-          `${ENDPOINTS.base}/${encodeURIComponent(d.id)}`,
-          {
-            method: "PUT",
-            body: JSON.stringify(payload),
-          }
-        );
-        if (updated && typeof updated === "object")
-          row.update(normalizeRow(updated));
-        else await loadAll(els[UI.q]?.value || "");
-        toast("Saved");
-      }
-      table.redraw(true);
-    } catch (e) {
-      toast(e?.message || "Save failed", false);
-    }
+    row.reformat();
   });
 }
 
 /* ===== FETCH ALL HELPERS ===== */
 async function tryFetchAllParam(keyword = "") {
-  // ยิงด้วย all=1 (รองรับ “ทางเลือก A”)
   const usp = new URLSearchParams();
   usp.set("all", "1");
   if (keyword) usp.set("q", keyword);
@@ -175,7 +263,6 @@ async function tryFetchAllParam(keyword = "") {
 }
 
 async function fetchAllByPaging(keyword = "") {
-  // ไล่ดึงทุกหน้า (รองรับแบ็กเอนด์เดิมของคุณ)
   const perPage = PAGED_PER_PAGE;
   let page = 1;
   const all = [];
@@ -206,19 +293,16 @@ async function loadAll(keyword = "") {
       try {
         const { items, total, pages } = await tryFetchAllParam(keyword);
         records = items;
-        // ถ้า backend ยังส่งมาไม่ครบ (เผื่อบางระบบ all=1 แต่ยังจำกัด per_page)
         if (
           records.length < (total || records.length) ||
           (pages && pages > 1)
         ) {
-          // fallback ไปแบบแบ่งหน้า
           records = await fetchAllByPaging(keyword);
         }
         ok = true;
       } catch {
         if (FETCH_ALL_STRATEGY === "all-param")
           throw new Error("Backend doesn't support all=1");
-        // auto -> ตกลงไปใช้ paged
       }
       if (ok) {
         table?.setData(records.map(normalizeRow));
@@ -227,7 +311,6 @@ async function loadAll(keyword = "") {
       }
     }
 
-    // โหมดบังคับ paged หรือ auto แล้ว all=1 ใช้ไม่ได้
     records = await fetchAllByPaging(keyword);
     table?.setData(records.map(normalizeRow));
     table?.redraw(true);
@@ -248,16 +331,26 @@ function bindSearch() {
     t = setTimeout(() => loadAll(box.value), 300);
   });
 }
+
 function bindAdd() {
   const btn = els[UI.btnAdd];
   if (!btn) return;
   btn.addEventListener("click", async () => {
     const row = await table.addRow(
-      { code: "", name: "", contact: "", email: "", phone: "", address: "" },
+      {
+        code: "",
+        name: "",
+        contact: "",
+        email: "",
+        phone: "",
+        address: "",
+        _dirty: true,
+      },
       true
     );
+    setDirtyClass(row, true);
+    row.reformat();
     row.getCell("name")?.edit(true);
-    table.redraw(true);
   });
 }
 

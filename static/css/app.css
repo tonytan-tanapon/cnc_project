@@ -512,3 +512,11 @@ table.grid.lines-table td:nth-child(8){
   display: flex !important;
   gap: 6px;
 }
+
+
+.btn-secondary {
+  background:#6b7280; /* gray-500 */
+  color:#fff;
+  border-color:#4b5563;
+}
+.btn-secondary:hover { background:#4b5563 }

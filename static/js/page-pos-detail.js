@@ -1,4 +1,4 @@
-// /static/js/page-pos-detail.js (v5)
+// /static/js/page-pos-detail.js (v6 – header & lines use Save/Cancel buttons, no autosave on blur)
 import { $, jfetch, toast } from "./api.js";
 import { attachAutocomplete } from "./autocomplete.js";
 
@@ -10,6 +10,7 @@ let initial = null; // current PO from server
 let isSubmitting = false;
 let selectedCustomer = null; // {id, code, name}
 
+/* lines table */
 let linesTable = null;
 
 /* ---------- EL REFS ---------- */
@@ -21,6 +22,10 @@ const elPoNumber = $("po_po_number");
 const elCustomer = $("po_customer");
 const elDesc = $("po_description");
 const elCreated = $("po_created");
+
+/* Header action buttons (created dynamically) */
+let btnHdrSave = null;
+let btnHdrCancel = null;
 
 /* ---------- UTILS ---------- */
 const safe = (s) =>
@@ -34,6 +39,7 @@ const fmtDate = (s) => {
   return isNaN(d) ? "—" : d.toLocaleString();
 };
 const trim = (v) => (v == null ? "" : String(v).trim());
+
 function setBusy(b) {
   hintEl.textContent = b ? "Working…" : "";
 }
@@ -41,6 +47,35 @@ function setError(msg) {
   errEl.style.display = msg ? "" : "none";
   errEl.textContent = msg || "";
 }
+
+/* add/remove highlight class safely even when row is virtualized */
+function setDirtyClass(row, on) {
+  const el = typeof row.getElement === "function" ? row.getElement() : null;
+  if (el && el.classList) {
+    if (on) el.classList.add("is-dirty");
+    else el.classList.remove("is-dirty");
+  }
+}
+
+/* ---------- Inject small styles ---------- */
+(function injectOnce() {
+  if (document.getElementById("pos-detail-actions-css")) return;
+  const st = document.createElement("style");
+  st.id = "pos-detail-actions-css";
+  st.textContent = `
+    .btn-mini{font:inherit;padding:6px 10px;border-radius:8px;border:1px solid #e5e7eb;background:#f8fafc;cursor:pointer}
+    .btn-mini:hover{background:#f1f5f9}
+    .btn-primary{background:#2563eb;color:#fff;border-color:#1d4ed8}
+    .btn-primary:hover{background:#1d4ed8}
+    .btn-danger{background:#ef4444;color:#fff;border-color:#dc2626}
+    .btn-danger:hover{background:#dc2626}
+    .btn-secondary{background:#6b7280;color:#fff;border-color:#4b5563}
+    .btn-secondary:hover{background:#4b5563}
+    .hdr-actions{display:flex;gap:8px;align-items:center}
+    .tabulator-row.is-dirty{background:#fff7ed}
+  `;
+  document.head.appendChild(st);
+})();
 
 /* ---------- Customer autocomplete (header) ---------- */
 async function searchCustomers(term) {
@@ -81,15 +116,17 @@ function initCustomerAutocomplete() {
     onPick: async (it) => {
       selectedCustomer = it;
       elCustomer.value = `${it.code} — ${it.name}`;
-      await saveHeaderField("customer_id", it.id);
+      // mark header dirty (no autosave)
+      markHeaderDirty(true);
     },
   });
   elCustomer.addEventListener("input", () => {
     selectedCustomer = null;
+    markHeaderDirty(true);
   });
 }
 
-/* ---------- Header load / autosave ---------- */
+/* ---------- Header load ---------- */
 async function loadHeader() {
   if (!poIdQS) {
     initial = null;
@@ -99,6 +136,7 @@ async function loadHeader() {
     elDesc.value = "";
     elCreated.textContent = "—";
     document.title = `PO · (new)`;
+    markHeaderDirty(false);
     return;
   }
   setBusy(true);
@@ -114,6 +152,7 @@ async function loadHeader() {
     elCustomer.value = c?.code ? `${c.code} — ${c.name ?? ""}` : "";
     elDesc.value = po.description ?? "";
     elCreated.textContent = fmtDate(po.created_at);
+    markHeaderDirty(false);
   } catch (e) {
     setError(e?.message || "Load failed");
     initial = null;
@@ -123,27 +162,33 @@ async function loadHeader() {
   }
 }
 
-async function saveHeaderField(field, value) {
-  // create/patch ตามสถานะ
+/* ---------- Header Save/Cancel (manual) ---------- */
+function getHeaderDraft() {
+  return {
+    po_number: trim(elPoNumber.value),
+    customer_id: selectedCustomer?.id ?? null,
+    description: trim(elDesc.value),
+  };
+}
+function markHeaderDirty(on) {
+  if (btnHdrSave) btnHdrSave.style.display = on ? "" : "none";
+  if (btnHdrCancel) btnHdrCancel.style.display = on ? "" : "none";
+}
+async function saveHeaderManual() {
   if (isSubmitting) return;
+  const draft = getHeaderDraft();
+  if (!draft.customer_id) {
+    toast("Select Customer !!", false);
+    return;
+  }
   try {
     isSubmitting = true;
     setBusy(true);
     if (!initial?.id) {
       // create
-      const payload = {
-        po_number: field === "po_number" ? trim(value) : trim(elPoNumber.value),
-        customer_id:
-          field === "customer_id" ? value : selectedCustomer?.id || null,
-        description: field === "description" ? trim(value) : trim(elDesc.value),
-      };
-      if (!payload.customer_id) {
-        toast("Select Customer !!", false);
-        return;
-      }
       const created = await jfetch(`/pos`, {
         method: "POST",
-        body: JSON.stringify(payload),
+        body: JSON.stringify(draft),
       });
       toast("PO created");
       location.replace(
@@ -151,17 +196,27 @@ async function saveHeaderField(field, value) {
       );
       return;
     } else {
-      // patch
+      // patch only changed fields
       const patch = {};
-      if (field === "po_number") patch.po_number = trim(value);
-      else if (field === "customer_id") patch.customer_id = value || null;
-      else if (field === "description") patch.description = trim(value);
+      if (draft.po_number !== (initial.po_number ?? ""))
+        patch.po_number = draft.po_number;
+      const curCid = initial?.customer?.id ?? null;
+      if ((draft.customer_id ?? null) !== curCid)
+        patch.customer_id = draft.customer_id;
+      if (draft.description !== (initial.description ?? ""))
+        patch.description = draft.description;
 
-      await jfetch(`/pos/${encodeURIComponent(initial.id)}`, {
-        method: "PATCH",
-        body: JSON.stringify(patch),
-      });
-      toast("Saved");
+      if (Object.keys(patch).length) {
+        await jfetch(`/pos/${encodeURIComponent(initial.id)}`, {
+          method: "PATCH",
+          body: JSON.stringify(patch),
+        });
+        toast("Saved");
+        // refresh header baseline
+        await loadHeader();
+      } else {
+        markHeaderDirty(false);
+      }
     }
   } catch (e) {
     toast(e?.message || "Save failed", false);
@@ -170,30 +225,70 @@ async function saveHeaderField(field, value) {
     setBusy(false);
   }
 }
+async function cancelHeaderManual() {
+  if (!initial?.id) {
+    // brand new: just clear fields
+    elPoNumber.value = "";
+    elCustomer.value = "";
+    selectedCustomer = null;
+    elDesc.value = "";
+    markHeaderDirty(false);
+    return;
+  }
+  // restore from initial
+  elPoNumber.value = initial.po_number ?? "";
+  if (initial.customer) {
+    selectedCustomer = {
+      id: initial.customer.id,
+      code: initial.customer.code,
+      name: initial.customer.name,
+    };
+    elCustomer.value = `${initial.customer.code} — ${
+      initial.customer.name ?? ""
+    }`;
+  } else {
+    selectedCustomer = null;
+    elCustomer.value = "";
+  }
+  elDesc.value = initial.description ?? "";
+  markHeaderDirty(false);
+}
 
-/* autosave on blur / Enter */
-function wireHeaderAutosave() {
-  elPoNumber.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      elPoNumber.blur();
-    }
-  });
-  elPoNumber.addEventListener("blur", () =>
-    saveHeaderField("po_number", elPoNumber.value)
-  );
+/* wire header inputs to just mark dirty (no autosave on blur/enter) */
+function wireHeaderDirtyOnly() {
+  const onDirty = () => markHeaderDirty(true);
+  elPoNumber.addEventListener("input", onDirty);
+  elPoNumber.addEventListener("change", onDirty);
+  elDesc.addEventListener("input", onDirty);
+  elDesc.addEventListener("change", onDirty);
+  // customer marks dirty in initCustomerAutocomplete()
+}
 
-  elDesc.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      elDesc.blur();
-    }
-  });
-  elDesc.addEventListener("blur", () =>
-    saveHeaderField("description", elDesc.value)
-  );
+/* Create header Save/Cancel buttons near subtitle */
+function ensureHeaderButtons() {
+  if (!subTitle) return;
+  if (document.getElementById("hdr-actions")) return;
 
-  // customer: บันทึกตอน onPick ใน autocomplete -> saveHeaderField("customer_id", id)
+  const wrap = document.createElement("div");
+  wrap.id = "hdr-actions";
+  wrap.className = "hdr-actions";
+
+  btnHdrSave = document.createElement("button");
+  btnHdrSave.className = "btn-mini btn-primary";
+  btnHdrSave.textContent = "Save";
+  btnHdrSave.style.display = "none";
+  btnHdrSave.addEventListener("click", saveHeaderManual);
+
+  btnHdrCancel = document.createElement("button");
+  btnHdrCancel.className = "btn-mini btn-secondary";
+  btnHdrCancel.textContent = "Cancel";
+  btnHdrCancel.style.display = "none";
+  btnHdrCancel.addEventListener("click", cancelHeaderManual);
+
+  // วางต่อท้าย subtitle
+  subTitle.insertAdjacentElement("afterend", wrap);
+  wrap.appendChild(btnHdrSave);
+  wrap.appendChild(btnHdrCancel);
 }
 
 /* ---------- Lines helpers ---------- */
@@ -288,87 +383,11 @@ function normalizeServerLine(row) {
     note: row.note ?? row.notes ?? "",
     part: row.part ?? null,
     rev: row.rev ?? row.revision ?? null,
+    _dirty: false,
   };
 }
 
-/* ---------- Lines editors (built-in input + autosave) ---------- */
-function partEditor(cell, onRendered, success, cancel) {
-  const input = document.createElement("input");
-  input.type = "text";
-  input.className = "tabulator-editing";
-  input.style.width = "100%";
-  input.value = String(cell.getValue() ?? "");
-  onRendered(() => {
-    input.focus();
-    input.select();
-  });
-  input.addEventListener("keydown", async (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      const raw = input.value.trim();
-      if (!raw) {
-        success("");
-        return;
-      }
-      const found = await resolvePart(raw);
-      if (!found) {
-        toast("Unknown Part No", false);
-        return;
-      }
-      const row = cell.getRow();
-      row.update({
-        part_id: found.id,
-        part_no: found.part_no,
-        revision_id: null,
-        revision_text: "",
-      });
-      success(found.part_no);
-    } else if (e.key === "Escape") {
-      e.preventDefault();
-      cancel();
-    }
-  });
-  return input;
-}
-function revisionEditor(cell, onRendered, success, cancel) {
-  const row = cell.getRow();
-  const partId = row.getData().part_id;
-  const input = document.createElement("input");
-  input.type = "text";
-  input.className = "tabulator-editing";
-  input.style.width = "100%";
-  input.value = String(cell.getValue() ?? "");
-  onRendered(() => {
-    input.focus();
-    input.select();
-  });
-  input.addEventListener("keydown", async (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      const raw = input.value.trim();
-      if (!raw) {
-        success("");
-        row.update({ revision_id: null, revision_text: "" });
-        return;
-      }
-      if (!partId) {
-        toast("Select Part first", false);
-        return;
-      }
-      const rid = await resolveRevision(partId, raw);
-      if (!rid) {
-        toast("Unknown revision for this part", false);
-        return;
-      }
-      row.update({ revision_id: rid, revision_text: raw });
-      success(raw);
-    } else if (e.key === "Escape") {
-      e.preventDefault();
-      cancel();
-    }
-  });
-  return input;
-}
+/* ---------- Lines editors (mark dirty; don't save immediately) ---------- */
 function partAutocompleteEditor(cell, onRendered, success, cancel) {
   const input = document.createElement("input");
   input.type = "text";
@@ -376,9 +395,8 @@ function partAutocompleteEditor(cell, onRendered, success, cancel) {
   input.value = cell.getValue() || "";
   input.autocomplete = "off";
 
-  // เรียก API /parts?q=...
   async function fetchParts(term) {
-    const q = term.trim();
+    const q = (term || "").trim();
     const url = q
       ? `/parts?q=${encodeURIComponent(q)}&page=1&page_size=10`
       : `/parts?page=1&page_size=10`;
@@ -387,7 +405,6 @@ function partAutocompleteEditor(cell, onRendered, success, cancel) {
     return items.map((p) => ({ id: p.id, part_no: p.part_no, name: p.name }));
   }
 
-  // attachAutocomplete คือ helper ของคุณเอง
   attachAutocomplete(input, {
     fetchItems: fetchParts,
     getDisplayValue: (it) => (it ? `${it.part_no} — ${it.name}` : ""),
@@ -397,9 +414,12 @@ function partAutocompleteEditor(cell, onRendered, success, cancel) {
       row.update({
         part_id: it.id,
         part_no: it.part_no,
-        revision_id: null, // reset rev เมื่อเปลี่ยน part
+        revision_id: null,
         revision_text: "",
+        _dirty: true,
       });
+      setDirtyClass(row, true);
+      row.reformat();
       success(it.part_no);
     },
     minChars: 0,
@@ -425,7 +445,7 @@ function revisionAutocompleteEditor(cell, onRendered, success, cancel) {
     return input;
   }
 
-  async function fetchRevisions(term) {
+  async function _fetchRevisions() {
     const url = `/parts/${partId}/revisions`;
     const res = await jfetch(url);
     const items = Array.isArray(res) ? res : res.items || [];
@@ -437,13 +457,15 @@ function revisionAutocompleteEditor(cell, onRendered, success, cancel) {
   }
 
   attachAutocomplete(input, {
-    fetchItems: fetchRevisions,
+    fetchItems: _fetchRevisions,
     getDisplayValue: (it) => (it ? it.rev : ""),
     renderItem: (it) =>
       `<div><b>${it.rev}</b> ${it.is_current ? "(current)" : ""}</div>`,
     onPick: (it) => {
       const row = cell.getRow();
-      row.update({ revision_id: it.id, revision_text: it.rev });
+      row.update({ revision_id: it.id, revision_text: it.rev, _dirty: true });
+      setDirtyClass(row, true);
+      row.reformat();
       success(it.rev);
     },
     minChars: 0,
@@ -532,103 +554,44 @@ function initLinesTable() {
       },
       { title: "Due", field: "due_date", width: 160, editor: "date" },
       { title: "Notes", field: "note", editor: "input" },
-    ],
-
-    // คลิกขวาที่แถว -> เมนูเพิ่ม/ลบ (ไม่ใช้ปุ่ม HTML)
-    rowContextMenu: [
       {
-        label: "➕ Add new line (top)",
-        action: function (e, row) {
-          linesTable.addRow(
-            {
-              part_no: "",
-              revision_text: "",
-              qty: null,
-              unit_price: null,
-              due_date: "",
-              note: "",
-            },
-            true
-          );
+        title: "Actions",
+        field: "_actions",
+        width: 220,
+        hozAlign: "right",
+        headerSort: false,
+        formatter: (cell) => {
+          const d = cell.getRow().getData();
+          const show = d._dirty === true || !d.id;
+          return `
+            <button class="btn-mini btn-primary" ${
+              show ? "" : "style='display:none'"
+            } data-act="save">Save</button>
+            <button class="btn-mini btn-secondary" ${
+              show ? "" : "style='display:none'"
+            } data-act="cancel">Cancel</button>
+            <button class="btn-mini btn-danger" data-act="del">Delete</button>
+          `;
         },
-      },
-      {
-        label: "🗑️ Delete line",
-        action: async function (e, row) {
-          const d = row.getData();
-          if (!d.id) {
-            row.delete();
-            return;
-          }
-          if (!confirm("Delete line?\nThis action cannot be undone.")) return;
-          const poid = initial?.id ?? poIdQS;
-          try {
-            await jfetch(`/pos/${encodeURIComponent(poid)}/lines/${d.id}`, {
-              method: "DELETE",
-            });
-            toast("Deleted");
-            row.delete();
-          } catch (err) {
-            toast(err?.message || "Delete failed", false);
-          }
+        cellClick: async (e, cell) => {
+          const btn = e.target.closest("button[data-act]");
+          if (!btn) return;
+          const row = cell.getRow();
+          if (btn.dataset.act === "save") await saveLine(row);
+          else if (btn.dataset.act === "cancel") await cancelLine(row);
+          else if (btn.dataset.act === "del") await deleteLine(row);
         },
       },
     ],
   });
 
-  // built-in inline save via events (ไม่มีปุ่ม)
-  linesTable.on("cellEdited", async (cell) => {
+  // mark dirty only, no autosave
+  linesTable.on("cellEdited", (cell) => {
     const row = cell.getRow();
     const d = row.getData();
-
-    // ถ้ายังไม่มี header -> สร้าง header อัตโนมัติก่อน
-    if (!initial?.id && !poIdQS) {
-      // บังคับให้สร้าง PO ก่อน โดยใช้ค่าปัจจุบันจากฟอร์ม
-      await saveHeaderField("po_number", elPoNumber.value); // ภายใน saveHeaderField จะ create + redirect
-      return;
-    }
-
-    const poid = initial?.id ?? poIdQS;
-    let payload = buildLinePayload(d);
-
-    try {
-      if (!d.id) {
-        // create
-        const created = await jfetch(`/pos/${encodeURIComponent(poid)}/lines`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-        row.update(normalizeServerLine(created));
-        toast("Line added");
-      } else {
-        // update
-        const updated = await jfetch(
-          `/pos/${encodeURIComponent(poid)}/lines/${d.id}`,
-          {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-          }
-        );
-        row.update(normalizeServerLine(updated));
-        toast("Saved");
-      }
-    } catch (e) {
-      const msg = String(e?.message || "").toLowerCase();
-      if (
-        msg.includes("revision_id does not belong") ||
-        msg.includes("belongs to part")
-      ) {
-        row.update({ revision_id: null });
-        toast(
-          "Selected revision doesn’t belong to this part. Cleared revision.",
-          false
-        );
-      } else {
-        toast(e?.message || "Save failed", false);
-      }
-    }
+    if (!d._dirty) row.update({ _dirty: true });
+    setDirtyClass(row, true);
+    row.reformat();
   });
 
   linesTable.on("tableBuilt", () => {
@@ -640,7 +603,7 @@ function initLinesTable() {
   ro.observe(holder);
   window.addEventListener("resize", safeRedraw);
 }
-// แถวใหม่มาตรฐาน (ปรับ default ได้)
+
 function makeBlankLine() {
   return {
     part_no: "",
@@ -649,28 +612,131 @@ function makeBlankLine() {
     unit_price: null,
     due_date: "",
     note: "",
+    _dirty: true,
   };
 }
 
-// ปุ่ม + Add ที่หัวตาราง
+/* header + button for add line */
 document.addEventListener("DOMContentLoaded", () => {
   const addBtn = document.getElementById("btnAddLine");
   if (!addBtn) return;
   addBtn.addEventListener("click", async () => {
-    // ถ้ายังไม่มี PO (header ยังไม่ create) ให้บังคับสร้างก่อน
     if (!initial?.id && !poIdQS) {
-      // ใช้ค่าที่พิมพ์ใน header ตอนนี้ไปสร้าง
-      await saveHeaderField("po_number", elPoNumber.value);
-      return; // saveHeaderField จะ redirect ให้เอง
+      // force user to save header first
+      toast("Save header first", false);
+      markHeaderDirty(true);
+      return;
     }
-
-    // เพิ่มแถวที่ด้านบน แล้วเข้าโหมดแก้ไขคอลัมน์แรกทันที
     const row = await linesTable.addRow(makeBlankLine(), true);
-    // เริ่มแก้ที่ Part No.
     const cell = row.getCell("part_no");
     if (cell) cell.edit(true);
+    setDirtyClass(row, true);
+    row.reformat();
   });
 });
+
+/* ---------- Lines Save/Cancel/Delete ---------- */
+async function saveLine(row) {
+  const d = row.getData();
+  // guard: need header id
+  const poid = initial?.id ?? poIdQS;
+  if (!poid) {
+    toast("Save header first", false);
+    markHeaderDirty(true);
+    return;
+  }
+
+  // validation: if part set, allow; otherwise can save blank note/price? (relax: only validate if qty or price set but no part)
+  if (
+    (d.qty != null || d.unit_price != null || d.revision_text || d.due_date) &&
+    !d.part_id
+  ) {
+    toast("Select Part first", false);
+    row.getCell("part_no")?.edit(true);
+    return;
+  }
+
+  const payload = buildLinePayload(d);
+  try {
+    if (!d.id) {
+      const created = await jfetch(`/pos/${encodeURIComponent(poid)}/lines`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      row.update(normalizeServerLine(created));
+      toast("Line added");
+    } else {
+      const updated = await jfetch(
+        `/pos/${encodeURIComponent(poid)}/lines/${d.id}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        }
+      );
+      row.update(normalizeServerLine(updated));
+      toast("Saved");
+    }
+  } catch (e) {
+    const msg = String(e?.message || "").toLowerCase();
+    if (
+      msg.includes("revision_id does not belong") ||
+      msg.includes("belongs to part")
+    ) {
+      row.update({ revision_id: null });
+      toast(
+        "Selected revision doesn’t belong to this part. Cleared revision.",
+        false
+      );
+    } else {
+      toast(e?.message || "Save failed", false);
+    }
+    return;
+  } finally {
+    row.update({ _dirty: false });
+    setDirtyClass(row, false);
+    row.reformat();
+  }
+}
+
+async function cancelLine(row) {
+  const d = row.getData();
+  if (!d.id) {
+    row.delete();
+    return;
+  }
+  const poid = initial?.id ?? poIdQS;
+  try {
+    const fresh = await jfetch(
+      `/pos/${encodeURIComponent(poid)}/lines/${d.id}`
+    );
+    row.update(normalizeServerLine(fresh));
+  } catch {
+    row.update({ _dirty: false }); // fallback: just clear dirty flag
+  }
+  setDirtyClass(row, false);
+  row.reformat();
+}
+
+async function deleteLine(row) {
+  const d = row.getData();
+  if (!d.id) {
+    row.delete();
+    return;
+  }
+  if (!confirm("Delete line?\nThis action cannot be undone.")) return;
+  const poid = initial?.id ?? poIdQS;
+  try {
+    await jfetch(`/pos/${encodeURIComponent(poid)}/lines/${d.id}`, {
+      method: "DELETE",
+    });
+    row.delete();
+    toast("Deleted");
+  } catch (e) {
+    toast(e?.message || "Delete failed", false);
+  }
+}
 
 /* ---------- Lines IO ---------- */
 async function reloadLines() {
@@ -690,12 +756,12 @@ async function reloadLines() {
 
 /* ---------- Boot ---------- */
 document.addEventListener("DOMContentLoaded", async () => {
+  ensureHeaderButtons(); // add Save/Cancel for header
   initCustomerAutocomplete();
   initLinesTable();
 
   await loadHeader();
-  // โหลด lines หลัง header (รู้ id แล้ว)
   await reloadLines();
 
-  wireHeaderAutosave();
+  wireHeaderDirtyOnly(); // mark dirty, no autosave
 });
