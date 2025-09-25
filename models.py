@@ -157,6 +157,11 @@ class Part(Base):
         foreign_keys="ProductionLot.part_id",
     )
 
+    # relationships (not columns)
+    processes = relationship("PartProcessSelection", back_populates="part", cascade="all, delete-orphan")
+    finishes  = relationship("PartFinishSelection", back_populates="part", cascade="all, delete-orphan")
+    other_notes = relationship("PartOtherNote", back_populates="part", cascade="all, delete-orphan")
+
     def __repr__(self):
         return f"<Part(part_no={self.part_no})>"
 
@@ -1121,3 +1126,76 @@ class CustomerReturnItem(Base):
     shipment_item = relationship("CustomerShipmentItem")
     po_line = relationship("POLine")
     lot = relationship("ProductionLot")
+
+
+############ Seclection 
+class ManufacturingProcess(Base):
+    __tablename__ = "mfg_processes"
+    id   = Column(Integer, primary_key=True)
+    code = Column(String, unique=True, index=True, nullable=False)
+    name = Column(String, nullable=False)
+    category = Column(String, nullable=True)
+    is_active = Column(Boolean, default=True, nullable=False)
+
+class ChemicalFinish(Base):
+    __tablename__ = "chemical_finishes"
+    id   = Column(Integer, primary_key=True)
+    code = Column(String, unique=True, index=True, nullable=False)
+    name = Column(String, nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+
+class PartProcessSelection(Base):
+    __tablename__ = "part_process_selections"
+
+    id = Column(Integer, primary_key=True)
+
+    part_id = Column(Integer, ForeignKey("parts.id", ondelete="CASCADE"), nullable=False, index=True)
+    process_id = Column(Integer, ForeignKey("mfg_processes.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    part = relationship("Part", back_populates="processes")
+    process = relationship("ManufacturingProcess")
+
+    __table_args__ = (
+        UniqueConstraint("part_id", "process_id", name="uq_part_process"),
+    )
+
+    def __repr__(self):
+        return f"<PartProcessSelection(part_id={self.part_id}, process_id={self.process_id})>"
+
+
+class PartFinishSelection(Base):
+    __tablename__ = "part_finish_selections"
+
+    id = Column(Integer, primary_key=True)
+
+    part_id = Column(Integer, ForeignKey("parts.id", ondelete="CASCADE"), nullable=False, index=True)
+    finish_id = Column(Integer, ForeignKey("chemical_finishes.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    part = relationship("Part", back_populates="finishes")
+    finish = relationship("ChemicalFinish")
+
+    __table_args__ = (
+        UniqueConstraint("part_id", "finish_id", name="uq_part_finish"),
+    )
+
+    def __repr__(self):
+        return f"<PartFinishSelection(part_id={self.part_id}, finish_id={self.finish_id})>"
+
+
+class PartOtherNote(Base):
+    __tablename__ = "part_other_notes"
+
+    id = Column(Integer, primary_key=True)
+
+    part_id = Column(Integer, ForeignKey("parts.id", ondelete="CASCADE"), nullable=False, index=True)
+    category = Column(String, nullable=False)   # e.g. "PROCESS", "FINISH"
+    note = Column(String, nullable=False)
+
+    part = relationship("Part", back_populates="other_notes")
+
+    def __repr__(self):
+        return f"<PartOtherNote(part_id={self.part_id}, category={self.category}, note={self.note})>"

@@ -4,7 +4,7 @@ from fastapi import APIRouter
 from . import (
     auth, customers, pos, employees, materials, batches, lots, lot_uses,
     travelers, traveler_steps, suppliers, subcon, payroll, time_clock,
-    parts, users, pay_periods, payroll_extras, data, data_detail
+    parts, users, pay_periods, payroll_extras, data, data_detail,part_selections,lookups
 )
 
 api_v1 = APIRouter()
@@ -33,10 +33,10 @@ api_v1.include_router(time_clock.breaks_router)
 
 # parts: ใช้ parts_router (revisions อยู่ภายในไฟล์เดียวกัน)
 api_v1.include_router(parts.parts_router)
-
+api_v1.include_router(part_selections.sel_router)
 # pos: ใช้ pos_router
 api_v1.include_router(pos.pos_router)
-
+api_v1.include_router(lookups.lookups)
 # payroll: main + subrouters
 api_v1.include_router(payroll.router)          # /payroll/...
 api_v1.include_router(payroll.periods_router)  # /pay-periods/...

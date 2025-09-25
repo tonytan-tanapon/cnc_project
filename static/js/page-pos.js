@@ -1,5 +1,5 @@
-// /static/js/page-pos.js (inline CRUD + autocomplete + fetch ALL + PO line "View")
-// v2 — robust qs, JSON headers, safer ALL loading & cancel
+// /static/js/page-pos.js (inline CRUD + autocomplete + infinite scroll + PO line "View")
+// v5 — load-on-near-bottom (IntersectionObserver), no auto top-up, bigger page size, cooldown
 
 import { $, jfetch, toast } from "./api.js";
 import { attachAutocomplete } from "./autocomplete.js";
@@ -10,7 +10,8 @@ const ENDPOINTS = {
   byId: (id) => `/pos/${encodeURIComponent(id)}`,
   list: (qs) => `/pos?${qs}`,
 };
-const PAGED_PER_PAGE = 200; // page size เมื่อ fallback โหลดแบบแบ่งหน้า
+// Server allows up to 500; fewer requests = faster feel
+const PAGED_PER_PAGE = 500;
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
 const UI = { q: "po_q", add: "po_add", table: "po_table" };
@@ -18,7 +19,7 @@ const UI = { q: "po_q", add: "po_add", table: "po_table" };
 /* ===== STATE ===== */
 let els = {};
 let table = null;
-// เก็บ snapshot เดิมของแต่ละ id เพื่อให้ Cancel ย้อนกลับได้แม่นยำ
+// snapshot เดิมของแต่ละ id เพื่อให้ Cancel ย้อนกลับได้แม่นยำ
 const origById = new Map();
 
 /* ===== HELPERS ===== */
@@ -58,7 +59,6 @@ function buildPayload(row) {
 /* ===== Customer Autocomplete Editor ===== */
 async function fetchCustomers(term) {
   const q = (term || "").trim();
-  // เปิดแนะนำ 10 รายการแรกเมื่อยังไม่พิมพ์
   if (!q) {
     try {
       const res = await jfetch(`/customers/keyset?limit=10`);
@@ -72,7 +72,6 @@ async function fetchCustomers(term) {
       return [];
     }
   }
-  // ค้นหาตาม q
   try {
     const res = await jfetch(
       `/customers?q=${encodeURIComponent(q)}&page=1&page_size=10`
@@ -114,7 +113,7 @@ function customerEditor(cell, onRendered, success, cancel) {
         customer_name: it.name,
         customer_disp: `${it.code} — ${it.name}`,
       });
-      success(`${it.code} — ${it.name}`); // commit ค่าให้เซลล์
+      success(`${it.code} — ${it.name}`);
     },
   });
 
@@ -138,7 +137,6 @@ function customerEditor(cell, onRendered, success, cancel) {
     }
   });
 
-  // ถ้าพิมพ์เอง -> ยังไม่เลือกจากลิสต์ ให้ clear id ไปก่อน
   input.addEventListener("input", () => {
     const row = cell.getRow();
     row.update({ customer_id: null });
@@ -158,10 +156,7 @@ function makeColumns() {
       headerSort: false,
       formatter: "rownum",
     },
-
     { title: "PO No.", field: "po_number", width: 150, editor: "input" },
-
-    // PO line (View only)
     {
       title: "PO line",
       field: "_po_line",
@@ -176,10 +171,9 @@ function makeColumns() {
       },
       cellClick: (e) => {
         const a = e.target.closest("a.view-link");
-        if (a) e.stopPropagation(); // ให้ browser นำทางเอง (รองรับ Ctrl/Cmd-Click)
+        if (a) e.stopPropagation();
       },
     },
-
     {
       title: "Customer",
       field: "customer_disp",
@@ -203,7 +197,6 @@ function makeColumns() {
       editor: false,
       formatter: (c) => fmtDate(c.getValue()),
     },
-
     {
       title: "",
       field: "_actions",
@@ -212,14 +205,10 @@ function makeColumns() {
       headerSort: false,
       formatter: (cell) => {
         const d = cell.getRow().getData();
-        const show = d._dirty === true || !d.id; // แก้ไขอยู่หรือเป็นแถวใหม่
+        const show = d._dirty === true || !d.id;
         return `
-          <button class="btn-small" ${
-            show ? "" : "style='display:none'"
-          } data-act="save">Save</button>
-          <button class="btn-small secondary" ${
-            show ? "" : "style='display:none'"
-          } data-act="cancel">Cancel</button>
+          <button class="btn-small" ${show ? "" : "style='display:none'"} data-act="save">Save</button>
+          <button class="btn-small secondary" ${show ? "" : "style='display:none'"} data-act="cancel">Cancel</button>
           <button class="btn-small btn-danger" data-act="del">Delete</button>
         `;
       },
@@ -262,7 +251,7 @@ async function saveRow(row) {
       toast("PO created");
     } else {
       const updated = await jfetch(ENDPOINTS.byId(d.id), {
-        method: "PATCH", // ใช้ PATCH (หรือเปิด PUT ฝั่ง API เพิ่มได้)
+        method: "PATCH",
         headers: JSON_HEADERS,
         body: JSON.stringify(payload),
       });
@@ -292,7 +281,6 @@ async function cancelRow(row) {
         row.update({ ...norm, _dirty: false });
         origById.set(norm.id, norm);
       } catch {
-        // ไม่เจอ / โหลดไม่ได้ -> แค่ลบธง dirty
         row.update({ _dirty: false });
       }
     }
@@ -331,9 +319,10 @@ function initTable() {
   table.on("tableBuilt", () => {
     requestAnimationFrame(() => table.redraw(true));
     setTimeout(() => table.redraw(true), 0);
+    // Bind near-bottom loader after Tabulator DOM is ready
+    bindIntersectionLoader();
   });
 
-  // ไม่ autosave: แค่ทำให้เป็น dirty เพื่อโชว์ปุ่ม Save/Cancel
   table.on("cellEdited", (cell) => {
     const row = cell.getRow();
     const d = row.getData();
@@ -342,88 +331,100 @@ function initTable() {
   });
 }
 
-/* ===== Fetch ALL ===== */
-function buildPagedQS(page, size, keyword = "") {
-  const usp = new URLSearchParams();
-  usp.set("page", String(page));
-  // ส่งทั้งสองชื่อ param เพื่อรองรับได้กว้าง
-  usp.set("per_page", String(size));
-  usp.set("page_size", String(size));
-  if (keyword) usp.set("q", keyword);
-  return usp.toString();
+/* ===== Keyset Infinite Scroll (IntersectionObserver, near-bottom only) ===== */
+let cursor = null;        // id ตัวสุดท้ายจากชุดก่อนหน้า
+let ksLoading = false;
+let ksDone = false;
+let ksKeyword = "";
+let ksSeq = 0;            // race guard
+let io = null;
+let lastLoadAt = 0;       // cooldown guard
+
+function getTableHolder() {
+  return document.querySelector(`#${UI.table} .tabulator-tableholder`);
 }
 
-async function tryFetchAllParam(keyword = "") {
-  // ถ้า API รองรับ ?all=1 ก็ใช้ชุดเดียวจบ
-  const usp = new URLSearchParams();
-  usp.set("all", "1");
-  if (keyword) usp.set("q", keyword);
-  const res = await jfetch(ENDPOINTS.list(usp.toString()));
-  const items = Array.isArray(res) ? res : res?.items ?? res?.data ?? [];
-  const total = res?.total ?? items.length;
-  return { items, total, pages: res?.pages ?? 1 };
+function bindIntersectionLoader() {
+  const holder = getTableHolder();
+  const sentinel = document.getElementById("po_sentinel");
+  if (!holder || !sentinel) return;
+
+  if (io) io.disconnect();
+
+  io = new IntersectionObserver(
+    (entries) => {
+      const [e] = entries;
+      if (!e.isIntersecting) return;
+
+      const now = Date.now();
+      if (now - lastLoadAt < 300) return; // 300ms cooldown
+      if (ksLoading || ksDone) return;
+
+      lastLoadAt = now;
+      loadKeyset(ksKeyword, cursor);
+    },
+    {
+      root: holder,
+      threshold: 0,                   // fire as soon as it peeks in
+      rootMargin: "0px 0px 200px 0px" // start ~200px before true bottom
+    }
+  );
+
+  io.observe(sentinel);
 }
 
-async function fetchAllByPaging(keyword = "") {
-  const perPage = PAGED_PER_PAGE;
-  let page = 1;
-  const all = [];
-  while (true) {
-    const qs = buildPagedQS(page, perPage, keyword);
-    const res = await jfetch(ENDPOINTS.list(qs));
-    const items = Array.isArray(res) ? res : res?.items ?? res?.data ?? [];
-    if (!items?.length) break;
-    all.push(...items);
-    const pages = res?.pages;
-    if (pages && page >= pages) break;
-    if (!pages && items.length < perPage) break; // ไม่มี pages -> หมดแล้ว
-    page += 1;
-  }
-  return all;
-}
+async function loadKeyset(keyword = "", afterId = null) {
+  if (ksLoading || ksDone) return;
+  ksLoading = true;
+  const mySeq = ++ksSeq;
 
-async function loadAll(keyword = "") {
   try {
-    let records = [];
-    // ลอง all=1 ก่อน
-    let usedAllParam = false;
-    try {
-      const { items, total, pages } = await tryFetchAllParam(keyword);
-      records = items;
-      usedAllParam = true;
-      // ถ้าจำนวนที่ได้ยังไม่ครบ ให้ fallback เป็นแบ่งหน้า
-      if (records.length < (total || records.length) || (pages && pages > 1)) {
-        records = await fetchAllByPaging(keyword);
-      }
-    } catch {
-      // ไม่น่ารองรับ all=1 -> fallback
-    }
-    if (!usedAllParam && records.length === 0) {
-      records = await fetchAllByPaging(keyword);
+    const usp = new URLSearchParams();
+    if (keyword) usp.set("q", keyword);
+    if (afterId) usp.set("after_id", String(afterId));
+    usp.set("limit", String(PAGED_PER_PAGE));
+
+    const res = await jfetch(`/pos/keyset?${usp.toString()}`);
+    if (mySeq !== ksSeq) return; // stale response, ignore
+
+    const items = Array.isArray(res) ? res : res.items ?? [];
+    const rows = items.map(normalizeRow);
+
+    if (!afterId) {
+      table?.setData(rows);
+      origById.clear();
+      rows.forEach((r) => r.id && origById.set(r.id, { ...r }));
+    } else {
+      await table?.addData(rows);
+      rows.forEach((r) => r.id && origById.set(r.id, { ...r }));
     }
 
-    const rows = records.map(normalizeRow);
-    table?.setData(rows);
-    // snapshot สำหรับ cancel
-    origById.clear();
-    rows.forEach((r) => r.id && origById.set(r.id, { ...r }));
-    table?.redraw(true);
+    cursor = res?.next_cursor ?? null;
+    if (typeof res?.has_more === "boolean") {
+      ksDone = !res.has_more;
+    } else {
+      ksDone = !cursor || rows.length === 0;
+    }
   } catch (e) {
     toast("Load failed", false);
-    table?.setData([]);
-    origById.clear();
-    table?.redraw(true);
+  } finally {
+    ksLoading = false;
   }
 }
 
-/* ===== Bindings ===== */
-function bindSearch() {
+function bindSearchKeyset() {
   const box = els[UI.q];
   if (!box) return;
   let t;
   box.addEventListener("input", () => {
     clearTimeout(t);
-    t = setTimeout(() => loadAll(box.value), 300);
+    t = setTimeout(() => {
+      ksKeyword = box.value.trim();
+      cursor = null;
+      ksDone = false;
+      ksSeq++; // cancel in-flight older requests implicitly
+      loadKeyset(ksKeyword, null); // reload first page for new keyword
+    }, 300);
   });
 }
 
@@ -440,7 +441,7 @@ function bindAdd() {
         created_at: null,
         _dirty: true,
       },
-      true // add ที่ด้านบน
+      true // add at top
     );
     row.getCell("po_number")?.edit(true);
     row.reformat();
@@ -451,7 +452,12 @@ function bindAdd() {
 document.addEventListener("DOMContentLoaded", () => {
   Object.values(UI).forEach((id) => (els[id] = $(id)));
   initTable();
-  bindSearch();
   bindAdd();
-  loadAll();
+  bindSearchKeyset();
+
+  cursor = null;
+  ksDone = false;
+  ksKeyword = "";
+  ksSeq++;
+  loadKeyset("", null); // first page (no pre-top-up)
 });
