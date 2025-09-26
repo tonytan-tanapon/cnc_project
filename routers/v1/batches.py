@@ -1,18 +1,16 @@
 # routers/batches.py
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import or_, func, desc
 from typing import List, Optional
-from decimal import Decimal
 from pydantic import BaseModel
 
 from database import get_db
 from models import RawMaterial, RawBatch
 from schemas import RawBatchCreate, RawBatchUpdate, RawBatchOut
 from utils.code_generator import next_code  # same helper used by customers/materials
-from sqlalchemy.orm import joinedload
-from sqlalchemy import or_, func, desc
+
 router = APIRouter(prefix="/batches", tags=["batches"])
 
 # ---------- Page (offset) ----------
@@ -68,8 +66,7 @@ def create_batch(payload: RawBatchCreate, db: Session = Depends(get_db)):
         mill_name=payload.mill_name,
         mill_heat_no=payload.mill_heat_no,
         received_at=payload.received_at,
-        qty_received=payload.qty_received,
-        qty_used=Decimal("0"),
+        qty_received=payload.qty_received,  # keep if your schema has it
         cert_file=payload.cert_file,
         location=payload.location,
     )
@@ -95,19 +92,19 @@ def list_batches(
     per_page: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
 ):
-    qry = (
-        db.query(RawBatch)
-        .join(RawMaterial, RawMaterial.id == RawBatch.material_id)  # enable material search
-        .options(joinedload(RawBatch.material))                     # return nested material
-    )
+    qry = db.query(RawBatch)
 
-    if material_id:
+    # Filter by material_id without forcing a join
+    if material_id is not None:
         qry = qry.filter(RawBatch.material_id == material_id)
 
+    # If searching across material fields, join only then
     if q and q.strip():
-        # AND semantics per token
-        for tok in q.strip().split():
-            pat = _like_escape(tok)  # make sure this helper exists
+        tokens = q.strip().split()
+        qry = qry.join(RawMaterial, RawMaterial.id == RawBatch.material_id)
+        for tok in tokens:
+            pat = _like_escape(tok)
+            # NOTE: func.concat can break on SQLite; switch to || if needed
             qry = qry.filter(or_(
                 RawBatch.batch_no.ilike(pat),
                 RawBatch.supplier_batch_no.ilike(pat),
@@ -148,17 +145,15 @@ def list_batches_keyset(
     before: Optional[int] = Query(None, description="(DESC) Prev page (newer): id > before"),
     db: Session = Depends(get_db),
 ):
-    qry = (
-        db.query(RawBatch)
-        .join(RawMaterial, RawMaterial.id == RawBatch.material_id)
-        .options(joinedload(RawBatch.material))
-    )
+    
+    print("inxxxxxxx...")
+    qry = db.query(RawBatch)
 
-    if material_id:
+    if material_id is not None:
         qry = qry.filter(RawBatch.material_id == material_id)
 
     if q and q.strip():
-        # AND semantics per token
+        qry = qry.join(RawMaterial, RawMaterial.id == RawBatch.material_id)
         for tok in q.strip().split():
             pat = _like_escape(tok)
             qry = qry.filter(or_(
@@ -175,20 +170,18 @@ def list_batches_keyset(
                     func.coalesce(RawMaterial.name, "")
                 ).ilike(pat),
             ))
-        # Optional: quick numeric match for convenience
+        # Optional numeric convenience
         if q.strip().isdigit():
             num = int(q.strip())
             qry = qry.filter(or_(RawBatch.id == num, RawBatch.material_id == num))
 
-    # paging
+    # Keyset directions
     going_prev = before is not None and cursor is None
     if going_prev:
-        # go newer: id > before
         qry = qry.filter(RawBatch.id > before).order_by(RawBatch.id.asc())
         rows = qry.limit(limit + 1).all()
         rows = list(reversed(rows))  # present in DESC order
     else:
-        # first / go older: id < cursor
         if cursor is not None:
             qry = qry.filter(RawBatch.id < cursor)
         qry = qry.order_by(desc(RawBatch.id))
@@ -196,13 +189,12 @@ def list_batches_keyset(
 
     page_rows = rows[:limit]
     has_more = len(rows) > limit
-    next_cursor = page_rows[-1].id if page_rows else None  # older
-    prev_cursor = page_rows[0].id if page_rows else None   # newer
+    next_cursor = page_rows[-1].id if page_rows else None
+    prev_cursor = page_rows[0].id if page_rows else None
 
-    items: List[RawBatchOut] = [RawBatchOut.model_validate(r) for r in page_rows]
-
+    # Return ORM rows; Pydantic will serialize via from_attributes=True
     return {
-        "items": items,
+        "items": page_rows,
         "next_cursor": next_cursor,
         "prev_cursor": prev_cursor,
         "has_more": has_more,
@@ -228,7 +220,6 @@ def get_batch(batch_id: int, db: Session = Depends(get_db)):
         raise HTTPException(404, "Batch not found")
     return b
 
-# routers/batches.py (update_batch)
 @router.put("/{batch_id}", response_model=RawBatchOut)
 def update_batch(batch_id: int, payload: RawBatchUpdate, db: Session = Depends(get_db)):
     b = db.get(RawBatch, batch_id)
@@ -237,36 +228,19 @@ def update_batch(batch_id: int, payload: RawBatchUpdate, db: Session = Depends(g
 
     data = payload.dict(exclude_unset=True)
 
-    # material change (optional rule: forbid when used > 0)
+    # material change
     if "material_id" in data and data["material_id"] is not None:
         new_mid = int(data["material_id"])
         if not db.get(RawMaterial, new_mid):
             raise HTTPException(404, "Material not found")
-        # if you want to forbid changing when used:
-        # if (b.qty_used or Decimal("0")) > 0:
-        #     raise HTTPException(400, "Cannot change material on a used batch")
         b.material_id = new_mid
         del data["material_id"]
 
-    # qty_received (must be >= current or target qty_used)
+    # qty_received — now independent (no qty_used checks anymore)
     if "qty_received" in data and data["qty_received"] is not None:
-        new_recv = Decimal(str(data["qty_received"]))
-        current_used = b.qty_used or Decimal("0")
-        if new_recv < current_used:
-            raise HTTPException(400, "qty_received cannot be less than qty_used")
-        b.qty_received = new_recv
+        # if using Decimal in model, coerce to string/Decimal in schema instead
+        b.qty_received = data["qty_received"]
         del data["qty_received"]
-
-    # qty_used (0 ≤ used ≤ qty_received)
-    if "qty_used" in data and data["qty_used"] is not None:
-        new_used = Decimal(str(data["qty_used"]))
-        if new_used < 0:
-            raise HTTPException(400, "qty_used cannot be negative")
-        recv = b.qty_received or Decimal("0")
-        if new_used > recv:
-            raise HTTPException(400, "qty_used cannot exceed qty_received")
-        b.qty_used = new_used
-        del data["qty_used"]
 
     # other fields
     for k, v in data.items():
@@ -281,7 +255,8 @@ def delete_batch(batch_id: int, db: Session = Depends(get_db)):
     b = db.get(RawBatch, batch_id)
     if not b:
         raise HTTPException(404, "Batch not found")
-    if (b.qty_used or Decimal("0")) > 0 or (getattr(b, "uses", []) and len(b.uses) > 0):
+    # If you still track per-part usage via a separate relation, keep that guard.
+    if (getattr(b, "uses", []) and len(b.uses) > 0):
         raise HTTPException(400, "Batch already used; cannot delete")
     db.delete(b); db.commit()
     return {"message": "Batch deleted"}

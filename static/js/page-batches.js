@@ -209,16 +209,16 @@ async function renderBatchesTable(container, rows, ctx = {}) {
 }
 
 /* ---- list pager ---- */
-let lp = createListPager({
-  url: '/batches/keyset',
-  pageSize: Number(selPerPage?.value || 20),
-  container: tableContainer,
-  render: renderBatchesTable, // async renderer supported
-  pageInfoEls: [pageInfoTop, pageInfoBottom],
-  prevButtons: [btnPrevTop, btnPrevBottom],
-  nextButtons: [btnNextTop, btnNextBottom],
-  queryKey: 'q',
-});
+// let lp = createListPager({
+//   url: '/batches/keyset',
+//   pageSize: Number(selPerPage?.value || 20),
+//   container: tableContainer,
+//   render: renderBatchesTable, // async renderer supported
+//   pageInfoEls: [pageInfoTop, pageInfoBottom],
+//   prevButtons: [btnPrevTop, btnPrevBottom],
+//   nextButtons: [btnNextTop, btnNextBottom],
+//   queryKey: 'q',
+// });
 
 /* ===================== Create Batch ===================== */
 function readStr(id) { const v = $(id)?.value ?? ''; return v.trim(); }
@@ -273,7 +273,7 @@ async function createBatch() {
     cert_file,
     location,
   };
-
+  console.log("batches")
   try {
     await jfetch('/batches', { method: 'POST', body: JSON.stringify(payload) });
     toast('Batch created');

@@ -266,7 +266,7 @@ class RawBatchUpdate(BaseModel):
     mill_heat_no: Optional[str] = None
     received_at: Optional[date] = None
     qty_received: Optional[Decimal] = Field(None, ge=Decimal("0"))
-    qty_used: Optional[Decimal] = Field(None, ge=Decimal("0"))     # ← NEW
+    # qty_used: Optional[Decimal] = Field(None, ge=Decimal("0"))     # ← NEW
     location: Optional[str] = None
     cert_file: Optional[str] = None
 
