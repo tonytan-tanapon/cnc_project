@@ -1,5 +1,6 @@
-// /static/js/manage-parts-detail.js  (v22 — preload + save selections by ID)
+// /static/js/manage-parts-detail.js  (v24 — materials autocomplete + ID-based save, deduped, fixed add)
 import { $, jfetch, showToast as toast, initTopbar } from './api.js';
+import { attachAutocomplete } from './autocomplete.js';
 
 const fmtQty = (v) => (v == null ? '' : Number(v).toLocaleString(undefined, { maximumFractionDigits: 3 }));
 const debounce = (fn, ms=300)=>{ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a),ms);} };
@@ -15,10 +16,15 @@ let table = null;
 let currentSearch = '';
 let allRows = [];
 
-let lookups = {
-  processes: [], // [{id, code, name}]
-  finishes:  [], // [{id, code, name}]
-};
+// ===== Materials state (ID-based) =====
+let materials = [];                       // [{ id, material_id, code, name }]
+let pendingSelectedMaterial = null;       // { id, code, name } from AC selection
+const MAT_LOOKUP_URL = (q) => `/lookups/materials?q=${encodeURIComponent(q)}`;
+
+// Small helpers
+function safeText(s){ return String(s ?? '').replace(/[<>&]/g, m => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[m])); }
+
+let lookups = { processes: [], finishes: [] };
 let idCutting = null;
 let idHeat    = null;
 
@@ -48,6 +54,22 @@ const fmtDate = (s) => {
       .chip input{margin-right:6px}
       .fg input[type="text"]{width:320px;max-width:40vw;height:32px;border:1px solid #e5e7eb;border-radius:8px;padding:4px 8px}
       .tabulator .tabulator-footer{display:none}
+
+      /* header grid: left=Part detail, right=Materials */
+      .header-grid{display:grid;grid-template-columns:1.5fr .9fr;gap:12px}
+      .mat-card .hd{display:flex;justify-content:space-between;align-items:center}
+      .mat-row{display:flex;gap:8px;align-items:center;margin-top:8px; position: relative; overflow: visible;}
+      .mat-row input[type="text"]{flex:1;height:32px;border:1px solid #e5e7eb;border-radius:8px;padding:4px 8px}
+      .btn{border:1px solid #e5e7eb;background:#0ea5e9;color:#fff;border-radius:8px;padding:6px 10px;font-weight:600;cursor:pointer}
+      .chips-wrap{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+      .chip--pill{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border:1px solid #e5e7eb;border-radius:999px;background:#f8fafc}
+      .chip--pill .x{cursor:pointer;font-weight:700;line-height:1}
+
+      /* Prevent AC menu from being clipped */
+      .header-grid, .mat-card, .mat-card .bd { overflow: visible; }
+
+      /* Common autocomplete class names layered high */
+      .ac-menu, .ac-list, .autocomplete-menu { position: absolute; z-index: 99999; }
     `;
     document.head.appendChild(st);
   }
@@ -67,7 +89,7 @@ function buildQS(params){
   return usp.toString();
 }
 
-// ---- header & filters scaffold
+// ---- header & filters scaffold (Materials panel included)
 function ensureHeaderCard(){
   let wrap = document.getElementById('p_header');
   if (wrap) return wrap;
@@ -76,44 +98,62 @@ function ensureHeaderCard(){
   wrap.id = 'p_header';
   wrap.className = 'card';
   wrap.innerHTML = `
-    <div class="hd">Part</div>
     <div class="bd">
-      <div class="fields">
-        <div class="f"><div class="lab">Part No</div>   <div id="h_part_no"   class="val">—</div></div>
-        <div class="f"><div class="lab">Part Name</div> <div id="h_part_name" class="val">—</div></div>
-        <div class="f"><div class="lab">Revision</div>  <div id="h_part_rev"  class="val">—</div></div>
-        <div class="f"><div class="lab">Customer</div>  <div id="h_customer"  class="val">—</div></div>
-      </div>
-    </div>
-    <div class="hd">Filters</div>
-    <div class="bd">
-      <div id="filters_panel" class="filters">
-        <!-- Cutting & Heat -->
-        <div class="fg" id="fg_basic">
-          <div class="chips">
-            <label class="chip"><input type="checkbox" id="g_cutting"><span>Cutting</span></label>
-            <label class="chip"><input type="checkbox" id="g_heat"><span>Heat Treating & Stress Relieve</span></label>
+      <div class="header-grid">
+        <!-- LEFT: Part meta + Filters -->
+        <div class="card">
+          <div class="bd">
+            <div class="fields">
+              <div class="f"><div class="lab">Part No</div>   <div id="h_part_no"   class="val">—</div></div>
+              <div class="f"><div class="lab">Part Name</div> <div id="h_part_name" class="val">—</div></div>
+              <div class="f"><div class="lab">Revision</div>  <div id="h_part_rev"  class="val">—</div></div>
+              <div class="f"><div class="lab">Customer</div>  <div id="h_customer"  class="val">—</div></div>
+            </div>
+          </div>
+          <div class="hd">Filters</div>
+          <div class="bd">
+            <div id="filters_panel" class="filters">
+              <!-- Cutting & Heat -->
+              <div class="fg" id="fg_basic">
+                <div class="chips">
+                  <label class="chip"><input type="checkbox" id="g_cutting"><span>Cutting</span></label>
+                  <label class="chip"><input type="checkbox" id="g_heat"><span>Heat Treating & Stress Relieve</span></label>
+                </div>
+              </div>
+              <!-- Manufacturing Processes group -->
+              <div class="fg" id="fg_mproc">
+                <div class="chips">
+                  <span class="ttl-inline">Manufacturing Processes</span>
+                  <span id="g_mproc"></span>
+                </div>
+              </div>
+              <!-- Chemical Finishing group -->
+              <div class="fg" id="fg_chem">
+                <div class="chips">
+                  <span class="ttl-inline">Chemical Finishing</span>
+                  <span id="g_chem"></span>
+                </div>
+              </div>
+              <!-- Other -->
+              <div class="fg" id="fg_other">
+                <div class="chips">
+                  <span class="ttl-inline">Other</span>
+                  <input type="text" id="g_other_text" placeholder="Type other process / keyword..." />
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-        <!-- Manufacturing Processes group -->
-        <div class="fg" id="fg_mproc">
-          <div class="chips">
-            <span class="ttl-inline">Manufacturing Processes</span>
-            <span id="g_mproc"></span>
-          </div>
-        </div>
-        <!-- Chemical Finishing group -->
-        <div class="fg" id="fg_chem">
-          <div class="chips">
-            <span class="ttl-inline">Chemical Finishing</span>
-            <span id="g_chem"></span>
-          </div>
-        </div>
-        <!-- Other -->
-        <div class="fg" id="fg_other">
-          <div class="chips">
-            <span class="ttl-inline">Other</span>
-            <input type="text" id="g_other_text" placeholder="Type other process / keyword..." />
+
+        <!-- RIGHT: Materials -->
+        <div class="card mat-card">
+          <div class="hd"><span>Materials</span></div>
+          <div class="bd">
+            <div class="mat-row">
+              <input type="text" id="mat_ac_input" placeholder="Search material by code or name…" />
+              <button class="btn" id="mat_add_btn" title="Add selected material">Add</button>
+            </div>
+            <div id="mat_list" class="chips-wrap"></div>
           </div>
         </div>
       </div>
@@ -125,6 +165,189 @@ function ensureHeaderCard(){
   else if (tableMount?.parentNode) tableMount.parentNode.insertBefore(wrap, tableMount);
   else document.body.prepend(wrap);
   return wrap;
+}
+
+// ===== Materials (ID-based) =====
+async function fetchMaterials(){
+  const { part_id } = qsParams();
+  if (!part_id) return [];
+  try{
+    const res = await jfetch(`/parts/${part_id}/materials`);
+    // Expect: { items:[{ id, material_id, code, name }] }
+    materials = Array.isArray(res?.items) ? res.items : [];
+  }catch(e){
+    materials = [];
+    console.warn('Fetch materials failed', e);
+  }
+  renderMaterials();
+}
+
+function renderMaterials(){
+  const list = document.getElementById('mat_list');
+  if (!list) return;
+  list.innerHTML = '';
+
+  if (!materials.length){
+    const span = document.createElement('span');
+    span.style.color = '#64748b';
+    span.textContent = 'No materials yet.';
+    list.appendChild(span);
+    return;
+  }
+
+  // Sort by code then name
+  const rows = [...materials].sort((a,b)=>{
+    const ac = (a.code || '').localeCompare(b.code || '', undefined, {numeric:true,sensitivity:'base'});
+    return ac !== 0 ? ac : (a.name || '').localeCompare(b.name || '', undefined, {numeric:true,sensitivity:'base'});
+  });
+
+  for (const m of rows){
+    const chip = document.createElement('span');
+    chip.className = 'chip--pill';
+    chip.innerHTML = `
+      <span>${(m.code ? `<strong>${safeText(m.code)}</strong> — ` : '')}${safeText(m.name ?? '')}</span>
+      <span class="x" title="Remove" data-pm-id="${m.id}">×</span>
+    `;
+    list.appendChild(chip);
+  }
+
+  list.querySelectorAll('.x').forEach(x => {
+    x.addEventListener('click', async () => {
+      const partMatId = Number(x.dataset.pmId);
+      await deletePartMaterial(partMatId);
+    });
+  });
+}
+
+// Add by material_id (dedupe on same material_id)
+async function addMaterialById(material_id){
+  console.log('[ADD] called with', material_id);
+  const { part_id } = qsParams();
+  if (!part_id || !material_id) { console.warn('Missing ids', {part_id, material_id}); return; }
+
+  // dedupe
+  if (materials.some(m => m.material_id === material_id)) {
+    toast?.('Material already added', true);
+    return;
+  }
+
+  try{
+    const created = await jfetch(`/parts/${part_id}/materials`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ material_id }),
+    });
+    console.log('[ADD] success', created);
+    if (created?.id){
+      materials.push(created);
+      renderMaterials();
+      toast?.('Material added', true);
+    } else {
+      console.warn('[ADD] unexpected response', created);
+      toast?.('Add succeeded but response shape unexpected', false);
+    }
+  }catch(e){
+    console.error('[ADD] exception', e);
+    toast?.('Failed to add material: ' + (e?.message || ''), false);
+  }
+}
+
+async function deletePartMaterial(partMaterialId){
+  const { part_id } = qsParams();
+  if (!part_id || !partMaterialId) return;
+  try{
+    await jfetch(`/parts/${part_id}/materials/${partMaterialId}`, { method: 'DELETE' });
+    materials = materials.filter(m => m.id !== partMaterialId);
+    renderMaterials();
+  }catch(e){
+    toast?.('Failed to remove material', false);
+  }
+}
+
+function initMaterialAutocomplete(){
+  const ip  = document.getElementById('mat_ac_input');
+  const btn = document.getElementById('mat_add_btn');
+  if (!ip) return;
+
+  let lastItems = []; // keep last fetched results
+
+  const fetchItems = async (q) => {
+    try{
+      const res = await jfetch(MAT_LOOKUP_URL(q || ""));
+      const items = Array.isArray(res?.items) ? res.items : [];
+      // console.log(items)
+      lastItems = items;
+      return items;
+    }catch(e){
+      console.warn('[AC] fetch ERROR', e);
+      lastItems = [];
+      return [];
+    }
+  };
+
+  const getDisplayValue = (m) => (m?.code ? `${m.code} — ${m.name ?? ''}` : (m?.name ?? ''));
+  const renderItem = (m) =>
+    `${m?.code ? `<strong>${safeText(m.code)}</strong> — ` : ''}${safeText(m?.name ?? '')}`;
+
+  const onSelectItem = async (m) => {
+    // keep the selection (you can also auto-add here if preferred)
+    pendingSelectedMaterial = m || null;
+  };
+
+  attachAutocomplete(ip, {
+    minChars: 0,
+    fetchItems,
+    getDisplayValue,
+    renderItem,
+    onSelectItem,
+  });
+
+  // Open menu on focus even when empty
+  ip.addEventListener('focus', () => {
+    if (!ip.value) {
+      ip.dispatchEvent(new Event('input', { bubbles:true }));
+      ip.dispatchEvent(new KeyboardEvent('keyup', { bubbles:true }));
+    }
+  });
+
+  // Typing clears the previous selection
+  ip.addEventListener('input', () => { pendingSelectedMaterial = null; });
+
+  // Robust Add handler (supports selection OR typed value)
+  btn?.addEventListener('click', async ()=>{
+    let m = pendingSelectedMaterial;
+    if (!m) {
+      const q = ip.value.trim();
+      if (!q) { toast?.('Type or pick a material first', false); return; }
+
+      // Try to resolve by current input
+      let items = lastItems;
+      if (!items?.length) items = await fetchItems(q);
+
+      // 1) exact match against "CODE — Name" or Name
+      const qLower = q.toLowerCase();
+      m = items.find(x => {
+        const label = getDisplayValue(x).toLowerCase();
+        return label === qLower || (x.name && x.name.toLowerCase() === qLower);
+      }) || null;
+
+      // 2) if still not found, unique match by contains
+      if (!m) {
+        const filt = items.filter(x => getDisplayValue(x).toLowerCase().includes(qLower));
+        if (filt.length === 1) m = filt[0];
+      }
+
+      if (!m) { toast?.('Pick a material from the list to add', false); return; }
+    }
+
+    try{
+      await addMaterialById(m.id);
+      ip.value = '';
+      pendingSelectedMaterial = null;
+    }catch(e){
+      toast?.('Failed to add material', false);
+    }
+  });
 }
 
 // ---- lookups (fetch IDs)
@@ -158,7 +381,7 @@ function renderFilters(){
   for (const p of mprocs) {
     const l = document.createElement('label');
     l.className = 'chip';
-    l.innerHTML = `<input type="checkbox" data-id="${p.id}" data-kind="process"><span>${p.name}</span>`;
+    l.innerHTML = `<input type="checkbox" data-id="${p.id}" data-kind="process"><span>${safeText(p.name)}</span>`;
     elMproc.appendChild(l);
   }
 
@@ -167,7 +390,7 @@ function renderFilters(){
   for (const f of lookups.finishes) {
     const l = document.createElement('label');
     l.className = 'chip';
-    l.innerHTML = `<input type="checkbox" data-id="${f.id}" data-kind="finish"><span>${f.name}</span>`;
+    l.innerHTML = `<input type="checkbox" data-id="${f.id}" data-kind="finish"><span>${safeText(f.name)}</span>`;
     elChem.appendChild(l);
   }
 
@@ -227,7 +450,6 @@ async function saveSelectionsToDB(){
   const { part_id } = qsParams();
   if (!part_id) return;
 
-  // collect selected IDs
   const elMproc = document.getElementById('g_mproc');
   const elChem  = document.getElementById('g_chem');
   const cbCut   = document.getElementById('g_cutting');
@@ -237,17 +459,14 @@ async function saveSelectionsToDB(){
   const procIds = new Set();
   const finIds  = new Set();
 
-  // basics
   if (cbCut?.checked && cbCut.dataset.id)  procIds.add(Number(cbCut.dataset.id));
   if (cbHeat?.checked && cbHeat.dataset.id) procIds.add(Number(cbHeat.dataset.id));
 
-  // manufacturing
   elMproc?.querySelectorAll('input[type=checkbox]:checked').forEach(cb => {
     const id = Number(cb.dataset.id);
     if (id) procIds.add(id);
   });
 
-  // chemical
   elChem?.querySelectorAll('input[type=checkbox]:checked').forEach(cb => {
     const id = Number(cb.dataset.id);
     if (id) finIds.add(id);
@@ -265,7 +484,6 @@ async function saveSelectionsToDB(){
       headers: { 'Content-Type':'application/json' },
       body: JSON.stringify(payload),
     });
-    // toast?.('Saved', true); // optional
   }catch(e){
     toast?.('Failed to save selections: ' + (e?.message || ''), false);
   }
@@ -338,25 +556,6 @@ function initTable(){
       { title: "Tracking no.", field: "", minWidth: 130, headerSort: false, formatter: ()=>"" },
       { title: "Real Shipped Date", field: "", minWidth: 150, headerSort: false, formatter: ()=>"" },
       { title: "INCOMING STOCK", field: "", minWidth: 140, headerSort: false, formatter: ()=>"" },
-      { title: "QA Inspection/AQL", field: "", minWidth: 150, headerSort: false, formatter: ()=>"" },
-      { title: "Name Inspection", field: "", minWidth: 140, headerSort: false, formatter: ()=>"" },
-      { title: "*Remark (QA Inspection)", field: "", minWidth: 180, headerSort: false, formatter: ()=>"" },
-      { title: "Rework/Repair", field: "", minWidth: 130, headerSort: false, formatter: ()=>"" },
-      { title: "*Remark (Rework)", field: "", minWidth: 150, headerSort: false, formatter: ()=>"" },
-      { title: "Qty Reject", field: "", minWidth: 120, headerSort: false, formatter: ()=>"" },
-      { title: "*Remark (Reject)", field: "", minWidth: 150, headerSort: false, formatter: ()=>"" },
-      { title: "Incoming Rework", field: "", minWidth: 150, headerSort: false, formatter: ()=>"" },
-      { title: "Finish goods in stock", field: "", minWidth: 190, headerSort: false, formatter: ()=>"" },
-      { title: "Qty Take Out", field: "", minWidth: 130, headerSort: false, formatter: ()=>"" },
-      { title: "Date Take Out Stock", field: "", minWidth: 170, headerSort: false, formatter: ()=>"" },
-      { title: "WIP\tWIP Cont.", field: "", minWidth: 140, headerSort: false, formatter: ()=>"" },
-      { title: "QTY Rework", field: "", minWidth: 120, headerSort: false, formatter: ()=>"" },
-      { title: "Green Tag No.", field: "", minWidth: 140, headerSort: false, formatter: ()=>"" },
-      { title: "Rework w/Lot", field: "", minWidth: 140, headerSort: false, formatter: ()=>"" },
-      { title: "QTY Prod", field: "", minWidth: 110, headerSort: false, formatter: ()=>"" },
-      { title: "QTY Shipped", field: "", minWidth: 130, headerSort: false, formatter: ()=>"" },
-      { title: "Residual", field: "", minWidth: 110, headerSort: false, formatter: ()=>"" },
-      { title: "QTY Use", field: "", minWidth: 110, headerSort: false, formatter: ()=>"" },
     ],
   });
 }
@@ -393,16 +592,20 @@ function onSearchChange(){
 
 /* ---------- boot ---------- */
 inputSearch?.addEventListener('input', debounce(onSearchChange, 250));
-
 document.addEventListener('DOMContentLoaded', async () => {
+  console.log("part-detail");
   initTopbar?.();
   ensureHeaderCard();
   initTable();
   try{
-    await fetchLookups();      // 1) get IDs
-    renderFilters();           // 2) render checkboxes with data-id
-    await loadData();          // 3) table + header
-    await preloadSelectionsIntoUI(); // 4) pre-check boxes from DB
+    await fetchLookups();          // 1) get IDs for process/finish
+    renderFilters();               // 2) checkboxes
+    await loadData();              // 3) table + header
+    await preloadSelectionsIntoUI();// 4) pre-check boxes
+
+    // 5) Materials (autocomplete + initial list)
+    initMaterialAutocomplete();
+    await fetchMaterials();
   }catch(e){
     toast?.(e?.message || 'Init failed', false);
   }

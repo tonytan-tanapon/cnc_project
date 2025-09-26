@@ -272,16 +272,16 @@ async function renderBatchesTable(container, rows, ctx = {}) {
 }
 
 /* ---- list pager ---- */
-// let lp = createListPager({
-//   url: '/batches/keyset',
-//   pageSize: Number(selPerPage?.value || 20),
-//   container: tableContainer,
-//   render: renderBatchesTable, // async renderer supported
-//   pageInfoEls: [pageInfoTop, pageInfoBottom],
-//   prevButtons: [btnPrevTop, btnPrevBottom],
-//   nextButtons: [btnNextTop, btnNextBottom],
-//   queryKey: 'q',
-// });
+let lp = createListPager({
+  url: '/batches/keyset',
+  pageSize: Number(selPerPage?.value || 20),
+  container: tableContainer,
+  render: renderBatchesTable, // async renderer supported
+  pageInfoEls: [pageInfoTop, pageInfoBottom],
+  prevButtons: [btnPrevTop, btnPrevBottom],
+  nextButtons: [btnNextTop, btnNextBottom],
+  queryKey: 'q',
+});
 
 /* ===================== Create Batch ===================== */
 function readStr(id) {

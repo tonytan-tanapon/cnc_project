@@ -228,6 +228,8 @@ if (selPerPage) {
 btnReload?.addEventListener("click", () => table?.replaceData());
 
 document.addEventListener("DOMContentLoaded", () => {
+  console.log("part")
+
   initTopbar?.();
   initTable();
 });

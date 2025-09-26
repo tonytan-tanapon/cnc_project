@@ -211,7 +211,23 @@ class PartRevision(Base):
     def __repr__(self):
         return f"<PartRevision(part_id={self.part_id}, rev={self.rev})>"
 
+# models.py
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, func, UniqueConstraint
+from sqlalchemy.orm import relationship
 
+class PartMaterial(Base):
+    __tablename__ = "part_materials"
+    id = Column(Integer, primary_key=True)
+    part_id = Column(Integer, ForeignKey("parts.id", ondelete="CASCADE"), index=True, nullable=False)
+    raw_material_id = Column(Integer, ForeignKey("raw_materials.id", ondelete="RESTRICT"), index=True, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    part = relationship("Part", backref="part_materials")
+    raw_material = relationship("RawMaterial")
+
+    __table_args__ = (
+        UniqueConstraint('part_id', 'raw_material_id', name='uq_part_material_once'),
+    )
 
 # =========================================
 # ======== Production / Lot / Traveler ====
