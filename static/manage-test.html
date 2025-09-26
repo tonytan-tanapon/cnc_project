@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Parts · Topnotch MFG</title>
+
+    <!-- App styles -->
+    <link rel="stylesheet" href="/static/css/app.css" />
+
+    <!-- Tabulator (theme css + core js) -->
+    <link
+      rel="stylesheet"
+      href="/static/vendor/tabulator/tabulator_modern.min.css"
+    />
+    <script src="/static/vendor/tabulator/tabulator.min.js"></script>
+
+    <style>
+      /* Layout hygiene so Tabulator doesn't overflow in flex containers */
+      .main,
+      .card,
+      .toolbar,
+      #p_table {
+        min-width: 0;
+      }
+      #p_table,
+      .tabulator {
+        width: 100%;
+        max-width: 100%;
+      }
+      .tabulator {
+        border: 0;
+      }
+      .tabulator .tabulator-row:hover {
+        background: #fafafa;
+      }
+
+      /* Small buttons like your other pages */
+      .btn-small {
+        padding: 4px 8px;
+        font-size: 14px;
+        border: 1px solid var(--line, #ccc);
+        border-radius: 6px;
+        background: #111;
+        color: #fff;
+        cursor: pointer;
+        transition: background 0.2s;
+      }
+      .btn-small:hover {
+        background: #333;
+      }
+
+      .rev {
+        display: inline-block;
+      }
+      .rev.current {
+        font-weight: 600;
+        text-decoration: underline;
+      }
+      .rev-sep {
+        opacity: 0.6;
+      }
+      .muted {
+        opacity: 0.6;
+      }
+
+      /* allow children (like Tabulator) to actually scroll inside flex boxes */
+      .main,
+      .panel,
+      .card,
+      .detail-body,
+      #p_table {
+        min-height: 0; /* key line for flex layouts */
+      }
+
+      /* make sure the tableholder can scroll */
+      .tabulator .tabulator-tableholder {
+        overflow-y: auto !important;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <!-- Sidebar -->
+      <aside class="sidebar">
+        <div id="navSlot" data-nav-slot></div>
+      </aside>
+
+      <!-- Main -->
+      <main class="main">
+        <!-- Topbar -->
+        <div class="topbar">
+          <div class="search">
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              aria-hidden="true"
+            >
+              <path
+                d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zM9.5 14C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"
+              />
+            </svg>
+            <input id="globalSearch" type="search" placeholder="Search…" />
+          </div>
+          <input id="apiBase" placeholder="API Base (default /api/v1)" />
+          <button class="btn" id="btnPing" type="button">Ping</button>
+        </div>
+
+        <!-- Page -->
+        <section id="page-parts">
+          <!-- Table + Pager -->
+          <div class="card">
+            <div
+              class="toolbar"
+              style="display: flex; gap: 8px; align-items: center"
+            >
+              <input
+                id="p_q"
+                placeholder="search part_no / name / spec"
+                style="flex: 1"
+              />
+              <button class="btn" id="p_reload" type="button">Reload</button>
+
+              <div
+                style="
+                  margin-left: auto;
+                  display: flex;
+                  gap: 8px;
+                  align-items: center;
+                "
+              >
+                <label
+                  >Per page:
+                  <select id="p_per_page">
+                    <option value="10">10</option>
+                    <option value="20" selected>20</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                  </select>
+                </label>
+
+                <!-- <div class="pager" style="display:flex;gap:6px;align-items:center;">
+                <button class="btn-small" id="p_prev" type="button">« Prev</button>
+                <span id="p_page_info" class="muted">Page 1</span>
+                <button class="btn-small" id="p_next" type="button">Next »</button>
+              </div> -->
+              </div>
+            </div>
+
+            <!-- Tabulator mount -->
+            <div id="p_table" style="min-height: 200px"></div>
+
+            <!-- <div class="toolbar" style="display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:8px;">
+            <button class="btn-small" id="p_prev2" type="button">« Prev</button>
+            <span id="p_page_info2" class="muted">Page 1</span>
+            <button class="btn-small" id="p_next2" type="button">Next »</button>
+          </div> -->
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast" role="status" aria-live="polite">
+      <span id="toastText"></span>
+    </div>
+
+    <!-- Scripts -->
+    <script type="module" src="/static/js/nav-loader.js"></script>
+    <script type="module" src="/static/js/manage-test.js?v=8"></script>
+  </body>
+</html>

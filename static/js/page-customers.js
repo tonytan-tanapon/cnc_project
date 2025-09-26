@@ -1,456 +1,364 @@
-// /static/js/page-customers.js
+// /static/js/page-customers.js — inline CRUD + per-row Save/Cancel (row.reformat style like page-pos.js)
 import { $, jfetch, toast } from "./api.js";
-import { escapeHtml } from "./utils.js";
-import { createListPager } from "./list-pager.js?v=2";
 
-/* CONFIG */
-const ENDPOINTS = {
-  listKeyset: "/customers/keyset",
-  base: "/customers",
-  byId: (id) => `/customers/${encodeURIComponent(id)}`,
-};
+/* ===== CONFIG ===== */
+const ENDPOINTS = { base: "/customers" };
+const FETCH_ALL_STRATEGY = "auto"; // "auto" | "all-param" | "paged"
+const PAGED_PER_PAGE = 100;
 
-const LIST_EL_IDS = {
-  inputSearch: "_q",
-  selPerPage: "_per_page",
-  btnPrevTop: "_prev_top",
-  btnNextTop: "_next_top",
-  btnPrev: "_prev",
-  btnNext: "_next",
-  pageInfo: "_page_info",
-  listBody: "listBody",
-};
+const UI = { q: "_q", btnAdd: "_add", tableMount: "listBody" };
 
-const CTRL_IDS = {
-  hint: "hint",
-  errorBox: "errorBox",
-  view: "detailView",
-  btnEdit: "btnEdit",
-  btnNew: "btnNew",
-  btnSave: "btnSave",
-  btnCancel: "btnCancel",
-  btnDelete: "btnDelete",
-};
-
-const FIELD_KEYS = ["name", "code", "contact", "email", "phone", "address"];
-const FIELD_LABELS = {
-  code: "Code",
-  name: "Name",
-  contact: "Contact",
-  email: "Email",
-  phone: "Phone",
-  address: "Address",
-};
-const FIELD_INPUT_TYPE = {
-  name: "text",
-  code: "text",
-  contact: "text",
-  email: "email",
-  phone: "text",
-  address: "textarea",
-};
-
-/* STATE */
+/* ===== STATE ===== */
 let els = {};
-let selectedId = null;
-let initial = null; // ข้อมูลลูกค้าที่โหลดล่าสุด
-let mode = "view"; // view | edit | create
-let tempEdits = {}; // ค่า draft ตอนแก้ไข
-let prevSelectedIdBeforeNew = null; // จำ id ก่อนกด New
-let isSubmitting = false; // กัน double-submit
-let lp;
+let table = null;
 
-/* UTILS */
+/* ===== HELPERS ===== */
 const trim = (v) => (v == null ? "" : String(v).trim());
-const setAriaDisabled = (node, disabled) => {
-  if (!node) return;
-  node.disabled = disabled;
-  node.setAttribute("aria-disabled", String(disabled));
-  node.classList.toggle("is-busy", !!disabled);
-};
-function setBusy(b) {
-  [
-    CTRL_IDS.btnEdit,
-    CTRL_IDS.btnNew,
-    CTRL_IDS.btnSave,
-    CTRL_IDS.btnCancel,
-    CTRL_IDS.btnDelete,
-  ].forEach((id) => setAriaDisabled(els[id], b));
-  if (els[CTRL_IDS.hint]) els[CTRL_IDS.hint].textContent = b ? "Working…" : "";
-}
-function primeTempEdits(base) {
-  return FIELD_KEYS.reduce((acc, k) => {
-    acc[k] = base?.[k] ?? "";
-    return acc;
-  }, {});
-}
-function getWorkingData() {
-  const base = mode === "create" ? {} : initial ?? {};
-  return { ...base, ...tempEdits };
-}
-function focusField(key) {
-  const el = els[CTRL_IDS.view]?.querySelector(
-    `.kv-input[data-field="${CSS.escape(key)}"]`
-  );
-  el?.focus();
-}
-function setError(message) {
-  if (!els[CTRL_IDS.errorBox]) return;
-  if (!message) {
-    els[CTRL_IDS.errorBox].style.display = "none";
-    els[CTRL_IDS.errorBox].textContent = "";
-  } else {
-    els[CTRL_IDS.errorBox].style.display = "";
-    els[CTRL_IDS.errorBox].textContent = message;
-  }
-}
 
-/* MODE + RENDER (single entry point) */
-function applyMode(nextMode) {
-  if (nextMode) mode = nextMode;
-  const editing = mode === "edit" || mode === "create";
-
-  // ปุ่ม
-  if (els[CTRL_IDS.btnSave])
-    els[CTRL_IDS.btnSave].style.display = editing ? "" : "none";
-  if (els[CTRL_IDS.btnCancel])
-    els[CTRL_IDS.btnCancel].style.display = editing ? "" : "none";
-  if (els[CTRL_IDS.btnEdit])
-    els[CTRL_IDS.btnEdit].style.display = editing ? "none" : "";
-  if (els[CTRL_IDS.btnNew])
-    els[CTRL_IDS.btnNew].style.display = editing ? "none" : "";
-
-  // เนื้อหา
-  renderKV(getWorkingData());
-}
-
-/* RENDER: key:value (+ inputs เมื่อ edit/create) */
-function renderKV(data = {}) {
-  const holder = els[CTRL_IDS.view];
-  if (!holder) return;
-
-  const empty = !data || (Object.keys(data).length === 0 && mode !== "create");
-  if (empty) {
-    holder.innerHTML = `<div class="muted">Select a customer on the left</div>`;
-    return;
-  }
-
-  const isEditing = mode === "edit" || mode === "create";
-  const rows = FIELD_KEYS.map((key) => {
-    const label = FIELD_LABELS[key];
-    const current = Object.prototype.hasOwnProperty.call(tempEdits, key)
-      ? tempEdits[key]
-      : data[key] ?? "";
-    const safeText = trim(current) === "" ? "—" : escapeHtml(String(current));
-
-    let valHtml;
-    if (isEditing) {
-      if (FIELD_INPUT_TYPE[key] === "textarea") {
-        valHtml = `<textarea class="kv-input" data-field="${key}" rows="3">${escapeHtml(
-          String(current ?? "")
-        )}</textarea>`;
-      } else {
-        valHtml = `<input class="kv-input" data-field="${key}" type="${
-          FIELD_INPUT_TYPE[key] || "text"
-        }" value="${escapeHtml(String(current ?? ""))}" />`;
-      }
-    } else {
-      valHtml = safeText;
-    }
-
-    return `
-      <div class="kv-row${isEditing ? " editing" : ""}" data-key="${key}">
-        <div class="kv-key">${escapeHtml(label)}</div>
-        <div class="kv-val" data-key="${key}">${valHtml}</div>
-      </div>
-    `;
-  });
-
-  holder.innerHTML = rows.join("");
-
-  // double-click แถวไหน => เข้าโหมดแก้ (focus แถวที่คลิก)
-  holder.querySelectorAll(".kv-row").forEach((row) => {
-    row.addEventListener("dblclick", () => {
-      const key = row.dataset.key;
-      if (mode === "view") {
-        tempEdits = primeTempEdits(initial);
-        applyMode("edit");
-        focusField(key);
-      } else {
-        focusField(key);
-      }
-    });
-  });
-
-  // key handlers ตอน edit/create
-  if (isEditing) {
-    holder.querySelectorAll(".kv-input").forEach((input) => {
-      input.addEventListener("input", (e) => {
-        const k = e.target.dataset.field;
-        tempEdits[k] = e.target.value;
-      });
-      input.addEventListener("keydown", (e) => {
-        if (
-          e.key === "Enter" &&
-          !e.shiftKey &&
-          e.target.tagName !== "TEXTAREA"
-        ) {
-          e.preventDefault();
-          saveDetail();
-        } else if (e.key === "Escape") {
-          e.preventDefault();
-          cancelEdits();
-        }
-      });
-    });
-  }
-}
-
-/* LIST SIDE */
-function highlightSelected() {
-  const nodes = els[LIST_EL_IDS.listBody]?.querySelectorAll(".cust-item");
-  nodes?.forEach((n) =>
-    n.classList.toggle("active", String(n.dataset.id) === String(selectedId))
-  );
-}
-function renderList(container, rows, ctx = {}) {
-  if (!container) return;
-  if (!Array.isArray(rows) || rows.length === 0) {
-    container.innerHTML = `<div class="muted" style="padding:12px">No customers</div>`;
-    selectedId = null;
-    initial = null;
-    tempEdits = {};
-    document.title = "Customers · Topnotch MFG";
-    applyMode("view");
-    return;
-  }
-
-  const rowStart = Number(ctx.rowStart || 0);
-
-  container.innerHTML = rows
-    .map((r, i) => {
-      const id = r.id ?? r.customer_id ?? r.customerId;
-      const no = rowStart + i + 1;
-      const code = escapeHtml(r.code ?? "");
-      const name = escapeHtml(r.name ?? "");
-      const sub = escapeHtml(r.contact || r.email || r.phone || "");
-      return `<div class="cust-item" data-id="${id}">
-        <div class="cust-no">${no}</div>
-        <div class="cust-code">${code || "—"}</div>
-        <div>
-          <div class="cust-name">${name || "(no name)"}</div>
-          <div class="cust-sub">${sub}</div>
-        </div>
-      </div>`;
-    })
-    .join("");
-
-  container.querySelectorAll(".cust-item").forEach((el) => {
-    el.addEventListener("click", () => {
-      const id = el.dataset.id;
-      if (!id || String(id) === String(selectedId)) return;
-      selectCustomer(id);
-    });
-  });
-
-  const idsInPage = Array.from(container.querySelectorAll(".cust-item"))
-    .map((x) => x.dataset.id)
-    .filter(Boolean)
-    .map(String);
-
-  if (!selectedId || !idsInPage.includes(String(selectedId))) {
-    selectedId = idsInPage[0];
-    highlightSelected();
-    loadDetail(selectedId);
-  } else {
-    highlightSelected();
-  }
-}
-
-/* DATA IO */
-async function loadDetail(id) {
-  setBusy(true);
-  setError("");
-  try {
-    const c = await jfetch(ENDPOINTS.byId(id));
-    initial = c;
-    tempEdits = {};
-    document.title = `Customer · ${c.name ?? c.code ?? c.id}`;
-    applyMode("view");
-  } catch (e) {
-    setError(e?.message || "Load failed");
-    initial = null;
-    tempEdits = {};
-    document.title = "Customers · Topnotch MFG";
-    applyMode("view");
-  } finally {
-    setBusy(false);
-  }
-}
-function buildPayload() {
-  const data = getWorkingData();
+function buildPayload(row) {
   return {
-    name: trim(data.name),
-    code: data.code ? String(data.code).toUpperCase() : null,
-    contact: data.contact ? trim(data.contact) : null,
-    email: data.email ? trim(data.email) : null,
-    phone: data.phone ? trim(data.phone) : null,
-    address: data.address ? trim(data.address) : null,
+    name: trim(row.name) || null,
+    code: row.code ? String(row.code).toUpperCase() : null,
+    contact: row.contact ? trim(row.contact) : null,
+    email: row.email ? trim(row.email) : null,
+    phone: row.phone ? trim(row.phone) : null,
+    address: row.address ? trim(row.address) : null,
   };
 }
-async function saveDetail() {
-  if (isSubmitting) return;
-  const payload = buildPayload();
-  if (!payload.name) {
-    toast("Enter Name", false);
-    if (mode === "view") {
-      tempEdits = primeTempEdits(initial);
-      applyMode("edit");
-    } else {
-      applyMode(); // re-render
-    }
-    focusField("name");
+
+function normalizeRow(r) {
+  return {
+    id: r.id ?? r.customer_id ?? r.customerId ?? null,
+    code: r.code ?? "",
+    name: r.name ?? "",
+    contact: r.contact ?? "",
+    email: r.email ?? "",
+    phone: r.phone ?? "",
+    address: r.address ?? "",
+    _dirty: false,
+  };
+}
+function setDirtyClass(row, on) {
+  // ปลอดภัย: ป้องกัน row.getElement() เป็น undefined เมื่อยังไม่ render
+  const el = typeof row.getElement === "function" ? row.getElement() : null;
+  if (el && el.classList) {
+    if (on) el.classList.add("is-dirty");
+    else el.classList.remove("is-dirty");
+  }
+}
+function injectStylesOnce() {
+  if (document.getElementById("cust-inline-styles")) return;
+  const st = document.createElement("style");
+  st.id = "cust-inline-styles";
+  st.textContent = `
+    .tabulator-row.is-dirty { background:#fff7ed } /* amber-50 */
+    .row-actions { display:flex; gap:6px; justify-content:flex-end; }
+    .btn-small { font:inherit; padding:4px 8px; border-radius:6px; border:1px solid #e5e7eb; background:#f8fafc; cursor:pointer }
+    .btn-small:hover { background:#f1f5f9 }
+    .btn-primary { background:#2563eb; color:#fff; border-color:#1d4ed8 }
+    .btn-primary:hover { background:#1d4ed8 }
+    .btn-danger { background:#ef4444; color:#fff; border-color:#dc2626 }
+    .btn-danger:hover { background:#dc2626 }
+    .wrap { white-space: normal; }
+  `;
+  document.head.appendChild(st);
+}
+
+/* ===== ROW OPS ===== */
+async function saveRow(row) {
+  const d = row.getData();
+  if (!trim(d.name)) {
+    toast("Name required", false);
+    row.getCell("name")?.edit(true);
     return;
   }
+  const payload = buildPayload(d);
 
-  setBusy(true);
-  isSubmitting = true;
   try {
-    if (mode === "create" || !selectedId) {
+    if (!d.id) {
       const created = await jfetch(ENDPOINTS.base, {
         method: "POST",
         body: JSON.stringify(payload),
       });
-      toast("Customer created");
-      selectedId = created.id ?? created.customer_id ?? created.customerId;
-      initial = created;
-      tempEdits = {};
-      applyMode("view");
-      await lp.reloadFirst();
-      highlightSelected();
+      const norm = normalizeRow(created || d);
+      row.update({ ...norm, _dirty: false });
+      toast("Created");
     } else {
-      const updated = await jfetch(ENDPOINTS.byId(selectedId), {
-        method: "PUT",
-        body: JSON.stringify(payload),
-      });
-      initial = updated;
-      tempEdits = {};
-      applyMode("view");
-      toast("Saved");
-      // sync แถบซ้าย
-      const node = els[LIST_EL_IDS.listBody]?.querySelector(
-        `.cust-item[data-id="${CSS.escape(String(selectedId))}"]`
+      const updated = await jfetch(
+        `${ENDPOINTS.base}/${encodeURIComponent(d.id)}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify(payload),
+        }
       );
-      if (node) {
-        node.querySelector(".cust-code").textContent = updated.code ?? "—";
-        node.querySelector(".cust-name").textContent =
-          updated.name ?? "(no name)";
-        node.querySelector(".cust-sub").textContent =
-          updated.contact || updated.email || updated.phone || "";
-      }
+      const norm = normalizeRow(updated || d);
+      // keep id just in case backend omits it
+      row.update({ ...d, ...norm, id: norm.id ?? d.id, _dirty: false });
+      toast("Saved");
     }
   } catch (e) {
     toast(e?.message || "Save failed", false);
   } finally {
-    isSubmitting = false;
-    setBusy(false);
+    // row.getElement()?.classList.remove("is-dirty");
+    // row.reformat(); // refresh Actions column
+    setDirtyClass(row, false);
+    row.reformat();
+    table?.redraw(true);
   }
 }
-function cancelEdits() {
-  tempEdits = {};
-  if (mode === "create" && !initial) {
-    if (prevSelectedIdBeforeNew) {
-      const backId = prevSelectedIdBeforeNew;
-      prevSelectedIdBeforeNew = null;
-      mode = "view";
-      selectCustomer(backId);
-      return;
-    } else {
-      selectedId = null;
-      initial = null;
-      document.title = "Customers · Topnotch MFG";
-      renderKV({});
-    }
+
+async function cancelRow(row) {
+  // const d = row.getData();
+  // if (!d.id) {
+  //   row.delete();
+  // } else {
+
+  const d = row.getData();
+  if (!d.id) {
+    // แถวใหม่: เอาออกก่อน แล้วไม่ต้องแตะ DOM ต่อ
+    row.delete();
+    return;
   } else {
-    renderKV(initial || {});
+    // reload fresh one (simple/robust)
+    try {
+      const fresh = await jfetch(
+        `${ENDPOINTS.base}/${encodeURIComponent(d.id)}`
+      );
+      const norm = normalizeRow(fresh || d);
+      row.update({ ...norm, _dirty: false });
+    } catch {
+      row.update({ _dirty: false }); // fallback
+    }
   }
-  applyMode("view");
+  // row.getElement()?.classList.remove("is-dirty");
+  // row.reformat();
+  // table?.redraw(true);
+
+  setDirtyClass(row, false);
+  row.reformat();
+  table?.redraw(true);
 }
-async function deleteDetail() {
-  if (!selectedId) return;
-  if (!confirm("Delete?\nThis action cannot be undone.")) return;
-  setBusy(true);
+
+async function deleteRow(row) {
+  const d = row.getData();
+  if (!d.id) {
+    row.delete();
+    table?.redraw(true);
+    return;
+  }
+  if (!confirm("Delete this customer?\nThis action cannot be undone.")) return;
   try {
-    await jfetch(ENDPOINTS.byId(selectedId), { method: "DELETE" });
+    await jfetch(`${ENDPOINTS.base}/${encodeURIComponent(d.id)}`, {
+      method: "DELETE",
+    });
+    row.delete();
     toast("Deleted");
-    const node = els[LIST_EL_IDS.listBody]?.querySelector(
-      `.cust-item[data-id="${CSS.escape(String(selectedId))}"]`
-    );
-    node?.remove();
-    selectedId = null;
-    initial = null;
-    tempEdits = {};
-    document.title = "Customers · Topnotch MFG";
-    renderKV({});
-    applyMode("view");
   } catch (e) {
     toast(e?.message || "Delete failed", false);
-  } finally {
-    setBusy(false);
   }
 }
 
-/* SELECT */
-async function selectCustomer(id) {
-  selectedId = id;
-  highlightSelected();
-  await loadDetail(id);
+/* ===== TABLE ===== */
+function makeColumns() {
+  return [
+    {
+      title: "No.",
+      width: 60,
+      hozAlign: "right",
+      headerHozAlign: "right",
+      headerSort: false,
+      formatter: "rownum",
+    },
+    { title: "Code", field: "code", width: 80, editor: "input" },
+    {
+      title: "Name",
+      field: "name",
+      minWidth: 160,
+      editor: "input",
+      validator: "required",
+    },
+    { title: "Contact", field: "contact", width: 130, editor: "input" },
+    { title: "Email", field: "email", width: 180, editor: "input" },
+    { title: "Phone", field: "phone", width: 140, editor: "input" },
+    {
+      title: "Address",
+      field: "address",
+      widthGrow: 3,
+      minWidth: 220,
+      maxWidth: 600,
+      editor: "input",
+      cssClass: "wrap",
+    },
+    {
+      title: "Actions",
+      field: "_actions",
+      width: 200,
+      hozAlign: "right",
+      headerSort: false,
+      formatter: (cell) => {
+        const d = cell.getRow().getData();
+        const show = d._dirty === true || !d.id;
+        return `
+    <div class="row-actions">
+      <button class="btn-small btn-primary" ${
+        show ? "" : "style='display:none'"
+      } data-act="save">Save</button>
+      <button class="btn-small btn-secondary" ${
+        show ? "" : "style='display:none'"
+      } data-act="cancel">Cancel</button>
+      <button class="btn-small btn-danger" data-act="del">Delete</button>
+    </div>`;
+      },
+      cellClick: async (e, cell) => {
+        const btn = e.target.closest("button[data-act]");
+        if (!btn) return;
+        const row = cell.getRow();
+        const act = btn.getAttribute("data-act");
+        if (act === "save") return saveRow(row);
+        if (act === "cancel") return cancelRow(row);
+        if (act === "del") return deleteRow(row);
+      },
+    },
+  ];
 }
 
-/* BOOT */
+function initTable() {
+  injectStylesOnce();
+
+  table = new Tabulator(`#${UI.tableMount}`, {
+    layout: "fitColumns",
+    height: "75vh",
+    columns: makeColumns(),
+    placeholder: "No customers",
+    reactiveData: true,
+    index: "id",
+  });
+
+  table.on("tableBuilt", () => {
+    requestAnimationFrame(() => table.redraw(true));
+    setTimeout(() => table.redraw(true), 0);
+  });
+
+  // เปลี่ยนจาก autosave → เพียง mark dirty + reformat (เหมือน page-pos.js)
+  table.on("cellEdited", (cell) => {
+    const row = cell.getRow();
+    const d = row.getData();
+    if (!d._dirty) {
+      row.update({ _dirty: true });
+      setDirtyClass(row, true);
+    }
+    row.reformat();
+  });
+}
+
+/* ===== FETCH ALL HELPERS ===== */
+async function tryFetchAllParam(keyword = "") {
+  const usp = new URLSearchParams();
+  usp.set("all", "1");
+  if (keyword) usp.set("q", keyword);
+  const res = await jfetch(`${ENDPOINTS.base}?${usp.toString()}`);
+  const items = Array.isArray(res) ? res : res?.items ?? res?.data ?? [];
+  const total = res?.total ?? items.length;
+  return { items, total, pages: res?.pages ?? 1 };
+}
+
+async function fetchAllByPaging(keyword = "") {
+  const perPage = PAGED_PER_PAGE;
+  let page = 1;
+  const all = [];
+  while (true) {
+    const usp = new URLSearchParams();
+    usp.set("page", String(page));
+    usp.set("per_page", String(perPage));
+    if (keyword) usp.set("q", keyword);
+    const res = await jfetch(`${ENDPOINTS.base}?${usp.toString()}`);
+    const items = Array.isArray(res) ? res : res?.items ?? res?.data ?? [];
+    if (!items?.length) break;
+    all.push(...items);
+    const pages = res?.pages;
+    if (pages && page >= pages) break;
+    if (!pages && items.length < perPage) break;
+    page += 1;
+  }
+  return all;
+}
+
+/* ===== LOAD ALL ===== */
+async function loadAll(keyword = "") {
+  try {
+    let records = [];
+
+    if (FETCH_ALL_STRATEGY === "all-param" || FETCH_ALL_STRATEGY === "auto") {
+      let ok = false;
+      try {
+        const { items, total, pages } = await tryFetchAllParam(keyword);
+        records = items;
+        if (
+          records.length < (total || records.length) ||
+          (pages && pages > 1)
+        ) {
+          records = await fetchAllByPaging(keyword);
+        }
+        ok = true;
+      } catch {
+        if (FETCH_ALL_STRATEGY === "all-param")
+          throw new Error("Backend doesn't support all=1");
+      }
+      if (ok) {
+        table?.setData(records.map(normalizeRow));
+        table?.redraw(true);
+        return;
+      }
+    }
+
+    records = await fetchAllByPaging(keyword);
+    table?.setData(records.map(normalizeRow));
+    table?.redraw(true);
+  } catch (e) {
+    toast("Load failed", false);
+    table?.setData([]);
+    table?.redraw(true);
+  }
+}
+
+/* ===== BINDINGS ===== */
+function bindSearch() {
+  const box = els[UI.q];
+  if (!box) return;
+  let t;
+  box.addEventListener("input", () => {
+    clearTimeout(t);
+    t = setTimeout(() => loadAll(box.value), 300);
+  });
+}
+
+function bindAdd() {
+  const btn = els[UI.btnAdd];
+  if (!btn) return;
+  btn.addEventListener("click", async () => {
+    const row = await table.addRow(
+      {
+        code: "",
+        name: "",
+        contact: "",
+        email: "",
+        phone: "",
+        address: "",
+        _dirty: true,
+      },
+      true
+    );
+    setDirtyClass(row, true);
+    row.reformat();
+    row.getCell("name")?.edit(true);
+  });
+}
+
+/* ===== BOOT ===== */
 document.addEventListener("DOMContentLoaded", () => {
-  // cache
-  Object.values(LIST_EL_IDS).forEach((id) => (els[id] = $(id)));
-  Object.values(CTRL_IDS).forEach((id) => (els[id] = $(id)));
-
-  // Edit all fields
-  els[CTRL_IDS.btnEdit]?.addEventListener("click", () => {
-    if (!initial) return;
-    tempEdits = primeTempEdits(initial);
-    applyMode("edit");
-    focusField("name");
-  });
-
-  // New
-  els[CTRL_IDS.btnNew]?.addEventListener("click", () => {
-    prevSelectedIdBeforeNew = selectedId;
-    selectedId = null;
-    initial = null;
-    tempEdits = primeTempEdits({});
-    applyMode("create");
-    focusField("name");
-  });
-
-  els[CTRL_IDS.btnSave]?.addEventListener("click", saveDetail);
-  els[CTRL_IDS.btnCancel]?.addEventListener("click", cancelEdits);
-  els[CTRL_IDS.btnDelete]?.addEventListener("click", deleteDetail);
-
-  // pager
-  lp = createListPager({
-    url: ENDPOINTS.listKeyset,
-    pageSize: Number(els[LIST_EL_IDS.selPerPage]?.value || 20),
-    container: els[LIST_EL_IDS.listBody],
-    render: (container, rows, ctx) => renderList(container, rows, ctx),
-    pageInfoEls: [els[LIST_EL_IDS.pageInfo]],
-    prevButtons: [els[LIST_EL_IDS.btnPrevTop], els[LIST_EL_IDS.btnPrev]],
-    nextButtons: [els[LIST_EL_IDS.btnNextTop], els[LIST_EL_IDS.btnNext]],
-    queryKey: "q",
-  });
-
-  lp.bindSearch(els[LIST_EL_IDS.inputSearch], { debounceMs: 300 });
-  lp.bindPerPage(els[LIST_EL_IDS.selPerPage]);
-
-  renderKV({});
-  applyMode("view");
-  lp.reloadFirst();
+  Object.values(UI).forEach((id) => (els[id] = $(id)));
+  initTable();
+  bindSearch();
+  bindAdd();
+  loadAll();
 });

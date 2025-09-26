@@ -1,71 +1,87 @@
-// /static/js/page-pos-detail.js (v2)
+// /static/js/page-pos-detail.js (v6 – header & lines use Save/Cancel buttons, no autosave on blur)
 import { $, jfetch, toast } from "./api.js";
 import { attachAutocomplete } from "./autocomplete.js";
 
 const qs = new URLSearchParams(location.search);
-const poId = qs.get("id"); // ถ้ามี = โหมด view/edit, ถ้าไม่มี = โหมด create
+const poIdQS = qs.get("id"); // present => view/edit, else => create
 
 /* ---------- STATE ---------- */
-let mode = poId ? "view" : "create"; // view | edit | create
-let initial = null; // PO object ปัจจุบัน
-let tempEdits = {}; // draft สำหรับ header
+let initial = null; // current PO from server
 let isSubmitting = false;
 let selectedCustomer = null; // {id, code, name}
 
-// fields + labels (เหมือนโครง customers)
-const FIELD_KEYS = ["po_number", "customer", "description", "created_at"];
-const FIELD_LABELS = {
-  po_number: "PO No.",
-  customer: "Customer",
-  description: "Description",
-  created_at: "Created",
-};
-const INPUT_TYPE = { po_number: "text", description: "textarea" };
+/* lines table */
+let linesTable = null;
 
 /* ---------- EL REFS ---------- */
 const hintEl = $("po_hint");
 const errEl = $("po_error");
-const viewEl = $("po_view");
 const subTitle = $("po_subTitle");
-const btnEdit = $("po_btnEdit");
-const btnNew = $("po_btnNew");
-const btnSave = $("po_btnSave");
-const btnCancel = $("po_btnCancel");
-const btnDelete = $("po_btnDelete");
+
+const elPoNumber = $("po_po_number");
+const elCustomer = $("po_customer");
+const elDesc = $("po_description");
+const elCreated = $("po_created");
+
+/* Header action buttons (created dynamically) */
+let btnHdrSave = null;
+let btnHdrCancel = null;
 
 /* ---------- UTILS ---------- */
-const safe = (s) => String(s ?? "").replaceAll("<", "&lt;");
+const safe = (s) =>
+  String(s ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
 const fmtDate = (s) => {
-  if (!s) return "";
+  if (!s) return "—";
   const d = new Date(s);
-  return isNaN(d) ? "" : d.toLocaleString();
+  return isNaN(d) ? "—" : d.toLocaleString();
 };
 const trim = (v) => (v == null ? "" : String(v).trim());
+
 function setBusy(b) {
-  [btnEdit, btnNew, btnSave, btnCancel, btnDelete].forEach((el) => {
-    if (!el) return;
-    el.disabled = !!b;
-    el.setAttribute("aria-disabled", String(b));
-  });
-  if (hintEl) hintEl.textContent = b ? "Working…" : "";
+  hintEl.textContent = b ? "Working…" : "";
 }
 function setError(msg) {
-  if (!errEl) return;
-  if (!msg) {
-    errEl.style.display = "none";
-    errEl.textContent = "";
-  } else {
-    errEl.style.display = "";
-    errEl.textContent = msg;
+  errEl.style.display = msg ? "" : "none";
+  errEl.textContent = msg || "";
+}
+
+/* add/remove highlight class safely even when row is virtualized */
+function setDirtyClass(row, on) {
+  const el = typeof row.getElement === "function" ? row.getElement() : null;
+  if (el && el.classList) {
+    if (on) el.classList.add("is-dirty");
+    else el.classList.remove("is-dirty");
   }
 }
 
-/* ---------- Customer autocomplete (เหมือนหน้า POS หลัก) ---------- */
+/* ---------- Inject small styles ---------- */
+(function injectOnce() {
+  if (document.getElementById("pos-detail-actions-css")) return;
+  const st = document.createElement("style");
+  st.id = "pos-detail-actions-css";
+  st.textContent = `
+    .btn-mini{font:inherit;padding:6px 10px;border-radius:8px;border:1px solid #e5e7eb;background:#f8fafc;cursor:pointer}
+    .btn-mini:hover{background:#f1f5f9}
+    .btn-primary{background:#2563eb;color:#fff;border-color:#1d4ed8}
+    .btn-primary:hover{background:#1d4ed8}
+    .btn-danger{background:#ef4444;color:#fff;border-color:#dc2626}
+    .btn-danger:hover{background:#dc2626}
+    .btn-secondary{background:#6b7280;color:#fff;border-color:#4b5563}
+    .btn-secondary:hover{background:#4b5563}
+    .hdr-actions{display:flex;gap:8px;align-items:center}
+    .tabulator-row.is-dirty{background:#fff7ed}
+  `;
+  document.head.appendChild(st);
+})();
+
+/* ---------- Customer autocomplete (header) ---------- */
 async function searchCustomers(term) {
   const q = (term || "").trim();
   try {
     if (!q) {
-      // first 10
       const res0 = await jfetch(`/customers/keyset?limit=10`);
       const items0 = Array.isArray(res0) ? res0 : res0.items ?? [];
       return items0.map((x) => ({
@@ -87,257 +103,120 @@ async function searchCustomers(term) {
     return [];
   }
 }
-function buildCustomerInput(current) {
-  const input = document.createElement("input");
-  input.className = "kv-input";
-  input.dataset.field = "customer";
-  input.placeholder = "Type to search…";
-  input.autocomplete = "off";
-  input.value = current?.code ? `${current.code} — ${current.name ?? ""}` : "";
-
-  selectedCustomer = current?.id
-    ? { id: current.id, code: current.code ?? "", name: current.name ?? "" }
-    : null;
-
-  attachAutocomplete(input, {
+function initCustomerAutocomplete() {
+  attachAutocomplete(elCustomer, {
     fetchItems: searchCustomers,
     getDisplayValue: (it) => (it ? `${it.code} — ${it.name}` : ""),
     renderItem: (it) =>
-      `<div class="ac-row"><b>${it.code}</b> — ${it.name}</div>`,
-    onPick: (it) => {
-      selectedCustomer = it || null;
-      input.value = it ? `${it.code} — ${it.name}` : "";
-    },
+      `<div class="ac-row"><b>${safe(it.code)}</b> — ${safe(it.name)}</div>`,
     openOnFocus: true,
     minChars: 0,
     debounceMs: 200,
     maxHeight: 260,
+    onPick: async (it) => {
+      selectedCustomer = it;
+      elCustomer.value = `${it.code} — ${it.name}`;
+      // mark header dirty (no autosave)
+      markHeaderDirty(true);
+    },
   });
-
-  input.addEventListener("input", () => {
+  elCustomer.addEventListener("input", () => {
     selectedCustomer = null;
+    markHeaderDirty(true);
   });
-  input.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") {
-      e.preventDefault();
-      cancelEdits();
-    }
-  });
-  return input;
 }
 
-/* ---------- HEADER RENDER ---------- */
-function primeEdits(base) {
-  return {
-    po_number: base?.po_number ?? "",
-    customer: base?.customer
-      ? {
-          id: base.customer.id,
-          code: base.customer.code,
-          name: base.customer.name,
-        }
-      : null,
-    description: base?.description ?? "",
-    created_at: base?.created_at ?? null,
-  };
-}
-function getWorkingData() {
-  const base = mode === "create" ? {} : initial ?? {};
-  return { ...base, ...tempEdits };
-}
-function focusField(key) {
-  const el = viewEl?.querySelector(
-    `.kv-input[data-field="${CSS.escape(key)}"]`
-  );
-  el?.focus();
-}
-function applyMode(nextMode) {
-  if (nextMode) mode = nextMode;
-  renderHeader(getWorkingData());
-}
-function renderHeader(data = {}) {
-  if (!viewEl) return;
-
-  const empty = !data || (Object.keys(data).length === 0 && mode !== "create");
-  if (empty) {
-    viewEl.innerHTML = `<div class="muted">No PO selected</div>`;
-    return;
-  }
-
-  const editing = mode === "edit" || mode === "create";
-  const pick = (k, def = "") =>
-    Object.prototype.hasOwnProperty.call(tempEdits, k)
-      ? tempEdits[k]
-      : data[k] ?? def;
-
-  const rows = FIELD_KEYS.map((key) => {
-    const label = FIELD_LABELS[key];
-    const cur = pick(key, null);
-
-    let valHtml = "";
-    if (!editing) {
-      if (key === "customer") {
-        valHtml = cur
-          ? `${safe(cur.code ?? "")} — ${safe(cur.name ?? "")}`
-          : "—";
-      } else if (key === "created_at") {
-        valHtml = fmtDate(cur);
-      } else {
-        const text = trim(cur ?? "");
-        valHtml = text === "" ? "—" : safe(text);
-      }
-    } else {
-      if (key === "customer") {
-        valHtml = '<div data-field="customer"></div>';
-      } else if (INPUT_TYPE[key] === "textarea") {
-        valHtml = `<textarea class="kv-input" data-field="${key}" rows="3">${safe(
-          cur ?? ""
-        )}</textarea>`;
-      } else if (key === "created_at") {
-        valHtml = fmtDate(cur) || "—";
-      } else {
-        valHtml = `<input class="kv-input" data-field="${key}" type="${
-          INPUT_TYPE[key] || "text"
-        }" value="${safe(cur ?? "")}" />`;
-      }
-    }
-
-    return `
-      <div class="kv-row${editing ? " editing" : ""}" data-key="${key}">
-        <div class="kv-key">${safe(label)}</div>
-        <div class="kv-val" data-key="${key}">${valHtml}</div>
-      </div>
-    `;
-  }).join("");
-
-  viewEl.innerHTML = rows;
-
-  // subtitle
-  subTitle.textContent = initial?.id
-    ? `#${initial.id} — ${initial.po_number ?? ""}`
-    : "(new)";
-
-  // dblclick -> edit
-  viewEl.querySelectorAll(".kv-row").forEach((row) => {
-    row.addEventListener("dblclick", () => {
-      const key = row.dataset.key;
-      if (mode === "view") {
-        tempEdits = primeEdits(initial);
-        applyMode("edit");
-        focusField(key);
-      } else {
-        focusField(key);
-      }
-    });
-  });
-
-  if (editing) {
-    // mount autocomplete for customer
-    const holder = viewEl.querySelector('.kv-val[data-key="customer"]');
-    if (holder) {
-      holder.replaceChildren(buildCustomerInput(pick("customer", null)));
-    }
-
-    // bind text inputs
-    viewEl.querySelectorAll(".kv-input").forEach((input) => {
-      input.addEventListener("input", (e) => {
-        const k = e.target.dataset.field;
-        tempEdits[k] = e.target.value;
-      });
-      input.addEventListener("keydown", (e) => {
-        if (
-          e.key === "Enter" &&
-          !e.shiftKey &&
-          e.target.tagName !== "TEXTAREA"
-        ) {
-          e.preventDefault();
-          saveHeader();
-        } else if (e.key === "Escape") {
-          e.preventDefault();
-          cancelEdits();
-        }
-      });
-    });
-  }
-
-  // toggle buttons
-  btnSave.style.display = editing ? "" : "none";
-  btnCancel.style.display = editing ? "" : "none";
-  btnEdit.style.display = editing ? "none" : "";
-  btnNew.style.display = editing ? "none" : "";
-}
-
-/* ---------- IO: load/save/delete header ---------- */
+/* ---------- Header load ---------- */
 async function loadHeader() {
-  if (!poId) {
-    // create mode
+  if (!poIdQS) {
     initial = null;
-    tempEdits = primeEdits({});
-    applyMode("create");
+    subTitle.textContent = "(new)";
+    elPoNumber.value = "";
+    elCustomer.value = "";
+    elDesc.value = "";
+    elCreated.textContent = "—";
+    document.title = `PO · (new)`;
+    markHeaderDirty(false);
     return;
   }
   setBusy(true);
   setError("");
   try {
-    const po = await jfetch(`/pos/${encodeURIComponent(poId)}`);
+    const po = await jfetch(`/pos/${encodeURIComponent(poIdQS)}`);
     initial = po;
-    tempEdits = {};
-    applyMode("view");
+    subTitle.textContent = `#${po.id} — ${po.po_number ?? ""}`;
     document.title = `PO · ${po.po_number ?? po.id}`;
+    elPoNumber.value = po.po_number ?? "";
+    const c = po.customer || null;
+    selectedCustomer = c ? { id: c.id, code: c.code, name: c.name } : null;
+    elCustomer.value = c?.code ? `${c.code} — ${c.name ?? ""}` : "";
+    elDesc.value = po.description ?? "";
+    elCreated.textContent = fmtDate(po.created_at);
+    markHeaderDirty(false);
   } catch (e) {
     setError(e?.message || "Load failed");
     initial = null;
-    tempEdits = {};
-    applyMode("view");
+    subTitle.textContent = "—";
   } finally {
     setBusy(false);
   }
 }
-function buildHeaderPayload() {
-  const data = getWorkingData();
-  const customer_id = selectedCustomer?.id ?? data.customer?.id ?? null;
+
+/* ---------- Header Save/Cancel (manual) ---------- */
+function getHeaderDraft() {
   return {
-    po_number: trim(data.po_number) || null,
-    customer_id,
-    description: data.description ? trim(data.description) : "",
+    po_number: trim(elPoNumber.value),
+    customer_id: selectedCustomer?.id ?? null,
+    description: trim(elDesc.value),
   };
 }
-async function saveHeader() {
+function markHeaderDirty(on) {
+  if (btnHdrSave) btnHdrSave.style.display = on ? "" : "none";
+  if (btnHdrCancel) btnHdrCancel.style.display = on ? "" : "none";
+}
+async function saveHeaderManual() {
   if (isSubmitting) return;
-  const payload = buildHeaderPayload();
-  if (!payload.customer_id) {
+  const draft = getHeaderDraft();
+  if (!draft.customer_id) {
     toast("Select Customer !!", false);
-    focusField("customer");
     return;
   }
-  setBusy(true);
-  isSubmitting = true;
   try {
-    if (mode === "create" || !initial?.id) {
+    isSubmitting = true;
+    setBusy(true);
+    if (!initial?.id) {
+      // create
       const created = await jfetch(`/pos`, {
         method: "POST",
-        body: JSON.stringify(payload),
+        body: JSON.stringify(draft),
       });
       toast("PO created");
-      initial = created;
-      tempEdits = {};
-      mode = "view";
-      renderHeader(initial);
-      // redirect to self with id
       location.replace(
         `/static/pos-detail.html?id=${encodeURIComponent(created.id)}`
       );
       return;
     } else {
-      const updated = await jfetch(`/pos/${encodeURIComponent(initial.id)}`, {
-        method: "PATCH",
-        body: JSON.stringify(payload),
-      });
-      toast("Saved");
-      initial = updated;
-      tempEdits = {};
-      mode = "view";
-      renderHeader(initial);
+      // patch only changed fields
+      const patch = {};
+      if (draft.po_number !== (initial.po_number ?? ""))
+        patch.po_number = draft.po_number;
+      const curCid = initial?.customer?.id ?? null;
+      if ((draft.customer_id ?? null) !== curCid)
+        patch.customer_id = draft.customer_id;
+      if (draft.description !== (initial.description ?? ""))
+        patch.description = draft.description;
+
+      if (Object.keys(patch).length) {
+        await jfetch(`/pos/${encodeURIComponent(initial.id)}`, {
+          method: "PATCH",
+          body: JSON.stringify(patch),
+        });
+        toast("Saved");
+        // refresh header baseline
+        await loadHeader();
+      } else {
+        markHeaderDirty(false);
+      }
     }
   } catch (e) {
     toast(e?.message || "Save failed", false);
@@ -346,31 +225,73 @@ async function saveHeader() {
     setBusy(false);
   }
 }
-function cancelEdits() {
-  tempEdits = {};
-  mode = "view";
-  renderHeader(initial || {});
-}
-async function deleteHeader() {
-  if (!initial?.id) return;
-  if (!confirm("ลบ PO นี้?\nThis action cannot be undone.")) return;
-  setBusy(true);
-  try {
-    await jfetch(`/pos/${encodeURIComponent(initial.id)}`, {
-      method: "DELETE",
-    });
-    toast("Deleted");
-    location.href = "/static/pos.html";
-  } catch (e) {
-    toast(e?.message || "Delete failed", false);
-  } finally {
-    setBusy(false);
+async function cancelHeaderManual() {
+  if (!initial?.id) {
+    // brand new: just clear fields
+    elPoNumber.value = "";
+    elCustomer.value = "";
+    selectedCustomer = null;
+    elDesc.value = "";
+    markHeaderDirty(false);
+    return;
   }
+  // restore from initial
+  elPoNumber.value = initial.po_number ?? "";
+  if (initial.customer) {
+    selectedCustomer = {
+      id: initial.customer.id,
+      code: initial.customer.code,
+      name: initial.customer.name,
+    };
+    elCustomer.value = `${initial.customer.code} — ${
+      initial.customer.name ?? ""
+    }`;
+  } else {
+    selectedCustomer = null;
+    elCustomer.value = "";
+  }
+  elDesc.value = initial.description ?? "";
+  markHeaderDirty(false);
 }
 
-/* ---------- LINES (นำมาจากสคริปต์เดิม ปรับ id ให้ตรง) ---------- */
-let poLines = [];
-let editingLineId = null; // 'new' | number
+/* wire header inputs to just mark dirty (no autosave on blur/enter) */
+function wireHeaderDirtyOnly() {
+  const onDirty = () => markHeaderDirty(true);
+  elPoNumber.addEventListener("input", onDirty);
+  elPoNumber.addEventListener("change", onDirty);
+  elDesc.addEventListener("input", onDirty);
+  elDesc.addEventListener("change", onDirty);
+  // customer marks dirty in initCustomerAutocomplete()
+}
+
+/* Create header Save/Cancel buttons near subtitle */
+function ensureHeaderButtons() {
+  if (!subTitle) return;
+  if (document.getElementById("hdr-actions")) return;
+
+  const wrap = document.createElement("div");
+  wrap.id = "hdr-actions";
+  wrap.className = "hdr-actions";
+
+  btnHdrSave = document.createElement("button");
+  btnHdrSave.className = "btn-mini btn-primary";
+  btnHdrSave.textContent = "Save";
+  btnHdrSave.style.display = "none";
+  btnHdrSave.addEventListener("click", saveHeaderManual);
+
+  btnHdrCancel = document.createElement("button");
+  btnHdrCancel.className = "btn-mini btn-secondary";
+  btnHdrCancel.textContent = "Cancel";
+  btnHdrCancel.style.display = "none";
+  btnHdrCancel.addEventListener("click", cancelHeaderManual);
+
+  // วางต่อท้าย subtitle
+  subTitle.insertAdjacentElement("afterend", wrap);
+  wrap.appendChild(btnHdrSave);
+  wrap.appendChild(btnHdrCancel);
+}
+
+/* ---------- Lines helpers ---------- */
 function fmtMoney(n) {
   return n == null
     ? ""
@@ -382,550 +303,465 @@ function fmtMoney(n) {
 function fmtQty(n) {
   return Number(n ?? 0).toLocaleString(undefined, { maximumFractionDigits: 3 });
 }
-
-async function loadLines() {
-  if (!initial?.id && !poId) return; // create mode ยังไม่มีบรรทัด
-  const id = initial?.id ?? poId;
-  try {
-    const rows = await jfetch(`/pos/${encodeURIComponent(id)}/lines`);
-    poLines = rows || [];
-    renderLines();
-  } catch (e) {
-    poLines = [];
-    renderLines();
-  }
-}
-function renderLines() {
-  const tb = $("tblLinesBody");
-  if (!tb) return;
-
-  const rows =
-    editingLineId === "new"
-      ? [{ __isNew: true, id: null }].concat(poLines)
-      : poLines.slice();
-
-  if (!rows.length) {
-    tb.innerHTML = `<tr><td colspan="8" class="empty">No lines</td></tr>`;
-    return;
-  }
-
-  tb.innerHTML = rows
-    .map((row, idxInRows) => {
-      const displayNo = row.__isNew
-        ? ""
-        : editingLineId === "new"
-        ? idxInRows
-        : idxInRows + 1;
-      const isEdit =
-        editingLineId === row.id || (row.__isNew && editingLineId === "new");
-
-      if (!isEdit) {
-        const qty = fmtQty(row.qty);
-        const price = fmtMoney(row.unit_price);
-        const due = row.due_date ?? "";
-        const partId = row.part?.id ?? row.part_id ?? null;
-        const partNo = row.part?.part_no ?? row.part_id ?? "";
-
-        const revText =
-          row.revision?.rev ?? row.rev?.rev ?? row.revision_id ?? "";
-        const note = row.note ?? row.notes ?? "";
-
-        return `
-      <tr data-id="${row.id}">
-        <td style="text-align:right">${safe(String(displayNo))}</td>
-        <td>${
-          partId
-            ? `<a href="/static/part-detail.html?id=${encodeURIComponent(
-                partId
-              )}" class="link">${safe(String(partNo))}</a>`
-            : safe(String(partNo))
-        }</td>
-        <td>${safe(String(revText ?? ""))}</td>
-        <td style="text-align:right">${qty}</td>
-        <td style="text-align:right">${price}</td>
-        <td>${safe(String(due))}</td>
-        <td>${safe(String(note))}</td>
-        <td style="text-align:right; white-space:nowrap">
-          <button class="btn ghost btn-sm" data-edit="${row.id}">Edit</button>
-          <button class="btn danger btn-sm" data-del="${row.id}">Delete</button>
-        </td>
-      </tr>`;
-      } else {
-        const rid = row.__isNew ? "new" : row.id;
-        const partNo = row.part?.part_no ?? "";
-        const revText = row.revision?.rev ?? row.rev?.rev ?? "";
-        const qty = row.qty ?? "";
-        const price = row.unit_price ?? "";
-        const due = row.due_date ?? "";
-        const note = row.note ?? row.notes ?? "";
-        const partId = row.part_id ?? row.part?.id ?? "";
-        const revisionId =
-          row.revision_id ?? row.revision?.id ?? row.rev?.id ?? "";
-
-        return `
-      <tr data-id="${row.id ?? ""}" data-editing="1">
-        <td style="text-align:right">${safe(String(displayNo))}</td>
-        <td>
-          <input id="r_part_code_${rid}" value="${safe(
-          partNo
-        )}" placeholder="e.g. P-10001" />
-          <input id="r_part_id_${rid}" type="hidden" value="${safe(
-          String(partId)
-        )}">
-        </td>
-        <td>
-          <select id="r_rev_select_${rid}" disabled>
-            <option value="">— Select revision —</option>
-          </select>
-          <input id="r_revision_id_${rid}" type="hidden" value="${safe(
-          String(revisionId)
-        )}">
-        </td>
-        <td style="text-align:right">
-          <input id="r_qty_${rid}" type="number" step="1" value="${safe(
-          String(qty)
-        )}" style="text-align:right; width:120px">
-        </td>
-        <td style="text-align:right">
-          <input id="r_price_${rid}" type="number" step="1" value="${safe(
-          String(price)
-        )}" style="text-align:right; width:140px">
-        </td>
-        <td><input id="r_due_${rid}" type="date" value="${safe(
-          String(due)
-        )}"></td>
-        <td><input id="r_notes_${rid}" value="${safe(String(note))}"></td>
-        <td style="text-align:right; white-space:nowrap">
-          <button class="btn btn-sm" data-save="${rid}">Save</button>
-          <button class="btn ghost btn-sm" data-cancel="${rid}">Cancel</button>
-          ${
-            row.__isNew
-              ? ""
-              : `<button class="btn danger btn-sm" data-del="${rid}">Delete</button>`
-          }
-        </td>
-      </tr>`;
-      }
-    })
-    .join("");
-
-  tb.querySelectorAll("[data-edit]").forEach((b) =>
-    b.addEventListener("click", () => startEdit(+b.dataset.edit))
-  );
-  tb.querySelectorAll("[data-del]").forEach((b) =>
-    b.addEventListener("click", () => deleteLine(+b.dataset.del))
-  );
-  tb.querySelectorAll("[data-save]").forEach((b) =>
-    b.addEventListener("click", () => saveLineInline(b.dataset.save))
-  );
-  tb.querySelectorAll("[data-cancel]").forEach((b) =>
-    b.addEventListener("click", cancelEdit)
-  );
-
-  if (editingLineId != null) {
-    const rid = editingLineId;
-    const sel = $(`r_rev_select_${rid}`);
-    sel?.addEventListener("change", () => {
-      $(`r_revision_id_${rid}`).value = sel.value || "";
-    });
-
-    const partInputEl = $(`r_part_code_${rid}`);
-    if (partInputEl) attachRowPartAutocomplete(rid, partInputEl);
-
-    if (rid !== "new") {
-      const rowData = poLines.find((x) => x.id === Number(rid));
-      const partIdCandidate = rowData?.part_id ?? rowData?.part?.id ?? null;
-      const prevRevId =
-        rowData?.revision_id ??
-        rowData?.revision?.id ??
-        rowData?.rev?.id ??
-        null;
-      const prevRevText = rowData?.revision?.rev ?? rowData?.rev?.rev ?? "";
-      if (partIdCandidate) {
-        loadRevisionsForInto(partIdCandidate, rid, {
-          preferId: prevRevId,
-          preferText: prevRevText,
-        });
-      } else {
-        resetRevChoicesInto(rid);
-      }
-    }
-  }
-}
-function startEdit(id) {
-  if (editingLineId != null) cancelEdit();
-  editingLineId = id;
-  renderLines();
-}
-function startAddLine() {
-  if (mode === "create" && !initial?.id) {
-    toast("Save header first", false);
-    return;
-  }
-  if (editingLineId != null) cancelEdit();
-  editingLineId = "new";
-  renderLines();
-}
-function cancelEdit() {
-  editingLineId = null;
-  renderLines();
-}
-
-async function saveLineInline(rid) {
-  const isNew = rid === "new";
-  const id = initial?.id ?? poId;
-
-  const partId = numOrNull($(`r_part_id_${rid}`).value);
-  const revSel = $(`r_rev_select_${rid}`);
-  const revHidden = $(`r_revision_id_${rid}`);
-  const revRaw = (revSel?.value || revHidden?.value || "").trim();
-  const revId = numOrNull(revRaw);
-
-  const payload = {
-    part_id: partId,
-    qty: numOrNull($(`r_qty_${rid}`).value),
-    unit_price: numOrNull($(`r_price_${rid}`).value),
-    note: strOrNull($(`r_notes_${rid}`).value),
-  };
-
-  if (!payload.part_id) {
-    toast("Enter Part No", false);
-    return;
-  }
-
-  const partIdForRev = revListPartId[rid];
-  if (revId && partIdForRev === partId) payload.revision_id = revId;
-  else if (revId && partIdForRev !== partId) {
-    const hid = $(`r_revision_id_${rid}`);
-    if (hid) hid.value = "";
-    if (revSel) revSel.value = "";
-    toast("Revision cleared: it didn’t belong to the selected part.", false);
-  }
-
-  if (payload.qty == null) delete payload.qty;
-  if (payload.unit_price == null) delete payload.unit_price;
-  if (payload.note == null) delete payload.note;
-
-  try {
-    if (isNew) {
-      const created = await jfetch(`/pos/${encodeURIComponent(id)}/lines`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      poLines.unshift(created);
-      toast("Line added");
-    } else {
-      const updated = await jfetch(
-        `/pos/${encodeURIComponent(id)}/lines/${rid}`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        }
-      );
-      const idx = poLines.findIndex((x) => x.id === Number(rid));
-      if (idx >= 0) poLines[idx] = updated;
-      toast("Line updated");
-    }
-    editingLineId = null;
-    renderLines();
-  } catch (e) {
-    const msg = String(e?.message || "").toLowerCase();
-    if (
-      msg.includes("revision_id does not belong") ||
-      msg.includes("belongs to part")
-    ) {
-      const hid = $(`r_revision_id_${rid}`);
-      if (hid) hid.value = "";
-      if (revSel) revSel.value = "";
-      toast(
-        "Selected revision doesn’t belong to this part. Revision cleared — try saving again.",
-        false
-      );
-    } else {
-      toast(e?.message || "Save failed", false);
-    }
-  }
-}
-async function deleteLine(id) {
-  const poid = initial?.id ?? poId;
-  if (!confirm("Delete line?")) return;
-  try {
-    await jfetch(`/pos/${encodeURIComponent(poid)}/lines/${id}`, {
-      method: "DELETE",
-    });
-    poLines = poLines.filter((x) => x.id !== Number(id));
-    toast("Line deleted");
-    renderLines();
-  } catch (e) {
-    toast(e?.message || "Delete failed", false);
-  }
-}
-
-/* ---- Part+Revision autocomplete utils (ยกจากสคริปต์เดิม) ---- */
-let partAcBox,
-  partItems = [],
-  partActive = -1,
-  partInput;
-let currentPartRid = null;
-function ensurePartBox() {
-  if (partAcBox) return partAcBox;
-  partAcBox = document.createElement("div");
-  Object.assign(partAcBox.style, {
-    position: "absolute",
-    zIndex: "9999",
-    minWidth: "240px",
-    maxHeight: "260px",
-    overflow: "auto",
-    background: "#fff",
-    border: "1px solid #e2e8f0",
-    borderRadius: "10px",
-    boxShadow: "0 10px 20px rgba(2,6,23,.08), 0 2px 6px rgba(2,6,23,.06)",
-    display: "none",
-  });
-  partAcBox.className = "ac-box";
-  document.body.appendChild(partAcBox);
-  return partAcBox;
-}
-function positionPartBox(input) {
-  const r = input.getBoundingClientRect();
-  partAcBox.style.left = `${window.scrollX + r.left}px`;
-  partAcBox.style.top = `${window.scrollY + r.bottom + 4}px`;
-  partAcBox.style.width = `${r.width}px`;
-}
-function hidePartAc() {
-  if (!partAcBox) return;
-  partAcBox.style.display = "none";
-  partItems = [];
-  partActive = -1;
-}
-function setPartActive(i) {
-  partActive = i;
-  [...partAcBox.querySelectorAll(".ac-item")].forEach((el, idx) => {
-    el.style.background = idx === partActive ? "rgba(0,0,0,.04)" : "";
-  });
-}
-function renderPartAc(list) {
-  const box = ensurePartBox();
-  partItems = list || [];
-  partActive = -1;
-  if (!partItems.length) {
-    hidePartAc();
-    return;
-  }
-  box.innerHTML = list
-    .map(
-      (p, i) =>
-        `<div class="ac-item" data-i="${i}" style="padding:8px 10px; cursor:pointer; display:flex; gap:8px; align-items:center"><span class="badge" style="font-size:11px">${safe(
-          p.part_no
-        )}</span><div style="flex:1"><div style="font-weight:600">${safe(
-          p.name || ""
-        )}</div></div></div>`
-    )
-    .join("");
-  [...box.querySelectorAll(".ac-item")].forEach((el) => {
-    el.addEventListener("mouseenter", () =>
-      setPartActive(parseInt(el.dataset.i, 10))
-    );
-    el.addEventListener("mousedown", (e) => {
-      e.preventDefault();
-      if (currentPartRid != null)
-        choosePartForRow(currentPartRid, parseInt(el.dataset.i, 10));
-    });
-  });
-  box.style.display = "";
-  if (partInput) positionPartBox(partInput);
-}
-function normalizeItems(resp) {
-  if (Array.isArray(resp)) return resp;
-  if (resp && typeof resp === "object") return resp.items || [];
-  return [];
-}
-function debounce(fn, ms = 220) {
-  let t;
-  return (...a) => {
-    clearTimeout(t);
-    t = setTimeout(() => fn(...a), ms);
-  };
-}
-
-const fetchPartSuggest = debounce(async (term) => {
-  try {
-    const url =
-      !term || term.trim().length === 0
-        ? `/parts?page=1&per_page=10`
-        : `/parts?q=${encodeURIComponent(term)}&page=1&per_page=20`;
-    const resp = await jfetch(url);
-    const rows = normalizeItems(resp).map((p) => ({
-      id: p.id,
-      part_no: (p.part_no || "").toUpperCase(),
-      name: p.name || "",
-    }));
-    renderPartAc(rows.slice(0, 20));
-  } catch {
-    renderPartAc([]);
-  }
-}, 220);
-
-const revFetchToken = {}; // map: rid -> running token
-const revListPartId = {}; // map: rid -> part_id ล่าสุด
-function attachRowPartAutocomplete(rid, input) {
-  currentPartRid = rid;
-  partInput = input;
-  input.setAttribute("autocomplete", "off");
-  input.addEventListener("input", () => {
-    const term = (input.value || "").trim();
-    $(`r_part_id_${rid}`).value = "";
-    resetRevChoicesInto(rid);
-    fetchPartSuggest(term);
-    ensurePartBox();
-    positionPartBox(input);
-  });
-  input.addEventListener("focus", () => {
-    const term = (input.value || "").trim();
-    fetchPartSuggest(term);
-    ensurePartBox();
-    positionPartBox(input);
-  });
-  input.addEventListener("blur", () => setTimeout(hidePartAc, 100));
-  input.addEventListener("keydown", (e) => {
-    if (!partAcBox || partAcBox.style.display === "none") return;
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      setPartActive(Math.min(partActive + 1, partItems.length - 1));
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      setPartActive(Math.max(partActive - 1, 0));
-    } else if (e.key === "Enter") {
-      if (partActive >= 0) {
-        e.preventDefault();
-        choosePartForRow(rid, partActive);
-      }
-    } else if (e.key === "Escape") {
-      hidePartAc();
-    }
-  });
-}
-async function choosePartForRow(rid, idx) {
-  if (idx < 0 || idx >= partItems.length) return;
-  const p = partItems[idx];
-  $(`r_part_code_${rid}`).value = (p.part_no || "").toUpperCase();
-  $(`r_part_id_${rid}`).value = p.id;
-  const sel = $(`r_rev_select_${rid}`);
-  if (sel) {
-    sel.disabled = true;
-    sel.innerHTML = `<option value="">Loading…</option>`;
-  }
-  hidePartAc();
-  await loadRevisionsForInto(p.id, rid);
-}
-function resetRevChoicesInto(rid) {
-  const sel = $(`r_rev_select_${rid}`);
-  const hid = $(`r_revision_id_${rid}`);
-  if (sel) {
-    sel.disabled = true;
-    sel.innerHTML = `<option value="">— Select revision —</option>`;
-  }
-  if (hid) hid.value = "";
-  revListPartId[rid] = undefined;
-}
-async function fetchPartRevisions(partId) {
-  const tries = [
-    `/part-revisions?part_id=${encodeURIComponent(partId)}`,
-    `/parts/${encodeURIComponent(partId)}/revisions`,
-  ];
-  for (const url of tries) {
-    try {
-      const data = await jfetch(url);
-      const arr = Array.isArray(data) ? data : data?.items || [];
-      if (Array.isArray(arr)) {
-        const rows = arr.map((r) => ({
-          id: r.id,
-          rev: r.rev || r.revision || r.code || "",
-          is_current: !!(r.is_current ?? r.current ?? r.active),
-        }));
-        if (rows.length || url.includes("/revisions")) return rows;
-      }
-    } catch {}
-  }
-  return [];
-}
-async function loadRevisionsForInto(partId, rid, opts = {}) {
-  revFetchToken[rid] = (revFetchToken[rid] || 0) + 1;
-  const my = revFetchToken[rid];
-  const sel = $(`r_rev_select_${rid}`);
-  const hid = $(`r_revision_id_${rid}`);
-  if (!sel || !hid) return;
-  sel.disabled = true;
-  sel.innerHTML = `<option value="">Loading…</option>`;
-  hid.value = "";
-  try {
-    const revs = await fetchPartRevisions(partId);
-    if (my !== revFetchToken[rid]) return;
-    sel.innerHTML = [`<option value="">— No revision —</option>`]
-      .concat(
-        revs.map((r) => `<option value="${r.id}">${safe(r.rev)}</option>`)
-      )
-      .join("");
-    sel.disabled = false;
-    revListPartId[rid] = partId;
-
-    let chosenId = null;
-    if (opts.preferId && revs.some((r) => r.id === opts.preferId))
-      chosenId = String(opts.preferId);
-    else if (opts.preferText) {
-      const f = revs.find((r) => String(r.rev) === String(opts.preferText));
-      if (f) chosenId = String(f.id);
-    } else {
-      const cur = revs.find((r) => r.is_current);
-      if (cur) chosenId = String(cur.id);
-      else if (revs[0]) chosenId = String(revs[0].id);
-    }
-
-    sel.value = chosenId ?? "";
-    hid.value = sel.value || "";
-  } catch {
-    sel.disabled = false;
-    sel.innerHTML = `<option value="">— No revision —</option>`;
-    hid.value = "";
-  }
-}
-
-/* ---------- helpers ---------- */
 function numOrNull(v) {
   const n = Number(v);
   return isFinite(n) ? n : null;
 }
 function strOrNull(v) {
   v = (v ?? "").trim();
-  return v ? v : null;
+  return v || null;
 }
 
-/* ---------- EVENTS ---------- */
-btnEdit?.addEventListener("click", () => {
-  if (!initial) return;
-  tempEdits = primeEdits(initial);
-  applyMode("edit");
-  focusField("po_number");
-});
-btnNew?.addEventListener("click", () => {
-  initial = null;
-  tempEdits = primeEdits({});
-  applyMode("create");
-  focusField("po_number");
-});
-btnSave?.addEventListener("click", saveHeader);
-btnCancel?.addEventListener("click", () => {
-  tempEdits = {};
-  applyMode("view");
+async function resolvePart(text) {
+  const t = (text || "").trim();
+  if (!t) return null;
+  try {
+    const resp = await jfetch(
+      `/parts?q=${encodeURIComponent(t)}&page=1&per_page=1`
+    );
+    const arr = Array.isArray(resp) ? resp : resp.items || [];
+    const it = arr[0];
+    if (it?.id)
+      return {
+        id: it.id,
+        part_no: String(it.part_no || "").toUpperCase(),
+        name: it.name || "",
+      };
+  } catch {}
+  return null;
+}
+async function fetchRevisions(partId) {
+  const tryUrls = [
+    `/part-revisions?part_id=${encodeURIComponent(partId)}`,
+    `/parts/${encodeURIComponent(partId)}/revisions`,
+  ];
+  for (const url of tryUrls) {
+    try {
+      const data = await jfetch(url);
+      const arr = Array.isArray(data) ? data : data?.items || [];
+      if (Array.isArray(arr))
+        return arr.map((r) => ({
+          id: r.id,
+          rev: r.rev || r.revision || r.code || "",
+          is_current: !!(r.is_current ?? r.current ?? r.active),
+        }));
+    } catch {}
+  }
+  return [];
+}
+async function resolveRevision(partId, revText) {
+  if (!partId || !revText) return null;
+  const revs = await fetchRevisions(partId);
+  const found = revs.find((r) => String(r.rev) === String(revText));
+  return found ? found.id : null;
+}
+
+function buildLinePayload(row) {
+  const payload = {};
+  if (row.part_id != null) payload.part_id = row.part_id;
+  if (row.revision_id != null) payload.revision_id = row.revision_id;
+  if (row.qty != null) payload.qty = numOrNull(row.qty);
+  if (row.unit_price != null) payload.unit_price = numOrNull(row.unit_price);
+  if (row.note != null) payload.note = strOrNull(row.note);
+  if (row.due_date != null) payload.due_date = strOrNull(row.due_date);
+  if (payload.qty == null) delete payload.qty;
+  if (payload.unit_price == null) delete payload.unit_price;
+  if (payload.note == null) delete payload.note;
+  if (!payload.due_date) delete payload.due_date;
+  return payload;
+}
+function normalizeServerLine(row) {
+  return {
+    id: row.id,
+    part_id: row.part?.id ?? row.part_id ?? null,
+    part_no: row.part?.part_no ?? row.part_no ?? "",
+    revision_id: row.revision?.id ?? row.rev?.id ?? row.revision_id ?? null,
+    revision_text: row.revision?.rev ?? row.rev?.rev ?? row.revision_text ?? "",
+    qty: row.qty ?? null,
+    unit_price: row.unit_price ?? null,
+    due_date: row.due_date ?? "",
+    note: row.note ?? row.notes ?? "",
+    part: row.part ?? null,
+    rev: row.rev ?? row.revision ?? null,
+    _dirty: false,
+  };
+}
+
+/* ---------- Lines editors (mark dirty; don't save immediately) ---------- */
+function partAutocompleteEditor(cell, onRendered, success, cancel) {
+  const input = document.createElement("input");
+  input.type = "text";
+  input.className = "tabulator-editing";
+  input.value = cell.getValue() || "";
+  input.autocomplete = "off";
+
+  async function fetchParts(term) {
+    const q = (term || "").trim();
+    const url = q
+      ? `/parts?q=${encodeURIComponent(q)}&page=1&page_size=10`
+      : `/parts?page=1&page_size=10`;
+    const res = await jfetch(url);
+    const items = Array.isArray(res) ? res : res.items || [];
+    return items.map((p) => ({ id: p.id, part_no: p.part_no, name: p.name }));
+  }
+
+  attachAutocomplete(input, {
+    fetchItems: fetchParts,
+    getDisplayValue: (it) => (it ? `${it.part_no} — ${it.name}` : ""),
+    renderItem: (it) => `<div><b>${it.part_no}</b> — ${it.name}</div>`,
+    onPick: (it) => {
+      const row = cell.getRow();
+      row.update({
+        part_id: it.id,
+        part_no: it.part_no,
+        revision_id: null,
+        revision_text: "",
+        _dirty: true,
+      });
+      setDirtyClass(row, true);
+      row.reformat();
+      success(it.part_no);
+    },
+    minChars: 0,
+    openOnFocus: true,
+  });
+
+  onRendered(() => {
+    input.focus();
+    input.select();
+  });
+  return input;
+}
+function revisionAutocompleteEditor(cell, onRendered, success, cancel) {
+  const input = document.createElement("input");
+  input.type = "text";
+  input.className = "tabulator-editing";
+  input.value = cell.getValue() || "";
+  input.autocomplete = "off";
+
+  const partId = cell.getRow().getData().part_id;
+  if (!partId) {
+    input.placeholder = "Select part first";
+    return input;
+  }
+
+  async function _fetchRevisions() {
+    const url = `/parts/${partId}/revisions`;
+    const res = await jfetch(url);
+    const items = Array.isArray(res) ? res : res.items || [];
+    return items.map((r) => ({
+      id: r.id,
+      rev: r.rev || r.code,
+      is_current: r.is_current,
+    }));
+  }
+
+  attachAutocomplete(input, {
+    fetchItems: _fetchRevisions,
+    getDisplayValue: (it) => (it ? it.rev : ""),
+    renderItem: (it) =>
+      `<div><b>${it.rev}</b> ${it.is_current ? "(current)" : ""}</div>`,
+    onPick: (it) => {
+      const row = cell.getRow();
+      row.update({ revision_id: it.id, revision_text: it.rev, _dirty: true });
+      setDirtyClass(row, true);
+      row.reformat();
+      success(it.rev);
+    },
+    minChars: 0,
+    openOnFocus: true,
+  });
+
+  onRendered(() => {
+    input.focus();
+    input.select();
+  });
+  return input;
+}
+
+/* ---------- Install Tabulator (Lines) ---------- */
+function initLinesTable() {
+  const holder = document.getElementById("po_lines_table");
+  if (!holder) return;
+
+  let ready = false;
+  const safeRedraw = () => {
+    if (!ready || !holder.offsetWidth) return;
+    try {
+      linesTable.redraw(true);
+    } catch {}
+  };
+
+  linesTable = new Tabulator(holder, {
+    layout: "fitColumns",
+    height: "calc(100vh - 420px)",
+    placeholder: "No lines",
+    selectableRows: false,
+    reactiveData: true,
+    index: "id",
+
+    columns: [
+      {
+        title: "No.",
+        field: "_rowno",
+        width: 70,
+        hozAlign: "right",
+        headerHozAlign: "right",
+        headerSort: false,
+        formatter: (cell) => cell.getRow().getPosition(true),
+      },
+      {
+        title: "Part No.",
+        field: "part_no",
+        width: 200,
+        editor: partAutocompleteEditor,
+        formatter: (cell) => {
+          const d = cell.getData();
+          const pid = d.part_id ?? d.part?.id ?? null;
+          const pno = d.part_no ?? d.part?.part_no ?? "";
+          return pid
+            ? `<a class="link" href="/static/part-detail.html?id=${encodeURIComponent(
+                pid
+              )}">${safe(String(pno))}</a>`
+            : safe(String(pno || ""));
+        },
+      },
+      {
+        title: "Revision",
+        field: "revision_text",
+        width: 140,
+        editor: revisionAutocompleteEditor,
+      },
+      {
+        title: "Qty",
+        field: "qty",
+        width: 120,
+        hozAlign: "right",
+        headerHozAlign: "right",
+        editor: "number",
+        editorParams: { step: "1" },
+        formatter: (c) => fmtQty(c.getValue()),
+      },
+      {
+        title: "Unit Price",
+        field: "unit_price",
+        width: 140,
+        hozAlign: "right",
+        headerHozAlign: "right",
+        editor: "number",
+        editorParams: { step: "0.01" },
+        formatter: (c) => fmtMoney(c.getValue()),
+      },
+      { title: "Due", field: "due_date", width: 160, editor: "date" },
+      { title: "Notes", field: "note", editor: "input" },
+      {
+        title: "Actions",
+        field: "_actions",
+        width: 220,
+        hozAlign: "right",
+        headerSort: false,
+        formatter: (cell) => {
+          const d = cell.getRow().getData();
+          const show = d._dirty === true || !d.id;
+          return `
+            <button class="btn-mini btn-primary" ${
+              show ? "" : "style='display:none'"
+            } data-act="save">Save</button>
+            <button class="btn-mini btn-secondary" ${
+              show ? "" : "style='display:none'"
+            } data-act="cancel">Cancel</button>
+            <button class="btn-mini btn-danger" data-act="del">Delete</button>
+          `;
+        },
+        cellClick: async (e, cell) => {
+          const btn = e.target.closest("button[data-act]");
+          if (!btn) return;
+          const row = cell.getRow();
+          if (btn.dataset.act === "save") await saveLine(row);
+          else if (btn.dataset.act === "cancel") await cancelLine(row);
+          else if (btn.dataset.act === "del") await deleteLine(row);
+        },
+      },
+    ],
+  });
+
+  // mark dirty only, no autosave
+  linesTable.on("cellEdited", (cell) => {
+    const row = cell.getRow();
+    const d = row.getData();
+    if (!d._dirty) row.update({ _dirty: true });
+    setDirtyClass(row, true);
+    row.reformat();
+  });
+
+  linesTable.on("tableBuilt", () => {
+    ready = true;
+    requestAnimationFrame(safeRedraw);
+    setTimeout(safeRedraw, 0);
+  });
+  const ro = new ResizeObserver(safeRedraw);
+  ro.observe(holder);
+  window.addEventListener("resize", safeRedraw);
+}
+
+function makeBlankLine() {
+  return {
+    part_no: "",
+    revision_text: "",
+    qty: null,
+    unit_price: null,
+    due_date: "",
+    note: "",
+    _dirty: true,
+  };
+}
+
+/* header + button for add line */
+document.addEventListener("DOMContentLoaded", () => {
+  const addBtn = document.getElementById("btnAddLine");
+  if (!addBtn) return;
+  addBtn.addEventListener("click", async () => {
+    if (!initial?.id && !poIdQS) {
+      // force user to save header first
+      toast("Save header first", false);
+      markHeaderDirty(true);
+      return;
+    }
+    const row = await linesTable.addRow(makeBlankLine(), true);
+    const cell = row.getCell("part_no");
+    if (cell) cell.edit(true);
+    setDirtyClass(row, true);
+    row.reformat();
+  });
 });
 
-btnDelete?.addEventListener("click", deleteHeader);
-$("btnAddLine")?.addEventListener("click", startAddLine);
+/* ---------- Lines Save/Cancel/Delete ---------- */
+async function saveLine(row) {
+  const d = row.getData();
+  // guard: need header id
+  const poid = initial?.id ?? poIdQS;
+  if (!poid) {
+    toast("Save header first", false);
+    markHeaderDirty(true);
+    return;
+  }
 
-/* ---------- BOOT ---------- */
+  // validation: if part set, allow; otherwise can save blank note/price? (relax: only validate if qty or price set but no part)
+  if (
+    (d.qty != null || d.unit_price != null || d.revision_text || d.due_date) &&
+    !d.part_id
+  ) {
+    toast("Select Part first", false);
+    row.getCell("part_no")?.edit(true);
+    return;
+  }
+
+  const payload = buildLinePayload(d);
+  try {
+    if (!d.id) {
+      const created = await jfetch(`/pos/${encodeURIComponent(poid)}/lines`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      row.update(normalizeServerLine(created));
+      toast("Line added");
+    } else {
+      const updated = await jfetch(
+        `/pos/${encodeURIComponent(poid)}/lines/${d.id}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        }
+      );
+      row.update(normalizeServerLine(updated));
+      toast("Saved");
+    }
+  } catch (e) {
+    const msg = String(e?.message || "").toLowerCase();
+    if (
+      msg.includes("revision_id does not belong") ||
+      msg.includes("belongs to part")
+    ) {
+      row.update({ revision_id: null });
+      toast(
+        "Selected revision doesn’t belong to this part. Cleared revision.",
+        false
+      );
+    } else {
+      toast(e?.message || "Save failed", false);
+    }
+    return;
+  } finally {
+    row.update({ _dirty: false });
+    setDirtyClass(row, false);
+    row.reformat();
+  }
+}
+
+async function cancelLine(row) {
+  const d = row.getData();
+  if (!d.id) {
+    row.delete();
+    return;
+  }
+  const poid = initial?.id ?? poIdQS;
+  try {
+    const fresh = await jfetch(
+      `/pos/${encodeURIComponent(poid)}/lines/${d.id}`
+    );
+    row.update(normalizeServerLine(fresh));
+  } catch {
+    row.update({ _dirty: false }); // fallback: just clear dirty flag
+  }
+  setDirtyClass(row, false);
+  row.reformat();
+}
+
+async function deleteLine(row) {
+  const d = row.getData();
+  if (!d.id) {
+    row.delete();
+    return;
+  }
+  if (!confirm("Delete line?\nThis action cannot be undone.")) return;
+  const poid = initial?.id ?? poIdQS;
+  try {
+    await jfetch(`/pos/${encodeURIComponent(poid)}/lines/${d.id}`, {
+      method: "DELETE",
+    });
+    row.delete();
+    toast("Deleted");
+  } catch (e) {
+    toast(e?.message || "Delete failed", false);
+  }
+}
+
+/* ---------- Lines IO ---------- */
+async function reloadLines() {
+  const id = initial?.id ?? poIdQS;
+  if (!id) {
+    linesTable?.setData([]);
+    return;
+  }
+  try {
+    const rows = await jfetch(`/pos/${encodeURIComponent(id)}/lines`);
+    const mapped = (rows || []).map(normalizeServerLine);
+    linesTable?.setData(mapped);
+  } catch {
+    linesTable?.setData([]);
+  }
+}
+
+/* ---------- Boot ---------- */
 document.addEventListener("DOMContentLoaded", async () => {
+  ensureHeaderButtons(); // add Save/Cancel for header
+  initCustomerAutocomplete();
+  initLinesTable();
+
   await loadHeader();
-  await loadLines();
+  await reloadLines();
+
+  wireHeaderDirtyOnly(); // mark dirty, no autosave
 });

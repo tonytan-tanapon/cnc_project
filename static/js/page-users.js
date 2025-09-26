@@ -1,6 +1,6 @@
-// /static/js/page-users.js
-// ใช้กับหน้า Users ที่มี element IDs: u_username, u_email, u_password, u_employee, u_superuser,
-// u_create, u_q, u_reload, u_table, apiBase, btnPing, toast, toastText
+// /static/js/page-users.js  (fixed to match HTML ids: usr_* + existing u_table)
+// ใช้กับหน้า Users ที่มี element IDs: usr_username, usr_email, usr_password, usr_employee_id,
+// usr_is_superuser, usr_create, usr_q, usr_reload, u_table, apiBase, btnPing, toast, toastText
 
 // -----------------------------
 // Small utils
@@ -27,7 +27,6 @@ function showToast(msg, ok = true) {
 // API base + jfetch
 // -----------------------------
 function getApiBase() {
-  // ช่องนี้ใน HTML บอกว่า default คือ /api/v1
   const raw = $("apiBase")?.value?.trim();
   return raw && raw !== "" ? raw : "/api/v1";
 }
@@ -63,6 +62,7 @@ async function fetchUserPermissions(userId) {
 // Render table
 // -----------------------------
 function renderUsersTable(holder, rows) {
+  if (!holder) { showToast('ไม่พบ element id="u_table"', false); return; }
   if (!Array.isArray(rows) || rows.length === 0) {
     holder.innerHTML = `<div class="hint">No users.</div>`;
     return;
@@ -131,10 +131,10 @@ function renderUsersTable(holder, rows) {
     const id = Number(btn.getAttribute("data-id"));
     btn.addEventListener("click", async () => {
       try {
-        if (action === "activate")       await activateUser(id);
+        if (action === "activate")        await activateUser(id);
         else if (action === "deactivate") await deactivateUser(id);
         else if (action === "setpw")      await setPasswordPrompt(id);
-        else if (action === "assign-role") await assignRolePrompt(id);
+        else if (action === "assign-role")   await assignRolePrompt(id);
         else if (action === "unassign-role") await unassignRolePrompt(id);
         else if (action === "delete")     await deleteUserConfirm(id);
         await loadUsers();
@@ -150,8 +150,13 @@ function renderUsersTable(holder, rows) {
 // -----------------------------
 async function loadUsers() {
   const holder = $("u_table");
+  if (!holder) {
+    showToast('ไม่พบ element id="u_table" ในหน้า HTML', false);
+    return;
+  }
+
   try {
-    const keyword = $("u_q")?.value?.trim();
+    const keyword = $("usr_q")?.value?.trim();
     let users = await jfetch(`/users`);
 
     // enrich roles/permissions
@@ -183,12 +188,18 @@ async function loadUsers() {
 }
 
 async function createUser() {
+  const usernameEl = $("usr_username");
+  const emailEl = $("usr_email");
+  const pwEl = $("usr_password");
+  const empEl = $("usr_employee_id");
+  const suEl = $("usr_is_superuser");
+
   const payload = {
-    username: strOrNull($("u_username")?.value),
-    email: strOrNull($("u_email")?.value),
-    password: strOrNull($("u_password")?.value),
-    employee_id: $("u_employee")?.value ? Number($("u_employee").value) : null,
-    is_superuser: ($("u_superuser")?.value || "false") === "true",
+    username: strOrNull(usernameEl?.value),
+    email: strOrNull(emailEl?.value),
+    password: strOrNull(pwEl?.value),
+    employee_id: empEl && empEl.value !== "" ? Number(empEl.value) : null,
+    is_superuser: !!(suEl && suEl.checked),
   };
 
   if (!payload.username || !payload.password) {
@@ -199,10 +210,13 @@ async function createUser() {
   try {
     await jfetch(`/users`, { method: "POST", body: JSON.stringify(payload) });
     showToast("User created");
-    ["u_username","u_email","u_password","u_employee"].forEach(id => {
-      const el = $(id); if (el) el.value = "";
-    });
-    if ($("u_superuser")) $("u_superuser").value = "false";
+    // clear form
+    if (usernameEl) usernameEl.value = "";
+    if (emailEl) emailEl.value = "";
+    if (pwEl) pwEl.value = "";
+    if (empEl) empEl.value = "";
+    if (suEl) suEl.checked = false;
+
     await loadUsers();
   } catch (e) {
     showToast("Create user failed: " + e.message, false);
@@ -263,7 +277,6 @@ async function deleteUserConfirm(userId) {
 // -----------------------------
 async function pingApi() {
   try {
-    // ถ้าคุณมี /ping อยู่ใต้ API base เช่น /api/v1/ping
     const pong = await jfetch(`/ping`);
     showToast(`Ping OK: ${typeof pong === "string" ? pong : "OK"}`);
   } catch (e) {
@@ -275,13 +288,12 @@ async function pingApi() {
 // Events
 // -----------------------------
 document.addEventListener("DOMContentLoaded", () => {
-  // default API base value
   const apiBaseInput = $("apiBase");
   if (apiBaseInput && !apiBaseInput.value) apiBaseInput.value = "/api/v1";
 
-  $("u_create")?.addEventListener("click", createUser);
-  $("u_reload")?.addEventListener("click", loadUsers);
-  $("u_q")?.addEventListener("keydown", (e) => {
+  $("usr_create")?.addEventListener("click", createUser);
+  $("usr_reload")?.addEventListener("click", loadUsers);
+  $("usr_q")?.addEventListener("keydown", (e) => {
     if (e.key === "Enter") loadUsers();
   });
 

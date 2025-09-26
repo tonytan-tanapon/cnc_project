@@ -117,7 +117,6 @@ class RawBatch(Base):
 
     received_at = Column(Date, nullable=True)
     qty_received = Column(Numeric(18, 3), nullable=False, default=0)
-    qty_used = Column(Numeric(18, 3), nullable=False, default=0)
     cert_file = Column(String, nullable=True)
     location = Column(String, nullable=True)
 
@@ -156,6 +155,11 @@ class Part(Base):
         back_populates="part",
         foreign_keys="ProductionLot.part_id",
     )
+
+    # relationships (not columns)
+    processes = relationship("PartProcessSelection", back_populates="part", cascade="all, delete-orphan")
+    finishes  = relationship("PartFinishSelection", back_populates="part", cascade="all, delete-orphan")
+    other_notes = relationship("PartOtherNote", back_populates="part", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<Part(part_no={self.part_no})>"
@@ -207,7 +211,23 @@ class PartRevision(Base):
     def __repr__(self):
         return f"<PartRevision(part_id={self.part_id}, rev={self.rev})>"
 
+# models.py
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, func, UniqueConstraint
+from sqlalchemy.orm import relationship
 
+class PartMaterial(Base):
+    __tablename__ = "part_materials"
+    id = Column(Integer, primary_key=True)
+    part_id = Column(Integer, ForeignKey("parts.id", ondelete="CASCADE"), index=True, nullable=False)
+    raw_material_id = Column(Integer, ForeignKey("raw_materials.id", ondelete="RESTRICT"), index=True, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    part = relationship("Part", backref="part_materials")
+    raw_material = relationship("RawMaterial")
+
+    __table_args__ = (
+        UniqueConstraint('part_id', 'raw_material_id', name='uq_part_material_once'),
+    )
 
 # =========================================
 # ======== Production / Lot / Traveler ====
@@ -229,7 +249,7 @@ class ProductionLot(Base):
     planned_qty = Column(Integer, nullable=False, default=0)
     started_at  = Column(DateTime(timezone=True), nullable=True)
     finished_at = Column(DateTime(timezone=True), nullable=True)
-
+    lot_due_date = Column(Date, nullable=True, index=True)
     status = Column(String, nullable=False, default="in_process")
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     # CHANGED: add foreign_keys + back_populates
@@ -242,7 +262,8 @@ class ProductionLot(Base):
                              order_by="ShopTraveler.created_at.asc()")
     
     # --- FAIR link per lot (optional) ---
-    fair_required = Column(Boolean, nullable=False, default=False)
+    fair_required = Column(Boolean, nullable=False, default=False, server_default="false")
+
     fair_record_id = Column(Integer, ForeignKey("inspection_records.id", ondelete="SET NULL"), nullable=True, index=True)
     fair_record = relationship(
         "InspectionRecord",
@@ -269,25 +290,110 @@ class ProductionLot(Base):
         return f"<ProductionLot(lot_no={self.lot_no}, status={self.status})>"
 
 
+from sqlalchemy import (
+    Column, Integer, ForeignKey, Numeric, Index, UniqueConstraint, CheckConstraint,
+    select, func, event
+)
+from sqlalchemy.orm import relationship
+from sqlalchemy.exc import IntegrityError
+
 class LotMaterialUse(Base):
     __tablename__ = "lot_material_use"
-    id = Column(Integer, primary_key=True)
-    lot_id = Column(Integer, ForeignKey("production_lots.id"), nullable=False)
-    batch_id = Column(Integer, ForeignKey("raw_batches.id"), nullable=False)
-    qty = Column(Numeric(18, 3), nullable=False)
 
-    lot = relationship("ProductionLot", back_populates="material_uses")
+    id       = Column(Integer, primary_key=True)
+    lot_id   = Column(Integer, ForeignKey("production_lots.id"), nullable=False, index=True)
+    batch_id = Column(Integer, ForeignKey("raw_batches.id"), nullable=False, index=True)
+    qty      = Column(Numeric(18, 3), nullable=False)
+
+    lot   = relationship("ProductionLot", back_populates="material_uses")
     batch = relationship("RawBatch", back_populates="uses")
 
     __table_args__ = (
-        # ถ้าต้องการบังคับไม่ให้ lot-batch ซ้ำ ให้ปลดคอมเมนต์บรรทัดล่าง
-        # UniqueConstraint("lot_id", "batch_id", name="uq_lot_batch"),
-        Index("ix_lmu_lot", "lot_id"),
-        Index("ix_lmu_batch", "batch_id"),
-    )
+    CheckConstraint("qty > 0", name="ck_lmu_qty_positive"),
+    Index("ix_lmu_lot", "lot_id"),
+    Index("ix_lmu_batch", "batch_id"),
+)
+
 
     def __repr__(self):
         return f"<LotMaterialUse(lot_id={self.lot_id}, batch_id={self.batch_id}, qty={self.qty})>"
+
+
+# ----------------------------
+# ORM-level guards (before insert/update)
+# ----------------------------
+
+
+@event.listens_for(LotMaterialUse, "before_insert")
+def _lmu_before_insert(mapper, connection, target: LotMaterialUse):
+    # total_used_other = SUM(qty) ของ batch นี้ (ยังไม่มีแถวตัวเอง)
+    total_used_other = connection.execute(
+        select(func.coalesce(func.sum(LotMaterialUse.qty), 0))
+        .where(LotMaterialUse.batch_id == target.batch_id)
+    ).scalar_one()
+
+    # qty_received ของ batch
+    qty_received = connection.execute(
+        select(func.coalesce(RawBatch.qty_received, 0))
+        .where(RawBatch.id == target.batch_id)
+    ).scalar_one()
+
+    total_after = (total_used_other or 0) + (target.qty or 0)
+
+    if total_after < 0:
+        raise IntegrityError(
+            "Return exceeds previously used",
+            params=None,
+            orig=ValueError(
+                f"batch {target.batch_id}: total_used would be {total_after} < 0"
+            ),
+        )
+    if total_after > (qty_received or 0):
+        raise IntegrityError(
+            "Consumption exceeds received",
+            params=None,
+            orig=ValueError(
+                f"batch {target.batch_id}: total_used would be {total_after} > qty_received {qty_received}"
+            ),
+        )
+
+
+@event.listens_for(LotMaterialUse, "before_update")
+def _lmu_before_update(mapper, connection, target: LotMaterialUse):
+    # รวมของ batch นี้ แต่ "ไม่รวม" แถวตัวเอง
+    total_used_other = connection.execute(
+        select(func.coalesce(func.sum(LotMaterialUse.qty), 0))
+        .where(
+            (LotMaterialUse.batch_id == target.batch_id) &
+            (LotMaterialUse.id != target.id)
+        )
+    ).scalar_one()
+
+    qty_received = connection.execute(
+        select(func.coalesce(RawBatch.qty_received, 0))
+        .where(RawBatch.id == target.batch_id)
+    ).scalar_one()
+
+    total_after = (total_used_other or 0) + (target.qty or 0)
+
+    if total_after < 0:
+        raise IntegrityError(
+            "Return exceeds previously used",
+            params=None,
+            orig=ValueError(
+                f"batch {target.batch_id}: total_used would be {total_after} < 0"
+            ),
+        )
+    if total_after > (qty_received or 0):
+        raise IntegrityError(
+            "Consumption exceeds received",
+            params=None,
+            orig=ValueError(
+                f"batch {target.batch_id}: total_used would be {total_after} > qty_received {qty_received}"
+            ),
+        )
+
+
 
 
 class ShopTraveler(Base):
@@ -299,6 +405,9 @@ class ShopTraveler(Base):
     created_by_id = Column(Integer, ForeignKey("employees.id"), nullable=True)
     status = Column(String, nullable=False, default="open")
     notes = Column(Text, nullable=True)
+
+    # ✅ NEW: production due date for this traveler
+    production_due_date = Column(Date, nullable=True, index=True)
 
     lot = relationship("ProductionLot", back_populates="travelers")
     created_by = relationship("Employee", foreign_keys=[created_by_id])
@@ -1118,3 +1227,117 @@ class CustomerReturnItem(Base):
     shipment_item = relationship("CustomerShipmentItem")
     po_line = relationship("POLine")
     lot = relationship("ProductionLot")
+
+
+############ Seclection 
+class ManufacturingProcess(Base):
+    __tablename__ = "mfg_processes"
+    id   = Column(Integer, primary_key=True)
+    code = Column(String, unique=True, index=True, nullable=False)
+    name = Column(String, nullable=False)
+    category = Column(String, nullable=True)
+    is_active = Column(Boolean, default=True, nullable=False)
+
+class ChemicalFinish(Base):
+    __tablename__ = "chemical_finishes"
+    id   = Column(Integer, primary_key=True)
+    code = Column(String, unique=True, index=True, nullable=False)
+    name = Column(String, nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+
+class PartProcessSelection(Base):
+    __tablename__ = "part_process_selections"
+
+    id = Column(Integer, primary_key=True)
+
+    part_id = Column(Integer, ForeignKey("parts.id", ondelete="CASCADE"), nullable=False, index=True)
+    process_id = Column(Integer, ForeignKey("mfg_processes.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    part = relationship("Part", back_populates="processes")
+    process = relationship("ManufacturingProcess")
+
+    __table_args__ = (
+        UniqueConstraint("part_id", "process_id", name="uq_part_process"),
+    )
+
+    def __repr__(self):
+        return f"<PartProcessSelection(part_id={self.part_id}, process_id={self.process_id})>"
+
+
+class PartFinishSelection(Base):
+    __tablename__ = "part_finish_selections"
+
+    id = Column(Integer, primary_key=True)
+
+    part_id = Column(Integer, ForeignKey("parts.id", ondelete="CASCADE"), nullable=False, index=True)
+    finish_id = Column(Integer, ForeignKey("chemical_finishes.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    part = relationship("Part", back_populates="finishes")
+    finish = relationship("ChemicalFinish")
+
+    __table_args__ = (
+        UniqueConstraint("part_id", "finish_id", name="uq_part_finish"),
+    )
+
+    def __repr__(self):
+        return f"<PartFinishSelection(part_id={self.part_id}, finish_id={self.finish_id})>"
+
+
+class PartOtherNote(Base):
+    __tablename__ = "part_other_notes"
+
+    id = Column(Integer, primary_key=True)
+
+    part_id = Column(Integer, ForeignKey("parts.id", ondelete="CASCADE"), nullable=False, index=True)
+    category = Column(String, nullable=False)   # e.g. "PROCESS", "FINISH"
+    note = Column(String, nullable=False)
+
+    part = relationship("Part", back_populates="other_notes")
+
+    def __repr__(self):
+        return f"<PartOtherNote(part_id={self.part_id}, category={self.category}, note={self.note})>"
+
+
+# =========================================
+# === Computed stock properties (read-only)
+# === Put this AFTER LotMaterialUse class
+# =========================================
+from sqlalchemy.ext.hybrid import hybrid_property
+from sqlalchemy.orm import column_property,aliased
+from sqlalchemy import select, func
+
+# --- ต่อ batch: ยอดใช้ไป (รวมจาก LotMaterialUse)
+RawBatch.qty_used_calc = column_property(
+    select(func.coalesce(func.sum(LotMaterialUse.qty), 0))
+    .where(LotMaterialUse.batch_id == RawBatch.id)
+    .correlate_except(LotMaterialUse)
+    .scalar_subquery()
+)
+
+# --- ต่อ batch: คงเหลือ = qty_received - qty_used_calc
+RawBatch.qty_available_calc = column_property(
+    (RawBatch.qty_received - RawBatch.qty_used_calc)
+)
+
+# --- ระดับวัสดุ (รวมทุก batch)
+rb  = aliased(RawBatch)
+lmu = aliased(LotMaterialUse)
+
+_used_per_rb_subq = (
+    select(func.coalesce(func.sum(lmu.qty), 0))
+    .where(lmu.batch_id == rb.id)
+    .correlate_except(lmu)
+    .scalar_subquery()
+)
+
+# on-hand รวมของวัสดุ = Σ (rb.qty_received - Σ lmu.qty ของ rb นั้น)
+RawMaterial.total_on_hand = column_property(
+    select(func.coalesce(func.sum(rb.qty_received - _used_per_rb_subq), 0))
+    .where(rb.material_id == RawMaterial.id)
+    .correlate_except(rb)
+    .scalar_subquery()
+)

@@ -1,85 +1,100 @@
 <!DOCTYPE html>
 <html lang="th">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Users · Topnotch MFG</title>
-  <link rel="stylesheet" href="/static/css/app.css" />
-</head>
-<body>
-  <div class="app">
-    <!-- Sidebar -->
-    <aside class="sidebar">
-      <div class="logo">
-        <span class="logo-badge">TN</span>
-        <span>Topnotch – MFG</span>
-      </div>
-      <div id="navSlot" data-nav-slot></div>
-    </aside>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Users · Topnotch MFG</title>
+    <link rel="stylesheet" href="/static/css/app.css" />
+  </head>
+  <body>
+    <div class="app">
+      <!-- Sidebar -->
+      <aside class="sidebar">
+        <div id="navSlot" data-nav-slot></div>
+      </aside>
 
-    <main class="main">
-      <div class="topbar">
-        <div class="search">
-          <input id="globalSearch" type="search" placeholder="Search…" />
+      <main class="main">
+        <div class="topbar">
+          <div class="search">
+            <input id="globalSearch" type="search" placeholder="Search…" />
+          </div>
+          <input id="apiBase" placeholder="API Base (default /api/v1)" />
+          <button class="btn" id="btnPing" type="button">Ping</button>
         </div>
-        <input id="apiBase" placeholder="API Base (default /api/v1)" />
-        <button class="btn" id="btnPing" type="button">Ping</button>
-      </div>
 
-      <!-- Page -->
-      <section id="page-users">
-        <h2 class="page-title">👤 Users</h2>
+        <!-- Page -->
+        <section id="page-users">
+          <h2 class="page-title">👤 Users</h2>
 
-        <!-- Create -->
-        <div class="card">
-          <b>Create User</b>
-          <div class="grid" style="margin-top:8px">
-            <div class="col-4">
-              <label for="usr_username">Username</label>
-              <input id="usr_username" placeholder="jdoe" />
-            </div>
-            <div class="col-4">
-              <label for="usr_email">Email</label>
-              <input id="usr_email" type="email" placeholder="jdoe@company.com" />
-            </div>
-            <div class="col-4">
-              <label for="usr_password">Password</label>
-              <input id="usr_password" type="password" placeholder="********" />
-            </div>
-            <div class="col-4">
-              <label for="usr_employee_id">Employee ID</label>
-              <input id="usr_employee_id" type="number" placeholder="Employee ID (optional)" />
-            </div>
-            <div class="col-4" style="display:flex;align-items:center;gap:8px">
-              <input id="usr_is_superuser" type="checkbox" />
-              <label for="usr_is_superuser" style="margin:0">Superuser?</label>
-            </div>
-            <div class="col-12">
-              <button class="btn" id="usr_create" type="button">Create</button>
-              <span class="hint">POST /users</span>
+          <!-- Create -->
+          <div class="card">
+            <b>Create User</b>
+            <div class="grid" style="margin-top: 8px">
+              <div class="col-4">
+                <label for="usr_username">Username</label>
+                <input id="usr_username" placeholder="jdoe" />
+              </div>
+              <div class="col-4">
+                <label for="usr_email">Email</label>
+                <input
+                  id="usr_email"
+                  type="email"
+                  placeholder="jdoe@company.com"
+                />
+              </div>
+              <div class="col-4">
+                <label for="usr_password">Password</label>
+                <input
+                  id="usr_password"
+                  type="password"
+                  placeholder="********"
+                />
+              </div>
+              <div class="col-4">
+                <label for="usr_employee_id">Employee ID</label>
+                <input
+                  id="usr_employee_id"
+                  type="number"
+                  placeholder="Employee ID (optional)"
+                />
+              </div>
+              <div
+                class="col-4"
+                style="display: flex; align-items: center; gap: 8px"
+              >
+                <input id="usr_is_superuser" type="checkbox" />
+                <label for="usr_is_superuser" style="margin: 0"
+                  >Superuser?</label
+                >
+              </div>
+              <div class="col-12">
+                <button class="btn" id="usr_create" type="button">
+                  Create
+                </button>
+                <span class="hint">POST /users</span>
+              </div>
             </div>
           </div>
-        </div>
 
-        <!-- List -->
-        <div class="card">
-          <div class="toolbar">
-            <input id="usr_q" placeholder="Search username/email" />
-            <button class="btn" id="usr_reload" type="button">Reload</button>
+          <!-- List -->
+          <div class="card">
+            <div class="toolbar">
+              <input id="usr_q" placeholder="Search username/email" />
+              <button class="btn" id="usr_reload" type="button">Reload</button>
+            </div>
+            <div id="u_table"></div>
           </div>
-          <div id="usr_table"></div>
-        </div>
-      </section>
-    </main>
-  </div>
+        </section>
+      </main>
+    </div>
 
-  <!-- Toast -->
-  <div class="toast" id="toast"><span id="toastText"></span></div>
+    <!-- Toast -->
+    <div class="toast" id="toast"><span id="toastText"></span></div>
 
-  <!-- โหลดเมนู + ไฮไลท์ active อัตโนมัติ -->
-  <script type="module" src="/static/js/nav-loader.js"></script>
+    <!-- โหลดเมนู + ไฮไลท์ active อัตโนมัติ -->
+    <script type="module" src="/static/js/nav-loader.js"></script>
 
-  <!-- Users script -->
-  <script type="module" src="/static/js/page-users.js?v=1"></script>
-</body>
+    <!-- Users script -->
+    <script type="module" src="/static/js/page-users.js?v=1"></script>
+  </body>
 </html>

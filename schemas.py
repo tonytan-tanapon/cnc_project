@@ -11,15 +11,21 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 # ===== Base (Pydantic v2)
 # =========================
 class APIBase(BaseModel):
-    """
-    Base สำหรับทุก schema:
-    - from_attributes=True: รองรับแปลงจาก ORM (SQLAlchemy)
-    - json_encoders: แปลง Decimal -> float เพื่อส่ง JSON ได้สะดวก
-    """
     model_config = ConfigDict(
         from_attributes=True,
-        json_encoders={Decimal: float}
+        json_encoders={Decimal: float},  # จะคงไว้ก็ได้
     )
+
+    # เพิ่มตัวนี้เพื่อ serialize Decimal -> str (แม่นกว่า float และไม่เสีย precision)
+    from pydantic import field_serializer
+
+    @field_serializer('*', check_fields=False)
+    def _ser_decimal_any(self, v, _info):
+        if isinstance(v, Decimal):
+            # จะคืน str หรือ float ก็ได้ เลือกอย่างใดอย่างหนึ่ง
+            return str(v)   # แนะนำ str เพื่อลด precision loss
+        return v
+
 
 # =========================================
 # =============== Customers ===============
@@ -177,10 +183,14 @@ class RawBatchBase(APIBase):
     mill_name: Optional[str] = None
     mill_heat_no: Optional[str] = None
     received_at: Optional[date] = None
-    qty_received: Decimal
-    qty_used: Decimal
+
+    # เปลี่ยนสองบรรทัดนี้
+    qty_received: Decimal = Field(default=Decimal("0"))
+    qty_used:     Decimal = Field(default=Decimal("0"))
+
     location: Optional[str] = None
     cert_file: Optional[str] = None
+
 
 # schemas.py (Pydantic v2)
 from pydantic import BaseModel, Field, field_validator, ConfigDict
@@ -266,16 +276,19 @@ class RawBatchUpdate(BaseModel):
     mill_heat_no: Optional[str] = None
     received_at: Optional[date] = None
     qty_received: Optional[Decimal] = Field(None, ge=Decimal("0"))
-    qty_used: Optional[Decimal] = Field(None, ge=Decimal("0"))     # ← NEW
+    # qty_used: Optional[Decimal] = Field(None, ge=Decimal("0"))     # ← NEW
     location: Optional[str] = None
     cert_file: Optional[str] = None
 
-    @field_validator("qty_received", "qty_used", mode="before")
+    received_qty: Optional[Decimal] = None
+    unit_cost: Optional[Decimal] = None
+
+    @field_validator('received_qty', 'unit_cost', mode='before', check_fields=False)
     @classmethod
     def _coerce_decimal(cls, v):
-      if v in (None, ""):
-          return None
-      return Decimal(str(v).replace(",", "").strip())
+        if v in (None, ''):
+            return None
+        return Decimal(str(v))
 
 class RawBatchOut(RawBatchBase):
     id: int
@@ -344,8 +357,8 @@ class ProductionLotOut(BaseModel):
     part: Optional[PartTiny] = None
     po: Optional[POTiny] = None
     revision: Optional[PartRevisionTiny] = None  # <- NEW
-    traveler_ids: List[int] = []
-
+    # traveler_ids: List[int] = []
+    traveler_ids: List[int] = Field(default_factory=list)  # ← แทน []
 # =========================================
 # ============ Lot Material Use ===========
 # =========================================
@@ -373,6 +386,7 @@ class ShopTravelerCreate(APIBase):
     created_by_id: Optional[int] = None
     notes: Optional[str] = None
     status: Optional[TravelerStatus] = "open"
+    production_due_date: date | None = None
 
 class ShopTravelerUpdate(APIBase):
     created_by_id: Optional[int] = None
@@ -386,6 +400,7 @@ class ShopTravelerOut(APIBase):
     status: TravelerStatus
     notes: Optional[str] = None
     created_at: datetime
+    production_due_date: date | None = None
     
 
 StepStatus = Literal["pending", "running", "passed", "failed", "skipped"]
@@ -432,8 +447,9 @@ class ShopTravelerStepOut(BaseModel):
     seq: int
     step_name: str
 
-    class Config:
-        from_attributes = True
+    # class Config:
+    #     from_attributes = True
+    model_config = ConfigDict(from_attributes=True)  # ← แทน class Config    
 # =========================================
 # ============== Subcontracting ===========
 # =========================================

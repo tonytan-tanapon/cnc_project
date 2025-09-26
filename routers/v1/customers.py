@@ -43,31 +43,42 @@ class CustomerCursorPage(BaseModel):
 # ---------- list + pagination (offset เดิม) ----------
 @router.get("", response_model=CustomerPage)
 def list_customers(
-  q: Optional[str] = Query(None, description="Search by code or name (ilike)"),
-  page: int = Query(1, ge=1),
-  per_page: int = Query(20, ge=1, le=100),
-  db: Session = Depends(get_db),
+    q: Optional[str] = Query(None, description="Search by code or name (ilike)"),
+    page: int = Query(1, ge=1),
+    per_page: Optional[int] = Query(20, ge=1, le=1000),
+    all: bool = Query(False, description="Return all rows (ignore page/per_page)"),
+    db: Session = Depends(get_db),
 ):
-  base_q = db.query(Customer)
-  if q:
-    ql = f"%{q}%"
-    base_q = base_q.filter((Customer.code.ilike(ql)) | (Customer.name.ilike(ql)))
+    base_q = db.query(Customer)
+    if q:
+        like = f"%{q}%"
+        base_q = base_q.filter((Customer.code.ilike(like)) | (Customer.name.ilike(like)))
 
-  total = base_q.count()
-  base_q = base_q.order_by(Customer.id.desc())
+    base_q = base_q.order_by(Customer.id.desc())
 
-  offset = (page - 1) * per_page
-  items = base_q.offset(offset).limit(per_page).all()
+    if all:
+        items = base_q.all()
+        total = len(items)
+        return {
+            "items": items,
+            "total": total,
+            "page": 1,
+            "per_page": total,
+            "pages": 1,
+        }
 
-  pages = (total + per_page - 1) // per_page if per_page else 1
+    total = base_q.count()
+    offset = (page - 1) * (per_page or 20)
+    items = base_q.offset(offset).limit(per_page or 20).all()
+    pages = (total + (per_page or 20) - 1) // (per_page or 20)
 
-  return {
-    "items": items,
-    "total": total,
-    "page": page,
-    "per_page": per_page,
-    "pages": max(pages, 1),
-  }
+    return {
+        "items": items,
+        "total": total,
+        "page": page,
+        "per_page": per_page or 20,
+        "pages": max(pages, 1),
+    }
 
 # # >>> ---------- list + pagination (keyset/cursor สองทิศ) ----------
 # @router.get("/keyset", response_model=CustomerCursorPage)
@@ -233,7 +244,7 @@ def get_customer(customer_id: int, db: Session = Depends(get_db)):
     raise HTTPException(404, "Customer not found")
   return c
 
-@router.put("/{customer_id}", response_model=CustomerOut)
+@router.patch("/{customer_id}", response_model=CustomerOut)
 def update_customer(customer_id: int, payload: CustomerUpdate, db: Session = Depends(get_db)):
   c = db.get(Customer, customer_id)
   if not c:

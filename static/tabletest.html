@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Customers · Topnotch – MFG</title>
+
+    <!-- App styles -->
+    <link rel="stylesheet" href="/static/css/app.css" />
+
+    <!-- Tabulator (LOCAL theme css) -->
+    <link
+      rel="stylesheet"
+      href="/static/vendor/tabulator/tabulator_modern.min.css"
+    />
+
+    <style>
+      /* We use Tabulator header, so hide the manual header */
+      #listHead {
+        display: none;
+      }
+
+      /* Ensure Tabulator header is visible and styled */
+      #listBody .tabulator-header {
+        display: block !important;
+      }
+      #listBody .tabulator-col-title {
+        font-weight: 600;
+      }
+      #listBody .tabulator {
+        border: 0;
+        min-width: 720px;
+      }
+
+      /* Let Address wrap; other columns ellipsize */
+      #listBody .tabulator-cell {
+        white-space: nowrap;
+        text-overflow: ellipsis;
+        overflow: hidden;
+      }
+      #listBody .tabulator-cell[tabulator-field="address"] {
+        white-space: normal;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <!-- Sidebar -->
+      <aside class="sidebar">
+        <div class="logo">
+          <span class="logo-badge">TN</span><span>Topnotch – MFG</span>
+        </div>
+        <div id="navSlot" data-nav-slot></div>
+      </aside>
+
+      <!-- Main -->
+      <main class="main">
+        <!-- Topbar -->
+        <div class="topbar">
+          <div class="search">
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              aria-hidden="true"
+            >
+              <path
+                d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zM9.5 14C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"
+              />
+            </svg>
+            <input
+              id="globalSearch"
+              type="search"
+              placeholder="Search PO / Lot / Tracking…"
+            />
+          </div>
+          <input
+            id="apiBase"
+            value="/api/v1"
+            placeholder="API Base (ว่าง = /api/v1)"
+            aria-label="API Base"
+          />
+          <button class="btn" id="btnPing" type="button">Ping</button>
+        </div>
+
+        <!-- Customers -->
+        <section id="page-customers">
+          <div
+            class="page-header"
+            style="display: flex; align-items: center; gap: 8px"
+          >
+            <h2 class="page-title" style="margin: 0">👤 Customers</h2>
+          </div>
+
+          <div class="split-2col" id="custSplit">
+            <!-- LEFT LIST -->
+            <section class="panel" id="listPanel">
+              <div class="list-topbar">
+                <!-- removed: _prev_top / _next_top -->
+                <input
+                  id="_q"
+                  type="search"
+                  class="search-lg"
+                  placeholder="Search customers…"
+                />
+                <select id="_per_page" class="perpage-sm">
+                  <option value="10">10</option>
+                  <option value="20" selected>20</option>
+                  <option value="50">50</option>
+                </select>
+              </div>
+
+              <!-- manual header (not used) -->
+              <div id="listHead" class="list-head">
+                <div class="col-no">No.</div>
+                <div class="col-code">Code</div>
+                <div class="col-name">Name</div>
+              </div>
+
+              <!-- Tabulator renders here -->
+              <div id="listBody" class="list-body"></div>
+
+              <div
+                class="list-footer"
+                style="display: flex; justify-content: flex-end"
+              >
+                <!-- removed: _prev / _next -->
+                <div id="_page_info" class="muted">—</div>
+              </div>
+            </section>
+
+            <!-- RIGHT DETAIL -->
+            <section class="panel" id="detailPanel">
+              <div class="detail-head">
+                <div class="title">Details</div>
+                <div
+                  class="actions"
+                  style="display: flex; gap: 6px; align-items: center"
+                >
+                  <span id="hint" class="hint"></span>
+                  <button
+                    id="btnEdit"
+                    class="btn-small secondary"
+                    type="button"
+                  >
+                    Edit
+                  </button>
+                  <button id="btnNew" class="btn-small" type="button">
+                    New
+                  </button>
+                  <button
+                    id="btnSave"
+                    class="btn-small"
+                    type="button"
+                    style="display: none"
+                  >
+                    Save
+                  </button>
+                  <button
+                    id="btnCancel"
+                    class="btn-small secondary"
+                    type="button"
+                    style="display: none"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+
+              <div class="detail-body">
+                <div id="errorBox" class="hint" style="display: none"></div>
+                <div
+                  id="detailView"
+                  class="kv-list"
+                  title="Double-click a row to edit"
+                ></div>
+              </div>
+
+              <div class="detail-footer">
+                <button
+                  id="btnDelete"
+                  class="btn-small btn-danger"
+                  type="button"
+                >
+                  Delete
+                </button>
+              </div>
+            </section>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite">
+      <span id="toastText"></span>
+    </div>
+
+    <!-- (Optional) Nav loader -->
+    <script type="module" src="/static/js/nav-loader.js?v=1"></script>
+
+    <!-- Tabulator JS (LOCAL) – MUST load BEFORE your page script -->
+    <script src="/static/vendor/tabulator/tabulator.min.js"></script>
+
+    <!-- Your page script (uses Tabulator) -->
+    <script type="module" src="/static/js/tabletest.js"></script>
+  </body>
+</html>

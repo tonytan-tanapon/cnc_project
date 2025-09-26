@@ -1,70 +1,92 @@
 <!DOCTYPE html>
 <html lang="th">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Reports · Topnotch MFG</title>
-  <link rel="stylesheet" href="/static/css/app.css" />
-</head>
-<body>
-  <div class="app">
-    <!-- Sidebar (partial) -->
-    <!-- <aside class="sidebar" data-include="/static/partials/nav.html"></aside> -->
-    <aside class="sidebar">
-      <div class="logo">
-        <span class="logo-badge">TN</span>
-        <span>Topnotch – MFG</span>
-      </div>
-      <!-- เมนูจะถูก inject จาก /static/partials/nav.html -->
-      <div id="navSlot" data-nav-slot></div>
-    </aside>
-    <!-- Main -->
-    <main class="main">
-      <!-- Topbar -->
-      <div class="topbar">
-        <div class="search">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zM9.5 14C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
-          </svg>
-          <input id="globalSearch" type="search" placeholder="Search…" />
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Reports · Topnotch MFG</title>
+    <link rel="stylesheet" href="/static/css/app.css" />
+  </head>
+  <body>
+    <div class="app">
+      <!-- Sidebar (partial) -->
+      <!-- <aside class="sidebar" data-include="/static/partials/nav.html"></aside> -->
+      <aside class="sidebar">
+        <!-- เมนูจะถูก inject จาก /static/partials/nav.html -->
+        <div id="navSlot" data-nav-slot></div>
+      </aside>
+      <!-- Main -->
+      <main class="main">
+        <!-- Topbar -->
+        <div class="topbar">
+          <div class="search">
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              aria-hidden="true"
+            >
+              <path
+                d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zM9.5 14C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"
+              />
+            </svg>
+            <input id="globalSearch" type="search" placeholder="Search…" />
+          </div>
+          <input id="apiBase" placeholder="API Base (default /api/v1)" />
+          <button class="btn" id="btnPing" type="button">Ping</button>
         </div>
-        <input id="apiBase" placeholder="API Base (default /api/v1)" />
-        <button class="btn" id="btnPing" type="button">Ping</button>
-      </div>
 
-      <!-- Page -->
-      <section id="page-reports">
-        <h2 class="page-title">📊 Reports</h2>
+        <!-- Page -->
+        <section id="page-reports">
+          <h2 class="page-title">📊 Reports</h2>
 
-        <div class="card">
-          <div class="toolbar" style="gap:10px; flex-wrap:wrap">
-            <button class="btn" id="rpt_lot_status" type="button">Lots by Status</button>
+          <div class="card">
+            <div class="toolbar" style="gap: 10px; flex-wrap: wrap">
+              <button class="btn" id="rpt_lot_status" type="button">
+                Lots by Status
+              </button>
 
-            <div style="display:flex;align-items:center;gap:8px">
-              <label for="rpt_due_days" class="hint">Subcon due (days)</label>
-              <input id="rpt_due_days" type="number" value="7" style="width:90px;padding:8px;border:1px solid #e2e8f0;border-radius:10px" />
-              <button class="btn" id="rpt_subcon_due" type="button">Run</button>
+              <div style="display: flex; align-items: center; gap: 8px">
+                <label for="rpt_due_days" class="hint">Subcon due (days)</label>
+                <input
+                  id="rpt_due_days"
+                  type="number"
+                  value="7"
+                  style="
+                    width: 90px;
+                    padding: 8px;
+                    border: 1px solid #e2e8f0;
+                    border-radius: 10px;
+                  "
+                />
+                <button class="btn" id="rpt_subcon_due" type="button">
+                  Run
+                </button>
+              </div>
             </div>
+            <div id="rpt_area"></div>
           </div>
-          <div id="rpt_area"></div>
-        </div>
 
-        <div class="card">
-          <b>Raw – Subcon Orders</b>
-          <div class="toolbar">
-            <button class="btn" id="rpt_subcon_raw" type="button">Reload</button>
+          <div class="card">
+            <b>Raw – Subcon Orders</b>
+            <div class="toolbar">
+              <button class="btn" id="rpt_subcon_raw" type="button">
+                Reload
+              </button>
+            </div>
+            <div id="rpt_subcon_raw_table"></div>
           </div>
-          <div id="rpt_subcon_raw_table"></div>
-        </div>
-      </section>
-    </main>
-  </div>
+        </section>
+      </main>
+    </div>
 
-  <!-- Toast -->
-  <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span></div>
+    <!-- Toast -->
+    <div class="toast" id="toast" role="status" aria-live="polite">
+      <span id="toastText"></span>
+    </div>
 
-  <!-- Load nav partial + set active + init topbar -->
-  <!-- <script type="module">
+    <!-- Load nav partial + set active + init topbar -->
+    <!-- <script type="module">
     const side = document.querySelector('.sidebar[data-include]');
     if (side) {
       fetch(side.getAttribute('data-include'))
@@ -77,10 +99,10 @@
     }
     import('/static/js/api.js?v=4').then(m => m.initTopbar && m.initTopbar());
   </script> -->
- <!-- โหลดเมนู + ไฮไลท์ active อัตโนมัติ -->
-  <script type="module" src="/static/js/nav-loader.js"></script>
- 
-  <!-- Page logic -->
-  <script type="module" src="/static/js/page-reports.js?v=1"></script>
-</body>
+    <!-- โหลดเมนู + ไฮไลท์ active อัตโนมัติ -->
+    <script type="module" src="/static/js/nav-loader.js"></script>
+
+    <!-- Page logic -->
+    <script type="module" src="/static/js/page-reports.js?v=1"></script>
+  </body>
 </html>

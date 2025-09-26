@@ -153,6 +153,33 @@ const partAC = {
     if (el) el.scrollIntoView({ block: 'nearest' });
   }
 };
+// ---- NEW: ดึงยอดใช้วัสดุของหลาย lot ทีเดียว ----
+async function fetchLotConsumptionMap(lotIds) {
+  if (!lotIds.length) return {};
+  const qs = lotIds.join(',');
+  try {
+    // expected response: { "400111": "35.000", "400112": "0.000", ... }
+    const res = await jfetch(`/reports/lot-consumption?lot_ids=${encodeURIComponent(qs)}`);
+    return res || {};
+  } catch {
+    return {};
+  }
+}
+// ---- NEW: กด Allocate เพื่อตัดสต็อกแบบอัตโนมัติ (FIFO/FEFO ทำใน backend) ----
+async function allocateForLot(lotId){
+  const mat = prompt('Material code หรือ ID…'); if (!mat) return;
+  const qty = Number(prompt('Qty…')); if (!Number.isFinite(qty) || qty <= 0){ toast('จำนวนไม่ถูกต้อง'); return; }
+
+  const asNum = Number(mat);
+  const payload = { lot_id: lotId, qty };
+  if (Number.isFinite(asNum) && asNum > 0) payload.material_id = asNum;
+  else payload.material_code = String(mat);
+
+  console.log('POST body =', payload);
+  await jfetch('/lot-uses/allocate', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+  toast('Allocated successfully'); await loadLots();
+}
+
 
 function initPartAutocomplete(){
  
@@ -380,7 +407,11 @@ async function loadLots() {
 
   try {
     const resp = await jfetch('/lots'); 
-    const rows = resp.items ?? [];   // ✅ ดึง array ออกมา
+    const rows = resp.items ?? [];
+
+    // --- NEW: ดึงยอดเบิกรวมของทุก lot ทีเดียว ---
+    const lotIds = rows.map(r => r.id).filter(Boolean);
+    const consMap = await fetchLotConsumptionMap(lotIds); // { lot_id: "35.000", ... }
 
     const { partMap, poMap } = await buildLookups(rows);
 
@@ -391,14 +422,18 @@ async function loadLots() {
         <th>PO Number</th>
         <th>Travelers</th>
         <th>Planned Qty</th>
+        <th>Used Qty</th>           <!-- NEW -->
         <th>Started At</th>
         <th>Finished At</th>
         <th>Status</th>
+        <th>Actions</th>            <!-- NEW -->
       </tr></thead>`;
 
     const tbody = rows.map(r => {
       const partNo = partMap[r.part_id]?.part_no || '';
       const poNo   = poMap[r.po_id]?.po_number || '';
+      const used   = consMap[String(r.id)] ?? consMap[r.id] ?? 0; // รองรับ key เป็น string/int
+      const usedDisp = String(used); // แสดงตามที่ API ส่ง (เช่น "35.000")
 
       const lotNoCell  = r.id ? `<a href="${lotDetailUrl(r.id)}">${esc(r.lot_no || '')}</a>` : esc(r.lot_no || '');
       const partCell   = r.part_id ? `<a href="${partDetailUrl(r.part_id)}">${esc(partNo)}</a>` : esc(partNo);
@@ -412,6 +447,11 @@ async function loadLots() {
         ? `<button class="btn-small" data-action="create-trav" data-lot="${r.id}">+ Traveler</button>`
         : '';
 
+      // ---- NEW: ปุ่ม Allocate ต่อแถว ----
+      const allocBtn = r.id
+        ? `<button class="btn-small" data-action="alloc" data-lot="${r.id}">Allocate</button>`
+        : '';
+
       return `
         <tr>
           <td>${lotNoCell}</td>
@@ -419,9 +459,11 @@ async function loadLots() {
           <td>${poCell}</td>
           <td>${travelersHtml} ${createTravBtn}</td>
           <td>${r.planned_qty ?? 0}</td>
+          <td>${usedDisp}</td>                            <!-- NEW -->
           <td>${esc(fmtDate(r.started_at))}</td>
           <td>${esc(fmtDate(r.finished_at))}</td>
           <td>${esc(r.status || '')}</td>
+          <td>${allocBtn}</td>                            <!-- NEW -->
         </tr>`;
     }).join('');
 
@@ -430,6 +472,7 @@ async function loadLots() {
     holder.innerHTML = `<div class="hint">โหลดรายการไม่ได้: ${esc(e.message || 'error')}</div>`;
   }
 }
+
 // ------------------------------------------------------------------
 // Create Lot
 // ------------------------------------------------------------------
@@ -520,6 +563,14 @@ document.addEventListener('DOMContentLoaded', ()=>{
       }
     }
   });
+// ---- NEW: Delegate ปุ่ม Allocate ----
+on(gid('l_table'), 'click', async (e) => {
+  const btn = e.target.closest('[data-action="alloc"]');
+  if (!btn) return;
+  const lotId = Number(btn.dataset.lot);
+  if (!lotId) return;
+  await allocateForLot(lotId);
+});
 
   // Enter in PO field
   on(gid('l_poid'), 'keydown', async (e)=>{

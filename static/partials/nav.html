@@ -1,17 +1,65 @@
-<nav class="nav">
-  <a href="/static/index.html">Dashboard</a>
-  <a href="/static/customers.html">Customers</a>
-  <a href="/static/pos.html">Purchase Orders</a>
-  <a href="/static/parts.html">Parts</a> <!-- ✅ เพิ่มเมนูใหม่ -->
-  <a href="/static/materials.html">Materials</a>
-  <a href="/static/batches.html">Batches</a>
-  <a href="/static/lots.html">Lots</a>
-  <a href="/static/employees.html">Employees</a>
-  <a href="/static/users.html">Users</a>
-  <a href="/static/travelers.html">Travelers</a>
-  <a href="/static/subcon.html">Subcontracting</a>
-  <a href="/static/suppliers.html">Suppliers</a>
-  <a href="/static/reports.html">Reports</a>
-  <a href="/static/payroll.html">Payrolls</a>
-  <a href="/static/time_clock.html">Time clock</a>
+<div class="logo">
+  <span id="toggleNav" class="toggle-btn logo-badge">TN</span>
+</div>
+<nav class="nav" id="sidebar" aria-label="Primary">
+  <!-- ปุ่มย่อ/ขยาย -->
+  <!-- <button
+    id="toggleNav"
+    class="toggle-btn"
+    type="button"
+    aria-label="Toggle navigation"
+  >
+    ☰
+  </button> -->
+
+  <!-- ลิงก์เมนู (มี icon + label) -->
+  <a href="/static/index.html"
+    ><span class="icon">🏠</span><span class="label">Dashboard</span></a
+  >
+  <a href="/static/customers.html"
+    ><span class="icon">👥</span><span class="label">Customers</span></a
+  >
+  <a href="/static/pos.html"
+    ><span class="icon">📦</span><span class="label">Purchase Orders</span></a
+  >
+  <a href="/static/parts.html"
+    ><span class="icon">⚙️</span><span class="label">Parts</span></a
+  >
+
+  <a href="/static/manage-parts.html"
+    ><span class="icon">🧩</span><span class="label">Manage Parts</span></a
+  >
+  <a href="/static/materials.html"
+    ><span class="icon">🧱</span><span class="label">Materials</span></a
+  >
+  <a href="/static/batches.html"
+    ><span class="icon">📚</span><span class="label">Batches</span></a
+  >
+  <a href="/static/lots.html"
+    ><span class="icon">🗂️</span><span class="label">Lots</span></a
+  >
+  <a href="/static/employees.html"
+    ><span class="icon">🧑‍🏭</span><span class="label">Employees</span></a
+  >
+  <a href="/static/users.html"
+    ><span class="icon">👤</span><span class="label">Users</span></a
+  >
+  <a href="/static/travelers.html"
+    ><span class="icon">🧾</span><span class="label">Travelers</span></a
+  >
+  <a href="/static/subcon.html"
+    ><span class="icon">🤝</span><span class="label">Subcontracting</span></a
+  >
+  <a href="/static/suppliers.html"
+    ><span class="icon">🏭</span><span class="label">Suppliers</span></a
+  >
+  <a href="/static/reports.html"
+    ><span class="icon">📊</span><span class="label">Reports</span></a
+  >
+  <a href="/static/payroll.html"
+    ><span class="icon">💵</span><span class="label">Payrolls</span></a
+  >
+  <a href="/static/time_clock.html"
+    ><span class="icon">⏱️</span><span class="label">Time clock</span></a
+  >
 </nav>

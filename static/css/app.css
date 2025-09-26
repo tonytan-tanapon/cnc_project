@@ -18,6 +18,7 @@
     0 2px 6px rgba(2,6,23,.06);
 
   --radius:14px;
+  
 }
 
 /* ===== Base =============================================================== */
@@ -34,7 +35,39 @@ body{
 a{ color:inherit }
 
 /* ===== Layout ============================================================= */
-.app{
+/* layout ปกติ */
+.app {
+  display: grid;
+  grid-template-columns: 240px 1fr; /* sidebar 240px + main auto */
+  height: 100vh;
+}
+
+/* เมื่อ collapsed */
+.app.is-collapsed {
+  grid-template-columns: 60px 1fr; /* sidebar เหลือ 60px */
+}
+
+.sidebar {
+  transition: width 0.3s;
+  overflow-x: hidden;
+}
+
+/* ปกติ */
+.sidebar {
+  width: 240px;
+}
+
+/* collapsed */
+.app.is-collapsed .sidebar {
+  width: 60px;
+}
+
+/* ซ่อน label เวลาย่อ */
+.app.is-collapsed .nav .label {
+  display: none;
+}
+
+/* .app{
   display:grid;
   grid-template-columns:260px 1fr;
   min-height:100vh;
@@ -45,7 +78,7 @@ a{ color:inherit }
   background:linear-gradient(180deg,var(--bg),var(--bg-2));
   color:var(--text);
   padding:20px 18px;
-}
+} */
 .logo{
   font-weight:800;
   letter-spacing:.2px;
@@ -399,10 +432,10 @@ th{ background:#f8fafc; position:sticky; top:0; z-index:1 }
 }
 
 /* list-topbar reorder */
-.list-topbar { display: flex; align-items: center; gap: 8px; }
-.list-topbar .search-lg  { order: 1; flex: 1; }
+/* .list-topbar { display: flex; align-items: center; gap: 8px; } */
+/* .list-topbar .search-lg  { order: 1; flex: 1; }
 .list-topbar .perpage-sm { order: 2; }
-.list-topbar .list-nav   { order: 3; }
+.list-topbar .list-nav   { order: 3; } */
 
 /* ================== Lines table (PO Lines) ================== */
 .lines-table{ table-layout: fixed; }
@@ -454,3 +487,46 @@ table.grid.lines-table th:nth-child(8),
 table.grid.lines-table td:nth-child(8){
   text-align: right;
 }
+
+
+/* put this in app.css (after Tabulator’s CSS) */
+
+/* Don’t let the page-size <select> take full width inside the footer */
+.tabulator .tabulator-footer select,
+.tabulator .tabulator-footer .tabulator-page-size {
+  width: auto !important;
+  max-width: 180px;      /* tweak as you like */
+}
+
+/* Put paginator and page-size on one line */
+.tabulator .tabulator-footer{
+  display: flex;
+  align-items: center;
+  justify-content: space-between; /* paginator left, page-size right */
+  gap: 8px;
+  flex-wrap: wrap;                /* allow wrap on small widths */
+}
+
+/* Make sure the paginator is visible */
+.tabulator .tabulator-footer .tabulator-paginator{
+  display: flex !important;
+  gap: 6px;
+}
+
+
+.btn-secondary {
+  background:#6b7280; /* gray-500 */
+  color:#fff;
+  border-color:#4b5563;
+}
+.btn-secondary:hover { background:#4b5563 }
+
+
+#listPanel {
+        display: flex;
+        flex-direction: column;
+      }
+      #listBody {
+        flex: 1;
+        min-height: 10;
+      }
