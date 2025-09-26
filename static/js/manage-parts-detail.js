@@ -538,16 +538,19 @@ function initTable(){
       { title: "Prod Qty",  field: "lot_qty", width: 110, hozAlign: "right", headerHozAlign: "right",
         formatter: (cell) => fmtQty(cell.getValue())
       },
-      { title: "PO Date",   field: "po_due_date", minWidth: 130, sorter: "date",
-        formatter: (cell) => fmtDate(cell.getValue())
-      },
-      { title: "Qty PO",   field: "qty", width: 110, hozAlign: "right", headerHozAlign: "right",
+      { title: "Prod allocate",  field: "lot_qty", width: 110, hozAlign: "right", headerHozAlign: "right",
         formatter: (cell) => fmtQty(cell.getValue())
       },
-      { title: "Due Date", field: "lot_due_date", minWidth: 130, sorter: "date",
+      { title: "Prod Date",   field: "po_due_date", minWidth: 130, sorter: "date",
         formatter: (cell) => fmtDate(cell.getValue())
       },
-      { title: "Qty", field: "qty", width: 110, hozAlign: "right", headerHozAlign: "right",
+      { title: "PO Qty",   field: "qty", width: 110, hozAlign: "right", headerHozAlign: "right",
+        formatter: (cell) => fmtQty(cell.getValue())
+      },
+      { title: "PO Date", field: "lot_due_date", minWidth: 130, sorter: "date",
+        formatter: (cell) => fmtDate(cell.getValue())
+      },
+      { title: "Ship Qty", field: "qty", width: 110, hozAlign: "right", headerHozAlign: "right",
         formatter: (cell) => fmtQty(cell.getValue())
       },
       // placeholders...

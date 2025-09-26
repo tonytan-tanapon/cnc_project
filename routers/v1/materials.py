@@ -197,7 +197,7 @@ def get_material(mat_id: int, db: Session = Depends(get_db)):
         raise HTTPException(404, "Material not found")
     return m
 
-@router.put("/{mat_id}", response_model=RawMaterialOut)
+@router.patch("/{mat_id}", response_model=RawMaterialOut)
 def update_material(mat_id: int, payload: RawMaterialUpdate, db: Session = Depends(get_db)):
     m = db.get(RawMaterial, mat_id)
     if not m:

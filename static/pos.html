@@ -6,59 +6,22 @@
     <title>POs · Topnotch – MFG</title>
 
     <link rel="stylesheet" href="/static/css/app.css" />
-    <link
-      rel="stylesheet"
-      href="/static/vendor/tabulator/tabulator_modern.min.css"
-    />
+    <link rel="stylesheet" href="/static/vendor/tabulator/tabulator_modern.min.css" />
 
     <style>
-      .main,
-      .panel,
-      #po_table {
-        min-width: 0;
-      }
-      #po_table,
-      #po_table .tabulator {
-        width: 100%;
-        max-width: 100%;
-      }
-      .tabulator .tabulator-tableholder {
-        overflow: auto !important;
-      }
+      .main, .panel, #po_table { min-width: 0; }
+      #po_table, #po_table .tabulator { width: 100%; max-width: 100%; }
+      .tabulator .tabulator-tableholder { overflow: auto !important; }
 
-      #po_table .tabulator-tableholder {
-        scrollbar-gutter: stable both-edges;
-      }
-      #po_table .tabulator-tableholder::-webkit-scrollbar {
-        width: 16px;
-        height: 16px;
-      }
-      #po_table .tabulator-tableholder::-webkit-scrollbar-track {
-        background: #f1f5f9;
-        border-radius: 8px;
-      }
-      #po_table .tabulator-tableholder::-webkit-scrollbar-thumb {
-        background: #cbd5e1;
-        border-radius: 8px;
-        border: 3px solid #f1f5f9;
-      }
-      #po_table .tabulator-tableholder::-webkit-scrollbar-thumb:hover {
-        background: #94a3b8;
-      }
-      #po_table .tabulator-tableholder {
-        scrollbar-width: auto;
-        scrollbar-color: #cbd5e1 #f1f5f9;
-      }
+      #po_table .tabulator-tableholder { scrollbar-gutter: stable both-edges; }
+      #po_table .tabulator-tableholder::-webkit-scrollbar { width: 16px; height: 16px; }
+      #po_table .tabulator-tableholder::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 8px; }
+      #po_table .tabulator-tableholder::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 8px; border: 3px solid #f1f5f9; }
+      #po_table .tabulator-tableholder::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+      #po_table .tabulator-tableholder { scrollbar-width: auto; scrollbar-color: #cbd5e1 #f1f5f9; }
 
-      #po_table .tabulator-cell {
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-      }
-      #po_table .tabulator-cell.wrap {
-        white-space: normal;
-        word-break: break-word;
-      }
+      #po_table .tabulator-cell { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      #po_table .tabulator-cell.wrap { white-space: normal; word-break: break-word; }
 
       .panel {
         border: 1px solid #e5e7eb;
@@ -75,20 +38,11 @@
         padding: 10px 12px;
         border-bottom: 1px solid #e5e7eb;
       }
-      .search-lg {
-        flex: 1;
-        min-width: 220px;
-      }
-      #po_add {
-        margin-left: auto;
-      }
+      .search-lg { flex: 1; min-width: 220px; }
+      #po_add { margin-left: auto; }
 
-      .tabulator {
-        border: 0;
-      }
-      .tabulator .tabulator-row:hover {
-        background: #fafafa;
-      }
+      .tabulator { border: 0; }
+      .tabulator .tabulator-row:hover { background: #fafafa; }
 
       .btn-small {
         padding: 4px 8px;
@@ -99,34 +53,18 @@
         color: #fff;
         cursor: pointer;
       }
-      .btn-small.secondary {
-        background: #eee;
-        color: #333;
-      }
-      .btn-small.btn-danger {
-        background: #fff;
-        color: #ef4444;
-        border-color: #ef4444;
-      }
+      .btn-small.secondary { background: #eee; color: #333; }
+      .btn-small.btn-danger { background: #fff; color: #ef4444; border-color: #ef4444; }
 
-      /* สไตล์ link View */
-      a.view-link {
-        color: #2563eb;
-        text-decoration: underline;
-        font-weight: 600;
-      }
-      a.view-link:hover {
-        text-decoration: none;
-      }
+      /* View link */
+      a.view-link { color: #2563eb; text-decoration: underline; font-weight: 600; }
+      a.view-link:hover { text-decoration: none; }
 
-      #listPanel {
-        display: flex;
-        flex-direction: column;
-      }
-      #po_table {
-        flex: 1;
-        min-height: 0;
-      }
+      /* Prevent cutting off actions */
+      #po_table .tabulator-cell.actions-cell { overflow: visible; }
+
+      #listPanel { display: flex; flex-direction: column; }
+      #po_table { flex: 1; min-height: 0; }
     </style>
   </head>
   <body>
@@ -138,29 +76,15 @@
       <main class="main">
         <div class="topbar">
           <div class="search">
-            <input
-              id="globalSearch"
-              type="search"
-              placeholder="Search PO / Lot / Tracking…"
-            />
+            <input id="globalSearch" type="search" placeholder="Search PO / Lot / Tracking…" />
           </div>
-          <input
-            id="apiBase"
-            value="/api/v1"
-            placeholder="API Base"
-            aria-label="API Base"
-          />
+          <input id="apiBase" value="/api/v1" placeholder="API Base" aria-label="API Base" />
           <button class="btn" id="btnPing" type="button">Ping</button>
         </div>
 
         <section class="panel" id="listPanel" style="margin-top: 12px">
           <div class="list-topbar">
-            <input
-              id="po_q"
-              type="search"
-              class="search-lg"
-              placeholder="Search POs…"
-            />
+            <input id="po_q" type="search" class="search-lg" placeholder="Search POs…" />
             <button id="po_add" class="btn-small" type="button">+ Add</button>
           </div>
           <div id="po_table"></div>
