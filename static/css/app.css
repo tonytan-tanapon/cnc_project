@@ -432,10 +432,10 @@ th{ background:#f8fafc; position:sticky; top:0; z-index:1 }
 }
 
 /* list-topbar reorder */
-.list-topbar { display: flex; align-items: center; gap: 8px; }
-.list-topbar .search-lg  { order: 1; flex: 1; }
+/* .list-topbar { display: flex; align-items: center; gap: 8px; } */
+/* .list-topbar .search-lg  { order: 1; flex: 1; }
 .list-topbar .perpage-sm { order: 2; }
-.list-topbar .list-nav   { order: 3; }
+.list-topbar .list-nav   { order: 3; } */
 
 /* ================== Lines table (PO Lines) ================== */
 .lines-table{ table-layout: fixed; }
@@ -520,3 +520,13 @@ table.grid.lines-table td:nth-child(8){
   border-color:#4b5563;
 }
 .btn-secondary:hover { background:#4b5563 }
+
+
+#listPanel {
+        display: flex;
+        flex-direction: column;
+      }
+      #listBody {
+        flex: 1;
+        min-height: 10;
+      }
