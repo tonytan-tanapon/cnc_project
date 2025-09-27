@@ -25,6 +25,8 @@
     .bar{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin:12px 0; justify-content:flex-end; }
     .link{ color:#2563eb; text-decoration:none; font-weight:600 }
     .link:hover{ text-decoration:underline }
+    .center { text-align: center }
+
   </style>
 </head>
 <body>
@@ -403,7 +405,13 @@
     // Create workbook & sheet
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.aoa_to_sheet(rows);
-
+["E","F","G"].forEach(col=>{
+  const range = XLSX.utils.decode_range(ws["!ref"]);
+  for(let r = range.s.r+1; r <= range.e.r; ++r){ // skip header row
+    const cell = ws[`${col}${r+1}`]; // r+1 because row index starts at 0
+    if(cell) cell.s = { alignment: { horizontal: "center" } };
+  }
+});
     // Set sheet name = "period"
     let sheetName = `${currentPpStart}_to_${currentPpEnd}`;
   sheetName = sheetName.replace(/[\\/:*?[\]]/g, "").slice(0, 31); // sanitize + length limit
