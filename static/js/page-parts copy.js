@@ -1,32 +1,10 @@
-// /static/js/page-part.js
-import { jfetch, renderTable, showToast as toast } from "/static/js/api.js?v=4";
+// /static/js/page-parts.js  (v8 - Tabulator)
+import { $, jfetch, showToast as toast, initTopbar } from "./api.js";
 
-const $ = (id) => document.getElementById(id);
-const strOrNull = (v) => {
-  if (v == null) return null;
-  const s = String(v).trim();
-  return s === "" ? null : s;
-};
-const numOrNull = (v) => (v === "" || v == null ? null : Number(v));
+const partDetail = (id) => `./part-detail.html?id=${encodeURIComponent(id)}`;
 
-/* =========================
-   Global state (pagination)
-========================= */
-const state = {
-  page: 1,
-  perPage: 20,
-  pages: 1,
-  total: 0,
-  q: "",
-};
-
-/* =========================
-   Config & helpers (UI)
-========================= */
-const DETAIL_PAGE = "/static/part-detail.html";
-const partUrl = (id) => `${DETAIL_PAGE}?id=${encodeURIComponent(id)}`;
-
-const escapeHtml = (s) =>
+/* ---------- helpers ---------- */
+const safe = (s) =>
   String(s ?? "")
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
@@ -34,407 +12,327 @@ const escapeHtml = (s) =>
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
 
-// inject styles (rev highlight + pager)
-function ensureStyles() {
-  if (!document.getElementById("rev-cell-style")) {
-    const style = document.createElement("style");
-    style.id = "rev-cell-style";
-    style.textContent = `
-      .rev-cell { white-space: nowrap }
-      .rev-current {
-        padding: 2px 6px;
-        border: 1px solid #0ea5e9;
-        border-radius: 999px;
-        box-shadow: 0 0 0 2px rgba(14,165,233,.15) inset;
-        color: #0b6ea6;
-        font-weight: 600;
-      }
+const fmtDate = (v) => {
+  if (!v) return "";
+  const d = new Date(v);
+  return isNaN(d) ? "" : d.toLocaleString();
+};
+const debounce = (fn, ms = 300) => {
+  let t;
+  return (...a) => {
+    clearTimeout(t);
+    t = setTimeout(() => fn(...a), ms);
+  };
+};
 
-      .pager { display:flex; align-items:center; gap:8px; justify-content:flex-end; margin-top:8px; flex-wrap:wrap }
-      .pager .btn { min-height:32px }
-      .pager .btn[disabled] { opacity:.5; cursor:not-allowed }
-      .pager .count { color:#64748b; margin-left:8px }
-      .pager .spacer { flex:1 }
-      .pager select { padding:4px 8px; border:1px solid #e2e8f0; border-radius:8px; }
-      .pager .btn.page { padding:4px 10px }
-      .pager .btn.page.active,
-      .pager .btn.page[aria-current="page"] {
-        background:#0ea5e9; color:#fff; border-color:#0ea5e9;
-      }
-      .pager .dots { padding:0 6px; color:#94a3b8; user-select:none }
-    `;
-    document.head.appendChild(style);
-  }
-}
-ensureStyles();
-
-/* =========================
-   Revisions cache & fetch
-========================= */
-const revCacheDetail = new Map(); // part_id -> [{rev, is_current}]
-
-async function getRevisions(partId) {
-  if (revCacheDetail.has(partId)) return revCacheDetail.get(partId);
-  const rows = await jfetch(`/part-revisions?part_id=${encodeURIComponent(partId)}`);
-  const list = Array.isArray(rows) ? rows : [];
-  const normalized = list
-    .map((r) => ({ rev: String(r.rev || "").toUpperCase(), is_current: !!r.is_current }))
-    .filter((x) => x.rev)
-    .sort((a, b) => a.rev.localeCompare(b.rev, undefined, { sensitivity: "base" }));
-  revCacheDetail.set(partId, normalized);
-  return normalized;
-}
-
-/* =========================
-   Parts list renderer
-========================= */
-function linkifyPartNoCells(holder, rows) {
-  const table = holder.querySelector("table");
-  if (!table) return;
-
-  const ths = [...table.querySelectorAll("thead th")];
-  const pnIdx = ths.findIndex((th) => {
-    const t = (th.textContent || th.innerText || "").trim().toLowerCase();
-    return t === "part_no" || t === "part no" || t === "partno";
-  });
-  if (pnIdx < 0) return;
-
-  const trs = table.querySelectorAll("tbody tr");
-  trs.forEach((tr, i) => {
-    const row = rows[i];
-    if (!row || row.id == null) return;
-    const td = tr.children[pnIdx];
-    if (!td) return;
-    const label = (td.textContent || row.part_no || `#${row.id}`).trim();
-    td.innerHTML = `<a class="pn-link" href="${partUrl(row.id)}">${escapeHtml(label)}</a>`;
-  });
-}
-
-function fillRevColumn(holder, rows) {
-  const table = holder.querySelector("table");
-  if (!table) return;
-
-  const ths = [...table.querySelectorAll("thead th")];
-  const findIdx = (label) =>
-    ths.findIndex((th) => (th.textContent || th.innerText || "").trim().toLowerCase() === label);
-
-  const revIdx = findIdx("rev");
-  if (revIdx < 0) return;
-
-  const trs = [...table.querySelectorAll("tbody tr")];
-  const token = String(Date.now());
-  holder.dataset.revFillToken = token;
-
-  trs.forEach((tr, i) => {
-    const row = rows[i];
-    if (!row || row.id == null) return;
-    const td = tr.children[revIdx];
-    if (!td) return;
-    td.classList.add("rev-cell");
-    td.textContent = "…";
-
-    getRevisions(row.id)
-      .then((list) => {
-        if (holder.dataset.revFillToken !== token) return;
-
-        if (!list.length) {
-          td.textContent = "-";
-          return;
-        }
-
-        const html = list
-          .map(({ rev, is_current }) =>
-            is_current
-              ? `<span class="rev-current">${escapeHtml(rev)}</span>`
-              : escapeHtml(rev)
-          )
-          .join(", ");
-        td.innerHTML = html;
-      })
-      .catch(() => {
-        if (holder.dataset.revFillToken !== token) return;
-        td.textContent = "-";
-      });
-  });
-}
-
-function renderPartsTable(holder, rows, baseIndex = 0) {
-  const data = (rows || []).map((r, i) => ({
-    No: baseIndex + i + 1,
-    part_no: r.part_no ?? "",
-    name: r.name ?? "",
-    Rev: "",
-    description: r.description ?? "",
-    default_uom: r.default_uom ?? "",
-    status: r.status ?? "",
-  }));
-
-  renderTable(holder, data);
-
-  const table = holder.querySelector("table");
-  if (table) {
-    const ths = [...table.querySelectorAll("thead th")];
-    const noIdx = ths.findIndex((th) => (th.textContent || "").trim().toLowerCase() === "no");
-    if (noIdx >= 0) {
-      ths[noIdx].style.width = "56px";
-      table.querySelectorAll("tbody tr").forEach((tr) => {
-        const td = tr.children[noIdx];
-        if (td) td.style.textAlign = "left"; // ชิดซ้าย
-      });
-    }
-  }
-
-  linkifyPartNoCells(holder, rows);
-  fillRevColumn(holder, rows);
-}
-
-/* =========================
-   Pager UI (First/Prev/1..N/Next/Last + …)
-========================= */
-function ensurePagerContainer() {
-  let el = $("p_pager");
-  if (el) return el;
-  const tableHolder = $("p_table");
-  el = document.createElement("div");
-  el.id = "p_pager";
-  el.className = "pager";
-  tableHolder?.parentNode?.insertBefore(el, tableHolder.nextSibling);
-  return el;
-}
-
-// สร้างรายการเลขหน้าแบบมี boundaries/siblings + dots
-function buildPageItems(page, pages, boundaries = 1, siblings = 1) {
-  const items = [];
-  const range = (a, b) => Array.from({ length: b - a + 1 }, (_, i) => a + i);
-
-  const start = range(1, Math.min(boundaries, pages));
-  const end = range(Math.max(pages - boundaries + 1, boundaries + 1), pages);
-
-  const low = Math.max(page - siblings, boundaries + 1);
-  const high = Math.min(page + siblings, pages - boundaries);
-
-  items.push(...start);
-
-  if (low > boundaries + 1) items.push("dots");
-  items.push(...range(low, Math.max(low, high)));
-  if (high < pages - boundaries) items.push("dots");
-
-  end.forEach((p) => {
-    if (!items.includes(p)) items.push(p);
-  });
-
-  // ลบหมายเลขที่เกินจริง
-  return items.filter((x) => x === "dots" || (x >= 1 && x <= pages));
-}
-
-function renderPager() {
-  const pager = ensurePagerContainer();
-  const { page, pages, total, perPage } = state;
-
-  const items = buildPageItems(page, pages, 1, 1); // boundaries=1, siblings=1
-
-  // ปุ่มเลขหน้า
-  const pagesHtml = items
-    .map((it) => {
-      if (it === "dots") return `<span class="dots">…</span>`;
-      const active = it === page ? ' aria-current="page" class="btn page active"' : ' class="btn page"';
-      return `<button${active} data-page="${it}" type="button">${it}</button>`;
+const renderRevisionsInline = (revs) => {
+  const list = Array.isArray(revs) ? revs : [];
+  if (!list.length) return `<span class="muted">—</span>`;
+  return list
+    .map((r) => {
+      const cls = r.is_current ? "rev current" : "rev";
+      return `<span class="${cls}" title="Revision ${safe(r.rev)}">${safe(
+        r.rev
+      )}</span>`;
     })
-    .join("");
+    .join(`<span class="rev-sep">, </span>`);
+};
 
-  pager.innerHTML = `
-    <div class="spacer"></div>
-    <label>Per page</label>
-    <select id="pp_select">
-      ${[10,20,50,100].map(n => `<option value="${n}" ${n===perPage?'selected':''}>${n}</option>`).join("")}
-    </select>
+/* ---------- UI refs ---------- */
+const inputSearch = $("p_q");
+const selPerPage = $("p_per_page");
+const btnPrevTop = $("p_prev");
+const btnNextTop = $("p_next");
+const pageInfoTop = $("p_page_info");
+const btnPrevBot = $("p_prev2");
+const btnNextBot = $("p_next2");
+const pageInfoBot = $("p_page_info2");
+const tableMount = $("p_table");
+const btnReload = $("p_reload");
 
-    <button class="btn ghost" id="btnFirst" ${page<=1?'disabled':''}>« First</button>
-    <button class="btn ghost" id="btnPrev" ${page<=1?'disabled':''}>‹ Prev</button>
+/* Create form */
+const inNo = $("p_no");
+const inName = $("p_name");
+const inDesc = $("p_desc");
+const inUom = $("p_uom");
+const inStatus = $("p_status");
+const btnCreate = $("p_create");
 
-    ${pagesHtml}
+/* ---------- state ---------- */
+let table = null;
+let totalItems = 0;
+let pageSize = Number(selPerPage?.value || 20);
 
-    <button class="btn ghost" id="btnNext" ${page>=pages?'disabled':''}>Next ›</button>
-    <button class="btn ghost" id="btnLast" ${page>=pages?'disabled':''}>Last »</button>
+/* ---------- next code helper ---------- */
+async function peekNextPartNo() {
+  try {
+    const res = await jfetch("/parts/next-code"); // { next_code: "P00001", ... }
+    if (inNo && !inNo.value) {
+      inNo.value = res?.next_code || "";
+    }
+  } catch {
+    _;
+  }
+}
 
-    <span class="count">Page ${page} / ${pages} · Total ${total}</span>
-  `;
+/* ---------- pager label ---------- */
+function updatePagerLabel() {
+  if (!table) return;
+  const cur = table.getPage() || 1;
+  const size = table.getPageSize() || pageSize;
+  const totalPages = totalItems
+    ? Math.max(1, Math.ceil(totalItems / size))
+    : cur;
+  const label = totalItems ? `Page ${cur} / ${totalPages}` : `Page ${cur}`;
+  if (pageInfoTop) pageInfoTop.textContent = label;
+  if (pageInfoBot) pageInfoBot.textContent = label;
 
-  // events
-  $("#pp_select")?.addEventListener("change", (e) => {
-    state.perPage = Number(e.target.value) || 20;
-    state.page = 1;
-    loadParts();
+  const canPrev = cur > 1;
+  const canNext = totalItems ? cur < totalPages : table.getDataCount() === size;
+  [btnPrevTop, btnPrevBot].forEach((b) =>
+    b?.toggleAttribute("disabled", !canPrev)
+  );
+  [btnNextTop, btnNextBot].forEach((b) =>
+    b?.toggleAttribute("disabled", !canNext)
+  );
+}
+
+/* ---------- Tabulator init ---------- */
+/* ---------- Tabulator init ---------- */
+function initTable() {
+  if (!tableMount) return;
+
+  table = new Tabulator(tableMount, {
+    layout: "fitColumns",
+    height: "calc(100vh - 420px)",
+    selectableRows: false,
+    reactiveData: false,
+    placeholder: "No parts found",
+    index: "id",
+
+    pagination: true,
+    paginationMode: "remote",
+    paginationSize: pageSize,
+
+    ajaxURL: "/parts", // not used directly; we use ajaxRequestFunc
+    ajaxRequestFunc: async (_url, _config, params) => {
+      const page = params.page || 1;
+      const size = params.size || pageSize;
+
+      const q = (inputSearch?.value || "").trim();
+      const usp = new URLSearchParams();
+      usp.set("page", String(page));
+      usp.set("page_size", String(size));
+      usp.set("include", "revisions");
+      if (q) usp.set("q", q);
+      usp.set("_", String(Date.now()));
+
+      const data = await jfetch(`/parts?${usp.toString()}`);
+      const items = data.items ?? [];
+      totalItems = Number(data.total ?? 0);
+
+      const rows = items.map((p) => ({
+        id: p.id,
+        part_no: p.part_no,
+        name: p.name ?? "",
+        uom: p.uom ?? "ea",
+        description: p.description ?? "",
+        status: p.status ?? "active",
+        created_at: p.created_at ?? null,
+        revisions: p.revisions ?? [],
+      }));
+
+      const last_page =
+        totalItems && size ? Math.max(1, Math.ceil(totalItems / size)) : page;
+      return { data: rows, last_page };
+    },
+
+    columns: [
+      {
+        title: "No.",
+        field: "_rowno",
+        width: 70,
+        hozAlign: "right",
+        headerHozAlign: "right",
+        headerSort: false,
+        formatter: (cell) => {
+          const pos = cell.getRow().getPosition(true);
+          const curPage = table.getPage() || 1;
+          const size = table.getPageSize() || pageSize;
+          return (curPage - 1) * size + pos;
+        },
+      },
+      {
+        title: "Part No.",
+        field: "part_no",
+        width: 160,
+        headerSort: true,
+        formatter: (cell) => {
+          const d = cell.getData();
+          return `<a class="code-link" href="${partDetail(d.id)}">${safe(
+            d.part_no ?? ""
+          )}</a>`;
+        },
+        cellClick: (e, cell) => {
+          e.stopPropagation();
+          const d = cell.getData();
+          if (d?.id) location.href = partDetail(d.id);
+        },
+      },
+      { title: "Name", field: "name", headerSort: true, minWidth: 200 },
+      {
+        title: "Revisions",
+        field: "revisions",
+        headerSort: false,
+        minWidth: 220,
+        formatter: (cell) => renderRevisionsInline(cell.getValue()),
+      },
+      { title: "UoM", field: "uom", width: 90, headerSort: false },
+      {
+        title: "Description",
+        field: "description",
+        headerSort: false,
+        minWidth: 240,
+      },
+      { title: "Status", field: "status", width: 110, headerSort: true },
+      {
+        title: "Created",
+        field: "created_at",
+        width: 180,
+        headerSort: true,
+        formatter: (cell) => fmtDate(cell.getValue()),
+      },
+      {
+        title: "",
+        field: "_actions",
+        width: 180,
+        hozAlign: "right",
+        headerSort: false,
+        formatter: (cell) => {
+          const d = cell.getData();
+          const id = d?.id ? Number(d.id) : 0;
+          return `
+            <button class="btn-small" data-act="edit" data-id="${id}">Edit</button>
+            <button class="btn-small" data-act="del"  data-id="${id}">Delete</button>
+          `;
+        },
+        cellClick: async (e, cell) => {
+          const btn = e.target.closest("button[data-act]");
+          if (!btn) return;
+          const id = Number(btn.dataset.id);
+          if (!id) return;
+          if (btn.dataset.act === "edit") {
+            location.href = partDetail(id);
+            return;
+          }
+          if (btn.dataset.act === "del") {
+            if (!confirm("Delete this part?")) return;
+            try {
+              await jfetch(`/parts/${id}`, { method: "DELETE" });
+              toast("Deleted");
+              table.replaceData();
+            } catch (err) {
+              toast(err?.message || "Delete failed", false);
+            }
+          }
+        },
+      },
+    ],
   });
 
-  $("#btnFirst")?.addEventListener("click", () => {
-    if (state.page > 1) { state.page = 1; loadParts(); }
-  });
-  $("#btnPrev")?.addEventListener("click", () => {
-    if (state.page > 1) { state.page -= 1; loadParts(); }
-  });
-  $("#btnNext")?.addEventListener("click", () => {
-    if (state.page < state.pages) { state.page += 1; loadParts(); }
-  });
-  $("#btnLast")?.addEventListener("click", () => {
-    if (state.page < state.pages) { state.page = state.pages; loadParts(); }
-  });
+  // รอให้ตาราง build เสร็จก่อน แล้วค่อยผูก observer + redraw
+  table.on("tableBuilt", () => {
+    // sync pager
+    updatePagerLabel();
 
-  // เลขหน้า
-  pager.querySelectorAll("button[data-page]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const p = Number(btn.dataset.page);
-      if (!Number.isFinite(p)) return;
-      if (p !== state.page) {
-        state.page = p;
-        loadParts();
-      }
+    // ผูกอีเวนต์หลังจาก build แล้วเท่านั้น
+    table.on("pageLoaded", () => updatePagerLabel());
+    table.on("dataProcessed", () => updatePagerLabel());
+    table.on("dataLoaded", () => {
+      updatePagerLabel();
+      // redraw อีกเฟรมกัน renderer ยังไม่พร้อม
+      requestAnimationFrame(() => table.redraw(true));
     });
+
+    // สร้าง observer หลัง build
+    const ro = new ResizeObserver(() => table.redraw(true));
+    ro.observe(tableMount);
+
+    window.addEventListener("resize", () => table.redraw(true));
+
+    // initial redraw
+    requestAnimationFrame(() => table.redraw(true));
   });
 }
 
-/* =========================
-   Parts (load/create)
-========================= */
-async function loadParts() {
-  const holder = $("p_table");
-  try {
-    const q = $("p_q")?.value?.trim() || "";
-    state.q = q;
-
-    const params = new URLSearchParams();
-    params.set("page", String(state.page));
-    params.set("per_page", String(state.perPage));
-    if (q) params.set("q", q);
-
-    const resp = await jfetch("/parts?" + params.toString());
-
-    // รองรับทั้งรูปแบบใหม่ (page object) และเก่า (array)
-    let rows, meta;
-    if (Array.isArray(resp)) {
-      rows = resp;
-      meta = { total: rows.length, page: 1, per_page: rows.length || state.perPage, pages: 1 };
-    } else {
-      rows = resp.items || [];
-      meta = {
-        total: resp.total ?? rows.length,
-        page: resp.page ?? state.page,
-        per_page: resp.per_page ?? state.perPage,
-        pages: resp.pages ?? 1,
-      };
-    }
-
-    state.total = meta.total;
-    state.pages = meta.pages || 1;
-    state.page = Math.min(Math.max(meta.page || 1, 1), state.pages);
-    state.perPage = meta.per_page || state.perPage;
-
-    if (state.page > state.pages && state.pages >= 1) {
-      state.page = state.pages;
-      await loadParts();
-      return;
-    }
-
-    const baseIndex = (state.page - 1) * state.perPage;
-    renderPartsTable(holder, rows, baseIndex);
-    renderPager();
-  } catch (e) {
-    holder.innerHTML = `<div class="hint">${escapeHtml(e.message)}</div>`;
-    toast("โหลด Parts ไม่สำเร็จ: " + e.message, false);
-  }
-}
-
+/* ---------- create ---------- */
 async function createPart() {
-  // ปล่อยว่างได้ -> backend autogen
-  const userPN = strOrNull($("p_no")?.value);
-  const payload = {
-    part_no: userPN ? userPN.toUpperCase() : null,
-    name: strOrNull($("p_name")?.value),
-    description: strOrNull($("p_desc")?.value),
-    default_uom: strOrNull($("p_uom")?.value) || "ea",
-    status: $("p_status")?.value || "active",
-  };
+  const raw_no = inNo?.value?.trim().toUpperCase();
+  const part_no = raw_no || "AUTO"; // let backend autogen when supported
+  const name = inName?.value?.trim() || null;
+  const description = inDesc?.value?.trim() || "";
+  const uom = inUom?.value?.trim() || null;
+  const status = inStatus?.value || "active";
 
   try {
-    const created = await jfetch("/parts", { method: "POST", body: JSON.stringify(payload) });
-    toast("สร้าง Part สำเร็จ");
-    if (created?.id) {
-      // กลับไปหน้าแรกเพื่อให้เห็นรายการใหม่ หรือจะ jump ไป detail ก็ได้
-      location.href = partUrl(created.id);
-      return;
-    }
-    ["p_no", "p_name", "p_desc", "p_uom"].forEach((id) => { const el = $(id); if (el) el.value = ""; });
-    if ($("p_status")) $("p_status").value = "active";
-    state.page = 1;
-    await loadParts();
+    await jfetch("/parts", {
+      method: "POST",
+      body: JSON.stringify({ part_no, name, description, uom, status }),
+    });
+    toast("Created");
+
+    // clear inputs
+    [inNo, inName, inDesc, inUom].forEach((el) => el && (el.value = ""));
+    if (inStatus) inStatus.value = "active";
+
+    await peekNextPartNo();
+    // reload from first page
+    table?.setPage(1);
+    table?.replaceData();
   } catch (e) {
-    toast("สร้าง Part ไม่สำเร็จ: " + e.message, false);
+    toast(e?.message || "Create failed", false);
   }
 }
 
-/* =========================
-   (optional) Part Revisions panel
-========================= */
-async function loadRevisions() {
-  const pid = $("r_list_pid")?.value?.trim() || $("r_part_id")?.value?.trim();
-  const holder = $("r_table");
-  if (!holder) return;
-  if (!pid) {
-    holder.innerHTML = `<div class="hint">ใส่ Part ID ก่อน</div>`;
-    return;
-  }
-  try {
-    const rows = await jfetch(`/part-revisions?part_id=${encodeURIComponent(pid)}`);
-    renderTable(holder, rows);
-  } catch (e) {
-    holder.innerHTML = `<div class="hint">${escapeHtml(e.message)}</div>`;
-    toast("โหลด Revisions ไม่สำเร็จ: " + e.message, false);
-  }
-}
+/* ---------- bindings ---------- */
+inputSearch?.addEventListener(
+  "input",
+  debounce(() => {
+    table?.setPage(1);
+    table?.replaceData();
+  }, 250)
+);
 
-async function createRevision() {
-  const elPartId = $("r_part_id");
-  if (!elPartId) return;
+selPerPage?.addEventListener("change", () => {
+  pageSize = Number(selPerPage.value || 20);
+  table?.setPageSize(pageSize);
+  table?.setPage(1);
+});
 
-  const payload = {
-    part_id: numOrNull(elPartId.value),
-    rev: (strOrNull($("r_rev")?.value) || "").toUpperCase(),
-    drawing_file: strOrNull($("r_dwg")?.value),
-    spec: strOrNull($("r_spec")?.value),
-    is_current: ($("r_current")?.value || "false") === "true",
-  };
+btnReload?.addEventListener("click", () => table?.replaceData());
 
-  if (!payload.part_id || !payload.rev) {
-    toast("ต้องกรอก Part ID และ Rev", false);
-    return;
-  }
+[btnPrevTop, btnPrevBot].forEach((b) =>
+  b?.addEventListener("click", () => {
+    const cur = table?.getPage() || 1;
+    if (cur > 1) table?.setPage(cur - 1);
+  })
+);
+[btnNextTop, btnNextBot].forEach((b) =>
+  b?.addEventListener("click", () => {
+    const cur = table?.getPage() || 1;
+    table?.setPage(cur + 1);
+  })
+);
 
-  try {
-    await jfetch("/part-revisions", { method: "POST", body: JSON.stringify(payload) });
-    toast("เพิ่ม Revision สำเร็จ");
-    await loadRevisions();
-    ["r_rev", "r_dwg", "r_spec"].forEach((id) => { const el = $(id); if (el) el.value = ""; });
-    if ($("r_current")) $("r_current").value = "false";
-  } catch (e) {
-    toast("เพิ่ม Revision ไม่สำเร็จ: " + e.message, false);
-  }
-}
+// Create
+btnCreate?.addEventListener("click", createPart);
 
-/* =========================
-   init
-========================= */
+/* ---------- boot ---------- */
+/* ---------- boot ---------- */
 document.addEventListener("DOMContentLoaded", () => {
-  // Parts
-  $("p_create")?.addEventListener("click", createPart);
-  $("p_reload")?.addEventListener("click", () => { state.page = 1; loadParts(); });
-  $("p_q")?.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") { state.page = 1; loadParts(); }
-  });
-
-  // Revisions (optional panel)
-  $("r_create")?.addEventListener("click", createRevision);
-  $("r_reload")?.addEventListener("click", loadRevisions);
-
-  // first load
-  loadParts();
+  initTopbar?.();
+  peekNextPartNo();
+  initTable();
+  // ❌ ไม่เรียก table.redraw ก่อน tableBuilt
+  // Tabulator จะยิง ajax เองจาก paginationMode:"remote"
 });

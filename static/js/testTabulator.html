@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="th">
+  <head>
+    <meta charset="utf-8" />
+    <title>Tabulator Smoke Test (with CDN Fallbacks)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      body {
+        font: 16px/1.5 system-ui, -apple-system, Segoe UI, Roboto, Arial;
+        margin: 20px;
+      }
+      .row {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        margin-bottom: 12px;
+        flex-wrap: wrap;
+      }
+      #status {
+        padding: 6px 10px;
+        border-radius: 8px;
+        background: #f3f4f6;
+      }
+      #table {
+        min-height: 140px;
+      }
+      button {
+        padding: 6px 10px;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        background: #111;
+        color: #fff;
+        cursor: pointer;
+      }
+      code {
+        background: #f3f4f6;
+        border-radius: 6px;
+        padding: 0 6px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Tabulator Smoke Test</h1>
+    <p>
+      สคริปต์นี้จะลองโหลด Tabulator จากแหล่งต่อไปนี้ (เรียงลำดับ): local → cdnjs
+      → unpkg
+    </p>
+
+    <div class="row">
+      <div id="status">กำลังโหลดไลบรารี…</div>
+      <button id="addRowBtn" disabled>+ Add row</button>
+      <button id="logDataBtn" disabled>Log data</button>
+    </div>
+
+    <!-- CSS จะถูกใส่แบบไดนามิกตามแหล่งที่โหลดสำเร็จ -->
+    <div id="table"></div>
+
+    <script>
+      (function () {
+        const statusEl = document.getElementById("status");
+        const addBtn = document.getElementById("addRowBtn");
+        const logBtn = document.getElementById("logDataBtn");
+
+        // แหล่งไฟล์สำรองหลายที่ (แก้ path local ให้ตรงโปรเจกต์ของคุณ)
+        const SOURCES = {
+          css: [
+            "/static/vendor/tabulator/tabulator.min.css",
+            "https://cdnjs.cloudflare.com/ajax/libs/tabulator/5.6.2/css/tabulator.min.css",
+            "https://unpkg.com/tabulator-tables@5.6.2/dist/css/tabulator.min.css",
+          ],
+          js: [
+            "/static/vendor/tabulator/tabulator.min.js",
+            "https://cdnjs.cloudflare.com/ajax/libs/tabulator/5.6.2/js/tabulator.min.js",
+            "https://unpkg.com/tabulator-tables@5.6.2/dist/js/tabulator.min.js",
+          ],
+        };
+
+        function setStatus(msg, ok) {
+          statusEl.textContent = (ok ? "✅ " : "❌ ") + msg;
+          statusEl.style.background = ok ? "#dcfce7" : "#fee2e2";
+        }
+
+        function loadCSSSequential(urls) {
+          return new Promise((resolve) => {
+            const tryNext = (i) => {
+              if (i >= urls.length) return resolve(false);
+              const href = urls[i];
+              const link = document.createElement("link");
+              link.rel = "stylesheet";
+              link.href = href;
+              link.onload = () => resolve(href);
+              link.onerror = () => tryNext(i + 1);
+              document.head.appendChild(link);
+            };
+            tryNext(0);
+          });
+        }
+
+        function loadJSSequential(urls) {
+          return new Promise((resolve) => {
+            const tryNext = (i) => {
+              if (i >= urls.length) return resolve(false);
+              const src = urls[i];
+              const s = document.createElement("script");
+              s.src = src;
+              s.onload = () => resolve(src);
+              s.onerror = () => tryNext(i + 1);
+              document.head.appendChild(s);
+            };
+            tryNext(0);
+          });
+        }
+
+        async function boot() {
+          // 1) โหลด CSS
+          const cssSrc = await loadCSSSequential(SOURCES.css);
+          if (!cssSrc) {
+            setStatus(
+              "โหลด CSS ของ Tabulator ไม่สำเร็จ (MIME/เครือข่ายอาจบล็อก)",
+              false
+            );
+            return;
+          }
+
+          // 2) โหลด JS
+          const jsSrc = await loadJSSequential(SOURCES.js);
+          if (!jsSrc) {
+            setStatus(
+              "โหลด JS ของ Tabulator ไม่สำเร็จ (MIME/เครือข่ายอาจบล็อก)",
+              false
+            );
+            return;
+          }
+
+          // 3) ตรวจว่ามี Tabulator จริง
+          if (!window.Tabulator) {
+            setStatus(
+              "Tabulator ไม่อยู่บน window หลังโหลดสคริปต์สำเร็จ",
+              false
+            );
+            console.error(
+              "Script loaded from:",
+              jsSrc,
+              "but window.Tabulator is missing"
+            );
+            return;
+          }
+
+          setStatus(`Tabulator loaded (จาก: ${jsSrc})`, true);
+
+          // 4) สร้างตารางตัวอย่าง
+          const data = [
+            {
+              id: 1,
+              name: "Alice",
+              age: 28,
+              role: "Engineer",
+              joined: "2023-04-01",
+            },
+            {
+              id: 2,
+              name: "Bob",
+              age: 34,
+              role: "Designer",
+              joined: "2022-11-15",
+            },
+            {
+              id: 3,
+              name: "Cara",
+              age: 41,
+              role: "Manager",
+              joined: "2020-06-30",
+            },
+          ];
+          const columns = [
+            { title: "ID", field: "id", width: 70, hozAlign: "right" },
+            { title: "Name", field: "name", editor: "input", width: 180 },
+            {
+              title: "Age",
+              field: "age",
+              hozAlign: "right",
+              editor: "number",
+              width: 100,
+            },
+            { title: "Role", field: "role", editor: "input", width: 160 },
+            { title: "Joined", field: "joined", editor: "input", width: 140 },
+          ];
+
+          const table = new Tabulator("#table", {
+            data,
+            columns,
+            layout: "fitColumns",
+            height: "320px",
+            placeholder: "No data",
+            index: "id",
+            // ใช้ selectableRows (เวอร์ชันใหม่เตือนว่า selectable deprecated)
+            selectableRows: 1,
+          });
+
+          table.on("tableBuilt", () => console.log("tableBuilt fired"));
+
+          addBtn.disabled = false;
+          logBtn.disabled = false;
+
+          addBtn.onclick = async () => {
+            const maxId = Math.max(
+              0,
+              ...table.getData().map((r) => Number(r.id) || 0)
+            );
+            await table.addRow(
+              {
+                id: maxId + 1,
+                name: "New User",
+                age: 20,
+                role: "Intern",
+                joined: new Date().toISOString().slice(0, 10),
+              },
+              true
+            );
+          };
+          logBtn.onclick = () => {
+            console.log("Current table data:", table.getData());
+            alert("ดูข้อมูลใน Console");
+          };
+        }
+
+        boot();
+      })();
+    </script>
+
+    <hr />
+    <p><strong>ถ้าหน้านี้ยังโหลดไม่ได้</strong> ให้ลองวิธีใดอย่างหนึ่ง:</p>
+    <ol>
+      <li>
+        ดาวน์โหลดไฟล์มาโฮสต์เอง แล้วชี้เป็น path ภายในคุณ:
+        <ul>
+          <li><code>/static/vendor/tabulator/tabulator.min.css</code></li>
+          <li><code>/static/vendor/tabulator/tabulator.min.js</code></li>
+        </ul>
+        ตรวจว่าเซิร์ฟเวอร์ส่ง MIME ถูกต้อง: <code>text/css</code> สำหรับ CSS และ
+        <code>application/javascript</code> สำหรับ JS (หรือ
+        <code>text/javascript</code> ก็ได้)
+      </li>
+      <li>
+        เช็คว่า proxy/ไฟร์วอลล์ขององค์กร rewrite header เป็น
+        <code>text/plain</code> +
+        <code>X-Content-Type-Options: nosniff</code> จนเบราว์เซอร์บล็อก
+        หากใช่ให้สลับ CDN หรือโฮสต์เอง
+      </li>
+    </ol>
+  </body>
+</html>

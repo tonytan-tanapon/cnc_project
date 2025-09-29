@@ -1,437 +1,583 @@
-// /static/js/page-batches.js (v12) — keyset + tablex + toggler + attachAutocomplete for Material + label lookup + id fallbacks
+// /static/js/page-batches.js — AUTOSAVE + Tab/Shift+Tab + Undo/Redo + Delete-only
+// UI ids: _q (search), _add (add), listBody (table)
+
 import { $, jfetch, toast } from "./api.js";
-import { escapeHtml } from "./utils.js";
-import { createListPager } from "./list-pager.js?v=2";
-import { renderTableX } from "./tablex.js";
-import { createToggler } from "./toggler.js";
-import { attachAutocomplete } from "./autocomplete.js";
 
-/* ---- CONFIG / helpers ---- */
-const DETAIL_PAGE = "./batches-detail.html";
-const batchUrl = (id) => `${DETAIL_PAGE}?id=${encodeURIComponent(id)}`;
-const gotoDetail = (id) => {
-  if (id != null) location.href = batchUrl(id);
+/* ===== CONFIG ===== */
+const ENDPOINTS = {
+  base: "/batches",
+  byId: (id) => `/batches/${encodeURIComponent(id)}`,
 };
-window.gotoDetail = gotoDetail;
+const DETAIL_PAGE = "./batches-detail.html"; // ถ้าไม่มีหน้า detail จะปล่อยลิงก์ไว้เฉยๆ
+const batchDetail = (id) => `${DETAIL_PAGE}?id=${encodeURIComponent(id)}`;
 
+const JSON_HEADERS = { "Content-Type": "application/json" };
+const UI = { q: "_q", add: "_add", table: "listBody" };
+
+/* ===== Pagination (Show All as default; ทำ emulation ฝั่ง client จาก /batches ที่ส่ง list ตรง) ===== */
+const DEFAULT_PAGE_SIZE = true; // true = Show All
+const PAGE_SIZE_CHOICES = [20, 50, 100, 200, true];
+
+/* ===== STATE ===== */
+let els = {};
+let table = null;
+let cacheAll = []; // เก็บผล /batches ทั้งหมด
+let totalItems = 0;
+
+/* ===== AUTOSAVE GUARDS ===== */
+const createInFlight = new WeakSet(); // rows ที่กำลัง POST
+const patchTimers = new Map(); // row -> timeout
+const PATCH_DEBOUNCE_MS = 350;
+const suppressAutosaveRows = new WeakSet(); // กันวน loop ตอน setValue/update จากโค้ด
+
+/* ===== HELPERS ===== */
+const trim = (v) => (v == null ? "" : String(v).trim());
+const toDecOrNullStr = (v) => {
+  const s = trim(v);
+  if (s === "") return null;
+  const n = Number(s);
+  if (Number.isNaN(n)) return null;
+  return String(s); // เก็บเป็น string เพื่อ backend Decimal
+};
 const fmtDate = (v) => {
   if (!v) return "";
   const d = new Date(v);
   return isNaN(d) ? "" : d.toLocaleString();
 };
-const asDec = (v) => (v == null ? 0 : Number(v)); // display only
 
-/* ---- UI refs (match your HTML) ---- */
-const inputSearch = $("b_q");
-const selPerPage = $("b_per_page");
-const btnPrevTop = $("b_prev");
-const btnNextTop = $("b_next");
-const pageInfoTop = $("b_page_info");
-const btnPrevBottom = $("b_prev2");
-const btnNextBottom = $("b_next2");
-const pageInfoBottom = $("b_page_info2");
-const tableContainer = $("b_table");
-const btnReload = $("b_reload");
-
-const btnToggleCreate = $("b_toggle_create");
-const createCard = $("b_create_card");
-const btnCreate = $("b_create");
-
-/* ===================== Material autocomplete (like page-pos.js) ===================== */
-/* HTML recommendations:
-   <input id="b_material" placeholder="Search material…">
-   <input id="b_material_id_val" type="hidden">
-   If you keep old numeric input <input id="b_mid" type="number"> it will still work (no autocomplete).
-*/
-const matInput = $("b_material") || $("b_material_id") || $("b_mid"); // prefer #b_material
-const matHidden = $("b_material_id_val"); // optional hidden
-let selectedMaterial = null; // { id, code, name, spec?, uom? }
-const preMaterialId = Number(
-  new URLSearchParams(location.search).get("material_id") || 0
-);
-
-const matLabelCache = new Map(); // id -> "[CODE] Name"
-function labelFromMaterialObj(m) {
-  const code = m?.code ? `[${m.code}] ` : "";
-  return `${code}${m?.name ?? ""}`.trim() || "";
-}
-
-async function fillMaterialLabels(rows) {
-  const ids = Array.from(
-    new Set(
-      rows
-        .map((r) => r.material_id)
-        .filter((id) => id != null && !matLabelCache.has(id))
-    )
-  );
-  if (!ids.length) return;
-  try {
-    const res = await jfetch(`/materials/lookup?ids=${ids.join(",")}`);
-    (Array.isArray(res) ? res : []).forEach((m) => {
-      matLabelCache.set(m.id, labelFromMaterialObj(m));
-    });
-  } catch {
-    /* ignore */
-  }
-}
-
-async function searchMaterials(term) {
-  const q = (term || "").trim();
-  if (!q) return [];
-  try {
-    const res = await jfetch(
-      `/materials?q=${encodeURIComponent(q)}&page=1&per_page=10`
-    );
-    const items = Array.isArray(res) ? res : res.items ?? [];
-    return items.map((x) => ({
-      id: x.id ?? x.material_id ?? x.materialId,
-      code: x.code ?? "",
-      name: x.name ?? "",
-      spec: x.spec ?? "",
-      uom: x.uom ?? "",
-    }));
-  } catch (_) {
-    try {
-      const res2 = await jfetch(
-        `/materials/keyset?q=${encodeURIComponent(q)}&limit=10`
-      );
-      const items2 = Array.isArray(res2) ? res2 : res2.items ?? [];
-      return items2.map((x) => ({
-        id: x.id ?? x.material_id ?? x.materialId,
-        code: x.code ?? "",
-        name: x.name ?? "",
-        spec: x.spec ?? "",
-        uom: x.uom ?? "",
-      }));
-    } catch {
-      return [];
-    }
-  }
-}
-
-function materialDisplay(it) {
-  if (!it) return "";
-  const spec = it.spec ? ` · ${it.spec}` : "";
-  const uom = it.uom ? ` (${it.uom})` : "";
-  return `${it.code} — ${it.name}${spec}${uom}`;
-}
-
-async function resolveMaterialIfNeeded() {
-  if (selectedMaterial?.id) return selectedMaterial;
-  const term = (matInput?.value || "").trim();
-  if (!term) return null;
-  const list = await searchMaterials(term);
-  if (list.length === 1) {
-    selectedMaterial = list[0];
-    if (matInput) matInput.value = materialDisplay(selectedMaterial);
-    if (matHidden) matHidden.value = String(selectedMaterial.id);
-    return selectedMaterial;
-  }
-  return null;
-}
-
-if (matInput && matInput.tagName === "INPUT" && matInput.type !== "number") {
-  // Attach autocomplete only on text inputs
-  attachAutocomplete(matInput, {
-    fetchItems: searchMaterials,
-    getDisplayValue: (it) => materialDisplay(it),
-    renderItem: (it) =>
-      `<div class="ac-row"><b>${escapeHtml(it.code)}</b> — ${escapeHtml(
-        it.name
-      )}${it.spec ? " · " + escapeHtml(it.spec) : ""}${
-        it.uom ? " (" + escapeHtml(it.uom) + ")" : ""
-      }</div>`,
-    onPick: (it) => {
-      selectedMaterial = it || null;
-      matInput.value = it ? materialDisplay(it) : "";
-      if (matHidden) matHidden.value = it ? String(it.id) : "";
-    },
-    openOnFocus: true,
-    minChars: 1,
-    debounceMs: 200,
-    maxHeight: 260,
-  });
-
-  matInput.addEventListener("input", () => {
-    selectedMaterial = null;
-    if (matHidden) matHidden.value = "";
-  });
-
-  if (preMaterialId) {
-    jfetch(`/materials/${preMaterialId}`)
-      .then((m) => {
-        selectedMaterial = {
-          id: m.id,
-          code: m.code ?? "",
-          name: m.name ?? "",
-          spec: m.spec ?? "",
-          uom: m.uom ?? "",
-        };
-        matInput.value = materialDisplay(selectedMaterial);
-        if (matHidden) matHidden.value = String(m.id);
-      })
-      .catch(() => {});
-  }
-}
-
-/* ===================== Table / Pager ===================== */
-async function renderBatchesTable(container, rows, ctx = {}) {
-  // ensure labels are ready before drawing
-  await fillMaterialLabels(rows);
-
-  renderTableX(container, rows, {
-    rowStart: Number(ctx.rowStart || 0),
-    getRowId: (r) => r.id ?? r.batch_id ?? r.batchId,
-    onRowClick: (r) => {
-      const rid = r.id ?? r.batch_id ?? r.batchId;
-      if (rid != null) gotoDetail(rid);
-    },
-    columns: [
-      { key: "__no", title: "No.", width: "64px", align: "right" },
-      {
-        key: "batch_no",
-        title: "Batch No",
-        width: "140px",
-        render: (r) => {
-          const rid = r.id ?? r.batch_id ?? r.batchId;
-          const txt = escapeHtml(r.batch_no ?? "");
-          return rid
-            ? `<a href="${batchUrl(rid)}" class="code-link">${txt}</a>`
-            : txt;
-        },
-      },
-      {
-        key: "material_id",
-        title: "Material",
-        width: "240px",
-        render: (r) => {
-          const label = r.material
-            ? labelFromMaterialObj(r.material)
-            : matLabelCache.get(r.material_id) ||
-              (r.material_id != null ? `#${r.material_id}` : "");
-          const mid = r.material?.id ?? r.material_id;
-          return mid
-            ? `<a href="/static/materials-detail.html?id=${encodeURIComponent(
-                mid
-              )}">${escapeHtml(label)}</a>`
-            : escapeHtml(label);
-        },
-      },
-      {
-        key: "supplier_batch_no",
-        title: "Supplier Batch",
-        width: "160px",
-        render: (r) => escapeHtml(r.supplier_batch_no ?? ""),
-      },
-      {
-        key: "mill_heat_no",
-        title: "Heat No",
-        width: "120px",
-        render: (r) => escapeHtml(r.mill_heat_no ?? ""),
-      },
-      {
-        key: "received_at",
-        title: "Received",
-        width: "180px",
-        align: "right",
-        render: (r) => fmtDate(r.received_at),
-      },
-      {
-        key: "qty_received",
-        title: "Qty Recv",
-        width: "110px",
-        align: "right",
-        render: (r) => asDec(r.qty_received).toLocaleString(),
-      },
-      {
-        key: "qty_used",
-        title: "Used",
-        width: "100px",
-        align: "right",
-        render: (r) => asDec(r.qty_used).toLocaleString(),
-      },
-      {
-        key: "qty_avail",
-        title: "Available",
-        width: "120px",
-        align: "right",
-        render: (r) => {
-          const avail = asDec(r.qty_received) - asDec(r.qty_used);
-          return avail.toLocaleString();
-        },
-      },
-      {
-        key: "location",
-        title: "Location",
-        width: "140px",
-        render: (r) => escapeHtml(r.location ?? ""),
-      },
-    ],
-    emptyHtml: '<div class="muted">No batches</div>',
-  });
-}
-
-/* ---- list pager ---- */
-let lp = createListPager({
-  url: '/batches/keyset',
-  pageSize: Number(selPerPage?.value || 20),
-  container: tableContainer,
-  render: renderBatchesTable, // async renderer supported
-  pageInfoEls: [pageInfoTop, pageInfoBottom],
-  prevButtons: [btnPrevTop, btnPrevBottom],
-  nextButtons: [btnNextTop, btnNextBottom],
-  queryKey: 'q',
-});
-
-/* ===================== Create Batch ===================== */
-function readStr(id) {
-  const v = $(id)?.value ?? "";
-  return v.trim();
-}
-
-async function createBatch() {
-  // Resolve material id from: autocomplete object -> hidden -> numeric input fallback
-  if (
-    !selectedMaterial?.id &&
-    matInput &&
-    matInput.tagName === "INPUT" &&
-    matInput.type !== "number"
-  ) {
-    await resolveMaterialIfNeeded();
-  }
-  const matId =
-    (selectedMaterial?.id != null ? Number(selectedMaterial.id) : null) ??
-    (matHidden?.value ? Number(matHidden.value) : null) ??
-    ($("b_mid")?.value ? Number($("b_mid").value) : null);
-
-  if (!Number.isInteger(matId) || matId <= 0) {
-    toast("Select Material !!", false);
-    matInput?.focus();
-    return;
-  }
-
-  // Support both old and new IDs
-  const batch_no = readStr("b_batch_no") || readStr("b_no") || "AUTO";
-  const supplier_id_s = $("b_supplier_id")?.value ?? $("b_sid")?.value ?? "";
-  const supplier_id = supplier_id_s !== "" ? Number(supplier_id_s) : null;
-
-  const supplier_batch_no = readStr("b_supplier_batch_no") || null;
-  const mill_name = readStr("b_mill_name") || null;
-  const mill_heat_no = readStr("b_mill_heat_no") || null;
-
-  const received_at =
-    $("b_received_at")?.value || $("b_recv")?.value || "" || null; // YYYY-MM-DD (date input)
-
-  const qty_s = ($("b_qty_received")?.value ?? $("b_qty")?.value ?? "").trim();
-  if (qty_s === "" || Number(qty_s) <= 0) {
-    toast("Qty Received must be > 0", false); // change to >= 0 if your schema allows 0
-    ($("b_qty_received") || $("b_qty"))?.focus();
-    return;
-  }
-  const qty_received = String(qty_s); // Decimal as string
-
-  const cert_file = readStr("b_cert_file") || null;
-  const location = readStr("b_location") || readStr("b_loc") || null;
-
-  const payload = {
-    material_id: matId,
-    batch_no,
-    supplier_id,
-    supplier_batch_no,
-    mill_name,
-    mill_heat_no,
-    received_at,
-    qty_received,
-    cert_file,
-    location,
+function normalizeRow(r) {
+  return {
+    id: r.id ?? r.batch_id ?? r.batchId ?? null,
+    batch_no: r.batch_no ?? "",
+    material_id: r.material_id ?? null,
+    supplier_id: r.supplier_id ?? null,
+    supplier_batch_no: r.supplier_batch_no ?? "",
+    mill_name: r.mill_name ?? "",
+    mill_heat_no: r.mill_heat_no ?? "",
+    received_at: r.received_at ?? "", // keep as string (YYYY-MM-DD)
+    qty_received: r.qty_received ?? "", // string number/decimal
+    qty_used: r.qty_used ?? "", // optional
+    location: r.location ?? "",
+    status: r.status ?? "active",
   };
-  console.log("batches");
+}
+
+/* สร้าง payload สำหรับสร้าง/อัปเดต */
+function buildCreatePayload(d) {
+  // rule: ต้องมี material_id และ qty_received > 0; batch_no ว่าง = AUTO
+  const rawBatch = trim(d.batch_no).toUpperCase();
+  const autogen =
+    rawBatch === "" || rawBatch === "AUTO" || rawBatch === "AUTOGEN";
+  const qty = toDecOrNullStr(d.qty_received);
+
+  return {
+    material_id: d.material_id ? Number(d.material_id) : null,
+    batch_no: autogen ? "AUTO" : rawBatch,
+    supplier_id: d.supplier_id ? Number(d.supplier_id) : null,
+    supplier_batch_no: trim(d.supplier_batch_no) || null,
+    mill_name: trim(d.mill_name) || null,
+    mill_heat_no: trim(d.mill_heat_no) || null,
+    received_at: trim(d.received_at) || null,
+    qty_received: qty, // string
+    location: trim(d.location) || null,
+    status: d.status || "active",
+  };
+}
+function buildUpdatePayload(d) {
+  const qty = toDecOrNullStr(d.qty_received);
+  return {
+    batch_no: trim(d.batch_no) || null,
+    material_id: d.material_id ? Number(d.material_id) : null,
+    supplier_id: d.supplier_id ? Number(d.supplier_id) : null,
+    supplier_batch_no: trim(d.supplier_batch_no) || null,
+    mill_name: trim(d.mill_name) || null,
+    mill_heat_no: trim(d.mill_heat_no) || null,
+    received_at: trim(d.received_at) || null,
+    qty_received: qty,
+    qty_used: toDecOrNullStr(d.qty_used),
+    location: trim(d.location) || null,
+    status: d.status || "active",
+  };
+}
+
+/* สร้างได้เมื่อฟิลด์จำเป็นครบ */
+function requiredReady(d) {
+  const mid = d.material_id ? Number(d.material_id) : 0;
+  const qty = Number(d.qty_received);
+  return Number.isInteger(mid) && mid > 0 && !Number.isNaN(qty) && qty > 0;
+}
+
+function isMethodNotAllowed(err) {
+  const msg = (err && (err.message || String(err))) || "";
+  const st = err?.status || err?.statusCode;
+  return st === 405 || /method not allowed/i.test(msg);
+}
+
+function safeRowUpdate(row, obj) {
   try {
-    await jfetch("/batches", { method: "POST", body: JSON.stringify(payload) });
-    toast("Batch created");
+    table?.cancelEdit?.();
+  } catch {}
+  try {
+    if (row?.getElement?.()) row.update(obj);
+    else if (obj?.id != null) table?.updateData([{ ...obj }]);
+  } catch {}
+  requestAnimationFrame(() => {
+    try {
+      row?.reformat?.();
+    } catch {}
+    try {
+      table?.redraw(true);
+    } catch {}
+  });
+}
 
-    // Clear form (keep chosen material value visible)
-    [
-      "b_batch_no",
-      "b_no",
-      "b_supplier_id",
-      "b_sid",
-      "b_supplier_batch_no",
-      "b_mill_name",
-      "b_mill_heat_no",
-      "b_received_at",
-      "b_recv",
-      "b_qty_received",
-      "b_qty",
-      "b_location",
-      "b_loc",
-      "b_cert_file",
-    ].forEach((id) => {
-      const el = $(id);
-      if (el) el.value = "";
-    });
-
-    createTg?.close(); // close only after success
-    await lp.reloadFirst();
+/* ===== DELETE ===== */
+async function deleteRow(row) {
+  const d = row.getData();
+  if (!d.id) {
+    row.delete();
+    return;
+  }
+  if (
+    !confirm(
+      `Delete this batch "${
+        d.batch_no || d.id
+      }"?\nThis action cannot be undone.`
+    )
+  )
+    return;
+  try {
+    await jfetch(ENDPOINTS.byId(d.id), { method: "DELETE" });
+    row.delete();
+    toast("Deleted");
+    cacheAll = cacheAll.filter((x) => (x.id ?? x.batch_id) !== d.id);
+    table?.replaceData();
   } catch (e) {
-    console.error(e);
-    toast(e?.message || "Create failed", false);
+    toast(e?.message || "Delete failed", false);
   }
 }
 
-/* ---- boot ---- */
-let createTg;
-document.addEventListener("DOMContentLoaded", async () => {
-  // toggler for create section (stay open while picking autocomplete)
-  createTg = createToggler({
-    trigger: btnToggleCreate,
-    panel: createCard,
-    persistKey: "batches:create",
-    focusTarget: "#b_material, #b_mid",
-    closeOnEsc: false,
-    closeOnOutside: false, // important
-    group: "top-actions",
-    onOpen: () => {
-      btnToggleCreate.textContent = "× Cancel";
+/* ===== Columns ===== */
+function makeColumns() {
+  return [
+    {
+      title: "No.",
+      field: "_rowno",
+      width: 70,
+      hozAlign: "right",
+      headerHozAlign: "right",
+      headerSort: false,
+      formatter: (cell) => {
+        const pos = cell.getRow().getPosition(true);
+        const cur = table.getPage() || 1;
+        const ps = table.getPageSize();
+        const eff = ps === true ? totalItems || table.getDataCount() : ps || 1;
+        return (cur - 1) * eff + pos;
+      },
     },
-    onClose: () => {
-      btnToggleCreate.textContent = "+ Add";
+    {
+      title: "Batch No",
+      field: "batch_no",
+      width: 160,
+      editor: "input",
+      formatter: (cell) => {
+        const d = cell.getRow().getData();
+        const rid = d?.id;
+        const txt = d?.batch_no ?? "";
+        return rid
+          ? `<a class="code-link" href="${batchDetail(rid)}">${txt}</a>`
+          : txt;
+      },
+      cellClick: (e, cell) => {
+        const a = e.target.closest("a.code-link");
+        if (a) {
+          e.stopPropagation();
+          location.href = a.href;
+        }
+      },
     },
+    { title: "Material ID", field: "material_id", width: 120, editor: "input" },
+    { title: "Supplier ID", field: "supplier_id", width: 120, editor: "input" },
+    {
+      title: "Supplier Batch",
+      field: "supplier_batch_no",
+      width: 160,
+      editor: "input",
+    },
+    { title: "Mill", field: "mill_name", width: 140, editor: "input" },
+    { title: "Heat No", field: "mill_heat_no", width: 120, editor: "input" },
+    {
+      title: "Received",
+      field: "received_at",
+      width: 140,
+      editor: "input",
+      formatter: (c) => fmtDate(c.getValue()),
+    },
+    {
+      title: "Qty Recv",
+      field: "qty_received",
+      width: 110,
+      hozAlign: "right",
+      editor: "input",
+    },
+    {
+      title: "Qty Used",
+      field: "qty_used",
+      width: 100,
+      hozAlign: "right",
+      editor: "input",
+    },
+    {
+      title: "Location",
+      field: "location",
+      width: 140,
+      editor: "input",
+      cssClass: "wrap",
+    },
+    {
+      title: "Status",
+      field: "status",
+      width: 120,
+      editor: "list",
+      editorParams: { values: ["active", "hold", "inactive"] },
+    },
+    {
+      title: "Actions",
+      field: "_actions",
+      width: 120,
+      hozAlign: "center",
+      headerSort: false,
+      cssClass: "actions-cell",
+      formatter: () =>
+        `<button class="btn-small btn-danger" data-act="del">Delete</button>`,
+      cellClick: (e, cell) => {
+        const btn = e.target.closest("button[data-act]");
+        if (!btn) return;
+        if (btn.getAttribute("data-act") === "del") deleteRow(cell.getRow());
+      },
+    },
+  ];
+}
+
+/* ===== Tab / Shift+Tab navigation ===== */
+function getEditableFieldsLive(tab) {
+  return tab
+    .getColumns(true)
+    .map((c) => ({ field: c.getField(), def: c.getDefinition() }))
+    .filter((c) => c.field && c.def && !!c.def.editor)
+    .map((c) => c.field);
+}
+function focusSiblingEditable(cell, dir) {
+  const row = cell.getRow();
+  const tab = row.getTable();
+  const fields = getEditableFieldsLive(tab);
+
+  const curField = cell.getField();
+  const curFieldIdx = fields.indexOf(curField);
+  if (curFieldIdx === -1) return;
+
+  const rows = tab.getRows(); // visual order
+  const curRowIdx = rows.indexOf(row);
+
+  let nextFieldIdx = curFieldIdx + dir;
+  let nextRowIdx = curRowIdx;
+
+  if (nextFieldIdx >= fields.length) {
+    nextFieldIdx = 0;
+    nextRowIdx = Math.min(curRowIdx + 1, rows.length - 1);
+  } else if (nextFieldIdx < 0) {
+    nextFieldIdx = fields.length - 1;
+    nextRowIdx = Math.max(curRowIdx - 1, 0);
+  }
+
+  const targetRow = rows[nextRowIdx];
+  if (!targetRow) return;
+
+  const targetField = fields[nextFieldIdx];
+  const targetCell = targetRow.getCell(targetField);
+  if (!targetCell) return;
+
+  targetCell.edit(true);
+  const el = targetCell.getElement();
+  const input =
+    el && el.querySelector("input, textarea, [contenteditable='true']");
+  if (input) {
+    const v = input.value;
+    input.focus();
+    if (typeof v === "string") input.setSelectionRange(v.length, v.length);
+  }
+}
+
+/* ===== AUTOSAVE ===== */
+async function autosaveCell(cell, opts = {}) {
+  const { fromHistory = false, revert } = opts;
+
+  const row = cell.getRow();
+  if (suppressAutosaveRows.has(row)) return;
+
+  const d = row.getData();
+  const fld = cell.getField();
+  const newVal = cell.getValue();
+  const oldVal = fromHistory ? undefined : cell.getOldValue();
+
+  // validate minimal rules
+  if (fld === "material_id" || fld === "qty_received") {
+    // ไม่ block ระหว่างพิมพ์ แต่จะ block ตอน POST ถ้าไม่ครบ
+  }
+
+  // CREATE
+  if (!d.id) {
+    const payload = buildCreatePayload(d);
+    if (!requiredReady(d)) return; // รอจนกรอกครบ material_id + qty_received > 0
+
+    if (createInFlight.has(row)) return;
+    createInFlight.add(row);
+    try {
+      const created = await jfetch(ENDPOINTS.base, {
+        method: "POST",
+        headers: JSON_HEADERS,
+        body: JSON.stringify(payload),
+      });
+      const norm = normalizeRow(created || d);
+
+      suppressAutosaveRows.add(row);
+      try {
+        safeRowUpdate(row, { ...norm });
+      } finally {
+        setTimeout(() => suppressAutosaveRows.delete(row), 0);
+      }
+
+      toast(`Batch "${norm.batch_no || norm.id}" created`);
+
+      // sync cache
+      cacheAll.push(created);
+      totalItems = cacheAll.length;
+      table?.replaceData();
+    } catch (e) {
+      suppressAutosaveRows.add(row);
+      try {
+        if (!fromHistory && oldVal !== undefined) cell.setValue(oldVal, true);
+        else if (typeof revert === "function") revert();
+      } finally {
+        setTimeout(() => suppressAutosaveRows.delete(row), 0);
+      }
+      toast(e?.message || "Create failed", false);
+    } finally {
+      createInFlight.delete(row);
+    }
+    return;
+  }
+
+  // UPDATE (debounced)
+  if (patchTimers.has(row)) clearTimeout(patchTimers.get(row));
+  const t = setTimeout(async () => {
+    patchTimers.delete(row);
+    const payload = buildUpdatePayload(d);
+
+    try {
+      let updated;
+      try {
+        updated = await jfetch(ENDPOINTS.byId(d.id), {
+          method: "PATCH",
+          headers: JSON_HEADERS,
+          body: JSON.stringify(payload),
+        });
+      } catch (err) {
+        if (isMethodNotAllowed(err)) {
+          updated = await jfetch(ENDPOINTS.byId(d.id), {
+            method: "PUT",
+            headers: JSON_HEADERS,
+            body: JSON.stringify(payload),
+          });
+        } else {
+          throw err;
+        }
+      }
+
+      const norm = normalizeRow(updated || d);
+      suppressAutosaveRows.add(row);
+      try {
+        safeRowUpdate(row, { ...d, ...norm, id: norm.id ?? d.id });
+      } finally {
+        setTimeout(() => suppressAutosaveRows.delete(row), 0);
+      }
+
+      // sync cache
+      const idx = cacheAll.findIndex((x) => (x.id ?? x.batch_id) === norm.id);
+      if (idx >= 0) cacheAll[idx] = updated;
+
+      toast(`Saved "${norm.batch_no || norm.id}"`);
+    } catch (e) {
+      suppressAutosaveRows.add(row);
+      try {
+        if (!fromHistory && oldVal !== undefined) cell.setValue(oldVal, true);
+        else if (typeof revert === "function") revert();
+      } finally {
+        setTimeout(() => suppressAutosaveRows.delete(row), 0);
+      }
+      toast(e?.message || "Save failed", false);
+    }
+  }, PATCH_DEBOUNCE_MS);
+  patchTimers.set(row, t);
+}
+
+/* ===== TABLE ===== */
+function initTable() {
+  table = new Tabulator(`#${UI.table}`, {
+    layout: "fitColumns",
+    height: "100%",
+    placeholder: "No batches",
+    reactiveData: true,
+    index: "id",
+    history: true,
+    selectableRows: 1,
+
+    pagination: true,
+    paginationMode: "remote",
+    paginationSize: DEFAULT_PAGE_SIZE, // true = Show All
+    paginationSizeSelector: PAGE_SIZE_CHOICES,
+    paginationCounter: "rows",
+
+    ajaxURL: ENDPOINTS.base,
+    ajaxRequestFunc: async (_url, _cfg, params) => {
+      const page = params.page || 1;
+      const showAll = params.size === true;
+      const size = showAll ? 0 : Number(params.size) || 50;
+
+      if (!cacheAll.length) {
+        const list = await jfetch(ENDPOINTS.base); // backend รีเทิร์นเป็น list ตรง
+        cacheAll = Array.isArray(list) ? list : list?.items ?? [];
+      }
+
+      const keyword = (els[UI.q]?.value || "").trim().toLowerCase();
+      const filtered = keyword
+        ? cacheAll.filter(
+            (x) =>
+              (x.batch_no ?? "").toLowerCase().includes(keyword) ||
+              (x.supplier_batch_no ?? "").toLowerCase().includes(keyword) ||
+              (x.mill_heat_no ?? "").toLowerCase().includes(keyword)
+          )
+        : cacheAll;
+
+      totalItems = filtered.length;
+
+      const start = showAll ? 0 : (page - 1) * size;
+      const end = showAll ? filtered.length : start + size;
+      const pageItems = filtered.slice(start, end);
+      const rows = pageItems.map(normalizeRow);
+
+      const last_page = showAll
+        ? 1
+        : Math.max(1, Math.ceil((totalItems || rows.length) / (size || 1)));
+      return { data: rows, last_page };
+    },
+
+    columns: makeColumns(),
   });
-  btnToggleCreate.textContent = createTg.isOpen() ? "× Cancel" : "+ Add";
 
-  // wire search + per-page + reload
-  lp.bindSearch(inputSearch, { debounceMs: 300 });
-  lp.bindPerPage(selPerPage);
-  btnReload?.addEventListener(
-    "click",
-    () => lp.reloadPage?.() ?? location.reload()
-  );
+  table.on("tableBuilt", () => {
+    requestAnimationFrame(() => table.redraw(true));
+  });
 
-  // create handler
-  btnCreate?.addEventListener("click", createBatch);
+  // Tab / Shift+Tab while editing
+  table.on("cellEditing", (cell) => {
+    setTimeout(() => {
+      const el = cell.getElement();
+      const input =
+        el && el.querySelector("input, textarea, [contenteditable='true']");
+      if (!input) return;
+      const handler = (e) => {
+        if (e.key === "Tab") {
+          e.preventDefault();
+          e.stopPropagation();
+          if (typeof e.stopImmediatePropagation === "function")
+            e.stopImmediatePropagation();
+          focusSiblingEditable(cell, e.shiftKey ? -1 : +1);
+        }
+      };
+      input.addEventListener("keydown", handler);
+      input.addEventListener(
+        "blur",
+        () => input.removeEventListener("keydown", handler),
+        { once: true }
+      );
+    }, 0);
+  });
 
-  // first load; fallback if /keyset not available
-  try {
-    await lp.reloadFirst();
-  } catch {
-    lp = createListPager({
-      url: "/batches",
-      pageSize: Number(selPerPage?.value || 20),
-      container: tableContainer,
-      render: renderBatchesTable, // still async
-      pageInfoEls: [pageInfoTop, pageInfoBottom],
-      prevButtons: [btnPrevTop, btnPrevBottom],
-      nextButtons: [btnNextTop, btnNextBottom],
-      queryKey: "q",
-    });
-    lp.bindSearch(inputSearch, { debounceMs: 300 });
-    lp.bindPerPage(selPerPage);
-    await lp.reloadFirst();
-  }
+  // Autosave hooks
+  table.on("cellEdited", (cell) => {
+    if (suppressAutosaveRows.has(cell.getRow())) return;
+    autosaveCell(cell);
+  });
+  table.on("historyUndo", (action, comp) => {
+    if (action === "cellEdit" && comp && typeof comp.getRow === "function") {
+      autosaveCell(comp, { fromHistory: true, revert: () => table.redo() });
+    }
+  });
+  table.on("historyRedo", (action, comp) => {
+    if (action === "cellEdit" && comp && typeof comp.getRow === "function") {
+      autosaveCell(comp, { fromHistory: true, revert: () => table.undo() });
+    }
+  });
 
-  // If only numeric #b_mid exists and ?material_id= provided, prefill it
-  if (!selectedMaterial?.id && $("b_mid") && preMaterialId) {
-    $("b_mid").value = String(preMaterialId);
-  }
+  // Global keys (undo/redo)
+  document.addEventListener("keydown", (e) => {
+    const mod = e.ctrlKey || e.metaKey;
+    if (!mod) return;
+    if (e.key.toLowerCase() === "z") {
+      e.preventDefault();
+      e.shiftKey ? table.redo() : table.undo();
+    } else if (e.key.toLowerCase() === "y") {
+      e.preventDefault();
+      table.redo();
+    }
+  });
+}
+
+/* ===== BINDINGS ===== */
+function bindSearch() {
+  const box = els[UI.q];
+  if (!box) return;
+  let t;
+  box.addEventListener("input", () => {
+    clearTimeout(t);
+    t = setTimeout(() => {
+      table?.setPage(1);
+      table?.replaceData();
+    }, 300);
+  });
+}
+function bindAdd() {
+  const btn = els[UI.add];
+  if (!btn) return;
+  btn.addEventListener("click", async () => {
+    const row = await table.addRow(
+      {
+        id: null,
+        batch_no: "",
+        material_id: null,
+        supplier_id: null,
+        supplier_batch_no: "",
+        mill_name: "",
+        mill_heat_no: "",
+        received_at: "",
+        qty_received: "",
+        qty_used: "",
+        location: "",
+        status: "active",
+      },
+      true
+    );
+    // ให้เริ่มที่ material_id ก่อน
+    row.getCell("material_id")?.edit(true);
+  });
+}
+
+/* ===== BOOT ===== */
+document.addEventListener("DOMContentLoaded", () => {
+  Object.values(UI).forEach((id) => (els[id] = $(id)));
+  initTable();
+  bindSearch();
+  bindAdd();
+  // ปล่อยให้ Tabulator ยิง ajaxRequestFunc เอง
 });

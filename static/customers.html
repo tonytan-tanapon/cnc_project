@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Customers · Topnotch – MFG</title>
 
-    <!-- App styles -->
+    <!-- Global styles -->
     <link rel="stylesheet" href="/static/css/app.css" />
     <!-- Tabulator theme -->
     <link
@@ -14,147 +14,107 @@
     />
 
     <style>
-      /* ===== Layout hygiene ===== */
-      .main,
-      .panel,
-      #listBody {
-        min-width: 0;
-      }
-      #listBody,
-      #listBody .tabulator {
-        width: 100%;
-        max-width: 100%;
-      }
-      .tabulator .tabulator-tableholder {
-        overflow: auto !important;
-      }
-
-      /* สกอร์ลบาร์ของตาราง (หนาขึ้น) */
-      #listBody .tabulator-tableholder {
-        scrollbar-gutter: stable both-edges;
-      }
-      /* WebKit (Chrome/Edge/Safari) */
-      #listBody .tabulator-tableholder::-webkit-scrollbar {
-        width: 16px;
-        height: 16px;
-      }
-      #listBody .tabulator-tableholder::-webkit-scrollbar-track {
-        background: #f1f5f9;
-        border-radius: 8px;
-      }
-      #listBody .tabulator-tableholder::-webkit-scrollbar-thumb {
-        background: #cbd5e1;
-        border-radius: 8px;
-        border: 3px solid #f1f5f9;
-      }
-      #listBody .tabulator-tableholder::-webkit-scrollbar-thumb:hover {
-        background: #94a3b8;
-      }
-      /* Firefox */
-      #listBody .tabulator-tableholder {
-        scrollbar-width: auto;
-        scrollbar-color: #cbd5e1 #f1f5f9;
-      }
-
-      /* เซลล์เริ่มต้นใช้ ellipsis กันดันความกว้าง */
-      #listBody .tabulator-cell {
-        white-space: nowrap;
+      /* ===== Customers (edge-to-edge, clean) ===== */
+      .main--edge {
+        padding: 0;
+        height: 100vh;
         overflow: hidden;
-        text-overflow: ellipsis;
       }
-      /* เฉพาะคอลัมน์ที่อนุญาต wrap */
+      .panel--edge {
+        margin: 0;
+        border-radius: 0;
+        border-left-width: 0;
+        border-right-width: 0;
+      }
+
+      #listPanel {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        min-height: 0;
+      }
+
+      /* Topbar: search ซ้าย, +Add ขวา */
+      .list-topbar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        height: 44px;
+        padding: 0; /* ชิดขอบบนล่างซ้ายขวา */
+        border-bottom: 1px solid #e5e7eb;
+      }
+      .list-topbar .search-lg {
+        flex: 0 0 260px; /* ขนาดช่องค้นหา (ปรับได้ 220–320px) */
+        min-width: 200px;
+        height: 36px;
+        padding: 0 12px;
+        border-radius: 0; /* ไม่โค้ง */
+      }
+      #_add {
+        margin-left: auto; /* ดันไปขวาสุด */
+        height: 36px;
+        border-radius: 0; /* ไม่โค้ง */
+      }
+
+      /* Table area scrolls only */
+      #listBody {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow: auto;
+      }
+      #listBody .tabulator {
+        height: 100% !important;
+      }
+
+      /* ถ้าใช้ .actions-cell ใน columns แล้ว ปุ่มจะไม่โดนตัด */
+      #listBody .tabulator-cell.actions-cell {
+        overflow: visible;
+      }
+      #listBody .tabulator-cell.actions-cell .row-actions {
+        padding-right: 4px;
+      }
+
+      /* คอลัมน์ที่อนุญาตขึ้นบรรทัดใหม่ */
       #listBody .tabulator-cell.wrap {
         white-space: normal;
         word-break: break-word;
       }
 
-      /* ===== Page chrome ===== */
-      .panel {
-        border: 1px solid #e5e7eb;
-        border-radius: 12px;
-        background: #fff;
-        display: flex;
-        flex-direction: column;
-        overflow: hidden;
-      }
+      /* Topbar: กองชิดซ้าย */
       .list-topbar {
         display: flex;
         align-items: center;
+        justify-content: flex-start; /* << กองชิดซ้าย */
         gap: 8px;
-        padding: 10px 12px;
+        height: 44px;
+        padding: 0; /* ชิดขอบบน/ล่าง/ซ้าย/ขวา */
         border-bottom: 1px solid #e5e7eb;
       }
-      .search-lg {
-        flex: 1;
-        min-width: 220px;
-      } /* ช่องค้นหาขยายฝั่งซ้าย */
+
+      /* ช่องค้นหาอยู่ซ้ายของปุ่ม +Add และมีขนาดคงที่พอดี */
+      .list-topbar .search-lg {
+        flex: 0 0 260px; /* ปรับได้ เช่น 240/280 */
+        min-width: 200px;
+        height: 36px;
+        padding: 0 12px;
+        border-radius: 0;
+      }
+
+      /* ปุ่ม +Add ชิดซ้ายตามคิว ไม่ดันไปขวา */
       #_add {
-        margin-left: auto;
-      } /* ปุ่ม Add ชิดขวา */
-
-      .tabulator {
-        border: 0;
-      }
-      .tabulator .tabulator-row:hover {
-        background: #fafafa;
-      }
-
-      .btn-small {
-        padding: 4px 8px;
-        font-size: 14px;
-        border: 1px solid #e5e7eb;
-        border-radius: 6px;
-        background: #111;
-        color: #fff;
-        cursor: pointer;
-      }
-      .btn-small.btn-danger {
-        background: #fff;
-        color: #ef4444;
-        border-color: #ef4444;
-      }
-
-      /* ถ้าภายหลังเปลี่ยน JS เป็น height:"100%" ให้เปิดสองบรรทัดนี้ (ปลอดภัยจะเปิดไว้เลยก็ได้) */
-      #listPanel {
-        display: flex;
-        flex-direction: column;
-      }
-      #listBody {
-        flex: 1;
-        min-height: 0;
+        margin-left: 0 !important; /* override ของเดิมที่เคย auto */
+        height: 36px;
+        border-radius: 0;
       }
     </style>
   </head>
   <body>
     <div class="app">
-      <!-- Sidebar -->
-      <aside class="sidebar">
-        <div id="navSlot" data-nav-slot></div>
-      </aside>
+      <aside class="sidebar"><div id="navSlot" data-nav-slot></div></aside>
 
-      <!-- Main -->
-      <main class="main">
-        <!-- Topbar -->
-        <div class="topbar">
-          <div class="search">
-            <input
-              id="globalSearch"
-              type="search"
-              placeholder="Search PO / Lot / Tracking…"
-            />
-          </div>
-          <input
-            id="apiBase"
-            value="/api/v1"
-            placeholder="API Base"
-            aria-label="API Base"
-          />
-          <button class="btn" id="btnPing" type="button">Ping</button>
-        </div>
-
-        <!-- Customers: single editable table -->
-        <section class="panel" id="listPanel" style="margin-top: 12px">
-          
+      <main class="main main--edge">
+        <section class="panel panel--edge" id="listPanel">
+          <div>Customers</div>
           <div class="list-topbar">
             <input
               id="_q"
@@ -162,7 +122,7 @@
               class="search-lg"
               placeholder="Search customers…"
             />
-            <button id="_add" class="btn-small" type="button">+ Add</button>
+            <button id="_add" class="btn" type="button">+ Add</button>
           </div>
           <div id="listBody"></div>
         </section>
@@ -173,11 +133,9 @@
       <span id="toastText"></span>
     </div>
 
-    <!-- Nav (optional) -->
     <script type="module" src="/static/js/nav-loader.js"></script>
-    <!-- Tabulator core -->
     <script src="/static/vendor/tabulator/tabulator.min.js"></script>
-    <!-- Page script -->
+    <!-- ใช้ไฟล์ JS ของหน้านี้ -->
     <script type="module" src="/static/js/page-customers.js"></script>
   </body>
 </html>

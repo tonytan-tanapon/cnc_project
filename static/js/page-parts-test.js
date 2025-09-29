@@ -1,15 +1,9 @@
 // /static/js/page-parts.js — AUTOSAVE + Tab nav + Undo/Redo + Delete only
-// + Remote pagination with "Show All" default (all=1) for fast, load-all behavior
 import { $, jfetch, showToast as toast } from "./api.js";
 
 const UI = { q: "_q", add: "_add", table: "listBody" };
 const DETAIL_PAGE = "./part-detail.html";
 const partDetail = (id) => `${DETAIL_PAGE}?id=${encodeURIComponent(id)}`;
-
-/* ===== Remote pagination defaults ===== */
-const DEFAULT_PAGE_SIZE = true; // true = Show All (โหลดทั้งหมด)
-const PAGE_SIZE_CHOICES = [20, 50, 100, 200, true]; // true = Show All
-let totalItems = 0;
 
 /* ===== AUTOSAVE GUARDS ===== */
 const createInFlight = new WeakSet(); // rows creating (POST)
@@ -62,7 +56,7 @@ function normalizeRow(p) {
 }
 
 function buildPayload(row) {
-  // part_no ว่าง → ส่ง null ให้ backend autogen ได้ (ถ้ารองรับ)
+  // ถ้า part_no ว่าง ให้ส่ง null เพื่อให้ backend autogen (ถ้ารองรับ)
   const part_no = trim(row.part_no) || null;
   return {
     part_no,
@@ -74,38 +68,31 @@ function buildPayload(row) {
 }
 
 function requiredReady(row) {
-  // บังคับอย่างน้อยให้มี name ก่อนสร้าง
+  // บังคับอย่างน้อยต้องมี name
   return !!trim(row.name);
 }
 
-/* ===== COLUMNS ===== */
+/* ===== Columns ===== */
 function makeColumns() {
   return [
     {
       title: "No.",
-      field: "_rowno",
       width: 70,
       hozAlign: "right",
       headerHozAlign: "right",
       headerSort: false,
-      formatter: (cell) => {
-        const pos = cell.getRow().getPosition(true);
-        const curPage = table.getPage() || 1;
-        const ps = table.getPageSize();
-        const eff = ps === true ? totalItems || table.getDataCount() : ps || 1;
-        return (curPage - 1) * eff + pos;
-      },
+      formatter: "rownum",
     },
 
-    // ใช้ field: "id" เพื่อให้ formatter รันใหม่ทันทีที่ id เปลี่ยน (หลัง POST)
+    // แยกคอลัมน์ View ออกมาเพื่อยังมีลิงก์ไปหน้า detail
     {
       title: "View",
-      field: "id",
+      field: "_view",
       width: 90,
       headerSort: false,
       hozAlign: "center",
       formatter: (cell) => {
-        const id = cell.getValue();
+        const id = cell.getRow()?.getData()?.id;
         if (!id) return `<span class="muted">—</span>`;
         return `<a class="view-link" href="${partDetail(
           id
@@ -179,7 +166,7 @@ function makeColumns() {
   ];
 }
 
-/* ===== Tab / Shift+Tab ===== */
+/* ===== Tab / Shift+Tab navigation while editing ===== */
 function getEditableFieldsLive(tab) {
   return tab
     .getColumns(true)
@@ -194,7 +181,6 @@ function focusSiblingEditable(cell, dir /* +1 or -1 */) {
   const curField = cell.getField();
   const curFieldIdx = fields.indexOf(curField);
   if (curFieldIdx === -1) return;
-
   const rows = tab.getRows();
   const curRowIdx = rows.indexOf(row);
 
@@ -246,9 +232,9 @@ async function autosaveCell(cell, opts = {}) {
 
   const payload = buildPayload(d);
 
-  // CREATE: only when required present
+  // CREATE: first time only when required fields present
   if (!d.id) {
-    if (!requiredReady(d)) return;
+    if (!requiredReady(d)) return; // wait until name filled
     if (createInFlight.has(row)) return;
     createInFlight.add(row);
     try {
@@ -257,11 +243,7 @@ async function autosaveCell(cell, opts = {}) {
         body: JSON.stringify(payload),
       });
       const norm = normalizeRow(created || d);
-
-      row.update({ ...norm }); // มี id แล้ว → คอลัมน์ View (field:"id") จะ render เอง
-      row.getCell("id")?.reformat(); // กันเหนียว
-      requestAnimationFrame(() => table?.redraw(true));
-
+      row.update({ ...norm });
       toast(`Part "${norm.part_no || norm.name}" created`);
     } catch (e) {
       if (!fromHistory && oldVal !== undefined) cell.setValue(oldVal, true);
@@ -283,11 +265,7 @@ async function autosaveCell(cell, opts = {}) {
         body: JSON.stringify(payload),
       });
       const norm = normalizeRow(updated || d);
-
       row.update({ ...d, ...norm, id: norm.id ?? d.id });
-      row.getCell("id")?.reformat();
-      requestAnimationFrame(() => table?.redraw(true));
-
       toast(`Saved "${norm.part_no || norm.name}"`);
     } catch (e) {
       if (!fromHistory && oldVal !== undefined) cell.setValue(oldVal, true);
@@ -322,50 +300,18 @@ async function deleteRow(row) {
   }
 }
 
-/* ===== TABLE (Remote pagination, Show All default) ===== */
+/* ===== TABLE ===== */
 function initTable() {
   table = new Tabulator(`#${UI.table}`, {
     layout: "fitColumns",
     height: "100%",
+    data: [],
+    columns: makeColumns(),
     placeholder: "No parts",
     reactiveData: true,
     index: "id",
     history: true,
     selectableRows: 1,
-
-    pagination: true,
-    paginationMode: "remote",
-    paginationSize: DEFAULT_PAGE_SIZE, // true = Show All
-    paginationSizeSelector: PAGE_SIZE_CHOICES, // [20,50,100,200,true]
-    paginationCounter: "rows",
-
-    ajaxURL: "/parts",
-    ajaxRequestFunc: async (_url, _config, params) => {
-      const page = params.page || 1;
-      const showAll = params.size === true;
-      const size = showAll ? DEFAULT_PAGE_SIZE : Number(params.size) || 50;
-
-      const keyword = (els[UI.q]?.value || "").trim();
-      const usp = new URLSearchParams();
-      usp.set("page", String(page));
-      if (showAll) usp.set("all", "1");
-      else usp.set("page_size", String(size));
-      usp.set("include", "revisions");
-      if (keyword) usp.set("q", keyword);
-      usp.set("_", String(Date.now()));
-
-      const res = await jfetch(`/parts?${usp.toString()}`);
-      const items = Array.isArray(res) ? res : res?.items ?? res?.data ?? [];
-      totalItems = Number(res?.total ?? items.length);
-
-      const rows = items.map(normalizeRow);
-      const last_page = showAll
-        ? 1
-        : Math.max(1, Math.ceil((totalItems || rows.length) / (size || 1)));
-      return { data: rows, last_page };
-    },
-
-    columns: makeColumns(),
   });
 
   table.on("tableBuilt", () => {
@@ -444,6 +390,71 @@ function initTable() {
   });
 }
 
+/* ===== FETCH ALL HELPERS ===== */
+// พยายาม all=1 ก่อน ถ้า backend รองรับ จะได้เร็ว
+async function tryFetchAllParam(keyword = "") {
+  const usp = new URLSearchParams();
+  usp.set("all", "1");
+  usp.set("include", "revisions");
+  if (keyword) usp.set("q", keyword);
+  const res = await jfetch(`/parts?${usp.toString()}`);
+  const items = Array.isArray(res) ? res : res?.items ?? res?.data ?? [];
+  const total = res?.total ?? items.length;
+  return { items, total, pages: res?.pages ?? 1 };
+}
+
+const PAGED_PER_PAGE = 200;
+async function fetchAllByPaging(keyword = "") {
+  const perPage = PAGED_PER_PAGE;
+  let page = 1;
+  const all = [];
+  while (true) {
+    const usp = new URLSearchParams();
+    usp.set("page", String(page));
+    usp.set("page_size", String(perPage));
+    usp.set("include", "revisions");
+    if (keyword) usp.set("q", keyword);
+    const res = await jfetch(`/parts?${usp.toString()}`);
+    const items = Array.isArray(res) ? res : res?.items ?? res?.data ?? [];
+    if (!items?.length) break;
+    all.push(...items);
+    const pages = res?.pages;
+    if (pages && page >= pages) break;
+    if (!pages && items.length < perPage) break;
+    page += 1;
+  }
+  return all;
+}
+
+/* ===== LOAD ALL ===== */
+async function loadAll(keyword = "") {
+  try {
+    let records = [];
+
+    let ok = false;
+    try {
+      const { items, total, pages } = await tryFetchAllParam(keyword);
+      records = items;
+      if (records.length < (total || records.length) || (pages && pages > 1)) {
+        records = await fetchAllByPaging(keyword);
+      }
+      ok = true;
+    } catch {
+      // ถ้า backend ไม่รองรับ all=1 → ถอยไปใช้ paging
+    }
+    if (!ok) {
+      records = await fetchAllByPaging(keyword);
+    }
+
+    table?.setData(records.map(normalizeRow));
+    table?.redraw(true);
+  } catch (e) {
+    toast("Load failed", false);
+    table?.setData([]);
+    table?.redraw(true);
+  }
+}
+
 /* ===== BINDINGS ===== */
 function bindSearch() {
   const box = els[UI.q];
@@ -451,10 +462,7 @@ function bindSearch() {
   let t;
   box.addEventListener("input", () => {
     clearTimeout(t);
-    t = setTimeout(() => {
-      // ให้ Tabulator ยิงขอใหม่โดยเริ่ม page 1 (เลี่ยงซ้ำซ้อน)
-      table?.setPage(1);
-    }, 300);
+    t = setTimeout(() => loadAll(box.value), 300);
   });
 }
 function bindAdd() {
@@ -463,7 +471,6 @@ function bindAdd() {
   btn.addEventListener("click", async () => {
     const row = await table.addRow(
       {
-        id: null, // มีฟิลด์ id ตั้งแต่แรก (ช่วยให้ formatter "View" อยู่ใน flow)
         part_no: "", // เว้นว่างได้ → backend autogen
         name: "",
         uom: "ea",
@@ -484,5 +491,5 @@ document.addEventListener("DOMContentLoaded", async () => {
   initTable();
   bindSearch();
   bindAdd();
-  // ปล่อยให้ Tabulator ยิง ajax ตาม paginationMode:"remote"
+  loadAll();
 });

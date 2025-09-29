@@ -12,8 +12,8 @@ let els = {};
 let table = null;
 
 /* ===== AUTOSAVE GUARDS ===== */
-const createInFlight = new WeakSet();      // rows currently creating (POST)
-const patchTimers = new Map();             // row -> timeout id (debounced PATCH)
+const createInFlight = new WeakSet(); // rows currently creating (POST)
+const patchTimers = new Map(); // row -> timeout id (debounced PATCH)
 const PATCH_DEBOUNCE_MS = 350;
 
 /* ===== HELPERS ===== */
@@ -21,11 +21,11 @@ const trim = (v) => (v == null ? "" : String(v).trim());
 
 function buildPayload(row) {
   return {
-    name:   trim(row.name) || null,
-    code:   row.code ? String(row.code).toUpperCase() : null,
+    name: trim(row.name) || null,
+    code: row.code ? String(row.code).toUpperCase() : null,
     contact: row.contact ? trim(row.contact) : null,
-    email:   row.email ? trim(row.email) : null,
-    phone:   row.phone ? trim(row.phone) : null,
+    email: row.email ? trim(row.email) : null,
+    phone: row.phone ? trim(row.phone) : null,
     address: row.address ? trim(row.address) : null,
   };
 }
@@ -45,13 +45,34 @@ function normalizeRow(r) {
 /* ===== TABLE COLUMNS (no Actions col; autosave) ===== */
 function makeColumns() {
   return [
-    { title: "No.", width: 60, hozAlign: "right", headerHozAlign: "right", headerSort: false, formatter: "rownum" },
-    { title: "Code",    field: "code",    width: 100, editor: "input" },
-    { title: "Name",    field: "name",    minWidth: 160, editor: "input", validator: "required" },
+    {
+      title: "No.",
+      width: 60,
+      hozAlign: "right",
+      headerHozAlign: "right",
+      headerSort: false,
+      formatter: "rownum",
+    },
+    { title: "Code", field: "code", width: 100, editor: "input" },
+    {
+      title: "Name",
+      field: "name",
+      minWidth: 160,
+      editor: "input",
+      validator: "required",
+    },
     { title: "Contact", field: "contact", width: 140, editor: "input" },
-    { title: "Email",   field: "email",   width: 200, editor: "input" },
-    { title: "Phone",   field: "phone",   width: 140, editor: "input" },
-    { title: "Address", field: "address", widthGrow: 3, minWidth: 220, maxWidth: 600, editor: "input", cssClass: "wrap" },
+    { title: "Email", field: "email", width: 200, editor: "input" },
+    { title: "Phone", field: "phone", width: 140, editor: "input" },
+    {
+      title: "Address",
+      field: "address",
+      widthGrow: 3,
+      minWidth: 220,
+      maxWidth: 600,
+      editor: "input",
+      cssClass: "wrap",
+    },
     {
       title: "Actions",
       field: "_actions",
@@ -71,7 +92,6 @@ function makeColumns() {
     },
   ];
 }
-
 
 /* ===== Tab / Shift+Tab navigation while editing ===== */
 function getEditableFieldsLive(tab) {
@@ -114,7 +134,8 @@ function focusSiblingEditable(cell, dir /* +1 or -1 */) {
 
   targetCell.edit(true);
   const el = targetCell.getElement();
-  const input = el && el.querySelector("input, textarea, [contenteditable='true']");
+  const input =
+    el && el.querySelector("input, textarea, [contenteditable='true']");
   if (input) {
     const v = input.value;
     input.focus();
@@ -127,7 +148,7 @@ function focusSiblingEditable(cell, dir /* +1 or -1 */) {
 async function autosaveCell(cell, opts = {}) {
   const { fromHistory = false, revert } = opts;
   const row = cell.getRow();
-  const d   = row.getData();
+  const d = row.getData();
   const fld = cell.getField();
   const newVal = cell.getValue();
   const oldVal = fromHistory ? undefined : cell.getOldValue();
@@ -144,8 +165,8 @@ async function autosaveCell(cell, opts = {}) {
 
   // CREATE: only when no id and we have a valid name
   if (!d.id) {
-    if (!payload.name) return;               // ignore other fields until name present
-    if (createInFlight.has(row)) return;     // guard duplicate POSTs
+    if (!payload.name) return; // ignore other fields until name present
+    if (createInFlight.has(row)) return; // guard duplicate POSTs
     createInFlight.add(row);
     try {
       const created = await jfetch(ENDPOINTS.base, {
@@ -170,10 +191,13 @@ async function autosaveCell(cell, opts = {}) {
   const t = setTimeout(async () => {
     patchTimers.delete(row);
     try {
-      const updated = await jfetch(`${ENDPOINTS.base}/${encodeURIComponent(d.id)}`, {
-        method: "PATCH",
-        body: JSON.stringify(payload),
-      });
+      const updated = await jfetch(
+        `${ENDPOINTS.base}/${encodeURIComponent(d.id)}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify(payload),
+        }
+      );
       const norm = normalizeRow(updated || d);
       row.update({ ...d, ...norm, id: norm.id ?? d.id });
       toast(`Saved changes to "${norm.name}"`);
@@ -185,7 +209,9 @@ async function autosaveCell(cell, opts = {}) {
       } else {
         // optional resync
         try {
-          const fresh = await jfetch(`${ENDPOINTS.base}/${encodeURIComponent(d.id)}`);
+          const fresh = await jfetch(
+            `${ENDPOINTS.base}/${encodeURIComponent(d.id)}`
+          );
           const norm = normalizeRow(fresh || d);
           row.update({ ...norm });
         } catch {}
@@ -204,9 +230,18 @@ async function deleteRow(row) {
     row.delete();
     return;
   }
-  if (!confirm(`Delete customer "${d.name || d.code || d.id}"?\nThis action cannot be undone.`)) return;
+  if (
+    !confirm(
+      `Delete customer "${
+        d.name || d.code || d.id
+      }"?\nThis action cannot be undone.`
+    )
+  )
+    return;
   try {
-    await jfetch(`${ENDPOINTS.base}/${encodeURIComponent(d.id)}`, { method: "DELETE" });
+    await jfetch(`${ENDPOINTS.base}/${encodeURIComponent(d.id)}`, {
+      method: "DELETE",
+    });
     row.delete();
     toast("Deleted");
   } catch (e) {
@@ -218,13 +253,13 @@ async function deleteRow(row) {
 function initTable() {
   table = new Tabulator(`#${UI.tableMount}`, {
     layout: "fitColumns",
-    height: "100%",              // fills the panel (your CSS already flexes it)
+    height: "100%", // fills the panel (your CSS already flexes it)
     columns: makeColumns(),
     placeholder: "No customers",
     reactiveData: true,
     index: "id",
-    history: true,               // enable undo/redo stack
-    selectableRows: 1,               // allow selecting a row for Delete key
+    history: true, // enable undo/redo stack
+    selectableRows: 1, // allow selecting a row for Delete key
   });
 
   table.on("tableBuilt", () => {
@@ -236,18 +271,24 @@ function initTable() {
   table.on("cellEditing", (cell) => {
     setTimeout(() => {
       const el = cell.getElement();
-      const input = el && el.querySelector("input, textarea, [contenteditable='true']");
+      const input =
+        el && el.querySelector("input, textarea, [contenteditable='true']");
       if (!input) return;
       const handler = (e) => {
         if (e.key === "Tab") {
           e.preventDefault();
           e.stopPropagation();
-          if (typeof e.stopImmediatePropagation === "function") e.stopImmediatePropagation();
+          if (typeof e.stopImmediatePropagation === "function")
+            e.stopImmediatePropagation();
           focusSiblingEditable(cell, e.shiftKey ? -1 : +1);
         }
       };
       input.addEventListener("keydown", handler);
-      input.addEventListener("blur", () => input.removeEventListener("keydown", handler), { once: true });
+      input.addEventListener(
+        "blur",
+        () => input.removeEventListener("keydown", handler),
+        { once: true }
+      );
     }, 0);
   });
 
@@ -258,13 +299,27 @@ function initTable() {
 
   // AUTOSAVE on undo/redo
   table.on("historyUndo", (action, component) => {
-    if (action === "cellEdit" && component && typeof component.getRow === "function") {
-      autosaveCell(component, { fromHistory: true, revert: () => table.redo() });
+    if (
+      action === "cellEdit" &&
+      component &&
+      typeof component.getRow === "function"
+    ) {
+      autosaveCell(component, {
+        fromHistory: true,
+        revert: () => table.redo(),
+      });
     }
   });
   table.on("historyRedo", (action, component) => {
-    if (action === "cellEdit" && component && typeof component.getRow === "function") {
-      autosaveCell(component, { fromHistory: true, revert: () => table.undo() });
+    if (
+      action === "cellEdit" &&
+      component &&
+      typeof component.getRow === "function"
+    ) {
+      autosaveCell(component, {
+        fromHistory: true,
+        revert: () => table.undo(),
+      });
     }
   });
 
@@ -288,7 +343,7 @@ function initTable() {
   });
 }
 // put near the top of /static/js/page-customers.js
-function injectStylesOnce(){
+function injectStylesOnce() {
   if (document.getElementById("cust-actions-css")) return;
   const st = document.createElement("style");
   st.id = "cust-actions-css";
@@ -343,7 +398,10 @@ async function loadAll(keyword = "") {
       try {
         const { items, total, pages } = await tryFetchAllParam(keyword);
         records = items;
-        if (records.length < (total || records.length) || (pages && pages > 1)) {
+        if (
+          records.length < (total || records.length) ||
+          (pages && pages > 1)
+        ) {
           records = await fetchAllByPaging(keyword);
         }
         ok = true;

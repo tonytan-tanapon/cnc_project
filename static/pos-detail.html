@@ -3,9 +3,12 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>PO Detail · Topnotch – MFG</title>
+    <title>PO · Topnotch – MFG</title>
 
+    <!-- Global styles -->
     <link rel="stylesheet" href="/static/css/app.css" />
+
+    <!-- Tabulator -->
     <link
       rel="stylesheet"
       href="/static/vendor/tabulator/tabulator_modern.min.css"
@@ -13,172 +16,185 @@
     <script src="/static/vendor/tabulator/tabulator.min.js"></script>
 
     <style>
-      .panel {
-        border: 1px solid #e5e7eb;
-        border-radius: 12px;
-        background: #fff;
-        display: flex;
-        flex-direction: column;
+      /* ===== Edge layout like customers ===== */
+      .main--edge {
+        padding: 0;
+        height: 100vh;
         overflow: hidden;
       }
-      .detail-head {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 8px;
-        padding: 10px 12px;
-        border-bottom: 1px solid #e5e7eb;
+      .panel--edge {
+        margin: 0;
+        border-radius: 0;
+        border-left-width: 0;
+        border-right-width: 0;
       }
-      .detail-body {
-        padding: 12px;
-        overflow: auto;
-      }
-      .muted {
-        color: #6b7280;
-      }
-
-      /* Header form (ไม่ใช่ตาราง) */
-      .kv-grid {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 12px;
-      }
-      .kv {
+      #poPanel {
         display: flex;
         flex-direction: column;
-        gap: 6px;
-      }
-      .kv .lab {
-        font-size: 12px;
-        color: #64748b;
-      }
-      .kv input,
-      .kv textarea {
-        border: 1px solid #e5e7eb;
-        border-radius: 10px;
-        padding: 8px 10px;
-        font: 14px/1.4 system-ui;
-        width: 100%;
-        box-sizing: border-box;
-      }
-      .kv .ro {
-        padding: 8px 10px;
-        border: 1px dashed #e5e7eb;
-        border-radius: 10px;
-        background: #fafafa;
+        height: 100%;
+        min-height: 0;
       }
 
-      @media (max-width: 900px) {
-        .kv-grid {
-          grid-template-columns: 1fr;
-        }
+      .header {
+        display: grid;
+        grid-template-columns: repeat(12, 1fr);
+        gap: 8px;
+        padding: 8px 0;
+        border-bottom: 1px solid #e5e7eb;
+      }
+      .col-3 {
+        grid-column: span 3;
+      }
+      .col-4 {
+        grid-column: span 4;
+      }
+      .col-6 {
+        grid-column: span 6;
+      }
+      .col-12 {
+        grid-column: span 12;
+      }
+      .header .field {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .header input {
+        height: 36px;
+        padding: 0 12px;
+      }
+      .header .muted {
+        opacity: 0.65;
       }
 
-      /* Tabulator hygiene */
-      .main,
-      .panel,
-      .detail-body {
-        min-width: 0;
+      .list-topbar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        height: 44px;
+        padding: 0;
+        border-bottom: 1px solid #e5e7eb;
       }
-      #po_lines_table,
-      .tabulator {
-        width: 100%;
-        max-width: 100%;
+      .list-topbar .title {
+        font-weight: 600;
+        padding: 0 8px;
       }
-      .tabulator {
+      #btnAddLine {
+        margin-left: auto;
+        height: 36px;
+        border-radius: 0;
+      }
+
+      #po_lines {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow: auto;
+      }
+      #po_lines .tabulator {
+        height: 100% !important;
         border: 0;
       }
-      .tabulator .tabulator-row:hover {
+      #po_lines .tabulator .tabulator-row:hover {
         background: #fafafa;
+      }
+      #po_lines .tabulator-cell.actions-cell {
+        overflow: visible;
+      }
+
+      .btn-small {
+        padding: 4px 8px;
+        font-size: 14px;
+        border: 1px solid var(--line, #e5e7eb);
+        border-radius: 6px;
+        background: #111;
+        color: #fff;
+        cursor: pointer;
+      }
+      .btn-small:hover {
+        opacity: 0.9;
+      }
+      .muted {
+        opacity: 0.65;
+      }
+
+      .is-dirty {
+        background: #fff7ed;
       }
     </style>
   </head>
   <body>
     <div class="app">
-      <aside class="sidebar">
-        <div id="navSlot" data-nav-slot></div>
-      </aside>
+      <aside class="sidebar"><div id="navSlot" data-nav-slot></div></aside>
 
-      <main class="main">
-        <!-- Topbar (ไม่มีปุ่ม edit/save) -->
-        <div class="topbar">
-          <div class="search">
-            <input
-              id="globalSearch"
-              type="search"
-              placeholder="Search PO / Lot / Tracking…"
-            />
+      <main class="main main--edge">
+        <section class="panel panel--edge" id="poPanel">
+          <!-- Header -->
+          <div
+            style="
+              display: flex;
+              align-items: center;
+              gap: 8px;
+              padding: 8px 0 6px 0;
+            "
+          >
+            <h2 class="page-title" style="margin: 0">🧾 Purchase Order</h2>
+            <span id="po_subTitle" class="muted">(loading…)</span>
           </div>
-          <input
-            id="apiBase"
-            value="/api/v1"
-            placeholder="API Base"
-            aria-label="API Base"
-          />
-          <button class="btn" id="btnPing" type="button">Ping</button>
-        </div>
 
-        <!-- Header: ฟอร์มสวย + autosave -->
-        <section class="panel" style="margin-top: 12px">
-          <div class="detail-head">
-            <div>
-              <h2 style="margin: 0">PO Details</h2>
-              <div id="po_subTitle" class="muted">—</div>
+          <div class="header">
+            <div class="field col-3">
+              <label>PO Number</label>
+              <input id="po_po_number" placeholder="AUTO or input…" />
             </div>
-            <div class="muted" id="po_hint"></div>
-          </div>
-          <div class="detail-body">
-            <div id="po_error" class="muted" style="display: none"></div>
-            <div class="kv-grid" id="po_form">
-              <div class="kv">
-                <div class="lab">PO No.</div>
-                <input id="po_po_number" placeholder="eg. PO-0001" />
-              </div>
-              <div class="kv">
-                <div class="lab">Customer</div>
-                <input
-                  id="po_customer"
-                  placeholder="Type to search customer…"
-                />
-              </div>
-              <div class="kv" style="grid-column: 1/-1">
-                <div class="lab">Description</div>
-                <textarea
-                  id="po_description"
-                  rows="3"
-                  placeholder="Notes…"
-                ></textarea>
-              </div>
-              <div class="kv">
-                <div class="lab">Created</div>
-                <div id="po_created" class="ro">—</div>
+            <div class="field col-6">
+              <label>Customer</label>
+              <input id="po_customer" placeholder="Search customer…" />
+            </div>
+            <div class="field col-3">
+              <label>Created</label>
+              <div
+                id="po_created"
+                class="muted"
+                style="height: 36px; display: flex; align-items: center"
+              >
+                —
               </div>
             </div>
+            <div class="field col-12">
+              <label>Description</label>
+              <input id="po_description" placeholder="Optional description" />
+            </div>
+            <div class="col-12">
+              <div id="po_hint" class="muted" aria-live="polite"></div>
+              <div id="po_error" class="err" style="display: none"></div>
+            </div>
           </div>
-        </section>
 
-        <!-- Lines: Tabulator inline edit + autosave + context menu -->
-        <section class="panel" style="margin-top: 12px">
-          <div class="detail-head">
+          <!-- Lines topbar -->
+          <div class="list-topbar">
             <div class="title">Lines</div>
-            <div>
-              <button id="btnAddLine" type="button" class="btn-small">
-                + Add
-              </button>
-            </div>
+            <button id="btnAddLine" class="btn" type="button">
+              + Add Line
+            </button>
           </div>
-          <div class="detail-body" style="padding: 0">
+
+          <!-- Lines table mount -->
+          <div id="po_lines">
             <div id="po_lines_table"></div>
           </div>
         </section>
       </main>
     </div>
 
+    <!-- Toast -->
     <div class="toast" id="toast" role="status" aria-live="polite">
       <span id="toastText"></span>
     </div>
 
+    <!-- Navbar loader -->
     <script type="module" src="/static/js/nav-loader.js"></script>
-    <script type="module" src="/static/js/page-pos-detail.js?v=5"></script>
+
+    <!-- Page script -->
+    <script type="module" src="/static/js/page-pos-detail.js?v=1"></script>
   </body>
 </html>

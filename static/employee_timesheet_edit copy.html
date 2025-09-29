@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Edit Day — Employee Timesheet (Tabulator)</title>
+
+    <!-- Tabulator CSS -->
+    <link
+      rel="stylesheet"
+      href="/static/vendor/tabulator/tabulator_modern.min.css"
+    />
+
+    <style>
+      :root {
+        --line: #e5e7eb;
+        --muted: #6b7280;
+      }
+      body {
+        font: 16px/1.5 system-ui, -apple-system, Segoe UI, Roboto, Arial;
+        margin: 0;
+        padding: 20px;
+      }
+      h1 {
+        margin: 0 0 8px;
+        font-size: 22px;
+      }
+      .muted {
+        color: var(--muted);
+      }
+      .page-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin: 0 0 12px;
+      }
+      .spacer {
+        flex: 1;
+      }
+      a {
+        color: #2563eb;
+        text-decoration: none;
+      }
+      a:hover {
+        text-decoration: underline;
+      }
+
+      .controls {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+        margin-top: 8px;
+      }
+      button {
+        padding: 6px 10px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #111;
+        color: #fff;
+        cursor: pointer;
+      }
+      button.secondary {
+        background: #fff;
+        color: #111;
+      }
+
+      .table-wrap {
+        margin: 12px 0;
+      }
+      #shiftTable,
+      #breakTable {
+        min-height: 60px;
+      }
+      .mono {
+        font-variant-numeric: tabular-nums;
+      }
+      .hint {
+        color: var(--muted);
+        font-size: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page-header">
+      <h1 id="header">Edit Day</h1>
+      <div class="spacer"></div>
+      <a id="backLink" href="#" onclick="history.back(); return false;"
+        >← Back</a
+      >
+    </div>
+    <div class="muted" id="subHeader"></div>
+
+    <!-- Shifts -->
+    <div class="controls">
+      <strong>Shifts</strong>
+      <button id="addShift">+ Add shift</button>
+      <span class="hint">คลิกแถวเพื่อดู/แก้ Breaks ของแถวนั้น</span>
+    </div>
+    <div class="table-wrap">
+      <div id="shiftTable"></div>
+    </div>
+
+    <!-- Breaks -->
+    <div class="controls">
+      <strong>Breaks</strong>
+      <span id="breaksFor" class="muted">(select a shift)</span>
+      <button id="addBreak" disabled>+ Add break</button>
+    </div>
+    <div class="table-wrap">
+      <div id="breakTable"></div>
+    </div>
+
+    <!-- Tabulator JS -->
+    <script src="/static/vendor/tabulator/tabulator.min.js"></script>
+
+    <!-- Page Logic -->
+    <script type="module">
+      import { $ as _$$, jfetch, toast } from "/static/js/api.js?v=1";
+      const $ = (sel) => document.querySelector(sel);
+
+      /* ===== API ===== */
+      const API_BASE = "";
+      const api = (p) => `${API_BASE}${p}`;
+      async function apiGET(p) {
+        try {
+          return await jfetch(api(p));
+        } catch (e) {
+          console.error(e);
+          toast?.(e?.message || "API error");
+          throw e;
+        }
+      }
+      async function apiPOST(p, body) {
+        try {
+          return await jfetch(api(p), {
+            method: "POST",
+            body: JSON.stringify(body),
+          });
+        } catch (e) {
+          console.error(e);
+          toast?.(e?.message || "API error");
+          throw e;
+        }
+      }
+      async function apiPATCH(p, body) {
+        try {
+          return await jfetch(api(p), {
+            method: "PATCH",
+            body: JSON.stringify(body),
+          });
+        } catch (e) {
+          console.error(e);
+          toast?.(e?.message || "API error");
+          throw e;
+        }
+      }
+      async function apiDELETE(p) {
+        try {
+          return await jfetch(api(p), { method: "DELETE" });
+        } catch (e) {
+          console.error(e);
+          throw e;
+        }
+      }
+
+      const PP = "/pay-periods";
+      const EMP = "/employees";
+      const TE_LIST = "/time-entries";
+      const TE_MANUAL = "/time-entries/manual";
+      const BR_MANUAL = "/breaks/manual";
+
+      /* ===== Helpers ===== */
+      const pad = (n) => String(n).padStart(2, "0");
+      const fmtDateOnly = (iso) =>
+        iso ? new Date(iso).toISOString().slice(0, 10) : "";
+      const getQS = (k) => new URL(location.href).searchParams.get(k);
+      const utcDateKey = (iso) =>
+        iso ? new Date(iso).toISOString().slice(0, 10) : null;
+      const nullIfEmpty = (v) => {
+        const s = (v == null ? "" : String(v)).trim();
+        return s === "" ? null : s;
+      };
+
+      function toLocalInput(iso) {
+        if (!iso) return "";
+        const d = new Date(iso);
+        if (isNaN(+d)) return "";
+        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(
+          d.getDate()
+        )}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      }
+      function fromLocalInput(s) {
+        if (!s) return null;
+        const d = new Date(s);
+        return isNaN(+d) ? null : d.toISOString();
+      }
+      function toIsoIfLocal(val) {
+        // รับค่าที่อาจเป็น ISO (จาก backend) หรือ local "YYYY-MM-DDTHH:mm" (จาก editor)
+        if (!val) return null;
+        // ถ้าเป็นรูปแบบสั้น 16 ตัวอักษร "YYYY-MM-DDTHH:mm" ให้แปลงเป็น ISO
+        if (
+          typeof val === "string" &&
+          /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(val)
+        )
+          return fromLocalInput(val);
+        // ถ้าเป็น ISO อยู่แล้ว ปล่อยผ่าน
+        return val;
+      }
+
+      /* ===== State ===== */
+      let pp = null,
+        emp = null,
+        details = [];
+      let selectedShiftId = null;
+      let currentEmployeeId = null,
+        currentPpId = null,
+        targetDate = null;
+
+      /* ===== Load data ===== */
+      async function reloadDetails() {
+        const start = new Date(`${targetDate}T00:00:00Z`).toISOString();
+        const end = new Date(
+          new Date(start).getTime() + 24 * 60 * 60 * 1000
+        ).toISOString();
+        details = await apiGET(
+          `${TE_LIST}/range?employee_id=${currentEmployeeId}&start_at=${encodeURIComponent(
+            start
+          )}&end_at=${encodeURIComponent(end)}`
+        );
+      }
+      const getShiftsForDay = () =>
+        details
+          .filter(
+            (te) => utcDateKey(te.clock_in_at || te.clock_out_at) === targetDate
+          )
+          .sort(
+            (a, b) =>
+              new Date(a.clock_in_at || 0) - new Date(b.clock_in_at || 0)
+          );
+      const getCurrentShift = () =>
+        details.find((x) => x.id === selectedShiftId) || null;
+
+      /* ===== Tabulator utils ===== */
+      function onBuiltOnce(table, cb) {
+        let fired = false;
+        const h = () => {
+          if (fired) return;
+          fired = true;
+          setTimeout(cb, 0);
+        };
+        table.on("tableBuilt", h);
+        setTimeout(() => {
+          if (!fired) {
+            try {
+              table.redraw(true);
+            } catch {}
+            h();
+          }
+        }, 0);
+      }
+
+      function datetimeLocalEditor(cell, onRendered, success, cancel) {
+        const el = document.createElement("input");
+        el.type = "datetime-local";
+        el.style.padding = "4px 6px";
+        el.value = toLocalInput(cell.getValue()) || "";
+        onRendered(() => {
+          el.focus();
+          el.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") success(el.value);
+            if (e.key === "Escape") cancel();
+          });
+        });
+        el.addEventListener("blur", () => success(el.value));
+        return el;
+      }
+      const datetimeLocalFormatter = (cell) => {
+        const t = toLocalInput(cell.getValue());
+        return t ? `<span class="mono">${t.replace("T", " ")}</span>` : "";
+      };
+      const yesNoFormatter = (cell) => (cell.getValue() ? "Yes" : "No");
+      const actionDeleteFormatter = () =>
+        `<button class="secondary">Delete</button>`;
+
+      /* ===== Build payloads “ครบชุด” จากทั้งแถว ===== */
+      function buildShiftPayload(rowData) {
+        return {
+          clock_in_at: toIsoIfLocal(rowData.clock_in_at),
+          clock_out_at: rowData.clock_out_at
+            ? toIsoIfLocal(rowData.clock_out_at)
+            : null,
+          status: nullIfEmpty(rowData.status),
+          notes: nullIfEmpty(rowData.notes),
+          // ถ้า backend ต้องการ field อื่นเพิ่ม (เช่น methods) เติมได้ที่นี่
+          // clock_in_method: rowData.clock_in_method ?? 'manual',
+          // clock_out_method: rowData.clock_out_method ?? null,
+        };
+      }
+
+      function buildBreakPayload(rowData) {
+        return {
+          break_type: nullIfEmpty(rowData.break_type),
+          start_at: toIsoIfLocal(rowData.start_at),
+          end_at: rowData.end_at ? toIsoIfLocal(rowData.end_at) : null,
+          is_paid: !!rowData.is_paid,
+          // method:  rowData.method ?? 'manual',
+        };
+      }
+
+      /* ===== Tables ===== */
+      let shiftTable = null;
+      let breakTable = null;
+
+      function shiftColumns() {
+        return [
+          {
+            title: "No",
+            formatter: "rownum",
+            width: 60,
+            hozAlign: "right",
+            headerHozAlign: "right",
+          },
+          {
+            title: "Clock In",
+            field: "clock_in_at",
+            formatter: datetimeLocalFormatter,
+            editor: datetimeLocalEditor,
+            width: 200,
+          },
+          {
+            title: "Clock Out",
+            field: "clock_out_at",
+            formatter: datetimeLocalFormatter,
+            editor: datetimeLocalEditor,
+            width: 200,
+          },
+          { title: "Status", field: "status", editor: "input", width: 140 },
+          {
+            title: "Notes",
+            field: "notes",
+            editor: "input",
+            headerHozAlign: "left",
+            widthGrow: 2,
+          },
+          {
+            title: "Action",
+            headerSort: false,
+            width: 110,
+            formatter: actionDeleteFormatter,
+            cellClick: onDeleteShift,
+          },
+        ];
+      }
+      function breakColumns() {
+        return [
+          {
+            title: "No",
+            formatter: "rownum",
+            width: 60,
+            hozAlign: "right",
+            headerHozAlign: "right",
+          },
+          { title: "Type", field: "break_type", editor: "input", width: 150 },
+          {
+            title: "Start",
+            field: "start_at",
+            formatter: datetimeLocalFormatter,
+            editor: datetimeLocalEditor,
+            width: 200,
+          },
+          {
+            title: "End",
+            field: "end_at",
+            formatter: datetimeLocalFormatter,
+            editor: datetimeLocalEditor,
+            width: 200,
+          },
+          {
+            title: "Paid?",
+            field: "is_paid",
+            formatter: yesNoFormatter,
+            editor: "tickCross",
+            editorParams: { tristate: false },
+            hozAlign: "center",
+            width: 110,
+          },
+          {
+            title: "Action",
+            headerSort: false,
+            width: 110,
+            formatter: actionDeleteFormatter,
+            cellClick: onDeleteBreak,
+          },
+        ];
+      }
+
+      function renderShifts() {
+        const data = getShiftsForDay();
+
+        if (!shiftTable) {
+          if (!document.getElementById("shiftTable")) {
+            console.error("Missing #shiftTable");
+            return;
+          }
+          // NOTE: Tabulator v5.x เริ่มเตือน selectable → ใช้ selectableRows แทน
+          shiftTable = new Tabulator("#shiftTable", {
+            layout: "fitColumns",
+            height: "360px",
+            placeholder: "No shifts",
+            selectableRows: 1, // <— แทน selectable:1
+            index: "id",
+            reactiveData: false,
+            columns: shiftColumns(),
+            rowClick: onSelectShift,
+            cellEdited: onShiftCellEdited,
+          });
+          onBuiltOnce(shiftTable, () => {
+            shiftTable.setData(data || []);
+            shiftTable.redraw(true);
+            autoSelectFirstShift();
+          });
+        } else {
+          shiftTable.setData(data || []);
+          autoSelectFirstShift();
+        }
+      }
+
+      function renderBreaks() {
+        const te = getCurrentShift();
+        const list = te
+          ? (te.breaks || [])
+              .slice()
+              .sort(
+                (a, b) => new Date(a.start_at || 0) - new Date(b.start_at || 0)
+              )
+          : [];
+
+        if (!breakTable) {
+          if (!document.getElementById("breakTable")) {
+            console.error("Missing #breakTable");
+            return;
+          }
+          breakTable = new Tabulator("#breakTable", {
+            layout: "fitColumns",
+            height: "300px",
+            placeholder: "No breaks",
+            index: "id",
+            reactiveData: false,
+            columns: breakColumns(),
+            cellEdited: onBreakCellEdited,
+          });
+          onBuiltOnce(breakTable, () => {
+            breakTable.setData(list || []);
+            breakTable.redraw(true);
+          });
+        } else {
+          breakTable.setData(list || []);
+        }
+      }
+
+      function autoSelectFirstShift() {
+        const rows = shiftTable.getRows();
+        if (!selectedShiftId && rows.length) {
+          selectedShiftId = rows[0].getData().id;
+          rows[0].select();
+          document.getElementById("breaksFor").textContent = "for Shift #1";
+          document.getElementById("addBreak").disabled = false;
+          renderBreaks();
+        }
+        if (rows.length === 0) {
+          selectedShiftId = null;
+          document.getElementById("breaksFor").textContent = "(select a shift)";
+          document.getElementById("addBreak").disabled = true;
+          breakTable?.clearData();
+        }
+      }
+
+      /* ===== Handlers ===== */
+      function onSelectShift(e, row) {
+        const te = row.getData();
+        selectedShiftId = te.id;
+        const order = row.getPosition(true);
+        document.getElementById(
+          "breaksFor"
+        ).textContent = `for Shift #${order}`;
+        document.getElementById("addBreak").disabled = false;
+        renderBreaks();
+      }
+
+      // 🔧 AUTOSAVE (ส่งครบชุด)
+      async function onShiftCellEdited(cell) {
+        const row = cell.getRow();
+        const te = row.getData();
+        if (!te || te.id == null) {
+          console.warn("Shift row has no id, skip PATCH", te);
+          toast?.("Row has no id (cannot save).", false);
+          return;
+        }
+
+        // สร้าง payload ครบจากทั้งแถว (รวมฟิลด์ที่ไม่ได้แก้ครั้งนี้ด้วย)
+        const payload = buildShiftPayload(te);
+        console.log("PATCH shift", te.id, payload);
+
+        try {
+          await apiPATCH(`${TE_MANUAL}/${te.id}`, payload);
+          toast?.("Saved");
+          await reloadDetails();
+          renderShifts();
+          if (selectedShiftId === te.id) renderBreaks();
+        } catch (err) {
+          console.error("PATCH shift failed", err);
+          toast?.(err?.message || "Save failed", false);
+          // revert เฉพาะ field ที่แก้
+          row.update({ [cell.getField()]: cell.getOldValue() });
+        }
+      }
+
+      async function onBreakCellEdited(cell) {
+        const row = cell.getRow();
+        const b = row.getData();
+        if (!b || b.id == null) {
+          console.warn("Break row has no id, skip PATCH", b);
+          toast?.("Row has no id (cannot save).", false);
+          return;
+        }
+
+        const payload = buildBreakPayload(b);
+        console.log("PATCH break", b.id, payload);
+
+        try {
+          await apiPATCH(`${BR_MANUAL}/${b.id}`, payload);
+          toast?.("Saved");
+          await reloadDetails();
+          renderBreaks();
+        } catch (err) {
+          console.error("PATCH break failed", err);
+          toast?.(err?.message || "Save failed", false);
+          row.update({ [cell.getField()]: cell.getOldValue() });
+        }
+      }
+
+      async function onDeleteShift(e, cell) {
+        e.stopPropagation();
+        const row = cell.getRow();
+        const te = row.getData();
+        if (!confirm("Delete this shift?")) return;
+        try {
+          await apiDELETE(`${TE_MANUAL}/${te.id}`);
+        } catch (_) {
+          try {
+            await apiPATCH(`${TE_MANUAL}/${te.id}`, {
+              status: "cancelled",
+              notes: (te.notes || "") + " [deleted]",
+            });
+          } catch (err) {
+            toast?.(err?.message || "Delete failed");
+            return;
+          }
+        }
+        toast?.("Deleted");
+        await reloadDetails();
+        renderShifts();
+        if (selectedShiftId === te.id) {
+          selectedShiftId = null;
+          document.getElementById("breaksFor").textContent = "(select a shift)";
+          document.getElementById("addBreak").disabled = true;
+          breakTable?.clearData();
+        }
+      }
+
+      async function onDeleteBreak(e, cell) {
+        const row = cell.getRow();
+        const b = row.getData();
+        if (!confirm("Delete this break?")) return;
+        try {
+          await apiDELETE(`${BR_MANUAL}/${b.id}`);
+        } catch (err) {
+          toast?.("Backend has no DELETE /breaks/manual/{id}. Please add it.");
+          return;
+        }
+        toast?.("Deleted");
+        await reloadDetails();
+        renderBreaks();
+      }
+
+      /* ===== Add buttons ===== */
+      document
+        .getElementById("addShift")
+        .addEventListener("click", async () => {
+          const s = `${targetDate}T09:00`;
+          const e = `${targetDate}T18:00`;
+          const payload = {
+            employee_id: Number(currentEmployeeId),
+            clock_in_at: fromLocalInput(s),
+            clock_out_at: fromLocalInput(e),
+            clock_in_method: "manual",
+            clock_out_method: "manual",
+            status: "closed",
+            notes: null,
+          };
+          const created = await apiPOST(TE_MANUAL, payload);
+          console.log("POST shift created", created);
+          toast?.("Shift added");
+          await reloadDetails();
+          renderShifts();
+        });
+
+      document
+        .getElementById("addBreak")
+        .addEventListener("click", async () => {
+          if (!selectedShiftId) return;
+          const s = `${targetDate}T12:00`;
+          const e = `${targetDate}T12:30`;
+          const payload = {
+            time_entry_id: selectedShiftId,
+            break_type: "lunch",
+            start_at: fromLocalInput(s),
+            end_at: fromLocalInput(e),
+            method: "manual",
+            is_paid: false,
+          };
+          const created = await apiPOST(BR_MANUAL, payload);
+          console.log("POST break created", created);
+          toast?.("Break added");
+          await reloadDetails();
+          renderBreaks();
+        });
+
+      /* ===== Boot ===== */
+      async function loadPage() {
+        currentPpId = getQS("pp_id");
+        currentEmployeeId = getQS("employee_id");
+        targetDate = getQS("date");
+
+        if (!currentPpId || !currentEmployeeId || !targetDate) {
+          document.getElementById("header").textContent =
+            "Edit Day — Missing params";
+          return;
+        }
+
+        try {
+          pp = await apiGET(`${PP}/${currentPpId}`);
+        } catch {}
+        try {
+          emp = await apiGET(`${EMP}/${currentEmployeeId}`);
+        } catch {}
+        document.getElementById("header").textContent = `Edit Day — ${
+          emp?.name ?? "Emp #" + currentEmployeeId
+        }`;
+        document.getElementById(
+          "subHeader"
+        ).textContent = `Pay Period: ${fmtDateOnly(
+          pp?.start_at
+        )} → ${fmtDateOnly(pp?.end_at)} | Date: ${targetDate}`;
+
+        const ret = new URL(location.href).searchParams.get("return");
+        document.getElementById("backLink").href =
+          ret ||
+          `timesheet.html?pp_id=${encodeURIComponent(
+            currentPpId
+          )}&employee_id=${encodeURIComponent(currentEmployeeId)}`;
+
+        await reloadDetails();
+        renderShifts();
+
+        setTimeout(() => {
+          shiftTable?.redraw(true);
+          breakTable?.redraw(true);
+        }, 0);
+      }
+      document.addEventListener("DOMContentLoaded", loadPage);
+    </script>
+  </body>
+</html>

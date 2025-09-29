@@ -6,21 +6,62 @@
     <title>Materials · Topnotch – MFG</title>
 
     <link rel="stylesheet" href="/static/css/app.css" />
-    <link rel="stylesheet" href="/static/vendor/tabulator/tabulator_modern.min.css" />
+    <link
+      rel="stylesheet"
+      href="/static/vendor/tabulator/tabulator_modern.min.css"
+    />
 
     <style>
-      .main--edge { padding: 0; height: 100vh; overflow: hidden; }
-      .panel--edge { margin: 0; border-radius: 0; border-left-width: 0; border-right-width: 0; }
-      #listPanel { display: flex; flex-direction: column; height: 100%; min-height: 0; }
-      .list-topbar {
-        display: flex; align-items: center; justify-content: flex-start;
-        gap: 8px; height: 44px; padding: 0; border-bottom: 1px solid #e5e7eb;
+      .main--edge {
+        padding: 0;
+        height: 100vh;
+        overflow: hidden;
       }
-      .list-topbar .search-lg { flex: 0 0 260px; min-width: 200px; height: 36px; padding: 0 12px; border-radius: 0; }
-      #_add { margin-left: 0 !important; height: 36px; border-radius: 0; }
-      #listBody { flex: 1 1 auto; min-height: 0; overflow: auto; }
-      #listBody .tabulator { height: 100% !important; }
-      #listBody .tabulator-cell.wrap { white-space: normal; word-break: break-word; }
+      .panel--edge {
+        margin: 0;
+        border-radius: 0;
+        border-left-width: 0;
+        border-right-width: 0;
+      }
+      #listPanel {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        min-height: 0;
+      }
+      .list-topbar {
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+        gap: 8px;
+        height: 44px;
+        padding: 0;
+        border-bottom: 1px solid #e5e7eb;
+      }
+      .list-topbar .search-lg {
+        flex: 0 0 260px;
+        min-width: 200px;
+        height: 36px;
+        padding: 0 12px;
+        border-radius: 0;
+      }
+      #_add {
+        margin-left: 0 !important;
+        height: 36px;
+        border-radius: 0;
+      }
+      #listBody {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow: auto;
+      }
+      #listBody .tabulator {
+        height: 100% !important;
+      }
+      #listBody .tabulator-cell.wrap {
+        white-space: normal;
+        word-break: break-word;
+      }
     </style>
   </head>
   <body>
@@ -31,7 +72,12 @@
         <section class="panel panel--edge" id="listPanel">
           <div>Materials</div>
           <div class="list-topbar">
-            <input id="_q" type="search" class="search-lg" placeholder="Search materials…" />
+            <input
+              id="_q"
+              type="search"
+              class="search-lg"
+              placeholder="Search materials…"
+            />
             <button id="_add" class="btn" type="button">+ Add</button>
           </div>
           <div id="listBody"></div>

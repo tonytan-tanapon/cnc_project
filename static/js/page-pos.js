@@ -11,7 +11,8 @@ const ENDPOINTS = {
 const PAGED_PER_PAGE = 500;
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
-const UI = { q: "po_q", add: "po_add", table: "po_table" };
+// ใช้ IDs ตาม template แบบ materials
+const UI = { q: "_q", add: "_add", table: "listBody" };
 
 /* ===== STATE ===== */
 let els = {};
@@ -27,8 +28,8 @@ function waitForTableBuilt() {
 }
 
 /* ===== AUTOSAVE GUARDS ===== */
-const createInFlight = new WeakSet();  // rows being created
-const patchTimers = new Map();         // row -> debounce timer
+const createInFlight = new WeakSet(); // rows being created
+const patchTimers = new Map(); // row -> debounce timer
 const PATCH_DEBOUNCE_MS = 350;
 
 /* ===== HELPERS ===== */
@@ -85,7 +86,9 @@ async function fetchCustomers(term) {
     }
   }
   try {
-    const res = await jfetch(`/customers?q=${encodeURIComponent(q)}&page=1&page_size=10`);
+    const res = await jfetch(
+      `/customers?q=${encodeURIComponent(q)}&page=1&page_size=10`
+    );
     const items = Array.isArray(res) ? res : res.items ?? [];
     return items.map((x) => ({
       id: x.id ?? x.customer_id ?? x.customerId,
@@ -109,7 +112,8 @@ function customerEditor(cell, onRendered, success, cancel) {
   attachAutocomplete(input, {
     fetchItems: fetchCustomers,
     getDisplayValue: (it) => (it ? `${it.code} — ${it.name}` : ""),
-    renderItem: (it) => `<div class="ac-row"><b>${safe(it.code)}</b> — ${safe(it.name)}</div>`,
+    renderItem: (it) =>
+      `<div class="ac-row"><b>${safe(it.code)}</b> — ${safe(it.name)}</div>`,
     openOnFocus: true,
     minChars: 0,
     debounceMs: 200,
@@ -122,7 +126,7 @@ function customerEditor(cell, onRendered, success, cancel) {
         customer_name: it.name,
         customer_disp: `${it.code} — ${it.name}`,
       });
-      success(`${it.code} — ${it.name}`); // this fires cellEdited → autosave
+      success(`${it.code} — ${it.name}`); // triggers cellEdited → autosave
     },
   });
 
@@ -157,7 +161,14 @@ function customerEditor(cell, onRendered, success, cancel) {
 /* ===== Columns ===== */
 function makeColumns() {
   return [
-    { title: "No.", width: 70, hozAlign: "right", headerHozAlign: "right", headerSort: false, formatter: "rownum" },
+    {
+      title: "No.",
+      width: 70,
+      hozAlign: "right",
+      headerHozAlign: "right",
+      headerSort: false,
+      formatter: "rownum",
+    },
     { title: "PO No.", field: "po_number", width: 150, editor: "input" },
     {
       title: "PO line",
@@ -176,9 +187,29 @@ function makeColumns() {
         if (a) e.stopPropagation();
       },
     },
-    { title: "Customer", field: "customer_disp", minWidth: 260, editor: customerEditor, headerSort: true },
-    { title: "Description", field: "description", minWidth: 220, widthGrow: 2, editor: "input", cssClass: "wrap" },
-    { title: "Created", field: "created_at", width: 180, headerSort: true, editor: false, formatter: (c) => fmtDate(c.getValue()) },
+    {
+      title: "Customer",
+      field: "customer_disp",
+      minWidth: 260,
+      editor: customerEditor,
+      headerSort: true,
+    },
+    {
+      title: "Description",
+      field: "description",
+      minWidth: 220,
+      widthGrow: 2,
+      editor: "input",
+      cssClass: "wrap",
+    },
+    {
+      title: "Created",
+      field: "created_at",
+      width: 180,
+      headerSort: true,
+      editor: false,
+      formatter: (c) => fmtDate(c.getValue()),
+    },
     {
       title: "Actions",
       field: "_actions",
@@ -240,7 +271,8 @@ function focusSiblingEditable(cell, dir /* +1 or -1 */) {
 
   targetCell.edit(true);
   const el = targetCell.getElement();
-  const input = el && el.querySelector("input, textarea, [contenteditable='true']");
+  const input =
+    el && el.querySelector("input, textarea, [contenteditable='true']");
   if (input) {
     const v = input.value;
     input.focus();
@@ -253,20 +285,19 @@ function focusSiblingEditable(cell, dir /* +1 or -1 */) {
 async function autosaveCell(cell, opts = {}) {
   const { fromHistory = false, revert } = opts;
   const row = cell.getRow();
-  const d   = row.getData();
+  const d = row.getData();
   const fld = cell.getField();
   const newVal = cell.getValue();
   const oldVal = fromHistory ? undefined : cell.getOldValue();
 
-  // Required fields: po_number and customer_id
+  // Required fields
   if (fld === "po_number" && !trim(newVal)) {
     toast("PO No. is required", false);
     if (!fromHistory) cell.setValue(oldVal, true);
     else if (typeof revert === "function") revert();
     return;
   }
-  if (fld === "customer_disp" && (d.customer_id == null)) {
-    // user typed free text but didn't pick an item
+  if (fld === "customer_disp" && d.customer_id == null) {
     toast("Pick a customer from the list", false);
     if (!fromHistory) cell.setValue(oldVal, true);
     else if (typeof revert === "function") revert();
@@ -275,7 +306,7 @@ async function autosaveCell(cell, opts = {}) {
 
   const payload = buildPayload(d);
 
-  // CREATE: only when no id and both required present
+  // CREATE
   if (!d.id) {
     if (!requiredReady(d)) return;
     if (createInFlight.has(row)) return;
@@ -299,7 +330,7 @@ async function autosaveCell(cell, opts = {}) {
     return;
   }
 
-  // UPDATE: debounce per row
+  // UPDATE (debounced)
   if (patchTimers.has(row)) clearTimeout(patchTimers.get(row));
   const t = setTimeout(async () => {
     patchTimers.delete(row);
@@ -339,7 +370,12 @@ async function deleteRow(row) {
     row.delete();
     return;
   }
-  if (!confirm(`Delete this PO "${d.po_number || d.id}"?\nThis action cannot be undone.`)) return;
+  if (
+    !confirm(
+      `Delete this PO "${d.po_number || d.id}"?\nThis action cannot be undone.`
+    )
+  )
+    return;
   try {
     await jfetch(ENDPOINTS.byId(d.id), { method: "DELETE" });
     row.delete();
@@ -353,60 +389,75 @@ async function deleteRow(row) {
 function initTable() {
   table = new Tabulator(`#${UI.table}`, {
     layout: "fitColumns",
-    height: "calc(100vh - 220px)",
-    data: [], // start empty, we will setData after tableBuilt
+    height: "100%",
+    data: [],
     columns: makeColumns(),
     placeholder: "No POs",
     reactiveData: true,
     index: "id",
     history: true,
-    selectableRows: 1, // (select row for Delete key)
+    selectableRows: 1,
   });
 
   table.on("tableBuilt", () => {
     isBuilt = true;
     requestAnimationFrame(() => table.redraw(true));
-    // Bind near-bottom loader after Tabulator DOM is ready
-    bindIntersectionLoader();
+    bindIntersectionLoader(); // after table DOM exists
   });
 
-  // Tab / Shift+Tab while editing
+  // Tab / Shift+Tab
   table.on("cellEditing", (cell) => {
     setTimeout(() => {
       const el = cell.getElement();
-      const input = el && el.querySelector("input, textarea, [contenteditable='true']");
+      const input =
+        el && el.querySelector("input, textarea, [contenteditable='true']");
       if (!input) return;
       const handler = (e) => {
         if (e.key === "Tab") {
           e.preventDefault();
           e.stopPropagation();
-          if (typeof e.stopImmediatePropagation === "function") e.stopImmediatePropagation();
+          if (typeof e.stopImmediatePropagation === "function")
+            e.stopImmediatePropagation();
           focusSiblingEditable(cell, e.shiftKey ? -1 : +1);
         }
       };
       input.addEventListener("keydown", handler);
-      input.addEventListener("blur", () => input.removeEventListener("keydown", handler), { once: true });
+      input.addEventListener(
+        "blur",
+        () => input.removeEventListener("keydown", handler),
+        { once: true }
+      );
     }, 0);
   });
 
-  // Autosave on normal edits
-  table.on("cellEdited", (cell) => {
-    autosaveCell(cell);
-  });
-
-  // Autosave on undo/redo
+  // Autosave hooks
+  table.on("cellEdited", (cell) => autosaveCell(cell));
   table.on("historyUndo", (action, component) => {
-    if (action === "cellEdit" && component && typeof component.getRow === "function") {
-      autosaveCell(component, { fromHistory: true, revert: () => table.redo() });
+    if (
+      action === "cellEdit" &&
+      component &&
+      typeof component.getRow === "function"
+    ) {
+      autosaveCell(component, {
+        fromHistory: true,
+        revert: () => table.redo(),
+      });
     }
   });
   table.on("historyRedo", (action, component) => {
-    if (action === "cellEdit" && component && typeof component.getRow === "function") {
-      autosaveCell(component, { fromHistory: true, revert: () => table.undo() });
+    if (
+      action === "cellEdit" &&
+      component &&
+      typeof component.getRow === "function"
+    ) {
+      autosaveCell(component, {
+        fromHistory: true,
+        revert: () => table.undo(),
+      });
     }
   });
 
-  // Global keys: Undo/Redo + Delete selected row
+  // Global keys
   document.addEventListener("keydown", (e) => {
     const mod = e.ctrlKey || e.metaKey;
     if (mod && e.key.toLowerCase() === "z") {
@@ -426,7 +477,7 @@ function initTable() {
   });
 }
 
-/* ===== Keyset Infinite Scroll (IntersectionObserver, near-bottom only) ===== */
+/* ===== Keyset Infinite Scroll (Observer + dynamic sentinel) ===== */
 let cursor = null;
 let ksLoading = false;
 let ksDone = false;
@@ -439,9 +490,23 @@ function getTableHolder() {
   return document.querySelector(`#${UI.table} .tabulator-tableholder`);
 }
 
+function ensureSentinel() {
+  const holder = getTableHolder();
+  if (!holder) return null;
+  let s = holder.querySelector(".po-sentinel");
+  if (!s) {
+    s = document.createElement("div");
+    s.className = "po-sentinel";
+    s.style.height = "1px";
+    s.style.width = "100%";
+    holder.appendChild(s);
+  }
+  return s;
+}
+
 function bindIntersectionLoader() {
   const holder = getTableHolder();
-  const sentinel = document.getElementById("po_sentinel");
+  const sentinel = ensureSentinel();
   if (!holder || !sentinel) return;
 
   if (io) io.disconnect();
@@ -458,18 +523,14 @@ function bindIntersectionLoader() {
       lastLoadAt = now;
       loadKeyset(ksKeyword, cursor);
     },
-    {
-      root: holder,
-      threshold: 0,
-      rootMargin: "0px 0px 200px 0px",
-    }
+    { root: holder, threshold: 0, rootMargin: "0px 0px 200px 0px" }
   );
 
   io.observe(sentinel);
 }
 
 async function loadKeyset(keyword = "", afterId = null) {
-  await waitForTableBuilt(); // ensure table is ready for setData/addData
+  await waitForTableBuilt();
   if (ksLoading || ksDone) return;
   ksLoading = true;
   const mySeq = ++ksSeq;
@@ -481,13 +542,14 @@ async function loadKeyset(keyword = "", afterId = null) {
     usp.set("limit", String(PAGED_PER_PAGE));
 
     const res = await jfetch(ENDPOINTS.keyset(usp.toString()));
-    if (mySeq !== ksSeq) return; // stale response
+    if (mySeq !== ksSeq) return; // stale
 
     const items = Array.isArray(res) ? res : res.items ?? [];
     const rows = items.map(normalizeRow);
 
     if (!afterId) {
       table.setData(rows);
+      ensureSentinel(); // make sure sentinel exists after first paint
     } else {
       await table.addData(rows);
     }
@@ -515,7 +577,7 @@ function bindSearchKeyset() {
       ksKeyword = box.value.trim();
       cursor = null;
       ksDone = false;
-      ksSeq++; // cancel in-flight older requests implicitly
+      ksSeq++; // cancel older requests
       loadKeyset(ksKeyword, null); // reload first page
     }, 300);
   });
@@ -546,7 +608,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   bindAdd();
   bindSearchKeyset();
 
-  // initial keyset load AFTER tableBuilt
   await waitForTableBuilt();
   cursor = null;
   ksDone = false;

@@ -16,7 +16,10 @@ const strOrNull = (v) => {
 function showToast(msg, ok = true) {
   const el = $("toast");
   const txt = $("toastText");
-  if (!el || !txt) { alert(msg); return; }
+  if (!el || !txt) {
+    alert(msg);
+    return;
+  }
   txt.textContent = msg;
   el.classList.remove("show", "ok", "err");
   el.classList.add("show", ok ? "ok" : "err");
@@ -40,9 +43,16 @@ async function jfetch(path, opt = {}) {
   const res = await fetch(url, { ...opt, headers });
   let data = null;
   const text = await res.text();
-  try { data = text ? JSON.parse(text) : null; } catch { data = text; }
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    data = text;
+  }
   if (!res.ok) {
-    const msg = (data && (data.detail || data.message)) || res.statusText || "Request failed";
+    const msg =
+      (data && (data.detail || data.message)) ||
+      res.statusText ||
+      "Request failed";
     throw new Error(msg);
   }
   return data;
@@ -62,7 +72,10 @@ async function fetchUserPermissions(userId) {
 // Render table
 // -----------------------------
 function renderUsersTable(holder, rows) {
-  if (!holder) { showToast('ไม่พบ element id="u_table"', false); return; }
+  if (!holder) {
+    showToast('ไม่พบ element id="u_table"', false);
+    return;
+  }
   if (!Array.isArray(rows) || rows.length === 0) {
     holder.innerHTML = `<div class="hint">No users.</div>`;
     return;
@@ -85,15 +98,16 @@ function renderUsersTable(holder, rows) {
     </thead>
   `;
 
-  const tbody = rows.map(u => {
-    const roles = (u._roles || []).map(r => r.code).join(", ");
-    const perms = (u._permissions || []).map(p => p.code).join(", ");
+  const tbody = rows
+    .map((u) => {
+      const roles = (u._roles || []).map((r) => r.code).join(", ");
+      const perms = (u._permissions || []).map((p) => p.code).join(", ");
 
-    const actBtn = u.is_active
-      ? `<button class="btn btn-sm" data-action="deactivate" data-id="${u.id}">Deactivate</button>`
-      : `<button class="btn btn-sm" data-action="activate" data-id="${u.id}">Activate</button>`;
+      const actBtn = u.is_active
+        ? `<button class="btn btn-sm" data-action="deactivate" data-id="${u.id}">Deactivate</button>`
+        : `<button class="btn btn-sm" data-action="activate" data-id="${u.id}">Activate</button>`;
 
-    return `
+      return `
       <tr>
         <td>${u.id}</td>
         <td>
@@ -109,14 +123,23 @@ function renderUsersTable(holder, rows) {
         <td style="max-width:320px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${perms}">${perms}</td>
         <td style="display:flex;gap:6px;flex-wrap:wrap">
           ${actBtn}
-          <button class="btn btn-sm" data-action="setpw" data-id="${u.id}">Set Password</button>
-          <button class="btn btn-sm" data-action="assign-role" data-id="${u.id}">Assign Role</button>
-          <button class="btn btn-sm" data-action="unassign-role" data-id="${u.id}">Unassign Role</button>
-          <button class="btn btn-sm danger" data-action="delete" data-id="${u.id}">Delete</button>
+          <button class="btn btn-sm" data-action="setpw" data-id="${
+            u.id
+          }">Set Password</button>
+          <button class="btn btn-sm" data-action="assign-role" data-id="${
+            u.id
+          }">Assign Role</button>
+          <button class="btn btn-sm" data-action="unassign-role" data-id="${
+            u.id
+          }">Unassign Role</button>
+          <button class="btn btn-sm danger" data-action="delete" data-id="${
+            u.id
+          }">Delete</button>
         </td>
       </tr>
     `;
-  }).join("");
+    })
+    .join("");
 
   holder.innerHTML = `
     <table class="table">
@@ -126,17 +149,17 @@ function renderUsersTable(holder, rows) {
   `;
 
   // wire actions
-  holder.querySelectorAll("button[data-action]").forEach(btn => {
+  holder.querySelectorAll("button[data-action]").forEach((btn) => {
     const action = btn.getAttribute("data-action");
     const id = Number(btn.getAttribute("data-id"));
     btn.addEventListener("click", async () => {
       try {
-        if (action === "activate")        await activateUser(id);
+        if (action === "activate") await activateUser(id);
         else if (action === "deactivate") await deactivateUser(id);
-        else if (action === "setpw")      await setPasswordPrompt(id);
-        else if (action === "assign-role")   await assignRolePrompt(id);
+        else if (action === "setpw") await setPasswordPrompt(id);
+        else if (action === "assign-role") await assignRolePrompt(id);
         else if (action === "unassign-role") await unassignRolePrompt(id);
-        else if (action === "delete")     await deleteUserConfirm(id);
+        else if (action === "delete") await deleteUserConfirm(id);
         await loadUsers();
       } catch (e) {
         showToast(e.message || String(e), false);
@@ -160,23 +183,26 @@ async function loadUsers() {
     let users = await jfetch(`/users`);
 
     // enrich roles/permissions
-    users = await Promise.all(users.map(async (u) => {
-      try {
-        const [roles, perms] = await Promise.all([
-          fetchUserRoles(u.id),
-          fetchUserPermissions(u.id),
-        ]);
-        return { ...u, _roles: roles, _permissions: perms };
-      } catch {
-        return { ...u, _roles: [], _permissions: [] };
-      }
-    }));
+    users = await Promise.all(
+      users.map(async (u) => {
+        try {
+          const [roles, perms] = await Promise.all([
+            fetchUserRoles(u.id),
+            fetchUserPermissions(u.id),
+          ]);
+          return { ...u, _roles: roles, _permissions: perms };
+        } catch {
+          return { ...u, _roles: [], _permissions: [] };
+        }
+      })
+    );
 
     // client filter
     const filtered = keyword
-      ? users.filter(u =>
-          (u.username ?? "").toLowerCase().includes(keyword.toLowerCase()) ||
-          (u.email ?? "").toLowerCase().includes(keyword.toLowerCase())
+      ? users.filter(
+          (u) =>
+            (u.username ?? "").toLowerCase().includes(keyword.toLowerCase()) ||
+            (u.email ?? "").toLowerCase().includes(keyword.toLowerCase())
         )
       : users;
 
@@ -239,10 +265,13 @@ async function deactivateUser(userId) {
 async function setPasswordPrompt(userId) {
   const pw = prompt("Enter new password (>= 6 chars):");
   if (!pw) return;
-  if (pw.length < 6) { showToast("Password too short", false); return; }
+  if (pw.length < 6) {
+    showToast("Password too short", false);
+    return;
+  }
   await jfetch(`/users/${userId}/set-password`, {
     method: "POST",
-    body: JSON.stringify({ new_password: pw })
+    body: JSON.stringify({ new_password: pw }),
   });
   showToast("Password updated");
 }
@@ -252,7 +281,7 @@ async function assignRolePrompt(userId) {
   if (!roleCode) return;
   await jfetch(`/users/${userId}/roles`, {
     method: "POST",
-    body: JSON.stringify({ role_code: roleCode.trim().toUpperCase() })
+    body: JSON.stringify({ role_code: roleCode.trim().toUpperCase() }),
   });
   showToast("Role assigned");
 }
@@ -260,9 +289,14 @@ async function assignRolePrompt(userId) {
 async function unassignRolePrompt(userId) {
   const roleCode = prompt("Enter role code to unassign:");
   if (!roleCode) return;
-  await jfetch(`/users/${userId}/roles/${encodeURIComponent(roleCode.trim().toUpperCase())}`, {
-    method: "DELETE"
-  });
+  await jfetch(
+    `/users/${userId}/roles/${encodeURIComponent(
+      roleCode.trim().toUpperCase()
+    )}`,
+    {
+      method: "DELETE",
+    }
+  );
   showToast("Role unassigned");
 }
 

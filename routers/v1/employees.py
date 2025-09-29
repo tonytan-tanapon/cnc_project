@@ -134,7 +134,7 @@ def get_employee(emp_id: int, db: Session = Depends(get_db)):
     return e
 
 
-@router.put("/{emp_id}", response_model=EmployeeOut)
+@router.patch("/{emp_id}", response_model=EmployeeOut)
 def update_employee(emp_id: int, payload: EmployeeUpdate, db: Session = Depends(get_db)):
     e = db.get(Employee, emp_id)
     if not e:
