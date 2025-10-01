@@ -143,29 +143,45 @@ def list_customers(
 def list_customers_keyset(
   q: Optional[str] = Query(None, description="Search by code or name (ILIKE)"),
   limit: int = Query(25, ge=1, le=200),
-  cursor: Optional[int] = Query(None, description="fetch id < cursor (DESC)"),
+  cursor: Optional[int] = Query(None, description="(DESC) Next page (older): fetch id < cursor"),
+  before: Optional[int] = Query(None, description="(DESC) Prev page (newer): fetch id > before"),
   db: Session = Depends(get_db),
 ):
+  """
+  Keyset (DESC): แสดงจาก id ใหม่ -> เก่า
+    - หน้าแรก: ไม่ส่ง cursor/before (ORDER BY id DESC)
+    - Next (ไปเก่า): ส่ง cursor=<id สุดท้ายของหน้าปัจจุบัน> และใช้ id < cursor
+    - Prev (ไปใหม่): ส่ง before=<id แรกของหน้าปัจจุบัน> และใช้ id > before
+  คืนค่า items เป็น DESC เสมอ
+  """
   qry = db.query(Customer)
   if q and q.strip():
     like = f"%{q.strip()}%"
     qry = qry.filter(or_(Customer.code.ilike(like), Customer.name.ilike(like)))
 
-  if cursor is not None:
-    qry = qry.filter(Customer.id < cursor)
+  going_prev = before is not None and cursor is None
 
-  # order DESC ตลอดเวลา → ใหม่ -> เก่า
-  qry = qry.order_by(Customer.id.desc())
+  if going_prev:
+    # ไป "ใหม่" กว่า: id > before, ดึง ASC เพื่อหยิบที่ใหม่กว่า แล้ว reverse เป็น DESC ก่อนส่งออก
+    qry = qry.filter(Customer.id > before).order_by(Customer.id.asc())
+    rows = qry.limit(limit + 1).all()
+    rows = list(reversed(rows))  # กลับเป็น DESC (ใหม่ -> เก่า)
+  else:
+    # หน้าแรก หรือไป "เก่า" กว่า: id < cursor, ORDER BY DESC
+    if cursor is not None:
+      qry = qry.filter(Customer.id < cursor)
+    qry = qry.order_by(Customer.id.desc())
+    rows = qry.limit(limit + 1).all()
 
-  rows = qry.limit(limit + 1).all()
   page_rows = rows[:limit]
   has_more = len(rows) > limit
 
-  items: List[CustomerOut] = [CustomerOut.model_validate(r) for r in page_rows]
+  items: List[CustomerOut] = [CustomerOut.model_validate(r) for r in page_rows]  # Pydantic v2
+  # ถ้า v1: items = [CustomerOut.from_orm(r) for r in page_rows]
 
-  # next_cursor เป็น "min id" ของหน้านี้เสมอ
-  next_cursor = min((r.id for r in page_rows), default=None)
-  prev_cursor = None  # ไม่รองรับย้อนกลับในเวอร์ชันนี้ (ต้องการเฉพาะ infinite scroll ลงล่าง)
+  # สำหรับ DESC: แถวแรก = ใหม่สุด, แถวสุดท้าย = เก่าสุด ของหน้านี้
+  next_cursor = page_rows[-1].id if page_rows else None  # ไป "เก่า" กว่า
+  prev_cursor = page_rows[0].id if page_rows else None   # ไป "ใหม่" กว่า
 
   return {
     "items": items,
@@ -173,7 +189,6 @@ def list_customers_keyset(
     "prev_cursor": prev_cursor,
     "has_more": has_more,
   }
-
 
 
 # ---------- lookup (ต้องอยู่เหนือ /{customer_id}) ----------

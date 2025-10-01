@@ -3,9 +3,18 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>
-      Kiosk — Time Clock (PIN only, colored buttons, protected actions)
-    </title>
+    <title>Kiosk — Time Clock (Offline-first + Sync)</title>
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#111" />
+    <link rel="manifest" href="/static/manifest.json" />
+    <meta name="theme-color" content="#111" />
+    <link rel="icon" href="/static/icons/icon-192.png" sizes="192x192" />
+    <link rel="apple-touch-icon" href="/static/icons/icon-192.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta
+      name="apple-mobile-web-app-status-bar-style"
+      content="black-translucent"
+    />
     <style>
       :root {
         --bg: #fff;
@@ -19,14 +28,12 @@
         --ebr: #6366f1;
         --disabled: #e5e7eb;
 
-        /* Action button sizing (tweak these) */
-        --btn-min: 220px; /* minimum height */
-        --btn-vh: 24vh; /* responsive chunk of viewport height */
-        --btn-max: 360px; /* maximum height */
+        --btn-min: 220px;
+        --btn-vh: 24vh;
+        --btn-max: 360px;
         --btn-radius: 12px;
-
-        --btn-fs-min: 42px; /* minimum font size */
-        --btn-fs-vw: 4.8vw; /* responsive scaling */
+        --btn-fs-min: 42px;
+        --btn-fs-vw: 4.8vw;
         --btn-fs-max: 84px;
       }
 
@@ -138,14 +145,35 @@
         background: #d97706;
       }
 
-      /* Button layout */
+      /* Sync badge */
+      .sync {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 14px;
+        padding: 6px 10px;
+        border: 2px solid var(--line);
+        border-radius: 999px;
+      }
+      .sync .led {
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+        background: #9ca3af;
+      }
+      .sync.online .led {
+        background: #16a34a;
+      }
+      .sync.offline .led {
+        background: #ef4444;
+      }
+
+      /* Buttons */
       .grid-actions {
         display: grid;
         grid-template-columns: 1fr;
         gap: 16px;
       }
-
-      /* BIG ACTION BUTTONS */
       .bigbtn {
         display: flex;
         align-items: center;
@@ -154,18 +182,18 @@
         border-radius: var(--btn-radius);
         min-height: clamp(var(--btn-min), var(--btn-vh), var(--btn-max));
         padding: 36px 28px;
-        font-weight: 800;
         color: #fff;
         box-shadow: var(--shadow);
         cursor: pointer;
+        font-weight: 800;
+        line-height: 1.1;
+        white-space: normal;
+        text-wrap: balance;
         font-size: clamp(
           var(--btn-fs-min),
           var(--btn-fs-vw),
           var(--btn-fs-max)
         );
-        line-height: 1.1;
-        white-space: normal;
-        text-wrap: balance;
       }
       .bigbtn {
         gap: 14px;
@@ -194,8 +222,6 @@
         box-shadow: none;
         transform: none;
       }
-
-      /* Action colors */
       .btn-in {
         background: var(--in);
       }
@@ -257,13 +283,14 @@
         height: 16px;
         border-radius: 999px;
         border: 2px solid var(--line);
+        display: inline-block;
       }
       .passdot.filled {
         background: #111;
         border-color: #111;
       }
 
-      /* Topbar */
+      /* Topbar (if used) */
       .topbar {
         display: flex;
         align-items: center;
@@ -293,7 +320,7 @@
         white-space: nowrap;
       }
 
-      /* Row for Start Break + Clock Out side-by-side */
+      /* Two-column row for Start Break + Clock Out */
       .row-2 {
         display: grid;
         grid-template-columns: 1fr 1fr;
@@ -303,8 +330,6 @@
         .bigbtn:not([style*="display: none"]) {
         grid-column: 1 / -1;
       }
-
-      /* Mobile */
       @media (max-width: 540px) {
         .row-2 {
           grid-template-columns: 1fr;
@@ -324,7 +349,13 @@
             aria-label="Enter 4-digit code"
             aria-live="polite"
           ></span>
-          <span id="clock" aria-live="polite"></span>
+          <div style="display: flex; align-items: center; gap: 10px">
+            <span id="clock" aria-live="polite"></span>
+            <span id="sync_badge" class="sync offline" title="Sync status"
+              ><span class="led"></span
+              ><span class="txt">Offline • 0</span></span
+            >
+          </div>
         </div>
         <div class="keypad" id="id_pad" style="margin-top: 16px"></div>
       </div>
@@ -451,15 +482,15 @@
       import { $, jfetch, toast } from "/static/js/api.js?v=1";
 
       /* ----------------- API base ----------------- */
-      const API_BASE = ""; // same origin as your kiosk.html
+      const API_BASE = ""; // same-origin
       const api = (p) => `${API_BASE}${p}`;
 
-      /* ----------------- Offline keys & helpers ----------------- */
+      /* ----------------- offline storage keys ----------------- */
       const QUEUE_KEY = "kiosk_queue_v1";
-      const EMP_CACHE_KEY = "kiosk_emp_cache_v1";
-      const EVENTS_PREFIX = "kiosk_events_v1_";
-      const EMP_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+      const EMP_CACHE_KEY = "kiosk_emp_cache_v1"; // { "1234": {name, employee_id, updated_at} }
+      const EVENTS_PREFIX = "kiosk_events_v1_"; // per-day per-code pending events
 
+      /* ----------------- utils ----------------- */
       const pad = (n) => String(n).padStart(2, "0");
       const fmtTime = (ts) => {
         if (!ts) return "";
@@ -487,123 +518,14 @@
         `loc-${Date.now().toString(36)}-${Math.random()
           .toString(36)
           .slice(2, 8)}`;
-
-      function todayKey(code) {
+      const todayKey = (code) => {
         const d = new Date();
         const y = d.getFullYear();
         const m = pad(d.getMonth() + 1);
-        const dd = pad(d.getDate());
-        return `${EVENTS_PREFIX}${y}-${m}-${dd}::${code || "unknown"}`;
-      }
+        const day = pad(d.getDate());
+        return `${EVENTS_PREFIX}${y}-${m}-${day}::${code || "unknown"}`;
+      };
 
-      /* local events (for table) */
-      function pushLocalEvent(code, ev) {
-        if (!code) return;
-        const key = todayKey(code);
-        const arr = JSON.parse(localStorage.getItem(key) || "[]");
-        arr.push(ev);
-        localStorage.setItem(key, JSON.stringify(arr));
-      }
-      function getLocalEvents(code) {
-        if (!code) return [];
-        const key = todayKey(code);
-        try {
-          return JSON.parse(localStorage.getItem(key) || "[]");
-        } catch {
-          return [];
-        }
-      }
-
-      /* employee cache */
-      function loadEmpCache() {
-        try {
-          return JSON.parse(localStorage.getItem(EMP_CACHE_KEY) || "{}");
-        } catch {
-          return {};
-        }
-      }
-      function saveEmpCache(c) {
-        localStorage.setItem(EMP_CACHE_KEY, JSON.stringify(c));
-      }
-      function rememberEmployee(code, info) {
-        if (!code) return;
-        const c = loadEmpCache();
-        c[code] = { ...(c[code] || {}), ...info, updated_at: Date.now() };
-        saveEmpCache(c);
-      }
-      function recallEmployee(code) {
-        const rec = loadEmpCache()[code];
-        if (!rec) return null;
-        if (EMP_TTL_MS && Date.now() - (rec.updated_at || 0) > EMP_TTL_MS)
-          return null;
-        return rec;
-      }
-
-      /* queue for offline POSTs */
-      function loadQueue() {
-        try {
-          return JSON.parse(localStorage.getItem(QUEUE_KEY) || "[]");
-        } catch {
-          return [];
-        }
-      }
-      function saveQueue(q) {
-        localStorage.setItem(QUEUE_KEY, JSON.stringify(q));
-      }
-
-      async function safePost(endpoint, body) {
-        const attempt = async () =>
-          jfetch(api(endpoint), { method: "POST", body: JSON.stringify(body) });
-        if (navigator.onLine) {
-          try {
-            const res = await attempt();
-            return { ok: true, queued: false, res };
-          } catch (e) {
-            /* fall back to queue */
-          }
-        }
-        const q = loadQueue();
-        q.push({
-          id: uuid(),
-          endpoint,
-          method: "POST",
-          body,
-          created_at: Date.now(),
-          tries: 0,
-        });
-        saveQueue(q);
-        return { ok: false, queued: true };
-      }
-
-      async function processQueue() {
-        const q = loadQueue();
-        if (q.length === 0 || !navigator.onLine) return;
-        let changed = false;
-        for (let i = 0; i < q.length; i++) {
-          const item = q[i];
-          try {
-            await jfetch(api(item.endpoint), {
-              method: item.method,
-              body: JSON.stringify(item.body),
-            });
-            q.splice(i, 1);
-            i--;
-            changed = true;
-          } catch (e) {
-            item.tries = (item.tries || 0) + 1;
-          }
-        }
-        if (changed) saveQueue(q);
-        if ($("v_act").classList.contains("active") && state.code) {
-          try {
-            await fetchStateByCode(state.code);
-          } catch {}
-        }
-      }
-      setInterval(processQueue, 15000);
-      window.addEventListener("online", processQueue);
-
-      /* ----------------- UI helpers ----------------- */
       function hide(el) {
         if (!el) return;
         if (document.activeElement === el) el.blur();
@@ -634,6 +556,168 @@
         });
       }
 
+      function fmtDateTime(ts) {
+        if (!ts) return "";
+        const d = new Date(ts);
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, "0");
+        const dd = String(d.getDate()).padStart(2, "0");
+        const hh = String(d.getHours()).padStart(2, "0");
+        const mi = String(d.getMinutes()).padStart(2, "0");
+        const ss = String(d.getSeconds()).padStart(2, "0");
+        return `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss}`;
+      }
+
+      /* ----------------- sync badge ----------------- */
+      function loadQueue() {
+        try {
+          return JSON.parse(localStorage.getItem(QUEUE_KEY) || "[]");
+        } catch {
+          return [];
+        }
+      }
+      function saveQueue(q) {
+        localStorage.setItem(QUEUE_KEY, JSON.stringify(q));
+      }
+      function pendingCount() {
+        return loadQueue().length;
+      }
+      function updateSyncBadge() {
+        const el = $("sync_badge");
+        if (!el) return;
+        const online = navigator.onLine;
+        el.classList.remove("online", "offline");
+        el.classList.add(online ? "online" : "offline");
+        const n = pendingCount();
+        el.querySelector(".txt").textContent =
+          (online ? "Online" : "Offline") + " • " + n;
+      }
+
+      window.addEventListener("online", () => {
+        updateSyncBadge();
+        processQueue();
+      });
+      window.addEventListener("offline", () => {
+        updateSyncBadge();
+      });
+
+      /* ----------------- events cache (for "Last 4") ----------------- */
+      function pushLocalEvent(code, ev) {
+        // ev = { kind, ts, note? }
+        if (!code) return;
+        const key = todayKey(code);
+        const arr = JSON.parse(localStorage.getItem(key) || "[]");
+        arr.push(ev);
+        localStorage.setItem(key, JSON.stringify(arr));
+      }
+      function getLocalEvents(code) {
+        if (!code) return [];
+        const key = todayKey(code);
+        try {
+          return JSON.parse(localStorage.getItem(key) || "[]");
+        } catch {
+          return [];
+        }
+      }
+      function clearOldEventCaches() {
+        // optional: keep only today’s by prefix
+        const pref = EVENTS_PREFIX;
+        for (const k of Object.keys(localStorage)) {
+          if (k.startsWith(pref)) {
+            // leave cleanup to browser quota; or implement TTL here if needed
+          }
+        }
+      }
+
+      /* ----------------- employee cache ----------------- */
+      function loadEmpCache() {
+        try {
+          return JSON.parse(localStorage.getItem(EMP_CACHE_KEY) || "{}");
+        } catch {
+          return {};
+        }
+      }
+      function saveEmpCache(c) {
+        localStorage.setItem(EMP_CACHE_KEY, JSON.stringify(c));
+      }
+      function rememberEmployee(code, info) {
+        if (!code) return;
+        const c = loadEmpCache();
+        c[code] = { ...(c[code] || {}), ...info, updated_at: Date.now() };
+        saveEmpCache(c);
+      }
+      function recallEmployee(code) {
+        const c = loadEmpCache();
+        return c[code] || null;
+      }
+
+      /* ----------------- safe POST (queue when offline/fail) ----------------- */
+      async function safePost(endpoint, body) {
+        const attempt = async () =>
+          jfetch(api(endpoint), { method: "POST", body: JSON.stringify(body) });
+        // try online first if navigator says online
+        if (navigator.onLine) {
+          try {
+            const res = await attempt();
+            return { ok: true, queued: false, res };
+          } catch (e) {
+            /* fall through to queue */
+          }
+        }
+        // queue it
+        const q = loadQueue();
+        q.push({
+          id: uuid(),
+          endpoint,
+          method: "POST",
+          body,
+          created_at: Date.now(),
+          tries: 0,
+        });
+        saveQueue(q);
+        updateSyncBadge();
+        return { ok: false, queued: true };
+      }
+
+      async function processQueue() {
+        const q = loadQueue();
+        if (q.length === 0) return;
+        if (!navigator.onLine) return;
+
+        let changed = false;
+        for (let i = 0; i < q.length; i++) {
+          const item = q[i];
+          try {
+            await jfetch(api(item.endpoint), {
+              method: item.method,
+              body: JSON.stringify(item.body),
+            });
+            // success -> remove
+            q.splice(i, 1);
+            i--;
+            changed = true;
+          } catch (e) {
+            // backoff (simple): bump tries, keep it
+            item.tries = (item.tries || 0) + 1;
+            // optional: cap tries or add next_at ifต้องการ
+          }
+        }
+        if (changed) {
+          saveQueue(q);
+          updateSyncBadge();
+        }
+        // refresh UI state/log if we're in-actions view
+        if ($("v_act").classList.contains("active") && state.code) {
+          try {
+            await fetchStateByCode(state.code);
+          } catch {
+            /* ignore */
+          }
+        }
+      }
+      // periodic retry
+      setInterval(processQueue, 15000);
+
       /* ----------------- state ----------------- */
       const state = {
         code: "",
@@ -644,8 +728,12 @@
         breakId: null,
         status: "off",
         busy: false,
-        hasBreakUsed: false,
-        shadow: { openTimeEntryId: null, openBreakId: null }, // ใช้ตอนออฟไลน์
+        hasBreakUsed: false, // based on current time entry
+        shadow: {
+          // local-only ids to simulate open shift/break when offline
+          openTimeEntryId: null,
+          openBreakId: null,
+        },
       };
 
       /* ----------------- UI logic (hide/show buttons) ----------------- */
@@ -654,6 +742,7 @@
         const outBtn = $("btn_out");
         const sbrBtn = $("btn_sbr");
         const ebrBtn = $("btn_ebr");
+
         [inBtn, outBtn, sbrBtn, ebrBtn].forEach(hide);
 
         const st = state.status; // 'off' | 'in' | 'break'
@@ -664,10 +753,13 @@
           show(inBtn);
           return;
         }
+
         if (st === "break" || onBreak) {
           show(ebrBtn);
           return;
         }
+
+        // st === 'in'
         if (usedBreakThisShift) {
           show(outBtn);
         } else {
@@ -732,10 +824,9 @@
 
       async function fetchTodayLog() {
         if (!state.employeeId) {
-          // ออฟไลน์/ไม่รู้ employee_id → ใช้ events local
-          const events = getLocalEvents(state.code).sort(
-            (a, b) => new Date(b.ts) - new Date(a.ts)
-          );
+          // combine only local events
+          const events = getLocalEvents(state.code);
+          events.sort((a, b) => new Date(b.ts) - new Date(a.ts));
           renderLog(events.slice(0, 4));
           updateButtons();
           return;
@@ -755,22 +846,25 @@
             rows = await jfetch(api(`/time-entries?${qs}`));
           }
 
+          // find current TE
           let currentTE = null;
           if (state.timeEntryId != null) {
             currentTE = rows.find((te) => te.id === state.timeEntryId) || null;
           }
 
+          // compute hasBreakUsed from current TE
           if (currentTE && Array.isArray(currentTE.breaks)) {
             state.hasBreakUsed = currentTE.breaks.some(
               (b) => b.start_at != null
             );
           } else {
-            // ถ้าไม่มีจากเซิร์ฟเวอร์ ให้ดูจาก local events เผื่อกรณีออฟไลน์ก่อนหน้า
-            state.hasBreakUsed = getLocalEvents(state.code).some(
-              (e) => e.kind === "sbr"
-            );
+            // fallback to shadow info
+            state.hasBreakUsed =
+              !!state.shadow.openBreakId ||
+              getLocalEvents(state.code).some((e) => e.kind === "sbr");
           }
 
+          // events for table
           const events = [];
           for (const te of rows) {
             if (te.clock_in_at) events.push({ kind: "in", ts: te.clock_in_at });
@@ -783,26 +877,26 @@
             if (te.clock_out_at)
               events.push({ kind: "out", ts: te.clock_out_at });
           }
+          // merge local pending events as well
+          const locals = getLocalEvents(state.code);
+          events.push(...locals);
 
-          // ผสมกับ events local
-          events.push(...getLocalEvents(state.code));
           events.sort((a, b) => new Date(b.ts) - new Date(a.ts));
           renderLog(events.slice(0, 4));
-
           updateButtons();
         } catch (e) {
+          // if server log fails, fall back to local-only
           const events = getLocalEvents(state.code).sort(
             (a, b) => new Date(b.ts) - new Date(a.ts)
           );
           renderLog(events.slice(0, 4));
           updateButtons();
-          // ออฟไลน์ก็ไม่ต้อง toast ซ้ำ ๆ ให้รก
-          if (navigator.onLine) toast(e.message || "Load log failed", false);
         }
       }
 
-      /* ----------------- server state ----------------- */
+      /* ----------------- server state + offline fallback ----------------- */
       async function fetchStateByCode(code) {
+        // try server
         try {
           const data = await jfetch(
             api(`/time-entries/state/${encodeURIComponent(code)}`)
@@ -812,21 +906,29 @@
           state.breakId = data.break_id || null;
           state.employeeId = data.employee_id || null;
           state.empName = data.name || state.empName || "Employee";
-          // จำพนักงานไว้สำหรับล็อกอินออฟไลน์ครั้งต่อไป
+
           rememberEmployee(code, {
             name: state.empName,
             employee_id: state.employeeId,
           });
         } catch (e) {
-          // ล็อกอินออฟไลน์ด้วยแคช
+          // offline or server down — use cache + shadow
           const cached = recallEmployee(code);
-          if (!cached) throw e;
+          if (!cached) {
+            throw e;
+          } // no cache means invalid code (first time)
           state.empName = cached.name || "Employee";
           state.employeeId = cached.employee_id || null;
-          // เดาสถานะจาก shadow (ปุ่มจะถูกต้อง)
-          if (state.shadow.openBreakId) state.status = "break";
-          else if (state.shadow.openTimeEntryId) state.status = "in";
-          else state.status = "off";
+
+          // conservative default when we can't ask server:
+          // - if we have open shadow timeEntry, keep status per shadow
+          if (state.shadow.openBreakId) {
+            state.status = "break";
+          } else if (state.shadow.openTimeEntryId) {
+            state.status = "in";
+          } else {
+            state.status = "off";
+          }
         }
 
         $("emp_name").textContent = state.empName;
@@ -838,28 +940,28 @@
         await fetchTodayLog();
       }
 
-      /* ----------------- actions (queue when offline) ----------------- */
+      /* ----------------- actions (offline-first) ----------------- */
       async function clockIn() {
         if (state.busy) return;
         state.busy = true;
         try {
-          const resp = await safePost("/time-entries/start", {
-            code: state.code,
-            method: "web",
-          });
-          // อัปเดตสถานะทันที (optimistic)
+          const body = { code: state.code, method: "web" };
+          const resp = await safePost("/time-entries/start", body);
+
+          // optimistic UI
           state.status = "in";
+          state.timeEntryId = state.timeEntryId || null;
           state.shadow.openTimeEntryId = state.shadow.openTimeEntryId || uuid();
           pushLocalEvent(state.code, {
             kind: "in",
             ts: new Date().toISOString(),
           });
-
           setChip("in");
           updateButtons();
           await fetchTodayLog();
+
           toast(resp.queued ? "Clocked in (queued)" : "Clocked in");
-          logout();
+          logout(); // ตามพฤติกรรมเดิม
         } catch (e) {
           toast(e.message || "Clock in failed", false);
         } finally {
@@ -871,25 +973,24 @@
         if (state.busy) return;
         state.busy = true;
         try {
-          const resp = await safePost("/time-entries/stop", {
-            code: state.code,
-            method: "web",
-          });
+          const body = { code: state.code, method: "web" };
+          const resp = await safePost("/time-entries/stop", body);
+
+          // optimistic UI
           pushLocalEvent(state.code, {
             kind: "out",
             ts: new Date().toISOString(),
           });
-
           state.status = "off";
           state.timeEntryId = null;
           state.breakId = null;
           state.hasBreakUsed = false;
           state.shadow.openTimeEntryId = null;
           state.shadow.openBreakId = null;
-
           setChip("off");
           updateButtons();
           await fetchTodayLog();
+
           toast(resp.queued ? "Clocked out (queued)" : "Clocked out");
           logout();
         } catch (e) {
@@ -903,22 +1004,25 @@
         if (state.busy) return;
         state.busy = true;
         try {
-          const resp = await safePost("/breaks/start", {
+          const body = {
             code: state.code,
             break_type: "lunch",
             is_paid: false,
             method: "web",
-          });
+          };
+          const resp = await safePost("/breaks/start", body);
+
+          // optimistic UI
           state.status = "break";
           state.shadow.openBreakId = state.shadow.openBreakId || uuid();
           pushLocalEvent(state.code, {
             kind: "sbr",
             ts: new Date().toISOString(),
           });
-
           setChip("break");
           updateButtons();
           await fetchTodayLog();
+
           toast(resp.queued ? "Break started (queued)" : "Break started");
           logout();
         } catch (e) {
@@ -932,19 +1036,21 @@
         if (state.busy) return;
         state.busy = true;
         try {
-          const resp = await safePost("/breaks/stop", { code: state.code });
+          const body = { code: state.code };
+          const resp = await safePost("/breaks/stop", body);
+
+          // optimistic UI
           pushLocalEvent(state.code, {
             kind: "ebr",
             ts: new Date().toISOString(),
           });
-
           state.status = "in";
           state.shadow.openBreakId = null;
           state.hasBreakUsed = true;
-
           setChip("in");
           updateButtons();
           await fetchTodayLog();
+
           toast(resp.queued ? "Break stopped (queued)" : "Break stopped");
           logout();
         } catch (e) {
@@ -993,31 +1099,8 @@
       }
 
       async function handleFourDigits(code) {
-        // ถ้าออฟไลน์และมีแคช → เข้าได้เลย
-        if (!navigator.onLine) {
-          const cached = recallEmployee(code);
-          if (cached) {
-            state.empName = cached.name || "Employee";
-            state.employeeId = cached.employee_id || null;
-            if (state.shadow.openBreakId) state.status = "break";
-            else if (state.shadow.openTimeEntryId) state.status = "in";
-            else state.status = "off";
-
-            $("emp_name").textContent = state.empName;
-            const title = document.getElementById("top_title");
-            if (title) title.textContent = `TopNotch v1.0 — ${state.empName}`;
-
-            setChip(state.status);
-            state.code = code;
-            setView("v_act");
-            await fetchTodayLog();
-            toast("Offline login (cached)");
-            return;
-          }
-        }
-        // ปกติ: ออนไลน์ หรือไม่มีแคช
         try {
-          await fetchStateByCode(code); // validate + pull name/status
+          await fetchStateByCode(code); // validate + pull name/status (or cached)
           state.code = code;
           setView("v_act");
         } catch (e) {
@@ -1030,23 +1113,6 @@
         state.idDigits = "";
         renderIdDots();
       }
-
-      /* ----------------- boot ----------------- */
-      document.addEventListener("DOMContentLoaded", () => {
-        renderPad($("id_pad"));
-        renderIdDots();
-        startClock();
-        $("btn_in").addEventListener("click", clockIn);
-        $("btn_out").addEventListener("click", clockOut);
-        $("btn_sbr").addEventListener("click", startBreak);
-        $("btn_ebr").addEventListener("click", stopBreak);
-        $("btn_logout").addEventListener("click", () => {
-          logout();
-        });
-        updateButtons();
-        startChipClock();
-        processQueue(); // เผื่อมีคิวค้างจากก่อนหน้า
-      });
 
       function renderIdDots() {
         const n = state.idDigits.length;
@@ -1063,25 +1129,13 @@
           const now = new Date();
           let hh = now.getHours();
           const ampm = hh >= 12 ? "PM" : "AM";
-          hh = hh % 12 || 12; // convert 0 → 12
+          hh = hh % 12 || 12;
           const mm = String(now.getMinutes()).padStart(2, "0");
           const ss = String(now.getSeconds()).padStart(2, "0");
           el.textContent = `${hh}:${mm}:${ss} ${ampm}`;
         };
         tick();
         return setInterval(tick, 1000);
-      }
-
-      function fmtDateTime(ts) {
-        if (!ts) return "";
-        const d = new Date(ts);
-        const yyyy = d.getFullYear();
-        const mm = String(d.getMonth() + 1).padStart(2, "0");
-        const dd = String(d.getDate()).padStart(2, "0");
-        const hh = String(d.getHours()).padStart(2, "0");
-        const mi = String(d.getMinutes()).padStart(2, "0");
-        const ss = String(d.getSeconds()).padStart(2, "0");
-        return `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss}`;
       }
 
       function startChipClock() {
@@ -1096,6 +1150,35 @@
             hour12: true,
           });
         }, 1000);
+      }
+
+      /* ----------------- boot ----------------- */
+      document.addEventListener("DOMContentLoaded", () => {
+        renderPad($("id_pad"));
+        renderIdDots();
+        startClock();
+        $("btn_in").addEventListener("click", clockIn);
+        $("btn_out").addEventListener("click", clockOut);
+        $("btn_sbr").addEventListener("click", startBreak);
+        $("btn_ebr").addEventListener("click", stopBreak);
+        $("btn_logout").addEventListener("click", () => {
+          logout();
+        });
+        updateButtons();
+        startChipClock();
+        updateSyncBadge();
+        clearOldEventCaches();
+        processQueue(); // try immediately
+      });
+    </script>
+
+    <script>
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", () => {
+          navigator.serviceWorker
+            .register("/static/sw.js", { scope: "/static/" })
+            .catch((err) => console.log("SW register failed", err));
+        });
       }
     </script>
   </body>

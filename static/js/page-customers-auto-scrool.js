@@ -1,5 +1,5 @@
 // /static/js/page-customers.js — AUTOSAVE + Tab nav + Undo/Redo + Delete key
-// + Infinite Scroll (keyset, DESC) with IO + scroll + polling + addData→updateOrAddData fallback
+// + Infinite Scroll (keyset, DESC) with IO + scroll + polling + addData→setData fallback
 import { $, jfetch, toast } from "./api.js";
 
 /* ===== CONFIG ===== */
@@ -8,9 +8,9 @@ const PER_PAGE = 50;
 const UI = { q: "_q", btnAdd: "_add", tableMount: "listBody" };
 const DEBUG = false;
 
-// จำกัดความถี่ request
-const FETCH_COOLDOWN_MS = 250;
-const POLLING_INTERVAL_MS = 600;
+// ป้องกันยิง server ถี่เกิน
+const FETCH_COOLDOWN_MS = 250; // เวลาขั้นต่ำระหว่าง fetch ต่อๆ กัน
+const POLLING_INTERVAL_MS = 600; // ช้าลงหน่อย
 const NEAR_BOTTOM_PX = 60;
 
 /* ===== STATE ===== */
@@ -23,10 +23,10 @@ let hasMore = true;
 let loading = false;
 let currentKeyword = "";
 
-// de-dup + store mirror
+// de-dup + fallback helpers
 let loadedIds = new Set();
 let minLoadedId = Infinity;
-let dataStore = [];
+let dataStore = []; // เก็บข้อมูลทั้งหมด แล้ว sync กลับ Tabulator ถ้า addData งอแง
 let loadVersion = 0;
 
 // observers / poller
@@ -60,7 +60,9 @@ function nowMs() {
   return performance?.now?.() || Date.now();
 }
 function underCooldown() {
-  return nowMs() - lastFetchAt < FETCH_COOLDOWN_MS;
+  const t = nowMs();
+  const ok = t - lastFetchAt < FETCH_COOLDOWN_MS;
+  return ok;
 }
 function markFetched() {
   lastFetchAt = nowMs();
@@ -261,7 +263,6 @@ async function autosaveCell(cell, opts = {}) {
         body: JSON.stringify(payload),
       });
       const norm = normalizeRow(created || d);
-      // อัปเดตทั้งแถว (create เสร็จ) — โอเคที่จะใช้ update ตรงนี้
       row.update({ ...norm });
       if (norm.id != null) loadedIds.add(norm.id);
       toast(`Customer "${norm.name}" created`);
@@ -275,37 +276,24 @@ async function autosaveCell(cell, opts = {}) {
     return;
   }
 
-  // UPDATE (debounced) — ห้าม row.update ทับ history; ใช้ setValue(..., true) เฉพาะฟิลด์ที่ต่าง
+  // UPDATE (debounced)
   if (patchTimers.has(row)) clearTimeout(patchTimers.get(row));
   const t = setTimeout(async () => {
     patchTimers.delete(row);
     try {
       const updated = await jfetch(
         `${ENDPOINTS.base}/${encodeURIComponent(d.id)}`,
-        { method: "PATCH", body: JSON.stringify(payload) }
+        {
+          method: "PATCH",
+          body: JSON.stringify(payload),
+        }
       );
       const norm = normalizeRow(updated || d);
-
-      const fields = ["code", "name", "contact", "email", "phone", "address"];
-      for (const f of fields) {
-        const cur = row.getData()[f];
-        const nxt = norm[f];
-        if (cur !== nxt) {
-          row.getCell(f)?.setValue(nxt, true); // mutate=true → ไม่สร้าง history ซ้ำ
-        }
-      }
-
-      // ถ้า server เปลี่ยน id (ไม่น่าจะเกิดตอน patch ปกติ) — เซ็ตตรงแล้ว reformat
-      if (norm.id != null && norm.id !== d.id) {
-        const raw = row.getData();
-        raw.id = norm.id;
-        row.reformat();
-      }
-
+      row.update({ ...d, ...norm, id: norm.id ?? d.id });
       toast(`Saved changes to "${norm.code || norm.name}"`);
     } catch (e) {
       if (!fromHistory && oldVal !== undefined) {
-        cell.setValue(oldVal, true); // revert แบบไม่สร้าง history ซ้อน
+        cell.setValue(oldVal, true);
       } else if (typeof revert === "function") {
         revert();
       } else {
@@ -314,15 +302,7 @@ async function autosaveCell(cell, opts = {}) {
             `${ENDPOINTS.base}/${encodeURIComponent(d.id)}`
           );
           const norm = normalizeRow(fresh || d);
-          const fields = [
-            "code",
-            "name",
-            "contact",
-            "email",
-            "phone",
-            "address",
-          ];
-          for (const f of fields) row.getCell(f)?.setValue(norm[f], true);
+          row.update({ ...norm });
         } catch {}
       }
       toast(e?.message || "Save failed", false);
@@ -360,10 +340,9 @@ async function deleteRow(row) {
   }
 }
 
-/* ===== ADD ROWS (preserve history) ===== */
+/* ===== ADD ROWS (with addData → setData fallback) ===== */
 async function appendRows(rows) {
   if (!rows?.length) return;
-
   // กันซ้ำ + อัปเดต minLoadedId
   const fresh = [];
   for (const r of rows) {
@@ -374,23 +353,18 @@ async function appendRows(rows) {
   }
   if (!fresh.length) return;
 
-  // 1) ลอง addData (ไม่ล้าง history)
+  // try addData ก่อน
   const prevLen = table?.getData()?.length || 0;
-  await table?.addData(fresh, false); // เติมด้านล่าง
+  await table?.addData(fresh, false); // bottom
   const afterLen = table?.getData()?.length || 0;
 
-  // 2) ถ้าไม่เพิ่ม ให้ updateOrAddData (ไม่ล้าง history)
   if (afterLen === prevLen) {
-    await table?.updateOrAddData(fresh, "id");
-  }
-
-  // sync mirror (ไม่ใช้ setData เพื่อไม่ล้าง history)
-  dataStore = table?.getData() || [];
-
-  // prune id cache ถ้าโตมาก
-  if (loadedIds.size > 50000) {
-    const keep = new Set(dataStore.map((r) => r.id));
-    loadedIds = keep;
+    // Tabulator ไม่เพิ่ม → ใช้ setData รวมทั้งหมดแทน
+    dataStore = (table?.getData() || []).concat(fresh);
+    table?.setData(dataStore);
+  } else {
+    // addData ปกติ → sync store ด้วย
+    dataStore = table?.getData() || [];
   }
 }
 
@@ -398,7 +372,7 @@ async function appendRows(rows) {
 function initTable() {
   table = new Tabulator(`#${UI.tableMount}`, {
     layout: "fitColumns",
-    height: "520px",
+    height: "520px", // ให้มี internal scroll ชัวร์
     columns: makeColumns(),
     placeholder: "No customers",
     reactiveData: true,
@@ -461,6 +435,7 @@ function injectStylesOnce() {
 /* ===== KEYSET FETCHERS ===== */
 async function fetchFirstPageKeyset(keyword, version) {
   if (underCooldown()) {
+    // ถ้ายังอยู่ในช่วง cooldown ให้รอจนพ้น แล้วค่อยไปต่อ
     await new Promise((r) =>
       setTimeout(r, FETCH_COOLDOWN_MS - (nowMs() - lastFetchAt))
     );
@@ -489,6 +464,7 @@ async function fetchFirstPageKeyset(keyword, version) {
 }
 
 async function fetchNextPageKeyset(version) {
+  // !!! อย่าเช็ค loading ที่นี่ ปล่อยให้ caller คุมสถานะ
   if (!hasMore || cursorNext == null) {
     DEBUG &&
       console.debug("skip fetchNextPageKeyset (guard)", {
@@ -543,8 +519,7 @@ async function resetAndLoadFirst(keyword = "") {
   dataStore = [];
 
   try {
-    table?.setData([]); // เริ่มชุดใหม่ → ล้าง history ตามคาดหวัง
-    table?.clearHistory?.();
+    table?.setData([]);
   } catch {}
   showLoader(true);
 
@@ -573,9 +548,10 @@ async function resetAndLoadFirst(keyword = "") {
 }
 
 async function loadNextPageIfNeeded() {
-  if (!hasMore || loading) return;
+  if (!hasMore || loading) return; // กันซ้ำที่ caller
   const myVersion = loadVersion;
 
+  // ถ้าอยู่ใน cooldown ให้รอแป๊บ เพื่อไม่ยิงถี่เกิน
   if (underCooldown()) return;
 
   loading = true;
@@ -589,8 +565,10 @@ async function loadNextPageIfNeeded() {
     const rows = items.map(normalizeRow);
     await appendRows(rows);
 
+    // อัปเดต cursor/hasMore
     const fallbackLast = rows.length ? rows[rows.length - 1].id : null;
     if (rows.length === 0 && Number.isFinite(minLoadedId)) {
+      // hard-progress: ถ้าซ้ำทั้งหน้า ให้ถอย cursor เอง
       cursorNext = minLoadedId - 1;
       hasMore = true;
     } else {
@@ -616,9 +594,9 @@ async function autofillViewport(version, maxLoops = 5) {
   let loops = 0;
 
   const needMore = () => {
-    if (holder && holder.scrollHeight <= holder.clientHeight + 4) return true;
+    if (holder && holder.scrollHeight <= holder.clientHeight + 4) return true; // ตารางยังเตี้ยกว่ากรอบ
     const rect = mount?.getBoundingClientRect?.();
-    if (rect) return rect.bottom <= window.innerHeight + 60;
+    if (rect) return rect.bottom <= window.innerHeight + 60; // ยังไม่เต็มจอ
     return false;
   };
 
@@ -711,51 +689,6 @@ function startPolling() {
 function forceCheck() {
   throttleForceCheck();
 }
-
-/* ===== Global Undo/Redo shortcuts ===== */
-// นโยบาย: ปล่อยให้ Ctrl/Cmd+Z/Y ของ input ทำงานตามปกติเมื่อกำลังพิมพ์
-// แต่เมื่อ "ไม่ได้" โฟกัสใน editor → Ctrl/Cmd+Z/Y เรียก table.undo/redo
-// และมีช็อตคัตเสริม Alt+Z / Alt+Shift+Z ที่เรียกตลอด
-document.addEventListener("keydown", (e) => {
-  if (!table) return;
-
-  const tag = (document.activeElement?.tagName || "").toLowerCase();
-  const inEditable =
-    /(input|textarea)/.test(tag) || document.activeElement?.isContentEditable;
-  const isEditingCell = !!document.querySelector(
-    ".tabulator-cell.tabulator-editing"
-  );
-
-  const k = e.key.toLowerCase();
-
-  // Alt shortcuts — ใช้ได้ตลอด
-  if (e.altKey && !e.ctrlKey && !e.metaKey) {
-    if (k === "z" && !e.shiftKey) {
-      e.preventDefault();
-      table.undo();
-      return;
-    }
-    if ((k === "z" && e.shiftKey) || k === "y") {
-      e.preventDefault();
-      table.redo();
-      return;
-    }
-  }
-
-  // Ctrl/Cmd — เมื่อไม่ได้อยู่ใน editor ให้สั่ง undo/redo ของตาราง
-  if ((e.ctrlKey || e.metaKey) && !e.altKey && !(inEditable || isEditingCell)) {
-    if (k === "z" && !e.shiftKey) {
-      e.preventDefault();
-      table.undo();
-      return;
-    }
-    if (k === "y" || (k === "z" && e.shiftKey)) {
-      e.preventDefault();
-      table.redo();
-      return;
-    }
-  }
-});
 
 /* ===== SEARCH & ADD ===== */
 function bindSearch() {

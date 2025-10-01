@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Kiosk Queue — Offline Items</title>
+    <meta name="theme-color" content="#111" />
+    <style>
+      :root {
+        --line: #e5e7eb;
+        --muted: #6b7280;
+      }
+      body {
+        margin: 0;
+        font: 16px/1.5 system-ui, -apple-system, Segoe UI, Roboto, Arial;
+        color: #111;
+        background: #fff;
+      }
+      header {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        justify-content: space-between;
+        padding: 14px 16px;
+        border-bottom: 1px solid var(--line);
+      }
+      h1 {
+        margin: 0;
+        font-size: 20px;
+      }
+      main {
+        padding: 16px;
+      }
+      .row {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      button {
+        padding: 8px 12px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: #111;
+        color: #fff;
+        cursor: pointer;
+        font-weight: 700;
+      }
+      button.secondary {
+        background: #fff;
+        color: #111;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        margin-top: 12px;
+        font-size: 14px;
+      }
+      th,
+      td {
+        padding: 10px;
+        border-bottom: 1px solid var(--line);
+        text-align: left;
+        vertical-align: top;
+      }
+      th {
+        background: #f9fafb;
+      }
+      code,
+      pre {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas,
+          "Liberation Mono", monospace;
+        font-size: 12px;
+      }
+      .muted {
+        color: var(--muted);
+      }
+      .pill {
+        display: inline-block;
+        padding: 2px 8px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        font-size: 12px;
+        background: #fff;
+      }
+      .nowrap {
+        white-space: nowrap;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Offline Queue</h1>
+      <div class="row">
+        <a href="/static/timeclock/kiosk.html"
+          ><button class="secondary">Back to Kiosk</button></a
+        >
+        <button id="btn_sync_all">Send All</button>
+        <button id="btn_clear_all" class="secondary">Clear All</button>
+      </div>
+    </header>
+
+    <main>
+      <div id="meta" class="muted"></div>
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 160px">Created</th>
+            <th>Endpoint</th>
+            <th style="width: 120px">Tries</th>
+            <th>Body</th>
+            <th style="width: 200px">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </main>
+
+    <script type="module">
+      import { $, jfetch, toast } from "/static/js/api.js?v=1";
+
+      const API_BASE = "/api/v1";
+      const JSON_HDR = { "Content-Type": "application/json" };
+      const QUEUE_KEY = "kiosk_queue_v1";
+
+      const api = (p) => `${API_BASE}${p}`;
+      const fmt = (t) => new Date(t).toLocaleString();
+      const tbody = document.getElementById("tbody");
+      const meta = document.getElementById("meta");
+
+      const loadQueue = () => {
+        try {
+          return JSON.parse(localStorage.getItem(QUEUE_KEY) || "[]");
+        } catch {
+          return [];
+        }
+      };
+      const saveQueue = (q) =>
+        localStorage.setItem(QUEUE_KEY, JSON.stringify(q));
+      const safe = (s) =>
+        String(s).replace(
+          /[<>&]/g,
+          (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c])
+        );
+
+      function render() {
+        const q = loadQueue();
+        meta.textContent = q.length
+          ? `${q.length} item(s) queued`
+          : "No queued items";
+        if (q.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="5"><span class="muted">Empty</span></td></tr>`;
+          return;
+        }
+        tbody.innerHTML = q
+          .map(
+            (it, idx) => `
+        <tr data-i="${idx}">
+          <td class="nowrap">${fmt(it.created_at || Date.now())}</td>
+          <td><span class="pill">${it.method || "POST"}</span> <code>${safe(
+              it.endpoint
+            )}</code></td>
+          <td>${it.tries || 0}</td>
+          <td><pre>${safe(JSON.stringify(it.body || {}, null, 2))}</pre></td>
+          <td class="row">
+            <button class="secondary" data-act="send">Send</button>
+            <button class="secondary" data-act="delete">Delete</button>
+          </td>
+        </tr>
+      `
+          )
+          .join("");
+      }
+
+      async function sendOne(i) {
+        const q = loadQueue();
+        const it = q[i];
+        if (!it) return;
+        try {
+          await jfetch(api(it.endpoint), {
+            method: it.method || "POST",
+            headers: JSON_HDR,
+            body: JSON.stringify(it.body || {}),
+          });
+          q.splice(i, 1);
+          saveQueue(q);
+          render();
+          toast("Sent 1 item");
+        } catch (e) {
+          it.tries = (it.tries || 0) + 1;
+          q[i] = it;
+          saveQueue(q);
+          render();
+          toast(`Send failed: ${e.message || e}`, false);
+        }
+      }
+      function deleteOne(i) {
+        const q = loadQueue();
+        q.splice(i, 1);
+        saveQueue(q);
+        render();
+        toast("Deleted 1 item");
+      }
+
+      async function sendAll() {
+        const q = loadQueue();
+        if (q.length === 0) {
+          toast("Nothing to send");
+          return;
+        }
+        let ok = 0,
+          fail = 0;
+        for (let i = 0; i < q.length; i++) {
+          const it = q[i];
+          try {
+            await jfetch(api(it.endpoint), {
+              method: it.method || "POST",
+              headers: JSON_HDR,
+              body: JSON.stringify(it.body || {}),
+            });
+            ok++;
+            q.splice(i, 1);
+            i--;
+          } catch {
+            fail++;
+            it.tries = (it.tries || 0) + 1;
+          }
+        }
+        saveQueue(q);
+        render();
+        toast(`Sent: ${ok}, Failed: ${fail}${fail ? " (still queued)" : ""}`);
+      }
+      function clearAll() {
+        saveQueue([]);
+        render();
+        toast("Cleared all");
+      }
+
+      tbody.addEventListener("click", (e) => {
+        const btn = e.target.closest("button[data-act]");
+        if (!btn) return;
+        const tr = btn.closest("tr[data-i]");
+        if (!tr) return;
+        const i = Number(tr.dataset.i);
+        if (btn.dataset.act === "send") sendOne(i);
+        if (btn.dataset.act === "delete") deleteOne(i);
+      });
+      document
+        .getElementById("btn_sync_all")
+        .addEventListener("click", sendAll);
+      document
+        .getElementById("btn_clear_all")
+        .addEventListener("click", clearAll);
+
+      render();
+    </script>
+
+    <script>
+      if ("serviceWorker" in navigator) {
+        navigator.serviceWorker
+          .register("/static/timeclock/sw.js", { scope: "/static/timeclock/" })
+          .catch(() => {});
+      }
+    </script>
+  </body>
+</html>

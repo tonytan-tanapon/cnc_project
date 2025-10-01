@@ -451,8 +451,9 @@
       import { $, jfetch, toast } from "/static/js/api.js?v=1";
 
       /* ----------------- API base ----------------- */
-      const API_BASE = ""; // same origin as your kiosk.html
+      const API_BASE = ""; // same origin as your kiosk.html (เปลี่ยนเป็น "/api/v1" ถ้า backend ใช้ prefix)
       const api = (p) => `${API_BASE}${p}`;
+      const JSON_HDR = { "Content-Type": "application/json" };
 
       /* ----------------- Offline keys & helpers ----------------- */
       const QUEUE_KEY = "kiosk_queue_v1";
@@ -461,13 +462,6 @@
       const EMP_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
       const pad = (n) => String(n).padStart(2, "0");
-      const fmtTime = (ts) => {
-        if (!ts) return "";
-        const d = new Date(ts);
-        return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(
-          d.getSeconds()
-        )}`;
-      };
       const startOfTodayISO = () => {
         const d = new Date();
         d.setHours(0, 0, 0, 0);
@@ -514,6 +508,25 @@
         }
       }
 
+      /* === NEW: derive local status & break usage (for robust offline) === */
+      function deriveStatusFromLocal(code) {
+        const events = getLocalEvents(code)
+          .slice()
+          .sort((a, b) => new Date(a.ts) - new Date(b.ts));
+        if (events.length === 0) return "off";
+        let status = "off";
+        for (const e of events) {
+          if (e.kind === "in") status = "in";
+          else if (e.kind === "sbr") status = "break";
+          else if (e.kind === "ebr") status = "in";
+          else if (e.kind === "out") status = "off";
+        }
+        return status;
+      }
+      function localHasBreakUsed(code) {
+        return getLocalEvents(code).some((e) => e.kind === "sbr");
+      }
+
       /* employee cache */
       function loadEmpCache() {
         try {
@@ -553,7 +566,11 @@
 
       async function safePost(endpoint, body) {
         const attempt = async () =>
-          jfetch(api(endpoint), { method: "POST", body: JSON.stringify(body) });
+          jfetch(api(endpoint), {
+            method: "POST",
+            headers: JSON_HDR,
+            body: JSON.stringify(body),
+          });
         if (navigator.onLine) {
           try {
             const res = await attempt();
@@ -567,6 +584,7 @@
           id: uuid(),
           endpoint,
           method: "POST",
+          headers: JSON_HDR,
           body,
           created_at: Date.now(),
           tries: 0,
@@ -584,6 +602,7 @@
           try {
             await jfetch(api(item.endpoint), {
               method: item.method,
+              headers: item.headers || JSON_HDR,
               body: JSON.stringify(item.body),
             });
             q.splice(i, 1);
@@ -596,7 +615,7 @@
         if (changed) saveQueue(q);
         if ($("v_act").classList.contains("active") && state.code) {
           try {
-            await fetchStateByCode(state.code);
+            await fetchTodayLog();
           } catch {}
         }
       }
@@ -818,15 +837,19 @@
             employee_id: state.employeeId,
           });
         } catch (e) {
-          // ล็อกอินออฟไลน์ด้วยแคช
+          // ออฟไลน์/ดึงไม่ได้ → ใช้แคช + สถานะจาก local
           const cached = recallEmployee(code);
           if (!cached) throw e;
           state.empName = cached.name || "Employee";
           state.employeeId = cached.employee_id || null;
-          // เดาสถานะจาก shadow (ปุ่มจะถูกต้อง)
-          if (state.shadow.openBreakId) state.status = "break";
-          else if (state.shadow.openTimeEntryId) state.status = "in";
-          else state.status = "off";
+
+          // ใช้สถานะจาก local เป็นหลัก แล้วค่อยให้ shadow override ถ้ามี
+          let statusFromLocal = deriveStatusFromLocal(code);
+          if (state.shadow.openBreakId) statusFromLocal = "break";
+          else if (state.shadow.openTimeEntryId) statusFromLocal = "in";
+
+          state.status = statusFromLocal;
+          state.hasBreakUsed = localHasBreakUsed(code);
         }
 
         $("emp_name").textContent = state.empName;
@@ -993,15 +1016,20 @@
       }
 
       async function handleFourDigits(code) {
-        // ถ้าออฟไลน์และมีแคช → เข้าได้เลย
+        // ถ้าออฟไลน์และมีแคช → เข้าได้เลย (ใช้สถานะจาก local เป็นหลัก)
         if (!navigator.onLine) {
           const cached = recallEmployee(code);
           if (cached) {
             state.empName = cached.name || "Employee";
             state.employeeId = cached.employee_id || null;
-            if (state.shadow.openBreakId) state.status = "break";
-            else if (state.shadow.openTimeEntryId) state.status = "in";
-            else state.status = "off";
+
+            let statusFromLocal = deriveStatusFromLocal(code);
+            // shadow override สำหรับ action ล่าสุดใน session นี้
+            if (state.shadow.openBreakId) statusFromLocal = "break";
+            else if (state.shadow.openTimeEntryId) statusFromLocal = "in";
+
+            state.status = statusFromLocal;
+            state.hasBreakUsed = localHasBreakUsed(code);
 
             $("emp_name").textContent = state.empName;
             const title = document.getElementById("top_title");
@@ -1096,6 +1124,19 @@
             hour12: true,
           });
         }, 1000);
+      }
+    </script>
+
+    <!-- Service Worker (mobile/offline) -->
+    <script>
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", () => {
+          navigator.serviceWorker
+            .register("/static/timeclock/sw.js", {
+              scope: "/static/timeclock/",
+            })
+            .catch((err) => console.log("SW register failed", err));
+        });
       }
     </script>
   </body>

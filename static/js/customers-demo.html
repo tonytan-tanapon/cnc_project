@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Customers · Topnotch – MFG</title>
+
+    <!-- Global styles -->
+    <link rel="stylesheet" href="/static/css/app.css" />
+
+    <!-- Tabulator theme (local) -->
+    <link
+      rel="stylesheet"
+      href="/static/vendor/tabulator/tabulator_modern.min.css"
+    />
+
+    <style>
+      /* ===== Customers (edge-to-edge, clean) ===== */
+      .main--edge {
+        padding: 0;
+        height: 100vh;
+        overflow: hidden;
+      }
+      .panel--edge {
+        margin: 0;
+        border-radius: 0;
+        border-left-width: 0;
+        border-right-width: 0;
+      }
+
+      #listPanel {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        min-height: 0; /* allow child to shrink */
+      }
+
+      /* Topbar: search ซ้าย, +Add ถัดไป — ชิดซ้ายทั้งหมด */
+      .list-topbar {
+        display: flex;
+        align-items: center;
+        justify-content: flex-start; /* กองชิดซ้าย */
+        gap: 8px;
+        height: 44px;
+        padding: 0; /* ชิดขอบบน/ล่าง/ซ้าย/ขวา */
+        border-bottom: 1px solid #e5e7eb;
+      }
+      .list-topbar .search-lg {
+        flex: 0 0 260px; /* ปรับได้ 220–320px */
+        min-width: 200px;
+        height: 36px;
+        padding: 0 12px;
+        border-radius: 0; /* ไม่โค้ง */
+      }
+      #_add {
+        margin-left: 0; /* ไม่ดันไปขวา */
+        height: 36px;
+        border-radius: 0; /* ไม่โค้ง */
+      }
+
+      /* Table area scrolls only */
+      #listBody {
+        flex: 1 1 auto;
+        min-height: 0; /* สำคัญสำหรับ flex box + overflow */
+        overflow: auto; /* สกอร์เฉพาะบริเวณตาราง */
+        height: 100%; /* ให้กินพื้นที่ที่เหลือ */
+      }
+
+      /* คอลัมน์ที่อนุญาตขึ้นบรรทัดใหม่ */
+      .tabulator-cell.wrap {
+        white-space: normal;
+        word-break: break-word;
+      }
+
+      /* ถ้าใช้ .actions-cell ใน columns แล้ว ปุ่มจะไม่โดนตัด */
+      .tabulator-cell.actions-cell {
+        overflow: visible;
+      }
+      .tabulator-cell.actions-cell .row-actions {
+        padding-right: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <aside class="sidebar"><div id="navSlot" data-nav-slot></div></aside>
+
+      <main class="main main--edge">
+        <section class="panel panel--edge" id="listPanel">
+          <div>Customers</div>
+
+          <div class="list-topbar">
+            <input
+              id="_q"
+              type="search"
+              class="search-lg"
+              placeholder="Search customers…"
+            />
+            <button id="_add" class="btn" type="button">+ Add</button>
+          </div>
+
+          <!-- Mount จุดที่ Tabulator จะถูก init (page-customers.js ใช้ id นี้) -->
+          <div id="listBody"></div>
+        </section>
+      </main>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite">
+      <span id="toastText"></span>
+    </div>
+
+    <!-- โหลด nav ก่อน -->
+    <script type="module" src="/static/js/nav-loader.js"></script>
+
+    <!-- โหลด Tabulator (local) ก่อนไฟล์เพจเสมอ -->
+    <script src="/static/vendor/tabulator/tabulator.min.js"></script>
+
+    <!-- ไฟล์ JS ของหน้านี้ (module) -->
+    <script type="module" src="/static/js/page-customers.js"></script>
+  </body>
+</html>
