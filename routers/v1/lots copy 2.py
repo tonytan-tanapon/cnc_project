@@ -135,66 +135,7 @@ def list_lots(
         "per_page": per_page,
         "pages": max(pages, 1),
     }
-class LotCursorPage(BaseModel):
-    items: List[ProductionLotOut]
-    next_cursor: int | None = None
-    prev_cursor: int | None = None
-    has_more: bool
 
-# --- place below your existing list_lots or anywhere before /{lot_id} ---
-@router.get("/keyset", response_model=LotCursorPage)
-def list_lots_keyset(
-    q: Optional[str] = Query(None, description="Search lot/part/po/status"),
-    limit: int = Query(25, ge=1, le=200),
-    cursor: Optional[int] = Query(None, description="fetch id < cursor (DESC)"),
-    db: Session = Depends(get_db),
-):
-    qry = (
-        db.query(ProductionLot)
-        .join(Part, Part.id == ProductionLot.part_id)
-        .outerjoin(PO, PO.id == ProductionLot.po_id)
-        .options(
-            joinedload(ProductionLot.part),
-            joinedload(ProductionLot.po),
-            joinedload(ProductionLot.part_revision),
-        )
-    )
-
-    if q and q.strip():
-        for tok in q.strip().split():
-            pat = _like_escape(tok)
-            qry = qry.filter(or_(
-                ProductionLot.lot_no.ilike(pat),
-                ProductionLot.status.ilike(pat),
-                Part.part_no.ilike(pat),
-                Part.name.ilike(pat),
-                PO.po_number.ilike(pat),
-                PO.description.ilike(pat),
-                func.concat("[", func.coalesce(Part.part_no, ""), "] ", func.coalesce(Part.name, "")).ilike(pat),
-            ))
-
-    if cursor is not None:
-        qry = qry.filter(ProductionLot.id < cursor)
-
-    # newest -> oldest
-    qry = qry.order_by(ProductionLot.id.desc())
-    rows = qry.limit(limit + 1).all()
-
-    page_rows = rows[:limit]
-    has_more = len(rows) > limit
-
-    # serialize via schema model_validate (Pydantic v2)
-    items: List[ProductionLotOut] = [ProductionLotOut.model_validate(r) for r in page_rows]
-
-    next_cursor = min((r.id for r in page_rows), default=None)  # smallest id on this page
-    prev_cursor = None  # (optional) not used by our UI
-
-    return {
-        "items": items,
-        "next_cursor": next_cursor,
-        "prev_cursor": prev_cursor,
-        "has_more": has_more,
-    }
 @router.get("/{lot_id}", response_model=ProductionLotOut)
 def get_lot(lot_id: int, db: Session = Depends(get_db)):
     lot = (

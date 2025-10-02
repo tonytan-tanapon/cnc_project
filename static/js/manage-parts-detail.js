@@ -98,10 +98,10 @@ function ensureHeaderCard(){
   wrap.id = 'p_header';
   wrap.className = 'card';
   wrap.innerHTML = `
-    <div class="bd">
+   
       <div class="header-grid">
         <!-- LEFT: Part meta + Filters -->
-        <div class="card">
+       
           <div class="bd">
             <div class="fields">
               <div class="f"><div class="lab">Part No</div>   <div id="h_part_no"   class="val">—</div></div>
@@ -138,12 +138,14 @@ function ensureHeaderCard(){
               <div class="fg" id="fg_other">
                 <div class="chips">
                   <span class="ttl-inline">Other</span>
-                  <input type="text" id="g_other_text" placeholder="Type other process / keyword..." />
+                  <textarea id="g_other_text" 
+                            placeholder="Type other process / keyword..." 
+                            rows="4"></textarea>
                 </div>
               </div>
             </div>
           </div>
-        </div>
+      
 
         <!-- RIGHT: Materials -->
         <div class="card mat-card">
@@ -157,7 +159,7 @@ function ensureHeaderCard(){
           </div>
         </div>
       </div>
-    </div>
+   
   `;
 
   const anchor = inputSearch?.closest('.toolbar') || inputSearch || tableMount;

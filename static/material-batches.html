@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Materials · Batch Ledger — Topnotch MFG</title>
+
+    <!-- Global styles -->
+    <link rel="stylesheet" href="/static/css/app.css" />
+    <!-- Tabulator theme -->
+    <link rel="stylesheet" href="/static/vendor/tabulator/tabulator_modern.min.css" />
+
+    <style>
+      .main--edge { padding:0; height:100vh; overflow:hidden; }
+      .panel--edge { margin:0; border-radius:0; border-left-width:0; border-right-width:0; }
+      #listPanel { display:flex; flex-direction:column; height:100%; min-height:0; }
+
+      .list-topbar {
+        display:flex;
+        align-items:center;
+        justify-content:flex-start;
+        gap:8px;
+        height:44px;
+        padding:0;
+        border-bottom:1px solid #e5e7eb;
+      }
+      .list-topbar input {
+        height:36px; padding:0 10px; border-radius:0;
+      }
+      .list-topbar .search-lg {
+        flex:0 0 260px; min-width:200px;
+      }
+      #_apply, #_export {
+        height:36px; border-radius:0;
+      }
+      .lbl {
+        font-size:12px; color:#64748b; margin:0 4px;
+      }
+
+      #listBody { flex:1 1 auto; min-height:0; overflow:auto; }
+      #listBody .tabulator { height:100% !important; }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <aside class="sidebar"><div id="navSlot" data-nav-slot></div></aside>
+
+      <main class="main main--edge">
+        <section class="panel panel--edge" id="listPanel">
+          <div>Materials · Batch Ledger</div>
+
+          <div class="list-topbar">
+            <input id="_q" type="search" class="search-lg" placeholder="ค้นหา batch/material/supplier/location…" />
+            <span class="lbl">From</span>
+            <input id="_from" type="date" />
+            <span class="lbl">To</span>
+            <input id="_to" type="date" />
+            <button id="_apply" class="btn" type="button">Apply</button>
+            <button id="_export" class="btn" type="button">Export CSV</button>
+          </div>
+
+          <div id="listBody"></div>
+        </section>
+      </main>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span></div>
+
+    <script type="module" src="/static/js/nav-loader.js"></script>
+    <script src="/static/vendor/tabulator/tabulator.min.js"></script>
+    <script type="module" src="/static/js/page-batch-ledger.js"></script>
+  </body>
+</html>
