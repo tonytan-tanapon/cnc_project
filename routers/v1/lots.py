@@ -164,37 +164,35 @@ def list_lots_keyset(
         for tok in q.strip().split():
             pat = _like_escape(tok)
             qry = qry.filter(or_(
-                ProductionLot.lot_no.ilike(pat),
+                ProductionLot.lot_no.ilike(pat),            # << lot_no
+                Part.part_no.ilike(pat),                    # << part_no
+                Part.name.ilike(pat),                       #    ชื่อ part
                 ProductionLot.status.ilike(pat),
-                Part.part_no.ilike(pat),
-                Part.name.ilike(pat),
                 PO.po_number.ilike(pat),
                 PO.description.ilike(pat),
-                func.concat("[", func.coalesce(Part.part_no, ""), "] ", func.coalesce(Part.name, "")).ilike(pat),
             ))
 
     if cursor is not None:
         qry = qry.filter(ProductionLot.id < cursor)
 
-    # newest -> oldest
     qry = qry.order_by(ProductionLot.id.desc())
     rows = qry.limit(limit + 1).all()
-
     page_rows = rows[:limit]
     has_more = len(rows) > limit
 
-    # serialize via schema model_validate (Pydantic v2)
-    items: List[ProductionLotOut] = [ProductionLotOut.model_validate(r) for r in page_rows]
-
-    next_cursor = min((r.id for r in page_rows), default=None)  # smallest id on this page
-    prev_cursor = None  # (optional) not used by our UI
+    items = [ProductionLotOut.model_validate(r) for r in page_rows]
+    next_cursor = min((r.id for r in page_rows), default=None)
 
     return {
         "items": items,
         "next_cursor": next_cursor,
-        "prev_cursor": prev_cursor,
+        "prev_cursor": None,
         "has_more": has_more,
     }
+
+
+
+
 @router.get("/{lot_id}", response_model=ProductionLotOut)
 def get_lot(lot_id: int, db: Session = Depends(get_db)):
     lot = (
@@ -307,3 +305,57 @@ def delete_lot(lot_id: int, db: Session = Depends(get_db)):
     return {"message": "Lot deleted"}
 
 
+from models import LotMaterialUse, RawBatch, RawMaterial, Supplier, MaterialPO
+
+# ----- place this route anywhere before the file ends -----
+@router.get("/used-materials")
+def used_materials(
+    lot_ids: str = Query(..., description="comma-separated lot ids, e.g. 1,2,3"),
+    db: Session = Depends(get_db),
+):
+    # parse "1,2,3" -> [1,2,3]
+    try:
+        ids = [int(x) for x in lot_ids.split(",") if x.strip()]
+    except ValueError:
+        raise HTTPException(400, "lot_ids must be comma-separated integers")
+    if not ids:
+        return {}
+
+    # Query LotMaterialUse joined to related tables
+    rows = (
+        db.query(
+            LotMaterialUse.lot_id,
+            RawMaterial.code.label("material_code"),
+            RawBatch.batch_no,
+            LotMaterialUse.qty,
+            LotMaterialUse.uom,
+            Supplier.name.label("supplier"),
+            MaterialPO.po_number.label("po_number"),
+        )
+        .join(RawBatch, RawBatch.id == LotMaterialUse.batch_id)
+        .join(RawMaterial, RawMaterial.id == LotMaterialUse.raw_material_id)
+        .outerjoin(Supplier, Supplier.id == RawBatch.supplier_id)
+        .outerjoin(MaterialPO, MaterialPO.id == RawBatch.po_id)
+        .filter(LotMaterialUse.lot_id.in_(ids))
+        .order_by(
+            LotMaterialUse.lot_id.asc(),
+            RawMaterial.code.asc(),
+            RawBatch.batch_no.asc(),
+        )
+        .all()
+    )
+
+    # group by lot_id to the shape frontend expects
+    out: dict[int, list[dict]] = {i: [] for i in ids}
+    for r in rows:
+        out[int(r.lot_id)].append(
+            {
+                "material_code": r.material_code or "",
+                "batch_no": r.batch_no or "",
+                "qty": float(r.qty) if r.qty is not None else None,
+                "uom": r.uom,
+                "supplier": r.supplier,
+                "po_number": r.po_number,
+            }
+        )
+    return out
