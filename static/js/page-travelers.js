@@ -1,272 +1,443 @@
-// /static/js/page-travelers.js
-import { $, jfetch, toast, initTopbar } from './api.js';
+// /static/js/page-travelers.js — AUTOSAVE + Tab nav + Undo/Redo + Delete only
+// + Remote pagination with "Show All" default (all=1) for fast, load-all behavior
+import { $, jfetch, showToast as toast } from "./api.js";
 
-const DETAIL_PAGE = '/static/traveler-detail.html';
+const UI = { q: "_q", add: "_add", table: "listBody" };
+const DETAIL_PAGE = "./traveler-detail.html";
+const partDetail = (id) => `${DETAIL_PAGE}?id=${encodeURIComponent(id)}`;
 
-const escapeHtml = (s) =>
-  String(s ?? '')
-    .replaceAll('&','&amp;').replaceAll('<','&lt;')
-    .replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
+/* ===== Remote pagination defaults ===== */
+const DEFAULT_PAGE_SIZE = true; // true = Show All (โหลดทั้งหมด)
+const PAGE_SIZE_CHOICES = [20, 50, 100, 200, true]; // true = Show All
+let totalItems = 0;
 
-const numOrNull = (v) => (v === '' || v == null ? null : Number(v));
-const strOrNull = (v) => {
-  if (v == null) return null;
-  const s = String(v).trim();
-  return s === '' ? null : s;
+/* ===== AUTOSAVE GUARDS ===== */
+const createInFlight = new WeakSet(); // rows creating (POST)
+const patchTimers = new Map(); // row -> timeout (debounced PATCH)
+const PATCH_DEBOUNCE_MS = 350;
+
+/* ===== STATE ===== */
+let els = {};
+let table = null;
+
+/* ===== HELPERS ===== */
+const trim = (v) => (v == null ? "" : String(v).trim());
+const safe = (s) =>
+  String(s ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+const fmtDate = (v) => {
+  if (!v) return "";
+  const d = new Date(v);
+  return isNaN(d) ? "" : d.toLocaleString();
 };
 
-function tUrl(id){ return `${DETAIL_PAGE}?id=${encodeURIComponent(id)}`; }
+function renderRevisionsInline(revs) {
+  const list = Array.isArray(revs) ? revs : [];
+  if (!list.length) return `<span class="muted">—</span>`;
+  return list
+    .map((r) => {
+      const cls = r.is_current ? "rev current" : "rev";
+      return `<span class="${cls}" title="Revision ${safe(r.rev)}">${safe(
+        r.rev
+      )}</span>`;
+    })
+    .join(`<span class="rev-sep">, </span>`);
+}
 
-function renderTravelerTable(holder, rows){
-  if (!rows || rows.length === 0){
-    holder.innerHTML = '<div class="empty">No travelers</div>';
+function normalizeRow(p) {
+  return {
+    id: p.id,
+    part_no: p.part_no ?? "",
+    name: p.name ?? "",
+    uom: p.uom ?? "ea",
+    description: p.description ?? "",
+    status: p.status ?? "active",
+    created_at: p.created_at ?? null,
+    revisions: p.revisions ?? [],
+  };
+}
+
+function buildPayload(row) {
+  // part_no ว่าง → ส่ง null ให้ backend autogen ได้ (ถ้ารองรับ)
+  const part_no = trim(row.part_no) || null;
+  return {
+    part_no,
+    name: trim(row.name) || null,
+    description: row.description ? trim(row.description) : "",
+    uom: row.uom ? trim(row.uom) : null,
+    status: row.status || "active",
+  };
+}
+
+function requiredReady(row) {
+  // บังคับอย่างน้อยให้มี name ก่อนสร้าง
+  return !!trim(row.name);
+}
+
+/* ===== COLUMNS ===== */
+function makeColumns() {
+  return [
+    {
+      title: "No.",
+      field: "_rowno",
+      width: 70,
+      hozAlign: "right",
+      headerHozAlign: "right",
+      headerSort: false,
+      formatter: (cell) => {
+        const pos = cell.getRow().getPosition(true);
+        const curPage = table.getPage() || 1;
+        const ps = table.getPageSize();
+        const eff = ps === true ? totalItems || table.getDataCount() : ps || 1;
+        return (curPage - 1) * eff + pos;
+      },
+    },
+
+    // ใช้ field: "id" เพื่อให้ formatter รันใหม่ทันทีที่ id เปลี่ยน (หลัง POST)
+    {
+      title: "Steps",
+      field: "id",
+      width: 90,
+      headerSort: false,
+      hozAlign: "center",
+      formatter: (cell) => {
+        const id = cell.getValue();
+        if (!id) return `<span class="muted">—</span>`;
+        return `<a class="view-link" href="${partDetail(
+          id
+        )}" title="Open detail">View</a>`;
+      },
+      cellClick: (e) => {
+        const a = e.target.closest("a.view-link");
+        if (a) e.stopPropagation();
+      },
+    },
+
+    { title: "lot id", field: "lot_id", width: 160, editor: "input" },
+   
+
+    {
+      title: "production due date",
+      field: "revisions",
+      headerSort: false,
+
+      formatter: (cell) => renderRevisionsInline(cell.getValue()),
+      // read-only
+    },
+
+    { title: "create at", field: "uom", width: 90, editor: "input" },
+    
+  ];
+}
+
+/* ===== Tab / Shift+Tab ===== */
+function getEditableFieldsLive(tab) {
+  return tab
+    .getColumns(true)
+    .map((c) => ({ field: c.getField(), def: c.getDefinition() }))
+    .filter((c) => c.field && c.def && !!c.def.editor)
+    .map((c) => c.field);
+}
+function focusSiblingEditable(cell, dir /* +1 or -1 */) {
+  const row = cell.getRow();
+  const tab = row.getTable();
+  const fields = getEditableFieldsLive(tab);
+  const curField = cell.getField();
+  const curFieldIdx = fields.indexOf(curField);
+  if (curFieldIdx === -1) return;
+
+  const rows = tab.getRows();
+  const curRowIdx = rows.indexOf(row);
+
+  let nextFieldIdx = curFieldIdx + dir;
+  let nextRowIdx = curRowIdx;
+  if (nextFieldIdx >= fields.length) {
+    nextFieldIdx = 0;
+    nextRowIdx = Math.min(curRowIdx + 1, rows.length - 1);
+  } else if (nextFieldIdx < 0) {
+    nextFieldIdx = fields.length - 1;
+    nextRowIdx = Math.max(curRowIdx - 1, 0);
+  }
+
+  const targetRow = rows[nextRowIdx];
+  if (!targetRow) return;
+  const targetField = fields[nextFieldIdx];
+  const targetCell = targetRow.getCell(targetField);
+  if (!targetCell) return;
+
+  targetCell.edit(true);
+  const el = targetCell.getElement();
+  const input =
+    el && el.querySelector("input, textarea, [contenteditable='true']");
+  if (input) {
+    const v = input.value;
+    input.focus();
+    if (typeof v === "string") input.setSelectionRange(v.length, v.length);
+  }
+}
+
+/* ===== AUTOSAVE ===== */
+// pass { fromHistory: true, revert: () => table.undo()/redo() } when needed
+async function autosaveCell(cell, opts = {}) {
+  const { fromHistory = false, revert } = opts;
+
+  const row = cell.getRow();
+  const d = row.getData();
+  const fld = cell.getField();
+  const newVal = cell.getValue();
+  const oldVal = fromHistory ? undefined : cell.getOldValue();
+
+  // Rule: name required
+  if (fld === "name" && !trim(newVal)) {
+    toast("Name required", false);
+    if (!fromHistory) cell.setValue(oldVal, true);
+    else if (typeof revert === "function") revert();
     return;
   }
-  const body = rows.map(r => `
-    <tr data-id="${escapeHtml(r.id)}" class="click-row" title="Open traveler">
-      <td><a href="${tUrl(r.id)}">#${escapeHtml(r.id)}</a></td>
-      <td>${escapeHtml(r.lot_id ?? '')}</td>
-      <td>${escapeHtml(r.status ?? '')}</td>
-      <td>${escapeHtml(r.created_by_id ?? '')}</td>
-      <td>${escapeHtml(r.notes ?? '')}</td>
-    </tr>
-  `).join('');
-  holder.innerHTML = `
-    <table class="table">
-      <thead>
-        <tr>
-          <th style="width:100px">Traveler</th>
-          <th style="width:120px">Lot</th>
-          <th style="width:140px">Status</th>
-          <th style="width:140px">Created by</th>
-          <th>Notes</th>
-        </tr>
-      </thead>
-      <tbody>${body}</tbody>
-    </table>
-    <style>
-      .click-row { cursor:pointer; }
-      .click-row:hover { background: rgba(0,0,0,.03); }
-    </style>
-  `;
-}
 
-async function loadTravelers(){
-  const holder = $('t_table');
-  try{
-    const q = $('t_q')?.value?.trim();
-    const rows = await jfetch('/travelers' + (q ? `?q=${encodeURIComponent(q)}` : ''));
-    renderTravelerTable(holder, rows);
-  }catch(e){
-    holder.innerHTML = `<div class="hint">${e.message}</div>`;
-    toast('โหลด Travelers ไม่สำเร็จ: ' + e.message, false);
-  }
-}
+  const payload = buildPayload(d);
 
-// ---------- Lot Autocomplete ----------
-const lotAC = {
-  anchor: null,
-  box: null,
-  items: [],
-  active: -1,
-  selectedId: null,   // lot_id ที่เลือกจริง
-  displayText: '',
-
-  ensureBox(){
-    if (this.box) return;
-    // dropdown กล่องลอย
-    this.box = document.createElement('div');
-    this.box.className = 'ac-dropdown';
-    this.box.style.cssText =
-      'position:fixed;z-index:9999;background:#fff;border:1px solid #e5e7eb;border-radius:12px;'+
-      'box-shadow:0 10px 30px rgba(0,0,0,.15);max-height:300px;overflow:auto;display:none;';
-    document.body.appendChild(this.box);
-
-    // style รายการ
-    if (!document.getElementById('ac-style')) {
-      const style = document.createElement('style');
-      style.id = 'ac-style';
-      style.textContent = `
-        .ac-item{display:flex;gap:10px;padding:10px 12px;cursor:pointer}
-        .ac-item.active,.ac-item:hover{background:#f8fafc}
-        .ac-text{display:flex;flex-direction:column}
-        .ac-name{font-weight:700}
-        .ac-meta{font-size:12px;color:#64748b}
-        .badge{display:inline-block;padding:.2rem .6rem;border:1px solid #e2e8f0;border-radius:999px;font-size:12px}
-        .ac-empty{padding:10px 12px;color:#64748b}
-      `;
-      document.head.appendChild(style);
-    }
-
-    // click เลือก
-    this.box.addEventListener('click', (e)=>{
-      const it = e.target.closest('.ac-item');
-      if (it) this.choose(Number(it.dataset.idx));
-    });
-  },
-
-  place(){
-    if (!this.anchor || !this.box) return;
-    const r = this.anchor.getBoundingClientRect();
-    this.box.style.left  = `${r.left}px`;
-    this.box.style.top   = `${r.bottom + 6}px`;
-    this.box.style.width = `${r.width}px`;
-  },
-
-  async search(q){
-    if (!q){ this.render([]); return; }
+  // CREATE: only when required present
+  if (!d.id) {
+    if (!requiredReady(d)) return;
+    if (createInFlight.has(row)) return;
+    createInFlight.add(row);
     try {
-      // ถ้า backend มี /lots?q= ใช้อันนี้; ถ้าไม่มีให้ดึงทั้งหมดแล้ว filter ฝั่งหน้า
-      const rows = await jfetch(`/lots?q=${encodeURIComponent(q)}`).catch(()=>null);
-      let list = Array.isArray(rows) ? rows : [];
+      const created = await jfetch("/travelers", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      const norm = normalizeRow(created || d);
 
-      // เผื่อไม่มี ?q= ใน backend → fallback โหลดทั้งหมดแล้วกรอง
-      if (!list.length) {
-        const all = await jfetch('/lots').catch(()=>[]);
-        const Q = q.toUpperCase();
-        list = (all||[]).filter(x =>
-          (x.lot_no||'').toUpperCase().includes(Q) ||
-          String(x.id||'').includes(q)
-        );
-      }
+      row.update({ ...norm }); // มี id แล้ว → คอลัมน์ View (field:"id") จะ render เอง
+      row.getCell("id")?.reformat(); // กันเหนียว
+      requestAnimationFrame(() => table?.redraw(true));
 
-      // จำกัดผลลัพธ์
-      this.render(list.slice(0, 20));
-    } catch {
-      this.render([]);
+      toast(`trvelerts "${norm.part_no || norm.name}" created`);
+    } catch (e) {
+      if (!fromHistory && oldVal !== undefined) cell.setValue(oldVal, true);
+      else if (typeof revert === "function") revert();
+      toast(e?.message || "Create failed", false);
+    } finally {
+      createInFlight.delete(row);
     }
-  },
-
-  render(list){
-    this.ensureBox();
-    this.items = Array.isArray(list) ? list : [];
-    this.active = -1;
-    this.box.innerHTML = this.items.length
-      ? this.items.map((r,i)=>`
-          <div class="ac-item" data-idx="${i}">
-            <span class="badge">${escapeHtml(r.lot_no || '')}</span>
-            <div class="ac-text">
-              <div class="ac-name">Lot #${escapeHtml(r.id)}</div>
-              <div class="ac-meta">
-                Part: ${escapeHtml(r.part_no || r.part_id || '')}
-                ${r.po_id ? ` · PO: ${escapeHtml(r.po_id)}` : ''}
-              </div>
-            </div>
-          </div>`).join('')
-      : `<div class="ac-empty">No results</div>`;
-    this.place();
-    this.box.style.display = 'block';
-  },
-
-  choose(idx){
-    const r = this.items[idx]; if (!r) return;
-    this.selectedId = r.id;
-    this.displayText = r.lot_no || String(r.id);
-    this.anchor.value = this.displayText;
-    this.anchor.dataset.id = String(r.id);
-    this.hide();
-  },
-
-  hide(){ if (this.box) this.box.style.display = 'none'; },
-
-  highlight(move){
-    if (!this.items.length) return;
-    this.active = (this.active + move + this.items.length) % this.items.length;
-    [...this.box.querySelectorAll('.ac-item')]
-      .forEach((el,i)=> el.classList.toggle('active', i===this.active));
-    const el = this.box.querySelector(`.ac-item[data-idx="${this.active}"]`);
-    if (el) el.scrollIntoView({ block:'nearest' });
-  }
-};
-
-function initLotAutocomplete(){
-  const input = $('t_lot'); if (!input) return;
-  lotAC.anchor = input; lotAC.ensureBox(); lotAC.place();
-
-  const debounce = (fn, ms=200)=>{ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms);} };
-  const doSearch = debounce(()=> {
-    const q = input.value.trim();
-    if (!q) { lotAC.render([]); return; }
-    lotAC.search(q);
-  }, 180);
-
-  input.addEventListener('input', doSearch);
-  input.addEventListener('focus', ()=>{ if (input.value.trim()) doSearch(); lotAC.place(); });
-  input.addEventListener('blur',  ()=> setTimeout(()=> lotAC.hide(), 120));
-  window.addEventListener('resize', ()=> lotAC.place());
-  window.addEventListener('scroll', ()=> lotAC.place());
-
-  input.addEventListener('keydown', (e)=>{
-    if (lotAC.box.style.display !== 'block') return;
-    if (e.key==='ArrowDown'){ e.preventDefault(); lotAC.highlight(+1); }
-    if (e.key==='ArrowUp'){   e.preventDefault(); lotAC.highlight(-1); }
-    if (e.key==='Enter'){     if (lotAC.active>=0){ e.preventDefault(); lotAC.choose(lotAC.active); } }
-    if (e.key==='Escape') lotAC.hide();
-  });
-}
-
-// แปลงค่าที่พิมพ์เป็น lot_id (รองรับพิมพ์เลข id หรือ lot_no ตรง ๆ)
-async function resolveLotIdFromTyped(){
-  const t = ($('t_lot')?.value || '').trim();
-  if (!t) return null;
-  const n = Number(t);
-  if (Number.isFinite(n) && n > 0) return n;
-
-  // หา exact match จาก lot_no
-  try{
-    const all = await jfetch('/lots');
-    const hit = (all||[]).find(x => (x.lot_no||'').toUpperCase() === t.toUpperCase());
-    return hit ? hit.id : null;
-  }catch{
-    return null;
-  }
-}
-
-
-async function createTraveler(){
-  // พยายามเอา lot_id จาก autocomplete ก่อน
-  let lot_id = Number(lotAC.selectedId || $('t_lot')?.dataset?.id || 0) || null;
-  if (!lot_id) lot_id = await resolveLotIdFromTyped();   // fallback จากข้อความที่พิมพ์
-
-  const created_by_id = numOrNull($('t_emp')?.value);
-  const status = strOrNull($('t_status')?.value) || 'open';
-  const notes = strOrNull($('t_notes')?.value);
-
-  if (!lot_id){
-    toast('กรุณาเลือก/ระบุ Lot ให้ชัดเจน', false);
-    $('t_lot')?.focus();
     return;
   }
 
-  const payload = { lot_id, created_by_id, status, notes };
-  try{
-    const t = await jfetch('/travelers', { method: 'POST', body: JSON.stringify(payload) });
-    toast('Traveler created (id: ' + t.id + ')');
-    // reset ฟอร์ม
-    ['t_emp','t_notes'].forEach(id => { const el = $(id); if (el) el.value = ''; });
-    lotAC.selectedId = null;
-    const lotInput = $('t_lot'); if (lotInput){ lotInput.value=''; lotInput.dataset.id=''; }
-    await loadTravelers();
-  }catch(e){
-    toast('สร้าง Traveler ไม่สำเร็จ: ' + e.message, false);
+  // UPDATE: debounced
+  if (patchTimers.has(row)) clearTimeout(patchTimers.get(row));
+  const t = setTimeout(async () => {
+    patchTimers.delete(row);
+    try {
+      const updated = await jfetch(`/travelers/${encodeURIComponent(d.id)}`, {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+      });
+      const norm = normalizeRow(updated || d);
+
+      row.update({ ...d, ...norm, id: norm.id ?? d.id });
+      row.getCell("id")?.reformat();
+      requestAnimationFrame(() => table?.redraw(true));
+
+      toast(`Saved "${norm.part_no || norm.name}"`);
+    } catch (e) {
+      if (!fromHistory && oldVal !== undefined) cell.setValue(oldVal, true);
+      else if (typeof revert === "function") revert();
+      toast(e?.message || "Save failed", false);
+    }
+  }, PATCH_DEBOUNCE_MS);
+  patchTimers.set(row, t);
+}
+
+/* ===== DELETE ===== */
+async function deleteRow(row) {
+  const d = row.getData();
+  if (!d.id) {
+    row.delete();
+    return;
+  }
+  if (
+    !confirm(
+      `Delete this part "${
+        d.part_no || d.name || d.id
+      }"?\nThis action cannot be undone.`
+    )
+  )
+    return;
+  try {
+    await jfetch(`/travelers/${encodeURIComponent(d.id)}`, { method: "DELETE" });
+    row.delete();
+    toast("Deleted");
+  } catch (e) {
+    toast(e?.message || "Delete failed", false);
   }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  initTopbar();
-  initLotAutocomplete();  // ✅ เปิดใช้ autocomplete ให้ #t_lot
-  $('t_create')?.addEventListener('click', createTraveler);
-  $('t_reload')?.addEventListener('click', loadTravelers);
-  $('t_q')?.addEventListener('keydown', e => { if (e.key === 'Enter') loadTravelers(); });
+/* ===== TABLE (Remote pagination, Show All default) ===== */
+function initTable() {
+  table = new Tabulator(`#${UI.table}`, {
+    layout: "fitColumns",
+    height: "100%",
+    placeholder: "No parts",
+    reactiveData: true,
+    index: "id",
+    history: true,
+    selectableRows: 1,
 
-  // คลิกพื้นที่ว่างของแถวก็เปิด detail
-  $('t_table')?.addEventListener('click', (e) => {
-    const a = e.target.closest('a[href]');
-    if (a) return;
-    const tr = e.target.closest('tr[data-id]');
-    if (!tr) return;
-    location.href = tUrl(tr.dataset.id);
+    pagination: true,
+    paginationMode: "remote",
+    paginationSize: DEFAULT_PAGE_SIZE, // true = Show All
+    paginationSizeSelector: PAGE_SIZE_CHOICES, // [20,50,100,200,true]
+    paginationCounter: "rows",
+
+    ajaxURL: "/parts",
+    ajaxRequestFunc: async (_url, _config, params) => {
+      const page = params.page || 1;
+      const showAll = params.size === true;
+      const size = showAll ? DEFAULT_PAGE_SIZE : Number(params.size) || 50;
+
+      const keyword = (els[UI.q]?.value || "").trim();
+      const usp = new URLSearchParams();
+      usp.set("page", String(page));
+      if (showAll) usp.set("all", "1");
+      else usp.set("page_size", String(size));
+      usp.set("include", "revisions");
+      if (keyword) usp.set("q", keyword);
+      usp.set("_", String(Date.now()));
+
+      const res = await jfetch(`/travelers?${usp.toString()}`);
+      const items = Array.isArray(res) ? res : res?.items ?? res?.data ?? [];
+      totalItems = Number(res?.total ?? items.length);
+
+      const rows = items.map(normalizeRow);
+      const last_page = showAll
+        ? 1
+        : Math.max(1, Math.ceil((totalItems || rows.length) / (size || 1)));
+      return { data: rows, last_page };
+    },
+
+    columns: makeColumns(),
   });
 
-  loadTravelers();
+  table.on("tableBuilt", () => {
+    requestAnimationFrame(() => table.redraw(true));
+  });
+
+  // Tab / Shift+Tab
+  table.on("cellEditing", (cell) => {
+    setTimeout(() => {
+      const el = cell.getElement();
+      const input =
+        el && el.querySelector("input, textarea, [contenteditable='true']");
+      if (!input) return;
+      const handler = (e) => {
+        if (e.key === "Tab") {
+          e.preventDefault();
+          e.stopPropagation();
+          if (typeof e.stopImmediatePropagation === "function")
+            e.stopImmediatePropagation();
+          focusSiblingEditable(cell, e.shiftKey ? -1 : +1);
+        }
+      };
+      input.addEventListener("keydown", handler);
+      input.addEventListener(
+        "blur",
+        () => input.removeEventListener("keydown", handler),
+        { once: true }
+      );
+    }, 0);
+  });
+
+  // Autosave hooks
+  table.on("cellEdited", (cell) => autosaveCell(cell));
+  table.on("historyUndo", (action, component) => {
+    if (
+      action === "cellEdit" &&
+      component &&
+      typeof component.getRow === "function"
+    ) {
+      autosaveCell(component, {
+        fromHistory: true,
+        revert: () => table.redo(),
+      });
+    }
+  });
+  table.on("historyRedo", (action, component) => {
+    if (
+      action === "cellEdit" &&
+      component &&
+      typeof component.getRow === "function"
+    ) {
+      autosaveCell(component, {
+        fromHistory: true,
+        revert: () => table.undo(),
+      });
+    }
+  });
+
+  // Global keys
+  document.addEventListener("keydown", (e) => {
+    const mod = e.ctrlKey || e.metaKey;
+    if (mod && e.key.toLowerCase() === "z") {
+      e.preventDefault();
+      e.shiftKey ? table.redo() : table.undo();
+      return;
+    }
+    if (mod && e.key.toLowerCase() === "y") {
+      e.preventDefault();
+      table.redo();
+      return;
+    }
+    if (e.key === "Delete") {
+      const sel = table.getSelectedRows?.();
+      if (sel && sel[0]) deleteRow(sel[0]);
+    }
+  });
+}
+
+/* ===== BINDINGS ===== */
+function bindSearch() {
+  const box = els[UI.q];
+  if (!box) return;
+  let t;
+  box.addEventListener("input", () => {
+    clearTimeout(t);
+    t = setTimeout(() => {
+      // ให้ Tabulator ยิงขอใหม่โดยเริ่ม page 1 (เลี่ยงซ้ำซ้อน)
+      table?.setPage(1);
+    }, 300);
+  });
+}
+function bindAdd() {
+  const btn = els[UI.add];
+  if (!btn) return;
+  btn.addEventListener("click", async () => {
+    const row = await table.addRow(
+      {
+        id: null, // มีฟิลด์ id ตั้งแต่แรก (ช่วยให้ formatter "View" อยู่ใน flow)
+        part_no: "", // เว้นว่างได้ → backend autogen
+        name: "",
+        uom: "ea",
+        description: "",
+        status: "active",
+        created_at: null,
+        revisions: [],
+      },
+      true
+    );
+    row.getCell("name")?.edit(true); // กระตุ้น POST
+  });
+}
+
+/* ===== BOOT ===== */
+document.addEventListener("DOMContentLoaded", async () => {
+  Object.values(UI).forEach((id) => (els[id] = $(id)));
+  initTable();
+  bindSearch();
+  bindAdd();
+  // ปล่อยให้ Tabulator ยิง ajax ตาม paginationMode:"remote"
 });

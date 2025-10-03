@@ -1,22 +1,21 @@
-// /static/js/page-lots.js — Lots page in the same spirit as page-customers.js
-// Key ideas: keyset (DESC) infinite scroll, inline autosave (PATCH), create on demand (POST), delete.
-// Minimal editors: planned_qty (number), status (select). Lot No can be edited; Part/PO set via code fields.
+// /static/js/page-lots.js — optimized infinite scroll (keyset DESC)
 
 import { $, jfetch, toast } from "./api.js";
 
 /* ===== CONFIG ===== */
 const ENDPOINTS = {
   base: "/lots",
-  keyset: "/lots/keyset",   // new endpoint in router (DESC)
+  keyset: "/lots/keyset",
   parts: "/parts",
   pos: "/pos",
 };
-const PER_PAGE = 50;
+
+const FIRST_PAGE_LIMIT = 200;   // bigger first paint
+const PER_PAGE = 100;           // subsequent pages
 const UI = { q: "_q", btnAdd: "_add", tableMount: "listBody" };
 const DEBUG = false;
 
-const FETCH_COOLDOWN_MS = 250;
-const POLL_MS = 600;
+const FETCH_COOLDOWN_MS = 200;  // debounce server hits
 const NEAR_BOTTOM_PX = 60;
 
 /* ===== STATE ===== */
@@ -24,7 +23,7 @@ let els = {};
 let table = null;
 
 // keyset
-let cursorNext = null;      // fetch id < cursorNext
+let cursorNext = null;   // fetch id < cursorNext
 let hasMore = true;
 let loading = false;
 let currentKeyword = "";
@@ -38,7 +37,6 @@ let loadVersion = 0;
 // timers & helpers
 let lastFetchAt = 0;
 let rAFToken = 0;
-let pollerId = null;
 
 /* ===== HELPERS ===== */
 const trim = (v) => (v == null ? "" : String(v).trim());
@@ -65,7 +63,6 @@ async function resolvePartId(partCodeOrName){
   try{
     const res = await jfetch(`${ENDPOINTS.parts}?q=${encodeURIComponent(q)}`);
     const arr = Array.isArray(res?.items) ? res.items : Array.isArray(res) ? res : [];
-    // Prefer exact part_no match, then single result
     const exact = arr.find(p => (p.part_no || "").toUpperCase() === q.toUpperCase());
     return (exact?.id != null) ? exact.id : (arr.length === 1 ? arr[0].id : null);
   }catch{ return null; }
@@ -76,7 +73,7 @@ async function resolvePoId(t){
   const asNum = toNum(v);
   if (asNum) return asNum;
   try{
-    const all = await jfetch(ENDPOINTS.pos); // assumes small-ish list; if huge, add server lookup
+    const all = await jfetch(ENDPOINTS.pos); // if huge, add a server lookup with ?q=
     const arr = Array.isArray(all) ? all : [];
     const hit = arr.find(p => (p.po_number || "").toUpperCase() === v.toUpperCase());
     return hit?.id ?? null;
@@ -85,7 +82,6 @@ async function resolvePoId(t){
 
 /* ===== Normalize row ===== */
 function normalizeRow(r){
-  // r is ProductionLotOut
   const id = toNum(r.id);
   if (id != null && id < minLoadedId) minLoadedId = id;
   return {
@@ -96,7 +92,6 @@ function normalizeRow(r){
     started_at: r.started_at ?? null,
     finished_at: r.finished_at ?? null,
 
-    // denormalized display fields (safe for quick viewing)
     part_id: r.part_id ?? r.part?.id ?? null,
     part_no: r.part?.part_no ?? "",
     part_name: r.part?.name ?? "",
@@ -173,15 +168,13 @@ const patchTimers = new Map();
 const PATCH_MS = 350;
 
 function buildPayload(row){
-  // Resolve part/po codes into ids where possible
   return {
     lot_no: trim(row.lot_no) || null,
     part_id: row.part_id ?? null,
-    part_revision_id: row.part_revision_id ?? null, // optional
+    part_revision_id: row.part_revision_id ?? null,
     po_id: row.po_id ?? null,
     planned_qty: Number(row.planned_qty ?? 0),
     status: row.status || "in_process",
-    // started_at / finished_at keep as is (read-only here)
   };
 }
 
@@ -202,7 +195,6 @@ async function deleteRow(row){
 }
 
 async function ensureResolvedIdsForRow(d){
-  // If user changed part_no/po_number fields, try to resolve → set part_id/po_id in-place (no server yet)
   if (trim(d.part_no) && !d.part_id){
     const pid = await resolvePartId(d.part_no);
     if (pid) d.part_id = pid;
@@ -220,7 +212,6 @@ async function autosaveCell(cell){
   const newVal = cell.getValue();
   const oldVal = cell.getOldValue();
 
-  // Validate basics
   if (fld === "lot_no" && !trim(newVal)) {
     toast("Lot No cannot be empty", false);
     cell.setValue(oldVal, true);
@@ -230,23 +221,16 @@ async function autosaveCell(cell){
   await ensureResolvedIdsForRow(d);
   const payload = buildPayload(d);
 
-  // CREATE if no id yet and we have minimal fields
   if (!d.id){
-    // Part required to create; lot_no can be AUTO if left non-empty "AUTO"
-    // Allow creating when we at least have part_id and planned_qty >= 0
-    if (!payload.part_id){
-      // wait until user provides a resolvable part_no
-      return;
-    }
+    if (!payload.part_id) return; // wait until resolvable part
     if (createInFlight.has(row)) return;
     createInFlight.add(row);
     try{
       const body = { ...payload };
-      // if lot_no looks empty → use AUTO
       if (!trim(body.lot_no)) body.lot_no = "AUTO";
       const created = await jfetch(ENDPOINTS.base, { method:"POST", body: JSON.stringify(body) });
       const norm = normalizeRow(created || d);
-      row.update({ ...norm });      // okay to update whole row after create
+      row.update({ ...norm });
       if (norm.id != null) loadedIds.add(norm.id);
       toast(`Lot "${norm.lot_no}" created`);
     }catch(e){
@@ -258,7 +242,6 @@ async function autosaveCell(cell){
     return;
   }
 
-  // UPDATE (debounced)
   if (patchTimers.has(row)) clearTimeout(patchTimers.get(row));
   const t = setTimeout(async ()=>{
     patchTimers.delete(row);
@@ -268,8 +251,6 @@ async function autosaveCell(cell){
         body: JSON.stringify(payload),
       });
       const norm = normalizeRow(updated || d);
-
-      // update fields without pushing history
       const fields = [
         "lot_no","planned_qty","status","part_id","part_no","part_name",
         "part_revision_id","part_rev","po_id","po_number","started_at","finished_at"
@@ -281,7 +262,6 @@ async function autosaveCell(cell){
       }
       toast(`Saved "${norm.lot_no || norm.id}"`);
     }catch(e){
-      // revert UI
       cell.setValue(oldVal, true);
       toast(e?.message || "Save failed", false);
       try{
@@ -304,7 +284,7 @@ async function fetchFirstPage(keyword, version){
     await new Promise(r => setTimeout(r, Math.max(0, FETCH_COOLDOWN_MS - (nowMs()-lastFetchAt))));
   }
   const usp = new URLSearchParams();
-  usp.set("limit", String(PER_PAGE));
+  usp.set("limit", String(FIRST_PAGE_LIMIT));
   if (keyword) usp.set("q", keyword);
   const url = `${ENDPOINTS.keyset}?${usp.toString()}`;
   dbg("[lots:first] GET", url);
@@ -382,9 +362,8 @@ async function resetAndLoadFirst(keyword=""){
     cursorNext = res.nextCursor ?? (rows.length ? rows[rows.length-1].id : null);
     hasMore = res.hasMore && cursorNext != null;
 
-    // autofill viewport quickly
-    await autofillViewport(my, 6);
-    throttleForceCheck();
+    // (optional) Fill tall view quickly, but only a little
+    await autofillViewport(my, 2);  // was 6
   }catch(e){
     toast(e?.message || "Load failed", false);
   }finally{
@@ -410,7 +389,6 @@ async function loadNextPageIfNeeded(){
       cursorNext = res.nextCursor != null ? res.nextCursor : (fallbackLast ?? cursorNext);
       hasMore = res.hasMore && cursorNext != null;
     }
-    throttleForceCheck();
   }catch(e){
     hasMore = false;
     toast(e?.message || "Load more failed", false);
@@ -419,7 +397,7 @@ async function loadNextPageIfNeeded(){
   }
 }
 
-async function autofillViewport(version, maxLoops=5){
+async function autofillViewport(version, maxLoops=2){
   const root = document.querySelector(`#${UI.tableMount}`)?.closest(".tabulator");
   const holder = root?.querySelector(".tabulator-tableHolder, .tabulator-tableholder");
   let loops = 0;
@@ -436,6 +414,24 @@ async function autofillViewport(version, maxLoops=5){
   }
 }
 
+/* ===== IntersectionObserver sentinel ===== */
+function installSentinel(){
+  const root = document.querySelector(`#${UI.tableMount}`)?.closest(".tabulator");
+  const holder = root?.querySelector(".tabulator-tableHolder, .tabulator-tableholder");
+  const parent = holder || document.querySelector(`#${UI.tableMount}`);
+  const sentinel = document.createElement("div");
+  sentinel.id = "io-sentinel";
+  sentinel.style.height = "1px";
+  parent.appendChild(sentinel);
+
+  const io = new IntersectionObserver(async entries=>{
+    if (!hasMore || loading) return;
+    if (entries.some(e=>e.isIntersecting)) await loadNextPageIfNeeded();
+  }, { root: holder || null, rootMargin: "200px" });
+
+  io.observe(sentinel);
+}
+
 /* ===== Table ===== */
 function initTable(){
   table = new Tabulator(`#${UI.tableMount}`, {
@@ -448,7 +444,7 @@ function initTable(){
     history:true,
   });
 
-  // handle Tab between fields
+  // Tab navigation across editable cells
   table.on("cellEditing", (cell)=>{
     setTimeout(()=>{
       const input = cell.getElement()?.querySelector("input, textarea, [contenteditable='true']");
@@ -482,20 +478,6 @@ function initTable(){
   });
 
   table.on("cellEdited", autosaveCell);
-
-  // infinite scroll triggers
-  const onScrollGeneric = ()=>{
-    const root = document.querySelector(`#${UI.tableMount}`)?.closest(".tabulator");
-    const holder = root?.querySelector(".tabulator-tableHolder, .tabulator-tableholder");
-    if (!hasMore || loading) return;
-    if (holder){
-      const near = holder.scrollTop + holder.clientHeight >= holder.scrollHeight - NEAR_BOTTOM_PX;
-      if (near) return loadNextPageIfNeeded();
-    }
-    const rect = (root || document.getElementById(UI.tableMount))?.getBoundingClientRect?.();
-    if (rect && rect.bottom <= window.innerHeight + NEAR_BOTTOM_PX) return loadNextPageIfNeeded();
-  };
-  window.addEventListener("scroll", onScrollGeneric, { passive:true });
 }
 
 /* ===== Search & Add ===== */
@@ -523,27 +505,10 @@ function bindAdd(){
   });
 }
 
-/* ===== Polling fallback ===== */
-function startPolling(){
-  if (pollerId) clearInterval(pollerId);
-  pollerId = setInterval(()=>{
-    if (!table || loading || !hasMore) return;
-    const root = document.querySelector(`#${UI.tableMount}`)?.closest(".tabulator");
-    const holder = root?.querySelector(".tabulator-tableHolder, .tabulator-tableholder");
-    let near = false;
-    if (holder) near = near || holder.scrollTop + holder.clientHeight >= holder.scrollHeight - NEAR_BOTTOM_PX;
-    const rect = (root || document.getElementById(UI.tableMount))?.getBoundingClientRect?.();
-    if (rect) near = near || rect.bottom <= window.innerHeight + NEAR_BOTTOM_PX;
-    if (near) loadNextPageIfNeeded();
-  }, POLL_MS);
-}
-
-/* ===== Boot ===== */
 /* ===== Boot ===== */
 document.addEventListener("DOMContentLoaded", ()=>{
   Object.values(UI).forEach(id => (els[id] = $(id)));
 
-  // inject small styles once
   if (!document.getElementById("lot-actions-css")){
     const st = document.createElement("style");
     st.id = "lot-actions-css";
@@ -557,18 +522,13 @@ document.addEventListener("DOMContentLoaded", ()=>{
     document.head.appendChild(st);
   }
 
-  // 1) init table
   initTable();
-
-  // 2) bind UI
   bindSearch();
   bindAdd();
-  startPolling();
 
-  // 3) IMPORTANT: load only after table is fully initialized
   table.on("tableBuilt", async () => {
-    // ensure Tabulator has mounted before data ops
     await Promise.resolve();
-    resetAndLoadFirst();
+    installSentinel();       // single trigger for loading
+    resetAndLoadFirst();     // first page (big)
   });
 });

@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Operation Panel UI</title>
+<style>
+  :root{
+    --bg:#fff;
+    --panel:#e5e5e5;
+    --text:#111;
+    --muted:#555;
+    --gap:14px;
+    --radius:4px;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    font:15px/1.4 system-ui,-apple-system,Segoe UI,Roboto,Arial;
+    color:var(--text);
+    background:var(--bg);
+    padding:18px;
+  }
+
+  .wrap{
+    max-width:980px;
+    margin:0 auto;
+    display:grid;
+    grid-template-columns: 1.2fr .9fr;
+    gap:var(--gap);
+    align-items:start;
+  }
+
+  /* LEFT */
+  .note{
+    background:var(--panel);
+    border-radius:var(--radius);
+    padding:14px;
+    min-height:190px;
+    display:flex; flex-direction:column; gap:8px;
+  }
+  .op{font-weight:600}
+  .title{font-weight:600}
+  .muted{color:var(--muted)}
+ .actions{
+  margin-top:var(--gap);
+  display:grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap:var(--gap);
+}
+  .action-tile{
+    background:var(--panel);
+    border-radius:var(--radius);
+    padding:10px 12px;
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer;
+    font-weight:600;
+    user-select:none;
+  }
+  .action-tile:hover{background:#d4d4d4}
+ .below{
+  margin-top:var(--gap);
+  display:grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap:var(--gap);
+}
+  .big-box{
+    background:var(--panel);
+    border-radius:var(--radius);
+    height:110px;
+  }
+
+  /* RIGHT – keypad */
+  .pad{
+    display:grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap:var(--gap);
+    align-content:start;
+  }
+  button.key, button.key-wide{
+    background:var(--panel);
+    border:none;
+    border-radius:var(--radius);
+    display:flex; align-items:center; justify-content:center;
+    height:72px;
+    font-weight:600;
+    font-size:16px;
+    cursor:pointer;
+    user-select:none;
+  }
+  button.key-wide{
+    grid-column: span 2;
+    font-size:14px;
+    font-weight:500;
+  }
+  button:hover{background:#d4d4d4}
+
+  @media (max-width:760px){
+    .wrap{grid-template-columns: 1fr; }
+    .pad{margin-top:6px}
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <!-- LEFT -->
+  <div>
+    <div class="note">
+      <div class="op">OP#10</div>
+      <div class="title">Milling</div>
+      <div class="muted">- Prepare stell soft JAS and Make Jassw per programm</div>
+    </div>
+
+    <div class="actions">
+      <div class="action-tile">Receive</div>
+      <div class="action-tile">Accept</div>
+       <div class="action-tile">Reject</div>
+    </div>
+
+    <div class="below">
+      <div class="big-box"></div>
+      <div class="big-box"></div>
+       <div class="big-box"></div>
+    </div>
+  </div>
+
+  <!-- RIGHT keypad -->
+  <div class="pad">
+    <button class="key">7</button>
+    <button class="key">8</button>
+    <button class="key">9</button>
+
+    <button class="key">4</button>
+    <button class="key">5</button>
+    <button class="key">6</button>
+
+    <button class="key">1</button>
+    <button class="key">2</button>
+    <button class="key">3</button>
+
+    <button class="key">0</button>
+    <button class="key-wide">clear</button>
+  </div>
+</div>
+
+<script>
+  // Example: log button clicks
+  document.querySelectorAll(".pad button").forEach(btn=>{
+    btn.addEventListener("click",()=>{
+      console.log("Pressed:", btn.textContent.trim());
+    });
+  });
+</script>
+
+</body>
+</html>

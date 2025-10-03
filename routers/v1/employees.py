@@ -14,6 +14,8 @@ router = APIRouter(prefix="/employees", tags=["employees"])
 
 @router.post("", response_model=EmployeeOut)
 def create_employee(payload: EmployeeCreate, db: Session = Depends(get_db)):
+    
+    print(payload)
     raw_code = (payload.emp_code or "").strip().upper()
     autogen = raw_code in ("", "AUTO", "AUTOGEN")
     emp_code = next_code_yearly(db, Employee, "emp_code", prefix="EMP") if autogen else raw_code
