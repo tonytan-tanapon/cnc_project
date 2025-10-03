@@ -10,7 +10,9 @@ const ENDPOINTS = {
   // NEW: used-materials summary per lot
   usedMaterials: "/lots/used-materials", // expects ?lot_ids=1,2,3
 };
-const PER_PAGE = 50;
+
+const FIRST_PAGE_LIMIT = 200; // bigger first paint
+const PER_PAGE = 100; // subsequent pages
 const UI = { q: "_q", btnAdd: "_add", tableMount: "listBody" };
 const FETCH_COOLDOWN_MS = 250;
 const NEAR_BOTTOM_PX = 60;
@@ -283,7 +285,6 @@ async function autosaveCell(cell) {
     return;
   }
 
-  // UPDATE (debounced)
   if (patchTimers.has(row)) clearTimeout(patchTimers.get(row));
   const t = setTimeout(async () => {
     patchTimers.delete(row);
@@ -694,7 +695,7 @@ async function fetchFirstPage(keyword, version) {
     );
   }
   const usp = new URLSearchParams();
-  usp.set("limit", String(PER_PAGE));
+  usp.set("limit", String(FIRST_PAGE_LIMIT));
   if (keyword) usp.set("q", keyword);
   const url = `${ENDPOINTS.keyset}?${usp.toString()}`;
   const res = await jfetch(url);

@@ -142,6 +142,14 @@ class LotCursorPage(BaseModel):
     has_more: bool
 
 # --- place below your existing list_lots or anywhere before /{lot_id} ---
+class LotCursorPage(BaseModel):
+    items: List[ProductionLotOut]
+    next_cursor: int | None = None
+    prev_cursor: int | None = None
+    has_more: bool
+
+from sqlalchemy.orm import Session, joinedload, selectinload, load_only
+from sqlalchemy import or_, func
 @router.get("/keyset", response_model=LotCursorPage)
 def list_lots_keyset(
     q: Optional[str] = Query(None, description="Search lot/part/po/status"),
@@ -149,27 +157,42 @@ def list_lots_keyset(
     cursor: Optional[int] = Query(None, description="fetch id < cursor (DESC)"),
     db: Session = Depends(get_db),
 ):
-    qry = (
+    # leaner payload + batched relation loads
+    base = (
         db.query(ProductionLot)
-        .join(Part, Part.id == ProductionLot.part_id)
-        .outerjoin(PO, PO.id == ProductionLot.po_id)
         .options(
-            joinedload(ProductionLot.part),
-            joinedload(ProductionLot.po),
-            joinedload(ProductionLot.part_revision),
+            load_only(
+                ProductionLot.id,
+                ProductionLot.lot_no,
+                ProductionLot.part_id,
+                ProductionLot.po_id,
+                ProductionLot.planned_qty,
+                ProductionLot.status,
+                ProductionLot.started_at,
+                ProductionLot.finished_at,
+                ProductionLot.part_revision_id,
+            ),
+            selectinload(ProductionLot.part).load_only(Part.id, Part.part_no, Part.name),
+            selectinload(ProductionLot.po).load_only(PO.id, PO.po_number),
+            selectinload(ProductionLot.part_revision),  # .load_only(PartRevision.id, PartRevision.rev)
         )
     )
 
-    if q and q.strip():
-        for tok in q.strip().split():
+    # coarsen search: up to 2 tokens, min length 2
+    tokens = [t for t in (q or "").split() if len(t) >= 2][:2]
+    qry = base
+    if tokens:
+        qry = qry.join(Part, Part.id == ProductionLot.part_id).outerjoin(PO, PO.id == ProductionLot.po_id)
+        for tok in tokens:
             pat = _like_escape(tok)
             qry = qry.filter(or_(
-                ProductionLot.lot_no.ilike(pat),            # << lot_no
-                Part.part_no.ilike(pat),                    # << part_no
-                Part.name.ilike(pat),                       #    ชื่อ part
+                ProductionLot.lot_no.ilike(pat),
                 ProductionLot.status.ilike(pat),
+                Part.part_no.ilike(pat),
+                Part.name.ilike(pat),
                 PO.po_number.ilike(pat),
                 PO.description.ilike(pat),
+                func.concat("[", func.coalesce(Part.part_no, ""), "] ", func.coalesce(Part.name, "")).ilike(pat),
             ))
 
     if cursor is not None:
@@ -180,8 +203,11 @@ def list_lots_keyset(
     page_rows = rows[:limit]
     has_more = len(rows) > limit
 
-    items = [ProductionLotOut.model_validate(r) for r in page_rows]
-    next_cursor = min((r.id for r in page_rows), default=None)
+    # serialize via schema model_validate (Pydantic v2)
+    items: List[ProductionLotOut] = [ProductionLotOut.model_validate(r) for r in page_rows]
+
+    next_cursor = min((r.id for r in page_rows), default=None)  # smallest id on this page
+    prev_cursor = None  # (optional) not used by our UI
 
     return {
         "items": items,
@@ -189,10 +215,6 @@ def list_lots_keyset(
         "prev_cursor": None,
         "has_more": has_more,
     }
-
-
-
-
 @router.get("/{lot_id}", response_model=ProductionLotOut)
 def get_lot(lot_id: int, db: Session = Depends(get_db)):
     lot = (

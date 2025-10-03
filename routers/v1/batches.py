@@ -50,6 +50,7 @@ def get_next_batch_no(prefix: str = "B", width: int = 5, db: Session = Depends(g
 # ---------- CREATE (supports AUTO/AUTOGEN/empty batch_no) ----------
 @router.post("", response_model=RawBatchOut)
 def create_batch(payload: RawBatchCreate, db: Session = Depends(get_db)):
+    print("hello")
     # material must exist
     if not db.get(RawMaterial, payload.material_id):
         raise HTTPException(404, "Material not found")

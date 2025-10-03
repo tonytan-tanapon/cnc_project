@@ -69,7 +69,7 @@ class POBase(APIBase):
     description: Optional[str] = None
 
 class POCreate(BaseModel):
-    po_number: str
+    po_number:  Optional[str] = None
     customer_id: int
     description: Optional[str] = None
 
@@ -126,7 +126,7 @@ class SupplierBase(APIBase):
     payment_terms: Optional[str] = None
 
 class SupplierCreate(BaseModel):
-    code: str
+    code: Optional[str] = None
     name: str
     contact: Optional[str] = None
     email: Optional[str] = None
@@ -156,7 +156,7 @@ class RawMaterialBase(APIBase):
     uom: Optional[str] = None
     remark: Optional[str] = None
 class RawMaterialCreate(BaseModel):
-    code: str
+    code: Optional[str] = None
     name: str
     spec: Optional[str] = None
     uom: Optional[str] = "kg"
@@ -177,7 +177,7 @@ class RawMaterialOut(RawMaterialBase):
 # =========================================
 class RawBatchBase(APIBase):
     material_id: int
-    batch_no: str
+    batch_no: Optional[str] = None
     supplier_id: Optional[int] = None
     supplier_batch_no: Optional[str] = None
     mill_name: Optional[str] = None

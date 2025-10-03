@@ -3,88 +3,114 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Material · Edit · Topnotch – MFG</title>
+    <title>Part Detail · Topnotch – MFG</title>
+
+    <!-- Global styles -->
     <link rel="stylesheet" href="/static/css/app.css" />
+    <!-- Tabulator theme -->
+    <link
+      rel="stylesheet"
+      href="/static/vendor/tabulator/tabulator_modern.min.css"
+    />
+
+    <style>
+      .page-header-row{display:flex;align-items:center;gap:12px}
+      .page-header-row .page-title{margin:0}
+      .page-header-row .subtitle{margin:0;color:#64748b;font-size:14px}
+
+      .main--edge{padding:0;height:100vh;overflow:hidden}
+      .panel--edge{margin:0;border-radius:0;border-left-width:0;border-right-width:0}
+
+      /* header card */
+      .card .grid{margin-top:8px}
+      .hint{margin-left:8px;color:#64748b}
+
+      /* Revisions – edge layout */
+      #revPanel{display:flex;flex-direction:column;height:100%;min-height:0}
+      #revTopbar{
+        display:flex;align-items:center;gap:8px;height:44px;
+        border-bottom:1px solid #e5e7eb
+      }
+      #btnAddRev{height:32px}
+
+      #revBody{flex:1 1 auto;min-height:0;overflow:auto}
+      #revBody .tabulator{height:100% !important}
+
+      /* action buttons used in table */
+      .btn-mini{font:inherit;padding:6px 10px;border-radius:8px;border:1px solid #e5e7eb;background:#f8fafc;cursor:pointer}
+      .btn-mini:hover{background:#f1f5f9}
+      .btn-primary{background:#2563eb;color:#fff;border-color:#1d4ed8}
+      .btn-primary:hover{background:#1d4ed8}
+      .btn-danger{background:#ef4444;color:#fff;border-color:#dc2626}
+      .btn-danger:hover{background:#dc2626}
+      .btn-secondary{background:#6b7280;color:#fff;border-color:#4b5563}
+      .btn-secondary:hover{background:#4b5563}
+      .row-actions{display:flex;gap:6px;justify-content:center}
+      .tabulator-cell.actions-cell{overflow:visible}
+
+      /* highlight dirty rows */
+      .tabulator-row.is-dirty{background:#fff7ed}
+    </style>
   </head>
+
   <body>
     <div class="app">
-      <!-- Sidebar -->
-      <aside class="sidebar">
-        <div id="navSlot" data-nav-slot></div>
-      </aside>
+      <aside class="sidebar"><div id="navSlot" data-nav-slot></div></aside>
 
-      <!-- Main -->
-      <main class="main">
-        <!-- Topbar -->
-        <div class="topbar">
-          <div class="search">
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="currentColor"
-              aria-hidden="true"
-            >
-              <path
-                d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zM9.5 14C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"
-              />
-            </svg>
-            <input
-              id="globalSearch"
-              type="search"
-              placeholder="Search PO / Lot / Tracking…"
-            />
+      <main class="main main--edge">
+        <section class="panel panel--edge" style="padding:16px 16px 0">
+          <!-- Page header -->
+          <div class="page-header-row" style="margin-bottom:8px">
+            <h2 class="page-title">🧩 Part Detail</h2>
+            <p class="subtitle" id="subTitle"></p>
+            <span class="hint" id="hdrHint"></span>
           </div>
-          <a class="btn" href="/static/materials.html">← Back</a>
-        </div>
 
-        <!-- Content -->
-        <section id="page-material-detail">
-          <h2 class="page-title">📦 Material</h2>
-
-          <div class="card">
-            <div class="grid" style="margin-top: 8px">
-              <div class="col-3">
-                <label>Code</label>
-                <input id="m_code" />
-              </div>
-              <div class="col-6">
-                <label>Name <span class="hint"></span></label>
-                <input id="m_name" />
-              </div>
-              <div class="col-3">
-                <label>UoM</label>
-                <input id="m_uom" placeholder="e.g., kg / pcs" />
-              </div>
-
-              <div class="col-6">
-                <label>Spec</label>
-                <input id="m_spec" placeholder="Specification" />
-              </div>
-              <div class="col-6">
-                <label>Remark</label>
-                <input id="m_remark" />
-              </div>
-
-              <div class="col-12" id="actionRow">
-                <button class="btn" id="btnSave" type="button">Save</button>
-                <button class="btn ghost" id="btnReset" type="button">
-                  Reset
-                </button>
-                <button
-                  class="btn danger"
-                  id="btnDelete"
-                  type="button"
-                  style="float: right"
-                >
-                  Delete
-                </button>
-                <span class="hint" id="hint"></span>
+          <!-- Header editor -->
+          <section id="sec-part">
+            <div class="card">
+              <div class="grid">
+                <div class="col-4">
+                  <label>Part No.</label>
+                  <input id="part_no" />
+                </div>
+                <div class="col-4">
+                  <label>Name</label>
+                  <input id="part_name" />
+                </div>
+                <div class="col-4">
+                  <label>Status</label>
+                  <select id="part_status">
+                    <option value="active">active</option>
+                    <option value="inactive">inactive</option>
+                  </select>
+                </div>
+                <div class="col-6">
+                  <label>Default UoM</label>
+                  <input id="part_uom" />
+                </div>
+                <div class="col-6">
+                  <label>Description</label>
+                  <input id="part_desc" />
+                </div>
+                <div class="col-12">
+                  <button class="btn" id="btnSavePart" type="button">Save</button>
+                  <button class="btn ghost" id="btnResetPart" type="button">Reset</button>
+                  <button class="btn danger" id="btnDeletePart" type="button" style="float:right">Delete</button>
+                  <span class="hint" id="hintPart"></span>
+                </div>
               </div>
             </div>
-          </div>
+          </section>
+        </section>
 
-          <div id="errorBox" class="hint" style="display: none"></div>
+        <!-- Revisions (Tabulator) -->
+        <section class="panel panel--edge" id="revPanel">
+          <div id="revTopbar">
+            <div style="padding:0 12px;font-weight:600">Revisions</div>
+            <button id="btnAddRev" class="btn" type="button">+ Add Revision</button>
+          </div>
+          <div id="revBody"></div>
         </section>
       </main>
     </div>
@@ -93,9 +119,8 @@
       <span id="toastText"></span>
     </div>
 
-    <!-- nav + active highlight -->
     <script type="module" src="/static/js/nav-loader.js"></script>
-    <!-- page script -->
-    <script type="module" src="/static/js/page-material-detail.js?v=1"></script>
+    <script src="/static/vendor/tabulator/tabulator.min.js"></script>
+    <script type="module" src="/static/js/page-part-detail.js?v=3"></script>
   </body>
 </html>
