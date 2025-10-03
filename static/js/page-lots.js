@@ -1,5 +1,6 @@
 // /static/js/page-lots.js — Production Lots (Tabulator style like Customers)
 import { $, jfetch, toast } from "./api.js";
+import { attachAutocomplete } from "./autocomplete.js";
 
 /* ================== CONFIG ================== */
 const ENDPOINTS = {
@@ -10,7 +11,7 @@ const ENDPOINTS = {
   // NEW: used-materials summary per lot
   usedMaterials: "/lots/used-materials", // expects ?lot_ids=1,2,3
 };
-
+const safe = (s) => String(s ?? "").replaceAll("<", "&lt;");
 const FIRST_PAGE_LIMIT = 200; // bigger first paint
 const PER_PAGE = 100; // subsequent pages
 const UI = { q: "_q", btnAdd: "_add", tableMount: "listBody" };
@@ -41,7 +42,7 @@ const markFetched = () => {
   lastFetchAt = nowMs();
 };
 
-/* ---------- Resolves ---------- */
+/* ---------- Resolves (fallback auto-resolve by text) ---------- */
 async function resolvePartId(partCodeOrName) {
   const q = trim(partCodeOrName);
   if (!q) return null;
@@ -217,6 +218,227 @@ async function refreshUsedForRows(rows) {
   if (updates.length) await table?.updateOrAddData(updates, "id");
 }
 
+/* ================== AUTOCOMPLETE (fetchers) ================== */
+async function fetchParts(term) {
+  const q = (term || "").trim();
+  try {
+    if (!q) {
+      const res = await jfetch(`/parts/keyset?limit=10`);
+      const items = Array.isArray(res) ? res : res.items ?? [];
+      return items.map((p) => ({
+        id: p.id,
+        part_no: p.part_no ?? p.code ?? "",
+        name: p.name ?? "",
+        part_revision_id: p.part_revision_id ?? p.part_revision?.id ?? null,
+        rev: p.part_revision?.rev ?? p.rev ?? "",
+      }));
+    } else {
+      const res = await jfetch(
+        `/parts?q=${encodeURIComponent(q)}&page=1&page_size=10`
+      );
+      const items = Array.isArray(res) ? res : res.items ?? [];
+      return items.map((p) => ({
+        id: p.id,
+        part_no: p.part_no ?? p.code ?? "",
+        name: p.name ?? "",
+        part_revision_id: p.part_revision_id ?? p.part_revision?.id ?? null,
+        rev: p.part_revision?.rev ?? p.rev ?? "",
+      }));
+    }
+  } catch {
+    return [];
+  }
+}
+
+async function fetchPOs(term) {
+  const q = (term || "").trim();
+  try {
+    if (!q) {
+      const res = await jfetch(`/pos/keyset?limit=10`);
+      const items = Array.isArray(res) ? res : res.items ?? [];
+      return items.map((p) => ({
+        id: p.id,
+        po_number: p.po_number ?? "",
+      }));
+    } else {
+      const res = await jfetch(
+        `/pos?q=${encodeURIComponent(q)}&page=1&page_size=10`
+      );
+      const items = Array.isArray(res) ? res : res.items ?? [];
+      return items.map((p) => ({
+        id: p.id,
+        po_number: p.po_number ?? "",
+      }));
+    }
+  } catch {
+    return [];
+  }
+}
+
+/* ================== AUTOCOMPLETE (editors) ================== */
+function partEditor(cell, onRendered, success, cancel) {
+  const start = String(cell.getValue() ?? "");
+  const input = document.createElement("input");
+  input.type = "text";
+  input.className = "tabulator-editing";
+  input.value = start;
+  input.autocomplete = "off";
+  input.style.width = "100%";
+
+  attachAutocomplete(input, {
+    fetchItems: fetchParts,
+    getDisplayValue: (it) =>
+      it
+        ? `${it.part_no}${it.name ? " — " + it.name : ""}${
+            it.rev ? " (rev " + it.rev + ")" : ""
+          }`
+        : "",
+    renderItem: (it) =>
+      `<div class="ac-row"><b>${safe(it.part_no)}</b>${
+        it.name ? " — " + safe(it.name) : ""
+      }${it.rev ? " <em>(rev " + safe(it.rev) + ")</em>" : ""}</div>`,
+    openOnFocus: true,
+    minChars: 0,
+    debounceMs: 200,
+    maxHeight: 260,
+    onPick: (it) => {
+      const row = cell.getRow();
+      row.update({
+        part_id: it.id,
+        part_no: it.part_no,
+        part_name: it.name || "",
+        part_revision_id: it.part_revision_id ?? null,
+        part_rev: it.rev || "",
+      });
+      success(`${it.part_no}`); // trigger autosave via cellEdited
+    },
+  });
+
+  onRendered(() => {
+    input.focus();
+    input.select();
+  });
+
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const d = cell.getRow().getData();
+      if (!d.part_id) {
+        toast("Pick a part from the list", false);
+        return;
+      }
+      success(input.value);
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      cancel();
+    }
+  });
+
+  input.addEventListener("input", () => {
+    const row = cell.getRow();
+    row.update({ part_id: null, part_revision_id: null, part_rev: "" });
+  });
+
+  return input;
+}
+
+function poEditor(cell, onRendered, success, cancel) {
+  const start = String(cell.getValue() ?? "");
+  const input = document.createElement("input");
+  input.type = "text";
+  input.className = "tabulator-editing";
+  input.value = start;
+  input.autocomplete = "off";
+  input.style.width = "100%";
+
+  attachAutocomplete(input, {
+    fetchItems: fetchPOs,
+    getDisplayValue: (it) => (it ? `${it.po_number}` : ""),
+    renderItem: (it) =>
+      `<div class="ac-row"><b>${safe(it.po_number)}</b></div>`,
+    openOnFocus: true,
+    minChars: 0,
+    debounceMs: 200,
+    maxHeight: 260,
+    onPick: (it) => {
+      const row = cell.getRow();
+      row.update({
+        po_id: it.id,
+        po_number: it.po_number,
+      });
+      success(`${it.po_number}`);
+    },
+  });
+
+  onRendered(() => {
+    input.focus();
+    input.select();
+  });
+
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const d = cell.getRow().getData();
+      if (!d.po_id) {
+        toast("Pick a PO from the list", false);
+        return;
+      }
+      success(input.value);
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      cancel();
+    }
+  });
+
+  input.addEventListener("input", () => {
+    const row = cell.getRow();
+    row.update({ po_id: null });
+  });
+
+  return input;
+}
+
+/* ================== ENRICH/HYDRATE LABELS (by ids) ================== */
+async function ensureLabelsForRows(rows) {
+  const partIds = [...new Set(rows.map((r) => r.part_id).filter(Boolean))];
+  const poIds = [...new Set(rows.map((r) => r.po_id).filter(Boolean))];
+
+  // parts
+  if (partIds.length) {
+    try {
+      const res = await jfetch(
+        `/parts/lookup?ids=${encodeURIComponent(partIds.join(","))}`
+      );
+      const arr = Array.isArray(res) ? res : res.items ?? [];
+      const byId = new Map(arr.map((p) => [p.id, p]));
+      for (const r of rows) {
+        if ((!r.part_no || !r.part_name) && r.part_id && byId.has(r.part_id)) {
+          const p = byId.get(r.part_id);
+          r.part_no = p.part_no ?? p.code ?? "";
+          r.part_name = p.name ?? "";
+        }
+      }
+    } catch {}
+  }
+
+  // pos
+  if (poIds.length) {
+    try {
+      const res = await jfetch(
+        `/pos/lookup?ids=${encodeURIComponent(poIds.join(","))}`
+      );
+      const arr = Array.isArray(res) ? res : res.items ?? [];
+      const byId = new Map(arr.map((p) => [p.id, p]));
+      for (const r of rows) {
+        if (!r.po_number && r.po_id && byId.has(r.po_id)) {
+          const p = byId.get(r.po_id);
+          r.po_number = p.po_number ?? "";
+        }
+      }
+    } catch {}
+  }
+}
+
 /* ================== AUTOSAVE ================== */
 const createInFlight = new WeakSet();
 const patchTimers = new Map();
@@ -253,6 +475,18 @@ async function autosaveCell(cell) {
 
   if (fld === "lot_no" && !trim(newVal)) {
     toast("Lot No cannot be empty", false);
+    cell.setValue(oldVal, true);
+    return;
+  }
+
+  // บังคับให้เลือกจาก list เพื่อกัน false positives
+  if (fld === "part_no" && d.part_id == null) {
+    toast("Pick a part from the list", false);
+    cell.setValue(oldVal, true);
+    return;
+  }
+  if (fld === "po_number" && d.po_number && d.po_id == null) {
+    toast("Pick a PO from the list", false);
     cell.setValue(oldVal, true);
     return;
   }
@@ -355,10 +589,10 @@ function makeColumns() {
       title: "Part No",
       field: "part_no",
       width: 160,
-      editor: "input",
-      headerTooltip: "Type Part No to resolve Part",
+      editor: partEditor,
+      headerTooltip: "Pick a Part (type to search)",
     },
-    { title: "PO No", field: "po_number", width: 140, editor: "input" },
+    { title: "PO No", field: "po_number", width: 140, editor: poEditor },
 
     {
       title: "Material",
@@ -764,7 +998,8 @@ async function resetAndLoadFirst(keyword = "") {
     loading = true;
     const res = await fetchFirstPage(currentKeyword, my);
     if (!res) return;
-    const rows = res.items.map(normalizeRow);
+    let rows = res.items.map(normalizeRow);
+    await ensureLabelsForRows(rows); // <-- HYDRATE
     await appendRows(rows);
 
     cursorNext =
@@ -790,7 +1025,8 @@ async function loadNextPageIfNeeded() {
   try {
     const res = await fetchNextPage(my);
     if (!res) return;
-    const rows = res.items.map(normalizeRow);
+    let rows = res.items.map(normalizeRow);
+    await ensureLabelsForRows(rows); // <-- HYDRATE
     await appendRows(rows);
 
     const newRows = rows.map((r) => table?.getRow?.(r.id)).filter(Boolean);

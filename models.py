@@ -464,8 +464,9 @@ def _lmu_before_update(mapper, connection, target: LotMaterialUse):
 class ShopTraveler(Base):
     __tablename__ = "shop_travelers"
     id = Column(Integer, primary_key=True)
+    traveler_no = Column(String, unique=True, index=True, nullable=False)  # ✅ new field
     lot_id = Column(Integer, ForeignKey("production_lots.id"), nullable=False)
-
+    
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     created_by_id = Column(Integer, ForeignKey("employees.id"), nullable=True)
     status = Column(String, nullable=False, default="open")

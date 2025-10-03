@@ -38,6 +38,7 @@ def _with_joined(db: Session, lot_id: int):
 
 @router.post("", response_model=ProductionLotOut)
 def create_lot(payload: ProductionLotCreate, db: Session = Depends(get_db)):
+   
     if payload.po_id is not None and not db.get(PO, payload.po_id):
         raise HTTPException(404, "PO not found")
 
@@ -233,6 +234,7 @@ def get_lot(lot_id: int, db: Session = Depends(get_db)):
 
 @router.put("/{lot_id}", response_model=ProductionLotOut)
 def update_lot(lot_id: int, payload: ProductionLotUpdate, db: Session = Depends(get_db)):
+    
     lot = db.get(ProductionLot, lot_id)
     if not lot:
         raise HTTPException(404, "Lot not found")
@@ -380,4 +382,31 @@ def used_materials(
                 "po_number": r.po_number,
             }
         )
+    return out
+
+from typing import Dict
+@router.get("/used-materials")
+def used_materials(lot_ids: str = Query(..., description="comma-separated ids"),
+                   db: Session = Depends(get_db)) -> Dict[str, list]:
+    """
+    รับ ?lot_ids=1,2 → {"1":[{material_code,batch_no,qty,uom,supplier,po_number}], "2":[...]}
+    """
+    try:
+        ids = [int(x) for x in lot_ids.split(",") if x.strip().isdigit()]
+    except Exception:
+        ids = []
+    if not ids:
+        return {}
+
+    # TODO: ดึงจากตารางการใช้วัสดุจริงของแต่ละ lot (ตัวอย่าง stub ด้านล่าง)
+    out = {}
+    for lid in ids:
+        out[str(lid)] = []  # แทนค่าเป็น [] ไปก่อน
+        # ตัวอย่างจริงอาจจะเป็น:
+        # uses = db.query(LotMaterialUse).filter(LotMaterialUse.lot_id == lid).all()
+        # out[str(lid)] = [{
+        #   "material_code": u.material.code, "batch_no": u.batch.batch_no,
+        #   "qty": str(u.qty), "uom": u.uom, "supplier": u.supplier.name if u.supplier else None,
+        #   "po_number": u.po.po_number if u.po else None
+        # } for u in uses]
     return out

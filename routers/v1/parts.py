@@ -1,17 +1,16 @@
 from __future__ import annotations
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Body, Response
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import or_
-from sqlalchemy.orm import Session
+from sqlalchemy import or_, desc
+from sqlalchemy.orm import Session, selectinload
 from sqlalchemy.exc import IntegrityError
 
 from database import get_db
 from models import Part, PartRevision
+from utils.code_generator import next_code
 
 parts_router = APIRouter(prefix="/parts", tags=["parts"])
-
-from utils.code_generator import next_code
 
 @parts_router.get("/next-code")
 def get_next_part_code(prefix: str = "P", width: int = 5, db: Session = Depends(get_db)):
@@ -31,32 +30,8 @@ class PartUpdate(BaseModel):
     uom: Optional[str] = None
     description: Optional[str] = None
     status: Optional[str] = None
-from sqlalchemy.orm import Session, selectinload  # ⬅ เพิ่ม selectinload
-# ---------------- Schemas ----------------
-class PartOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-    id: int
-    part_no: str
-    name: Optional[str] = None
-    uom: Optional[str] = None
-    description: Optional[str] = None
-    status: Optional[str] = None
-    # ⬇⬇ เพิ่มฟิลด์นี้เพื่อแนบ revisions ออกไปได้
-    revisions: Optional[List['RevOut']] = None  # ใช้ __future__ แล้ว รองรับ forward ref
 
-# ----- Revisions Schemas (ใช้ spec/drawing_file/is_current) -----
-class RevCreate(BaseModel):
-    rev: str
-    spec: Optional[str] = ""
-    drawing_file: Optional[str] = None
-    is_current: bool = False
-
-class RevUpdate(BaseModel):
-    rev: Optional[str] = None
-    spec: Optional[str] = None
-    drawing_file: Optional[str] = None
-    is_current: Optional[bool] = None
-
+# ---------------- Schemas (output) ----------------
 class RevOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
@@ -66,6 +41,28 @@ class RevOut(BaseModel):
     drawing_file: Optional[str] = None
     is_current: bool
 
+class PartOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    part_no: str
+    name: Optional[str] = None
+    uom: Optional[str] = None
+    description: Optional[str] = None
+    status: Optional[str] = None
+    revisions: Optional[List[RevOut]] = None
+
+# ---------- Mini / Cursor page models (สำหรับ autocomplete / hydrate) ----------
+class PartMini(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    part_no: Optional[str] = None
+    name: Optional[str] = None
+
+class PartCursorPage(BaseModel):
+    items: List[PartOut]
+    next_cursor: Optional[int] = None   # ไปหน้าเก่ากว่า (id < cursor)
+    prev_cursor: Optional[int] = None   # กลับมาหน้าใหม่กว่า (id > before)
+    has_more: bool
 
 # ---------------- Helper: map Part -> PartOut dict ----------------
 def to_part_out(p: Part, include_revs: bool = False) -> PartOut:
@@ -78,13 +75,94 @@ def to_part_out(p: Part, include_revs: bool = False) -> PartOut:
         status=p.status,
     )
     if include_revs:
-        # ป้องกันกรณีความสัมพันธ์ยังไม่โหลด
         revs = getattr(p, 'revisions', None) or []
         obj.revisions = [RevOut.model_validate(r) for r in revs]
     return obj
 
+# ===================== 🔹 NEW: lookup & bulk (ต้องวางเหนือ /{part_id}) =====================
 
-# ---------------- Endpoints ----------------
+@parts_router.get("/lookup", response_model=List[PartMini])
+def lookup_parts(ids: str, db: Session = Depends(get_db)):
+    """
+    GET /parts/lookup?ids=1,2,3  ->  [{id, part_no, name}, ...]
+    ใช้เติม label (hydrate) จาก id หลายตัวในครั้งเดียว
+    """
+    try:
+        id_list = [int(x) for x in ids.split(",") if x.strip().isdigit()]
+    except Exception:
+        id_list = []
+    if not id_list:
+        return []
+    rows = db.query(Part).filter(Part.id.in_(id_list)).all()
+    return rows
+
+class BulkRequest(BaseModel):
+    ids: List[int]
+
+@parts_router.post("/bulk", response_model=List[PartMini])
+def bulk_parts(payload: BulkRequest = Body(...), db: Session = Depends(get_db)):
+    """
+    POST /parts/bulk
+    Body: {"ids":[1,2,3]}  ->  [{id, part_no, name}, ...]
+    ใช้กรณีจำนวน id เยอะจน query string ยาวเกิน หรืออยากใช้ POST batch
+    """
+    ids = payload.ids or []
+    if not ids:
+        return []
+    rows = db.query(Part).filter(Part.id.in_(ids)).all()
+    return rows
+
+# ===================== 🔹 NEW: keyset (DESC: newest -> oldest) =====================
+
+@parts_router.get("/keyset", response_model=PartCursorPage)
+def list_parts_keyset(
+    q: Optional[str] = Query(None, description="search part_no/name (ILIKE)"),
+    limit: int = Query(25, ge=1, le=200),
+    cursor: Optional[int] = Query(None, description="(DESC) next page: id < cursor"),
+    before: Optional[int] = Query(None, description="(DESC) prev page: id > before"),
+    include: Optional[str] = Query(None, description="e.g. 'revisions'"),
+    db: Session = Depends(get_db),
+):
+    qry = db.query(Part)
+
+    if q and q.strip():
+        like = f"%{q.strip()}%"
+        qry = qry.filter(or_(Part.part_no.ilike(like), Part.name.ilike(like)))
+
+    include_revs = (include == "revisions")
+    if include_revs:
+        qry = qry.options(selectinload(Part.revisions))
+
+    # เคลื่อนแบบ keyset: DESC ใหม่ -> เก่า
+    going_prev = before is not None and cursor is None
+    if going_prev:
+        # กลับไปหน้าใหม่กว่า: id > before, sort ASC แล้วค่อย reverse ให้เป็น DESC
+        qry = qry.filter(Part.id > before).order_by(Part.id.asc())
+        rows = qry.limit(limit + 1).all()
+        rows = list(reversed(rows))
+    else:
+        # หน้าแรก หรือไปหน้าเก่ากว่า: id < cursor
+        if cursor is not None:
+            qry = qry.filter(Part.id < cursor)
+        qry = qry.order_by(desc(Part.id))
+        rows = qry.limit(limit + 1).all()
+
+    page_rows = rows[:limit]
+    has_more = len(rows) > limit
+
+    items = [to_part_out(p, include_revs=include_revs) for p in page_rows]
+    next_cursor = page_rows[-1].id if page_rows else None
+    prev_cursor = page_rows[0].id if page_rows else None
+
+    return {
+        "items": items,
+        "next_cursor": next_cursor,
+        "prev_cursor": prev_cursor,
+        "has_more": has_more,
+    }
+
+# ===================== list (OFFSET) =====================
+
 @parts_router.get("/", response_model=dict)
 def list_parts(
     q: Optional[str] = Query(default=None, description="search part_no/name"),
@@ -113,17 +191,14 @@ def list_parts(
     data = [to_part_out(p, include_revs=include_revs) for p in items]
     return {"items": data, "total": total, "page": page, "page_size": page_size}
 
-from sqlalchemy.exc import IntegrityError
+# ===================== CRUD =====================
 
 @parts_router.post("/", response_model=PartOut, status_code=201)
 def create_part(payload: PartCreate, db: Session = Depends(get_db)):
     raw = (payload.part_no or "").strip().upper()
     autogen = raw in ("", "AUTO", "AUTOGEN")
-
-    # choose your default format here
     code = next_code(db, Part, "part_no", prefix="P", width=5) if autogen else raw
 
-    # quick existence check (nice error if client supplied duplicate)
     if not autogen and db.query(Part).filter(Part.part_no == code).first():
         raise HTTPException(409, "Duplicate part_no")
 
@@ -144,13 +219,9 @@ def create_part(payload: PartCreate, db: Session = Depends(get_db)):
         except IntegrityError:
             db.rollback()
             if autogen:
-                # regenerate and try again
                 p.part_no = next_code(db, Part, "part_no", prefix="P", width=5)
             else:
-                # user-supplied duplicate
                 raise HTTPException(409, "Duplicate part_no")
-
-    # if we somehow failed 3 times
     raise HTTPException(500, "Failed to generate unique part_no")
 
 @parts_router.get("/{part_id}", response_model=PartOut)
@@ -203,6 +274,18 @@ def list_revisions(part_id: int, db: Session = Depends(get_db)):
     )
     return [RevOut.model_validate(r) for r in rows]
 
+class RevCreate(BaseModel):
+    rev: str
+    spec: Optional[str] = ""
+    drawing_file: Optional[str] = None
+    is_current: bool = False
+
+class RevUpdate(BaseModel):
+    rev: Optional[str] = None
+    spec: Optional[str] = None
+    drawing_file: Optional[str] = None
+    is_current: Optional[bool] = None
+
 @parts_router.post("/{part_id}/revisions", response_model=RevOut, status_code=201)
 def create_revision(part_id: int, payload: RevCreate, db: Session = Depends(get_db)):
     if not db.query(Part).get(part_id):
@@ -223,7 +306,6 @@ def create_revision(part_id: int, payload: RevCreate, db: Session = Depends(get_
         raise HTTPException(409, "Duplicate revision for this part")
     db.refresh(r)
 
-    # ถ้าตั้ง is_current=True ให้ปิด current ตัวอื่น
     if r.is_current:
         db.query(PartRevision)\
           .filter(PartRevision.part_id == part_id, PartRevision.id != r.id, PartRevision.is_current == True)\
@@ -255,7 +337,6 @@ def update_revision(rev_id: int, payload: RevUpdate, db: Session = Depends(get_d
         raise HTTPException(409, "Duplicate revision for this part")
     db.refresh(r)
 
-    # ถ้าเพิ่งตั้ง current ให้เคลียร์ตัวอื่น
     if r.is_current:
         db.query(PartRevision)\
           .filter(PartRevision.part_id == r.part_id, PartRevision.id != r.id, PartRevision.is_current == True)\
@@ -264,10 +345,9 @@ def update_revision(rev_id: int, payload: RevUpdate, db: Session = Depends(get_d
         db.refresh(r)
 
     return RevOut.model_validate(r)
-from fastapi import APIRouter, Depends, HTTPException, Response
+
 @parts_router.delete("/revisions/{rev_id}", status_code=204)
 def delete_revision(rev_id: int, db: Session = Depends(get_db)):
-    # ✅ ใช้ Session.get ใน SQLAlchemy 2.x
     r = db.get(PartRevision, rev_id)
     if not r:
         raise HTTPException(404, "Revision not found")
@@ -278,8 +358,6 @@ def delete_revision(rev_id: int, db: Session = Depends(get_db)):
     except IntegrityError:
         db.rollback()
         raise HTTPException(409, "Revision is in use and cannot be deleted")
-
-    # ✅ 204: no content
     return Response(status_code=204)
 
 @parts_router.get("/revisions", response_model=List[RevOut])

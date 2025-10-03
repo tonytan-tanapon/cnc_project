@@ -57,6 +57,8 @@ def create_batch(payload: RawBatchCreate, db: Session = Depends(get_db)):
 
     raw_no = (payload.batch_no or "").strip().upper()
     autogen = raw_no in ("", "AUTO", "AUTOGEN")
+
+    # batch_no = get_next_batch_no( prefix="B", width=5, db = db) if autogen else raw_no
     batch_no = next_code(db, RawBatch, "batch_no", prefix="B", width=5) if autogen else raw_no
 
     b = RawBatch(
