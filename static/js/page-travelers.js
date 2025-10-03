@@ -4,7 +4,7 @@ import { $, jfetch, showToast as toast } from "./api.js";
 
 const UI = { q: "_q", add: "_add", table: "listBody" };
 const DETAIL_PAGE = "./traveler-detail.html";
-const partDetail = (id) => `${DETAIL_PAGE}?id=${encodeURIComponent(id)}`;
+const travelerDetail = (id) => `${DETAIL_PAGE}?id=${encodeURIComponent(id)}`;
 
 /* ===== Remote pagination defaults ===== */
 const DEFAULT_PAGE_SIZE = true; // true = Show All (โหลดทั้งหมด)
@@ -35,47 +35,40 @@ const fmtDate = (v) => {
   return isNaN(d) ? "" : d.toLocaleString();
 };
 
-function renderRevisionsInline(revs) {
-  const list = Array.isArray(revs) ? revs : [];
-  if (!list.length) return `<span class="muted">—</span>`;
-  return list
-    .map((r) => {
-      const cls = r.is_current ? "rev current" : "rev";
-      return `<span class="${cls}" title="Revision ${safe(r.rev)}">${safe(
-        r.rev
-      )}</span>`;
-    })
-    .join(`<span class="rev-sep">, </span>`);
-}
-
-function normalizeRow(p) {
+function normalizeRow(t) {
+  // t is ShopTravelerOut
+  // expect: { id, lot_id, status, notes, created_at, created_by_id, lot:{lot_code, lot_no, due_date?} }
+  const lot = t?.lot || {};
   return {
-    id: p.id,
-    part_no: p.part_no ?? "",
-    name: p.name ?? "",
-    uom: p.uom ?? "ea",
-    description: p.description ?? "",
-    status: p.status ?? "active",
-    created_at: p.created_at ?? null,
-    revisions: p.revisions ?? [],
+    id: t.id,
+    lot_id: t.lot_id ?? null,
+    lot_code: lot.lot_code ?? "",
+    lot_no: lot.lot_no ?? "",
+    due_date: lot.due_date ?? null,
+    status: t.status ?? "open",
+    notes: t.notes ?? "",
+    created_by_id: t.created_by_id ?? null,
+    created_at: t.created_at ?? null,
   };
 }
 
 function buildPayload(row) {
-  // part_no ว่าง → ส่ง null ให้ backend autogen ได้ (ถ้ารองรับ)
-  const part_no = trim(row.part_no) || null;
+  // POST/PATCH payload for ShopTraveler
+  // Minimal required for POST: lot_id
   return {
-    part_no,
-    name: trim(row.name) || null,
-    description: row.description ? trim(row.description) : "",
-    uom: row.uom ? trim(row.uom) : null,
-    status: row.status || "active",
+    lot_id: row.lot_id ?? null,
+    status: row.status || "open",
+    notes: row.notes ? trim(row.notes) : null,
+    created_by_id:
+      row.created_by_id === "" || row.created_by_id == null
+        ? null
+        : Number(row.created_by_id),
   };
 }
 
 function requiredReady(row) {
-  // บังคับอย่างน้อยให้มี name ก่อนสร้าง
-  return !!trim(row.name);
+  // ต้องมี lot_id ก่อนจึงจะ POST
+  return row.lot_id != null && String(row.lot_id).trim() !== "";
 }
 
 /* ===== COLUMNS ===== */
@@ -96,8 +89,6 @@ function makeColumns() {
         return (curPage - 1) * eff + pos;
       },
     },
-
-    // ใช้ field: "id" เพื่อให้ formatter รันใหม่ทันทีที่ id เปลี่ยน (หลัง POST)
     {
       title: "Steps",
       field: "id",
@@ -107,7 +98,7 @@ function makeColumns() {
       formatter: (cell) => {
         const id = cell.getValue();
         if (!id) return `<span class="muted">—</span>`;
-        return `<a class="view-link" href="${partDetail(
+        return `<a class="view-link" href="${travelerDetail(
           id
         )}" title="Open detail">View</a>`;
       },
@@ -116,21 +107,56 @@ function makeColumns() {
         if (a) e.stopPropagation();
       },
     },
-
-    { title: "lot id", field: "lot_id", width: 160, editor: "input" },
-   
-
+    { title: "Lot ID", field: "lot_id", width: 110, editor: "input" },
     {
-      title: "production due date",
-      field: "revisions",
-      headerSort: false,
-
-      formatter: (cell) => renderRevisionsInline(cell.getValue()),
-      // read-only
+      title: "Lot Code",
+      field: "lot_code",
+      width: 160,
+      headerSort: true,
+      // read-only (comes from relation)
+      formatter: (c) => safe(c.getValue()),
     },
-
-    { title: "create at", field: "uom", width: 90, editor: "input" },
-    
+    {
+      title: "Lot No",
+      field: "lot_no",
+      width: 140,
+      headerSort: true,
+      formatter: (c) => safe(c.getValue()),
+    },
+    {
+      title: "Due",
+      field: "due_date",
+      headerSort: true,
+      formatter: (cell) => fmtDate(cell.getValue()),
+    },
+    {
+      title: "Status",
+      field: "status",
+      width: 130,
+      editor: "select",
+      editorParams: {
+        values: {
+          open: "open",
+          in_progress: "in_progress",
+          hold: "hold",
+          closed: "closed",
+          canceled: "canceled",
+        },
+      },
+    },
+    { title: "Notes", field: "notes", editor: "textarea" },
+    {
+      title: "Created By",
+      field: "created_by_id",
+      width: 120,
+      editor: "input", // change to autocomplete if you wire employees
+    },
+    {
+      title: "Created At",
+      field: "created_at",
+      headerSort: true,
+      formatter: (cell) => fmtDate(cell.getValue()),
+    },
   ];
 }
 
@@ -181,7 +207,6 @@ function focusSiblingEditable(cell, dir /* +1 or -1 */) {
 }
 
 /* ===== AUTOSAVE ===== */
-// pass { fromHistory: true, revert: () => table.undo()/redo() } when needed
 async function autosaveCell(cell, opts = {}) {
   const { fromHistory = false, revert } = opts;
 
@@ -191,9 +216,9 @@ async function autosaveCell(cell, opts = {}) {
   const newVal = cell.getValue();
   const oldVal = fromHistory ? undefined : cell.getOldValue();
 
-  // Rule: name required
-  if (fld === "name" && !trim(newVal)) {
-    toast("Name required", false);
+  // Rule: lot_id required for CREATE
+  if (fld === "lot_id" && !requiredReady({ ...d, lot_id: newVal })) {
+    toast("Lot ID required", false);
     if (!fromHistory) cell.setValue(oldVal, true);
     else if (typeof revert === "function") revert();
     return;
@@ -201,9 +226,9 @@ async function autosaveCell(cell, opts = {}) {
 
   const payload = buildPayload(d);
 
-  // CREATE: only when required present
+  // CREATE
   if (!d.id) {
-    if (!requiredReady(d)) return;
+    if (!requiredReady(d)) return; // wait until lot_id filled
     if (createInFlight.has(row)) return;
     createInFlight.add(row);
     try {
@@ -213,11 +238,11 @@ async function autosaveCell(cell, opts = {}) {
       });
       const norm = normalizeRow(created || d);
 
-      row.update({ ...norm }); // มี id แล้ว → คอลัมน์ View (field:"id") จะ render เอง
-      row.getCell("id")?.reformat(); // กันเหนียว
+      row.update({ ...norm });
+      row.getCell("id")?.reformat();
       requestAnimationFrame(() => table?.redraw(true));
 
-      toast(`trvelerts "${norm.part_no || norm.name}" created`);
+      toast(`Traveler #${norm.id} created`);
     } catch (e) {
       if (!fromHistory && oldVal !== undefined) cell.setValue(oldVal, true);
       else if (typeof revert === "function") revert();
@@ -228,13 +253,13 @@ async function autosaveCell(cell, opts = {}) {
     return;
   }
 
-  // UPDATE: debounced
+  // UPDATE (debounced)
   if (patchTimers.has(row)) clearTimeout(patchTimers.get(row));
   const t = setTimeout(async () => {
     patchTimers.delete(row);
     try {
       const updated = await jfetch(`/travelers/${encodeURIComponent(d.id)}`, {
-        method: "PATCH",
+        method: "PUT",
         body: JSON.stringify(payload),
       });
       const norm = normalizeRow(updated || d);
@@ -243,7 +268,7 @@ async function autosaveCell(cell, opts = {}) {
       row.getCell("id")?.reformat();
       requestAnimationFrame(() => table?.redraw(true));
 
-      toast(`Saved "${norm.part_no || norm.name}"`);
+      toast(`Saved traveler #${norm.id}`);
     } catch (e) {
       if (!fromHistory && oldVal !== undefined) cell.setValue(oldVal, true);
       else if (typeof revert === "function") revert();
@@ -262,9 +287,9 @@ async function deleteRow(row) {
   }
   if (
     !confirm(
-      `Delete this part "${
-        d.part_no || d.name || d.id
-      }"?\nThis action cannot be undone.`
+      `Delete traveler #${d.id}${
+        d.lot_code ? ` (lot ${d.lot_code})` : ""
+      }?\nThis action cannot be undone.`
     )
   )
     return;
@@ -282,7 +307,7 @@ function initTable() {
   table = new Tabulator(`#${UI.table}`, {
     layout: "fitColumns",
     height: "100%",
-    placeholder: "No parts",
+    placeholder: "No travelers",
     reactiveData: true,
     index: "id",
     history: true,
@@ -294,7 +319,7 @@ function initTable() {
     paginationSizeSelector: PAGE_SIZE_CHOICES, // [20,50,100,200,true]
     paginationCounter: "rows",
 
-    ajaxURL: "/parts",
+    ajaxURL: "/travelers",
     ajaxRequestFunc: async (_url, _config, params) => {
       const page = params.page || 1;
       const showAll = params.size === true;
@@ -302,10 +327,8 @@ function initTable() {
 
       const keyword = (els[UI.q]?.value || "").trim();
       const usp = new URLSearchParams();
-      usp.set("page", String(page));
+      // backend returns full list, we'll client-paginate when needed
       if (showAll) usp.set("all", "1");
-      else usp.set("page_size", String(size));
-      usp.set("include", "revisions");
       if (keyword) usp.set("q", keyword);
       usp.set("_", String(Date.now()));
 
@@ -314,10 +337,17 @@ function initTable() {
       totalItems = Number(res?.total ?? items.length);
 
       const rows = items.map(normalizeRow);
+
+      // If not showAll, simulate server paging to keep Tabulator happy
+      let pageRows = rows;
+      if (!showAll) {
+        const start = (page - 1) * size;
+        pageRows = rows.slice(start, start + size);
+      }
       const last_page = showAll
         ? 1
         : Math.max(1, Math.ceil((totalItems || rows.length) / (size || 1)));
-      return { data: rows, last_page };
+      return { data: pageRows, last_page };
     },
 
     columns: makeColumns(),
@@ -407,7 +437,6 @@ function bindSearch() {
   box.addEventListener("input", () => {
     clearTimeout(t);
     t = setTimeout(() => {
-      // ให้ Tabulator ยิงขอใหม่โดยเริ่ม page 1 (เลี่ยงซ้ำซ้อน)
       table?.setPage(1);
     }, 300);
   });
@@ -418,18 +447,19 @@ function bindAdd() {
   btn.addEventListener("click", async () => {
     const row = await table.addRow(
       {
-        id: null, // มีฟิลด์ id ตั้งแต่แรก (ช่วยให้ formatter "View" อยู่ใน flow)
-        part_no: "", // เว้นว่างได้ → backend autogen
-        name: "",
-        uom: "ea",
-        description: "",
-        status: "active",
+        id: null,
+        lot_id: null,
+        lot_code: "",
+        lot_no: "",
+        due_date: null,
+        status: "open",
+        notes: "",
+        created_by_id: null,
         created_at: null,
-        revisions: [],
       },
       true
     );
-    row.getCell("name")?.edit(true); // กระตุ้น POST
+    row.getCell("lot_id")?.edit(true); // ต้องกรอก lot_id เพื่อ POST
   });
 }
 
@@ -439,5 +469,4 @@ document.addEventListener("DOMContentLoaded", async () => {
   initTable();
   bindSearch();
   bindAdd();
-  // ปล่อยให้ Tabulator ยิง ajax ตาม paginationMode:"remote"
 });
