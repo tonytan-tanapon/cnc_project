@@ -38,6 +38,7 @@ def _with_joined(db: Session, lot_id: int):
 
 @router.post("", response_model=ProductionLotOut)
 def create_lot(payload: ProductionLotCreate, db: Session = Depends(get_db)):
+   
     if payload.po_id is not None and not db.get(PO, payload.po_id):
         raise HTTPException(404, "PO not found")
 
@@ -185,28 +186,29 @@ def list_lots_keyset(
         qry = qry.join(Part, Part.id == ProductionLot.part_id).outerjoin(PO, PO.id == ProductionLot.po_id)
         for tok in tokens:
             pat = _like_escape(tok)
-            qry = qry.filter(
-                or_(
-                    ProductionLot.lot_no.ilike(pat),
-                    ProductionLot.status.ilike(pat),
-                    Part.part_no.ilike(pat),
-                    Part.name.ilike(pat),
-                    PO.po_number.ilike(pat),
-                    PO.description.ilike(pat),
-                )
-            )
+            qry = qry.filter(or_(
+                ProductionLot.lot_no.ilike(pat),
+                ProductionLot.status.ilike(pat),
+                Part.part_no.ilike(pat),
+                Part.name.ilike(pat),
+                PO.po_number.ilike(pat),
+                PO.description.ilike(pat),
+                func.concat("[", func.coalesce(Part.part_no, ""), "] ", func.coalesce(Part.name, "")).ilike(pat),
+            ))
 
     if cursor is not None:
         qry = qry.filter(ProductionLot.id < cursor)
 
     qry = qry.order_by(ProductionLot.id.desc())
     rows = qry.limit(limit + 1).all()
-
     page_rows = rows[:limit]
     has_more = len(rows) > limit
 
+    # serialize via schema model_validate (Pydantic v2)
     items: List[ProductionLotOut] = [ProductionLotOut.model_validate(r) for r in page_rows]
-    next_cursor = page_rows[-1].id if page_rows else None
+
+    next_cursor = min((r.id for r in page_rows), default=None)  # smallest id on this page
+    prev_cursor = None  # (optional) not used by our UI
 
     return {
         "items": items,
@@ -214,8 +216,6 @@ def list_lots_keyset(
         "prev_cursor": None,
         "has_more": has_more,
     }
-
-
 @router.get("/{lot_id}", response_model=ProductionLotOut)
 def get_lot(lot_id: int, db: Session = Depends(get_db)):
     lot = (
@@ -234,6 +234,7 @@ def get_lot(lot_id: int, db: Session = Depends(get_db)):
 
 @router.put("/{lot_id}", response_model=ProductionLotOut)
 def update_lot(lot_id: int, payload: ProductionLotUpdate, db: Session = Depends(get_db)):
+    
     lot = db.get(ProductionLot, lot_id)
     if not lot:
         raise HTTPException(404, "Lot not found")
@@ -328,3 +329,84 @@ def delete_lot(lot_id: int, db: Session = Depends(get_db)):
     return {"message": "Lot deleted"}
 
 
+from models import LotMaterialUse, RawBatch, RawMaterial, Supplier, MaterialPO
+
+# ----- place this route anywhere before the file ends -----
+@router.get("/used-materials")
+def used_materials(
+    lot_ids: str = Query(..., description="comma-separated lot ids, e.g. 1,2,3"),
+    db: Session = Depends(get_db),
+):
+    # parse "1,2,3" -> [1,2,3]
+    try:
+        ids = [int(x) for x in lot_ids.split(",") if x.strip()]
+    except ValueError:
+        raise HTTPException(400, "lot_ids must be comma-separated integers")
+    if not ids:
+        return {}
+
+    # Query LotMaterialUse joined to related tables
+    rows = (
+        db.query(
+            LotMaterialUse.lot_id,
+            RawMaterial.code.label("material_code"),
+            RawBatch.batch_no,
+            LotMaterialUse.qty,
+            LotMaterialUse.uom,
+            Supplier.name.label("supplier"),
+            MaterialPO.po_number.label("po_number"),
+        )
+        .join(RawBatch, RawBatch.id == LotMaterialUse.batch_id)
+        .join(RawMaterial, RawMaterial.id == LotMaterialUse.raw_material_id)
+        .outerjoin(Supplier, Supplier.id == RawBatch.supplier_id)
+        .outerjoin(MaterialPO, MaterialPO.id == RawBatch.po_id)
+        .filter(LotMaterialUse.lot_id.in_(ids))
+        .order_by(
+            LotMaterialUse.lot_id.asc(),
+            RawMaterial.code.asc(),
+            RawBatch.batch_no.asc(),
+        )
+        .all()
+    )
+
+    # group by lot_id to the shape frontend expects
+    out: dict[int, list[dict]] = {i: [] for i in ids}
+    for r in rows:
+        out[int(r.lot_id)].append(
+            {
+                "material_code": r.material_code or "",
+                "batch_no": r.batch_no or "",
+                "qty": float(r.qty) if r.qty is not None else None,
+                "uom": r.uom,
+                "supplier": r.supplier,
+                "po_number": r.po_number,
+            }
+        )
+    return out
+
+from typing import Dict
+@router.get("/used-materials")
+def used_materials(lot_ids: str = Query(..., description="comma-separated ids"),
+                   db: Session = Depends(get_db)) -> Dict[str, list]:
+    """
+    รับ ?lot_ids=1,2 → {"1":[{material_code,batch_no,qty,uom,supplier,po_number}], "2":[...]}
+    """
+    try:
+        ids = [int(x) for x in lot_ids.split(",") if x.strip().isdigit()]
+    except Exception:
+        ids = []
+    if not ids:
+        return {}
+
+    # TODO: ดึงจากตารางการใช้วัสดุจริงของแต่ละ lot (ตัวอย่าง stub ด้านล่าง)
+    out = {}
+    for lid in ids:
+        out[str(lid)] = []  # แทนค่าเป็น [] ไปก่อน
+        # ตัวอย่างจริงอาจจะเป็น:
+        # uses = db.query(LotMaterialUse).filter(LotMaterialUse.lot_id == lid).all()
+        # out[str(lid)] = [{
+        #   "material_code": u.material.code, "batch_no": u.batch.batch_no,
+        #   "qty": str(u.qty), "uom": u.uom, "supplier": u.supplier.name if u.supplier else None,
+        #   "po_number": u.po.po_number if u.po else None
+        # } for u in uses]
+    return out

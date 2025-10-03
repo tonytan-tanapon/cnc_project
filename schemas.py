@@ -312,7 +312,7 @@ class ProductionLotCreate(BaseModel):
     status: Optional[LotStatus] = "in_process"
 
 class ProductionLotUpdate(BaseModel):
-  
+
     part_id: Optional[int] = None
     part_revision_id: Optional[int] = None
     po_id: Optional[int] = None
@@ -381,26 +381,62 @@ class LotMaterialUseOut(APIBase):
 # =========================================
 TravelerStatus = Literal["open", "in_progress", "completed", "hold", "canceled"]
 
-class ShopTravelerCreate(APIBase):
+# schemas.py
+from pydantic import BaseModel, ConfigDict
+from datetime import date
+from typing import Optional
+
+class ShopTravelerCreate(BaseModel):
+    traveler_no: Optional[str] = None
     lot_id: int
     created_by_id: Optional[int] = None
+    status: str = "open"
     notes: Optional[str] = None
-    status: Optional[TravelerStatus] = "open"
-    production_due_date: date | None = None
+    production_due_date: Optional[date] = None
 
-class ShopTravelerUpdate(APIBase):
+class ShopTravelerUpdate(BaseModel):
+    traveler_no: Optional[str] = None
+    lot_id: Optional[int] = None            # ✅ อนุญาตแก้ lot ได้ (ถ้าไม่ต้องการ ให้ลบออก)
     created_by_id: Optional[int] = None
+    status: Optional[str] = None
     notes: Optional[str] = None
-    status: Optional[TravelerStatus] = None
+    production_due_date: Optional[date] = None
 
-class ShopTravelerOut(APIBase):
+class ShopTravelerRowOut(BaseModel):
+    traveler_no: Optional[str] = None
+    model_config = ConfigDict(from_attributes=True)
     id: int
     lot_id: int
+    lot_no: Optional[str] = None
     created_by_id: Optional[int] = None
-    status: TravelerStatus
+    status: str
     notes: Optional[str] = None
-    created_at: datetime
-    production_due_date: date | None = None
+    production_due_date: Optional[date] = None
+    created_at: Optional[str] = None  # or datetime, ตามที่คุณใช้เดิม
+
+# --- เพิ่มส่วนนี้ด้านบนที่ประกาศ schemas ---
+from pydantic import BaseModel, ConfigDict
+from typing import Optional, List
+from datetime import datetime
+
+class LotMini(BaseModel):
+    model_config = ConfigDict(from_attributes=True)  # pydantic v2
+    id: int
+    lot_no: Optional[str] = None
+    due_date: Optional[datetime] = None
+    production_due_date: datetime | None = None   # ⬅️ เพิ่มฟิลด์นี้
+
+class ShopTravelerOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    lot_id: int
+    lot_no: Optional[str] = None
+    created_by_id: Optional[int] = None
+    status: str
+    notes: Optional[str] = None
+    created_at: Optional[datetime] = None
+    production_due_date: Optional[date] = None
+
     
 
 StepStatus = Literal["pending", "running", "passed", "failed", "skipped"]

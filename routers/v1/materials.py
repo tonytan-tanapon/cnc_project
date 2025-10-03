@@ -158,7 +158,7 @@ def lookup_materials(ids: str, db: Session = Depends(get_db)):
         return []
     rows = db.query(RawMaterial).filter(RawMaterial.id.in_(id_list)).all()
     return rows
-
+# /bulk
 # ---------- create (supports AUTO/AUTOGEN for code) ----------
 @router.post("", response_model=RawMaterialOut)
 def create_material(payload: RawMaterialCreate, db: Session = Depends(get_db)):

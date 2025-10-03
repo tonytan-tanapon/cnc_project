@@ -103,14 +103,21 @@ class RawMaterial(Base):
         return f"<RawMaterial(code={self.code}, name={self.name})>"
 
 
+# ==================
+# RawBatch (updated)
+# ==================
 class RawBatch(Base):
     __tablename__ = "raw_batches"
+
     id = Column(Integer, primary_key=True)
     material_id = Column(Integer, ForeignKey("raw_materials.id"), nullable=False)
     supplier_id = Column(Integer, ForeignKey("suppliers.id"), nullable=True)
-    material_po_line_id = Column(Integer, ForeignKey("material_po_lines.id"), nullable=True)  # ✅
 
-    batch_no = Column(String, index=True, nullable=False)            # หมายเลขล็อตจาก supplier
+    # ผูกกับ Material PO
+    material_po_line_id = Column(Integer, ForeignKey("material_po_lines.id"), index=True, nullable=True)
+    po_id = Column(Integer, ForeignKey("material_pos.id"), index=True, nullable=True)  # denormalize เพื่อค้นเร็ว
+
+    batch_no = Column(String, index=True, nullable=False)  # หมายเลขล็อตจาก supplier
     supplier_batch_no = Column(String, nullable=True)
     mill_name = Column(String, nullable=True)
     mill_heat_no = Column(String, nullable=True)
@@ -120,13 +127,19 @@ class RawBatch(Base):
     cert_file = Column(String, nullable=True)
     location = Column(String, nullable=True)
 
+    # relations
     material = relationship("RawMaterial", back_populates="batches")
     supplier = relationship("Supplier", back_populates="raw_batches")
+    po_line = relationship("MaterialPOLine", foreign_keys=[material_po_line_id])
+    po = relationship("MaterialPO", foreign_keys=[po_id])
     uses = relationship("LotMaterialUse", back_populates="batch")
 
     __table_args__ = (
         UniqueConstraint("material_id", "batch_no", "supplier_id", name="uq_batch_material_supplier"),
         Index("ix_raw_batches_mat_recv", "material_id", "received_at"),
+        # ✅ ดัชนีที่แนะนำเพิ่ม เพื่อรายงานหา supplier/PO ย้อนรอยได้เร็ว
+        Index("ix_raw_batches_supplier", "supplier_id"),
+        Index("ix_raw_batches_po", "po_id"),
     )
 
     def __repr__(self):
@@ -219,15 +232,20 @@ class PartMaterial(Base):
     __tablename__ = "part_materials"
     id = Column(Integer, primary_key=True)
     part_id = Column(Integer, ForeignKey("parts.id", ondelete="CASCADE"), index=True, nullable=False)
+    part_revision_id = Column(Integer, ForeignKey("part_revisions.id", ondelete="CASCADE"), index=True, nullable=True)
     raw_material_id = Column(Integer, ForeignKey("raw_materials.id", ondelete="RESTRICT"), index=True, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    qty_per = Column(Numeric(18,3), nullable=True)
+    uom     = Column(String, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     part = relationship("Part", backref="part_materials")
+    rev  = relationship("PartRevision")
     raw_material = relationship("RawMaterial")
 
     __table_args__ = (
-        UniqueConstraint('part_id', 'raw_material_id', name='uq_part_material_once'),
+        UniqueConstraint('part_id', 'part_revision_id', 'raw_material_id', name='uq_part_rev_material_once'),
     )
+
 
 # =========================================
 # ======== Production / Lot / Traveler ====
@@ -235,12 +253,15 @@ class PartMaterial(Base):
 
 # models.py (เฉพาะส่วน ProductionLot)
 
+# =======================
+# ProductionLot (updated)
+# =======================
 class ProductionLot(Base):
     __tablename__ = "production_lots"
 
     id = Column(Integer, primary_key=True)
     lot_no = Column(String, unique=True, index=True, nullable=False)
-    
+
     part_id = Column(Integer, ForeignKey("parts.id"), nullable=False)
     part_revision_id = Column(Integer, ForeignKey("part_revisions.id"), nullable=True, index=True)
     po_id = Column(Integer, ForeignKey("purchase_orders.id"), nullable=True, index=True)
@@ -252,7 +273,15 @@ class ProductionLot(Base):
     lot_due_date = Column(Date, nullable=True, index=True)
     status = Column(String, nullable=False, default="in_process")
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    # CHANGED: add foreign_keys + back_populates
+
+    # ✅ ดัชนีที่ใช้ค้นบ่อย
+    __table_args__ = (
+        Index("ix_lots_no", "lot_no"),
+        Index("ix_lots_status", "status"),
+        Index("ix_lots_part", "part_id", "part_revision_id"),
+    )
+
+    # relations
     part = relationship("Part", foreign_keys=[part_id], back_populates="production_lots")
     part_revision = relationship("PartRevision", foreign_keys=[part_revision_id], back_populates="production_lots")
     po = relationship("PO", back_populates="lots", foreign_keys=[po_id])
@@ -260,18 +289,16 @@ class ProductionLot(Base):
     material_uses = relationship("LotMaterialUse", back_populates="lot", cascade="all, delete-orphan")
     travelers = relationship("ShopTraveler", back_populates="lot", cascade="all, delete-orphan",
                              order_by="ShopTraveler.created_at.asc()")
-    
-    # --- FAIR link per lot (optional) ---
-    fair_required = Column(Boolean, nullable=False, default=False, server_default="false")
 
+    # FAIR link per lot (optional)
+    fair_required = Column(Boolean, nullable=False, default=False, server_default="false")
     fair_record_id = Column(Integer, ForeignKey("inspection_records.id", ondelete="SET NULL"), nullable=True, index=True)
     fair_record = relationship(
         "InspectionRecord",
         foreign_keys=[fair_record_id],
-        back_populates="fair_for_lot",   # NEW inverse
+        back_populates="fair_for_lot",
         uselist=False
     )
-
 
     @validates("po_line_id")
     def _on_set_po_line(self, key, v):
@@ -281,13 +308,15 @@ class ProductionLot(Base):
         pl = sess.get(POLine, v) if sess else None
         if not pl:
             return v
-        # sync fields (เขียนทับให้ตรงกับ POLine เสมอ)
+        # sync ตามบรรทัด PO เสมอ
         self.po_id = pl.po_id
         self.part_id = pl.part_id
         self.part_revision_id = pl.revision_id
         return v
+
     def __repr__(self):
         return f"<ProductionLot(lot_no={self.lot_no}, status={self.status})>"
+
 
 
 from sqlalchemy import (
@@ -300,24 +329,60 @@ from sqlalchemy.exc import IntegrityError
 class LotMaterialUse(Base):
     __tablename__ = "lot_material_use"
 
-    id       = Column(Integer, primary_key=True)
-    lot_id   = Column(Integer, ForeignKey("production_lots.id"), nullable=False, index=True)
-    batch_id = Column(Integer, ForeignKey("raw_batches.id"), nullable=False, index=True)
-    qty      = Column(Numeric(18, 3), nullable=False)
+    id         = Column(Integer, primary_key=True)
+    lot_id     = Column(Integer, ForeignKey("production_lots.id"), nullable=False, index=True)
+    batch_id   = Column(Integer, ForeignKey("raw_batches.id"),    nullable=False, index=True)
+    raw_material_id = Column(Integer, ForeignKey("raw_materials.id"), nullable=False, index=True)  # denormalize ไว้ join เร็ว
+    qty        = Column(Numeric(18, 3), nullable=False)
+    uom        = Column(String, nullable=True)                     # เผื่อ batch กับ part ใช้ uom ไม่ตรงกัน
+    used_at    = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    used_by_id = Column(Integer, ForeignKey("employees.id"), nullable=True)
+    note       = Column(Text, nullable=True)
 
     lot   = relationship("ProductionLot", back_populates="material_uses")
     batch = relationship("RawBatch", back_populates="uses")
+    raw_material = relationship("RawMaterial")
+    used_by = relationship("Employee")
 
     __table_args__ = (
-    CheckConstraint("qty > 0", name="ck_lmu_qty_positive"),
-    Index("ix_lmu_lot", "lot_id"),
-    Index("ix_lmu_batch", "batch_id"),
-)
+        # ❗️เอา CheckConstraint qty>0 ออก ถ้าต้องรองรับ “คืนวัสดุ/แก้ยอด” โดยให้เป็นลบได้
+        # CheckConstraint("qty > 0", name="ck_lmu_qty_positive"),
+        Index("ix_lmu_lot", "lot_id"),
+        Index("ix_lmu_batch", "batch_id"),
+        Index("ix_lmu_rm", "raw_material_id"),
+    )
 
 
     def __repr__(self):
         return f"<LotMaterialUse(lot_id={self.lot_id}, batch_id={self.batch_id}, qty={self.qty})>"
 
+# ==== Listener ====
+@event.listens_for(LotMaterialUse, "before_insert")
+@event.listens_for(LotMaterialUse, "before_update")
+def before_insert_update_lotmaterialuse(mapper, connection, target):
+    if target.batch_id:
+        rm_id = connection.execute(
+            select(RawBatch.material_id).where(RawBatch.id == target.batch_id)
+        ).scalar_one_or_none()
+        target.raw_material_id = rm_id
+
+@event.listens_for(RawBatch, "before_insert")
+@event.listens_for(RawBatch, "before_update")
+def _rawbatch_sync_po_from_line(mapper, connection, target: RawBatch):
+    if not target.material_po_line_id:
+        return
+    row = connection.execute(
+        select(MaterialPOLine.po_id, MaterialPOLine.material_id)
+        .where(MaterialPOLine.id == target.material_po_line_id)
+    ).first()
+    if not row:
+        return
+    po_id_from_line, mat_id_from_line = row
+    # ตั้งค่า po_id ให้ตรงกับ line เสมอ
+    target.po_id = po_id_from_line
+    # กันเพี้ยน: ถ้า batch.material_id ไม่เท่ากับ line.material_id → sync ให้ตรง
+    if mat_id_from_line and target.material_id != mat_id_from_line:
+        target.material_id = mat_id_from_line
 
 # ----------------------------
 # ORM-level guards (before insert/update)
@@ -399,8 +464,9 @@ def _lmu_before_update(mapper, connection, target: LotMaterialUse):
 class ShopTraveler(Base):
     __tablename__ = "shop_travelers"
     id = Column(Integer, primary_key=True)
+    traveler_no = Column(String, unique=True, index=True, nullable=False)  # ✅ new field
     lot_id = Column(Integer, ForeignKey("production_lots.id"), nullable=False)
-
+    
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     created_by_id = Column(Integer, ForeignKey("employees.id"), nullable=True)
     status = Column(String, nullable=False, default="open")

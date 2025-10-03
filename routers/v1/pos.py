@@ -134,7 +134,25 @@ def list_pos_keyset(
         "limit": limit,
     }
 
-
+class PoMini(BaseModel):
+    id: int
+    po_number: Optional[str] = None
+    class Config:
+        from_attributes = True
+from models import PO  # ตัวอย่างชื่อโมเดล
+@pos_router.get("/lookup", response_model=List[PoMini])
+def lookup_pos(ids: str = Query(...), db: Session = Depends(get_db)):
+    """
+    รับ ?ids=1,2,3 แล้วคืน [{id, po_number}, ...]
+    """
+    try:
+        id_list = [int(x) for x in ids.split(",") if x.strip().isdigit()]
+    except Exception:
+        id_list = []
+    if not id_list:
+        return []
+    rows = db.query(PO).filter(PO.id.in_(id_list)).all()
+    return rows
 # ---------- PO (header) ----------
 @pos_router.get("/", response_model=dict)
 def list_pos(

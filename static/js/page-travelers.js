@@ -1,26 +1,27 @@
-// /static/js/page-travelers.js — AUTOSAVE + Tab nav + Undo/Redo + Delete only
-// + Remote pagination with "Show All" default (all=1) for fast, load-all behavior
+// /static/js/page-travelers.js — AUTOSAVE + Tab nav + Undo/Redo + Delete
+// + Remote pagination (Show All default) + Lot autocomplete + robust error revert/resync
 import { $, jfetch, showToast as toast } from "./api.js";
+import { attachAutocomplete } from "./autocomplete.js";
+
+const API_BASE = "/api/v1";
 
 const UI = { q: "_q", add: "_add", table: "listBody" };
 const DETAIL_PAGE = "./traveler-detail.html";
 const travelerDetail = (id) => `${DETAIL_PAGE}?id=${encodeURIComponent(id)}`;
 
-/* ===== Remote pagination defaults ===== */
-const DEFAULT_PAGE_SIZE = true; // true = Show All (โหลดทั้งหมด)
-const PAGE_SIZE_CHOICES = [20, 50, 100, 200, true]; // true = Show All
+const DEFAULT_PAGE_SIZE = true;
+const PAGE_SIZE_CHOICES = [20, 50, 100, 200, true];
 let totalItems = 0;
 
-/* ===== AUTOSAVE GUARDS ===== */
-const createInFlight = new WeakSet(); // rows creating (POST)
-const patchTimers = new Map(); // row -> timeout (debounced PATCH)
+const createInFlight = new WeakSet();
+const patchTimers = new Map();
 const PATCH_DEBOUNCE_MS = 350;
+const suppressAutosaveRows = new WeakSet();
 
-/* ===== STATE ===== */
 let els = {};
 let table = null;
 
-/* ===== HELPERS ===== */
+/* ========== HELPERS ========== */
 const trim = (v) => (v == null ? "" : String(v).trim());
 const safe = (s) =>
   String(s ?? "")
@@ -32,46 +33,232 @@ const safe = (s) =>
 const fmtDate = (v) => {
   if (!v) return "";
   const d = new Date(v);
-  return isNaN(d) ? "" : d.toLocaleString();
+  return isNaN(d) ? String(v) : d.toLocaleDateString();
+};
+const toISODate = (v) => {
+  if (v == null) return null;
+  const s = String(v).trim();
+  if (!s) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const d = new Date(s);
+  if (isNaN(d)) return null;
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${dd}`;
 };
 
+// Re-sync one row from server
+async function resyncRow(id) {
+  if (!id) return;
+  try {
+    const fresh = await jfetch(
+      `${API_BASE}/travelers/${encodeURIComponent(id)}`
+    );
+    const norm = normalizeRow(fresh || {});
+    if (table?.getRow?.(id)) {
+      const row = table.getRow(id);
+      suppressAutosaveRows.add(row);
+      try {
+        await table.updateOrAddData([norm], "id");
+      } finally {
+        setTimeout(() => suppressAutosaveRows.delete(row), 0);
+      }
+    }
+  } catch {}
+}
+
+// ✔️ FIX: ใช้ t (ไม่ใช่ raw) และเติม lot_no/due map ให้ครบ
 function normalizeRow(t) {
-  // t is ShopTravelerOut
-  // expect: { id, lot_id, status, notes, created_at, created_by_id, lot:{lot_code, lot_no, due_date?} }
   const lot = t?.lot || {};
+  const due =
+    t.production_due_date ??
+    t.due_date ??
+    lot.production_due_date ??
+    lot.due_date ??
+    null;
+
   return {
     id: t.id,
-    lot_id: t.lot_id ?? null,
-    lot_code: lot.lot_code ?? "",
-    lot_no: lot.lot_no ?? "",
-    due_date: lot.due_date ?? null,
+    traveler_no: t.traveler_no || "",
+    lot_id: t.lot_id ?? lot.id ?? null,
+    lot_no: t.lot_no ?? lot.lot_no ?? "",
+    // แสดงในตารางด้วยชื่อ due_date แต่ส่งกลับไปเป็น production_due_date
+    due_date: due,
     status: t.status ?? "open",
     notes: t.notes ?? "",
     created_by_id: t.created_by_id ?? null,
     created_at: t.created_at ?? null,
+    production_due_date: t.production_due_date ?? null,
   };
 }
 
 function buildPayload(row) {
-  // POST/PATCH payload for ShopTraveler
-  // Minimal required for POST: lot_id
   return {
     lot_id: row.lot_id ?? null,
+    traveler_no: row.traveler_no || null,
     status: row.status || "open",
     notes: row.notes ? trim(row.notes) : null,
     created_by_id:
       row.created_by_id === "" || row.created_by_id == null
         ? null
         : Number(row.created_by_id),
+    // map จากคอลัมน์ due_date → production_due_date (ชนิด Date ใน DB)
+    production_due_date: toISODate(row.due_date),
   };
 }
 
 function requiredReady(row) {
-  // ต้องมี lot_id ก่อนจึงจะ POST
   return row.lot_id != null && String(row.lot_id).trim() !== "";
 }
 
-/* ===== COLUMNS ===== */
+/* ========== Lots Autocomplete ========== */
+async function fetchLots(term) {
+  const q = (term || "").trim();
+  try {
+    const usp = new URLSearchParams();
+    usp.set("limit", "10");
+    if (q) usp.set("q", q);
+    const res = await jfetch(`${API_BASE}/lots/keyset?${usp.toString()}`);
+    const items = Array.isArray(res) ? res : res.items ?? [];
+    return items
+      .map((x) => ({
+        id: x.id ?? x.lot_id ?? null,
+        lot_no: x.lot_no ?? "",
+        lot_code: x.lot_code ?? "",
+        due_date: x.production_due_date ?? x.due_date ?? null,
+      }))
+      .filter((it) => it.id != null);
+  } catch {
+    return [];
+  }
+}
+
+function lotEditor(cell, onRendered, success, cancel) {
+  const start = String(cell.getValue() ?? "");
+  const input = document.createElement("input");
+  input.type = "text";
+  input.className = "tabulator-editing";
+  input.value = start;
+  input.autocomplete = "off";
+  input.style.width = "100%";
+
+  attachAutocomplete(input, {
+    fetchItems: fetchLots,
+    getDisplayValue: (it) => (it ? `${it.lot_no}` : ""),
+    renderItem: (it) =>
+      `<div class="ac-row"><b>${safe(it.lot_no)}</b>${
+        it.lot_code ? " — " + safe(it.lot_code) : ""
+      }${
+        it.due_date
+          ? ` <span class="muted">(${safe(
+              new Date(it.due_date).toLocaleDateString()
+            )})</span>`
+          : ""
+      }</div>`,
+    openOnFocus: true,
+    minChars: 0,
+    debounceMs: 200,
+    maxHeight: 260,
+    onPick: (it) => {
+      const row = cell.getRow();
+      suppressAutosaveRows.add(row);
+      try {
+        row.update({
+          lot_id: it.id,
+          lot_no: it.lot_no,
+          due_date: it.due_date ?? null,
+        });
+      } finally {
+        setTimeout(() => {
+          suppressAutosaveRows.delete(row);
+          success(it.lot_no);
+          setTimeout(() => autosaveCell(cell), 0);
+        }, 0);
+      }
+    },
+    onError: (err) => console.error("[autocomplete:lots]", err),
+  });
+
+  onRendered(() => {
+    input.focus();
+    input.select();
+  });
+
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const d = cell.getRow().getData();
+      if (!d.lot_id) {
+        toast("Pick a lot from the list", false);
+        return;
+      }
+      success(input.value);
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      cancel();
+    }
+  });
+
+  input.addEventListener("input", () => {
+    const row = cell.getRow();
+    suppressAutosaveRows.add(row);
+    try {
+      row.update({ lot_id: null });
+    } finally {
+      setTimeout(() => suppressAutosaveRows.delete(row), 0);
+    }
+  });
+
+  return input;
+}
+
+function dateEditor(cell, onRendered, success, cancel) {
+  const toISO = (v) => {
+    if (!v) return "";
+    if (/^\d{4}-\d{2}-\d{2}$/.test(String(v))) return String(v);
+    const d = new Date(v);
+    if (isNaN(d)) return "";
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${dd}`;
+  };
+
+  const startISO = toISO(cell.getValue());
+  const input = document.createElement("input");
+  input.type = "date";
+  input.className = "tabulator-editing";
+  input.style.width = "100%";
+  input.value = startISO;
+
+  if (input.type !== "date") {
+    input.type = "text";
+    input.placeholder = "YYYY-MM-DD";
+    input.pattern = "\\d{4}-\\d{2}-\\d{2}";
+  }
+
+  onRendered(() => {
+    input.focus();
+    input.showPicker?.();
+  });
+
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      success(input.value || "");
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      cancel();
+    }
+  });
+  input.addEventListener("change", () => success(input.value || ""));
+  input.addEventListener("blur", () => success(input.value || ""));
+
+  return input;
+}
+
+/* ========== COLUMNS ========== */
 function makeColumns() {
   return [
     {
@@ -88,6 +275,12 @@ function makeColumns() {
         const eff = ps === true ? totalItems || table.getDataCount() : ps || 1;
         return (curPage - 1) * eff + pos;
       },
+    },
+    {
+      title: "Traveler No",
+      field: "traveler_no",
+      editor: "input",
+      headerFilter: true,
     },
     {
       title: "Steps",
@@ -107,41 +300,31 @@ function makeColumns() {
         if (a) e.stopPropagation();
       },
     },
-    { title: "Lot ID", field: "lot_id", width: 110, editor: "input" },
-    {
-      title: "Lot Code",
-      field: "lot_code",
-      width: 160,
-      headerSort: true,
-      // read-only (comes from relation)
-      formatter: (c) => safe(c.getValue()),
-    },
     {
       title: "Lot No",
       field: "lot_no",
       width: 140,
       headerSort: true,
+      editor: lotEditor,
       formatter: (c) => safe(c.getValue()),
+      headerTooltip: "Pick a lot to link this traveler",
     },
     {
-      title: "Due",
+      title: "Production Due Date",
       field: "due_date",
-      headerSort: true,
+      width: 180,
+      editor: dateEditor,
+      validator: ["string"],
       formatter: (cell) => fmtDate(cell.getValue()),
+      headerTooltip: "YYYY-MM-DD",
     },
     {
       title: "Status",
       field: "status",
       width: 130,
-      editor: "select",
+      editor: "list", // (Tabulator v6) แทน select
       editorParams: {
-        values: {
-          open: "open",
-          in_progress: "in_progress",
-          hold: "hold",
-          closed: "closed",
-          canceled: "canceled",
-        },
+        values: ["open", "in_progress", "hold", "closed", "canceled"],
       },
     },
     { title: "Notes", field: "notes", editor: "textarea" },
@@ -149,103 +332,90 @@ function makeColumns() {
       title: "Created By",
       field: "created_by_id",
       width: 120,
-      editor: "input", // change to autocomplete if you wire employees
+      editor: "input",
     },
     {
       title: "Created At",
       field: "created_at",
       headerSort: true,
-      formatter: (cell) => fmtDate(cell.getValue()),
+      formatter: (c) => fmtDate(c.getValue()),
+    },
+    {
+      title: "Actions",
+      field: "_actions",
+      width: 120,
+      hozAlign: "center",
+      headerSort: false,
+      cssClass: "actions-cell",
+      formatter: () =>
+        `<button class="btn-small btn-danger" data-act="del">Delete</button>`,
+      cellClick: (e, cell) => {
+        const btn = e.target.closest("button[data-act='del']");
+        if (!btn) return;
+        deleteRow(cell.getRow());
+      },
     },
   ];
 }
 
-/* ===== Tab / Shift+Tab ===== */
-function getEditableFieldsLive(tab) {
-  return tab
-    .getColumns(true)
-    .map((c) => ({ field: c.getField(), def: c.getDefinition() }))
-    .filter((c) => c.field && c.def && !!c.def.editor)
-    .map((c) => c.field);
-}
-function focusSiblingEditable(cell, dir /* +1 or -1 */) {
-  const row = cell.getRow();
-  const tab = row.getTable();
-  const fields = getEditableFieldsLive(tab);
-  const curField = cell.getField();
-  const curFieldIdx = fields.indexOf(curField);
-  if (curFieldIdx === -1) return;
-
-  const rows = tab.getRows();
-  const curRowIdx = rows.indexOf(row);
-
-  let nextFieldIdx = curFieldIdx + dir;
-  let nextRowIdx = curRowIdx;
-  if (nextFieldIdx >= fields.length) {
-    nextFieldIdx = 0;
-    nextRowIdx = Math.min(curRowIdx + 1, rows.length - 1);
-  } else if (nextFieldIdx < 0) {
-    nextFieldIdx = fields.length - 1;
-    nextRowIdx = Math.max(curRowIdx - 1, 0);
-  }
-
-  const targetRow = rows[nextRowIdx];
-  if (!targetRow) return;
-  const targetField = fields[nextFieldIdx];
-  const targetCell = targetRow.getCell(targetField);
-  if (!targetCell) return;
-
-  targetCell.edit(true);
-  const el = targetCell.getElement();
-  const input =
-    el && el.querySelector("input, textarea, [contenteditable='true']");
-  if (input) {
-    const v = input.value;
-    input.focus();
-    if (typeof v === "string") input.setSelectionRange(v.length, v.length);
-  }
-}
-
-/* ===== AUTOSAVE ===== */
+/* ========== AUTOSAVE ========== */
 async function autosaveCell(cell, opts = {}) {
   const { fromHistory = false, revert } = opts;
 
   const row = cell.getRow();
+  if (suppressAutosaveRows.has(row)) return;
+
   const d = row.getData();
   const fld = cell.getField();
   const newVal = cell.getValue();
   const oldVal = fromHistory ? undefined : cell.getOldValue();
 
-  // Rule: lot_id required for CREATE
-  if (fld === "lot_id" && !requiredReady({ ...d, lot_id: newVal })) {
-    toast("Lot ID required", false);
-    if (!fromHistory) cell.setValue(oldVal, true);
+  if (
+    fld === "lot_no" &&
+    (d.lot_id == null || String(d.lot_id).trim() === "")
+  ) {
+    toast("Pick a lot from the list", false);
+    if (!fromHistory && oldVal !== undefined) cell.setValue(oldVal, true);
     else if (typeof revert === "function") revert();
     return;
+  }
+
+  if (fld === "due_date" && newVal != null) {
+    const iso = toISODate(newVal);
+    if (newVal !== "" && !iso) {
+      toast("Invalid date. Use YYYY-MM-DD", false);
+      if (!fromHistory && oldVal !== undefined) cell.setValue(oldVal, true);
+      else if (typeof revert === "function") revert();
+      return;
+    }
   }
 
   const payload = buildPayload(d);
 
   // CREATE
   if (!d.id) {
-    if (!requiredReady(d)) return; // wait until lot_id filled
+    if (!requiredReady(d)) return;
     if (createInFlight.has(row)) return;
     createInFlight.add(row);
     try {
-      const created = await jfetch("/travelers", {
+      const created = await jfetch(`${API_BASE}/travelers`, {
         method: "POST",
         body: JSON.stringify(payload),
       });
       const norm = normalizeRow(created || d);
 
-      row.update({ ...norm });
-      row.getCell("id")?.reformat();
+      suppressAutosaveRows.add(row);
+      try {
+        row.update({ ...norm });
+      } finally {
+        setTimeout(() => suppressAutosaveRows.delete(row), 0);
+      }
       requestAnimationFrame(() => table?.redraw(true));
-
       toast(`Traveler #${norm.id} created`);
     } catch (e) {
       if (!fromHistory && oldVal !== undefined) cell.setValue(oldVal, true);
       else if (typeof revert === "function") revert();
+      await resyncRow(d.id);
       toast(e?.message || "Create failed", false);
     } finally {
       createInFlight.delete(row);
@@ -258,27 +428,42 @@ async function autosaveCell(cell, opts = {}) {
   const t = setTimeout(async () => {
     patchTimers.delete(row);
     try {
-      const updated = await jfetch(`/travelers/${encodeURIComponent(d.id)}`, {
-        method: "PUT",
-        body: JSON.stringify(payload),
-      });
+      const updated = await jfetch(
+        `${API_BASE}/travelers/${encodeURIComponent(d.id)}`,
+        {
+          method: "PUT",
+          body: JSON.stringify(payload),
+        }
+      );
       const norm = normalizeRow(updated || d);
 
-      row.update({ ...d, ...norm, id: norm.id ?? d.id });
-      row.getCell("id")?.reformat();
+      suppressAutosaveRows.add(row);
+      try {
+        row.update({ ...d, ...norm, id: norm.id ?? d.id });
+      } finally {
+        setTimeout(() => suppressAutosaveRows.delete(row), 0);
+      }
       requestAnimationFrame(() => table?.redraw(true));
-
       toast(`Saved traveler #${norm.id}`);
     } catch (e) {
-      if (!fromHistory && oldVal !== undefined) cell.setValue(oldVal, true);
-      else if (typeof revert === "function") revert();
+      if (!fromHistory && oldVal !== undefined) {
+        suppressAutosaveRows.add(row);
+        try {
+          cell.setValue(oldVal, true);
+        } finally {
+          setTimeout(() => suppressAutosaveRows.delete(row), 0);
+        }
+      } else if (typeof revert === "function") {
+        revert();
+      }
+      await resyncRow(d.id);
       toast(e?.message || "Save failed", false);
     }
   }, PATCH_DEBOUNCE_MS);
   patchTimers.set(row, t);
 }
 
-/* ===== DELETE ===== */
+/* ========== DELETE ========== */
 async function deleteRow(row) {
   const d = row.getData();
   if (!d.id) {
@@ -288,21 +473,24 @@ async function deleteRow(row) {
   if (
     !confirm(
       `Delete traveler #${d.id}${
-        d.lot_code ? ` (lot ${d.lot_code})` : ""
+        d.lot_no ? ` (lot ${d.lot_no})` : ""
       }?\nThis action cannot be undone.`
     )
   )
     return;
   try {
-    await jfetch(`/travelers/${encodeURIComponent(d.id)}`, { method: "DELETE" });
+    await jfetch(`${API_BASE}/travelers/${encodeURIComponent(d.id)}`, {
+      method: "DELETE",
+    });
     row.delete();
     toast("Deleted");
   } catch (e) {
+    await resyncRow(d.id);
     toast(e?.message || "Delete failed", false);
   }
 }
 
-/* ===== TABLE (Remote pagination, Show All default) ===== */
+/* ========== TABLE ========== */
 function initTable() {
   table = new Tabulator(`#${UI.table}`, {
     layout: "fitColumns",
@@ -315,11 +503,11 @@ function initTable() {
 
     pagination: true,
     paginationMode: "remote",
-    paginationSize: DEFAULT_PAGE_SIZE, // true = Show All
-    paginationSizeSelector: PAGE_SIZE_CHOICES, // [20,50,100,200,true]
+    paginationSize: DEFAULT_PAGE_SIZE,
+    paginationSizeSelector: PAGE_SIZE_CHOICES,
     paginationCounter: "rows",
 
-    ajaxURL: "/travelers",
+    ajaxURL: `${API_BASE}/travelers`,
     ajaxRequestFunc: async (_url, _config, params) => {
       const page = params.page || 1;
       const showAll = params.size === true;
@@ -327,18 +515,16 @@ function initTable() {
 
       const keyword = (els[UI.q]?.value || "").trim();
       const usp = new URLSearchParams();
-      // backend returns full list, we'll client-paginate when needed
       if (showAll) usp.set("all", "1");
       if (keyword) usp.set("q", keyword);
       usp.set("_", String(Date.now()));
 
-      const res = await jfetch(`/travelers?${usp.toString()}`);
-      const items = Array.isArray(res) ? res : res?.items ?? res?.data ?? [];
+      const res = await jfetch(`${API_BASE}/travelers?${usp.toString()}`);
+      const items = Array.isArray(res) ? res : res?.items ?? res ?? [];
       totalItems = Number(res?.total ?? items.length);
 
       const rows = items.map(normalizeRow);
 
-      // If not showAll, simulate server paging to keep Tabulator happy
       let pageRows = rows;
       if (!showAll) {
         const start = (page - 1) * size;
@@ -382,7 +568,7 @@ function initTable() {
     }, 0);
   });
 
-  // Autosave hooks
+  // Autosave hooks + Undo/Redo safety
   table.on("cellEdited", (cell) => autosaveCell(cell));
   table.on("historyUndo", (action, component) => {
     if (
@@ -429,7 +615,62 @@ function initTable() {
   });
 }
 
-/* ===== BINDINGS ===== */
+/* ========== Tab utils ========== */
+function getEditableFieldsLive(tab) {
+  return tab
+    .getColumns(true)
+    .map((c) => ({ field: c.getField(), def: c.getDefinition() }))
+    .filter((c) => c.field && c.def && !!c.def.editor)
+    .map((c) => c.field);
+}
+function focusSiblingEditable(cell, dir) {
+  const row = cell.getRow();
+  const tab = row.getTable();
+  const fields = getEditableFieldsLive(tab);
+
+  const curField = cell.getField();
+  const curFieldIdx = fields.indexOf(curField);
+  if (curFieldIdx === -1) return;
+
+  const rows = tab.getRows();
+  const curRowIdx = rows.indexOf(row);
+
+  let nextFieldIdx = curFieldIdx + dir;
+  let nextRowIdx = curRowIdx;
+  if (nextFieldIdx >= fields.length) {
+    nextFieldIdx = 0;
+    nextRowIdx = Math.min(curRowIdx + 1, rows.length - 1);
+  } else if (nextFieldIdx < 0) {
+    nextFieldIdx = fields.length - 1;
+    nextRowIdx = Math.max(curRowIdx - 1, 0);
+  }
+
+  const targetRow = rows[nextRowIdx];
+  if (!targetRow) return;
+
+  const targetField = fields[nextFieldIdx];
+  const targetCell = targetRow.getCell(targetField);
+  if (!targetCell) return;
+
+  targetCell.edit(true);
+  const el = targetCell.getElement();
+  const input =
+    el && el.querySelector("input, textarea, [contenteditable='true']");
+  if (input) {
+    const v = input.value;
+    input.focus();
+    if (typeof v === "string") input.setSelectionRange(v.length, v.length);
+  }
+}
+
+/* ========== BOOT ========== */
+document.addEventListener("DOMContentLoaded", async () => {
+  Object.values(UI).forEach((id) => (els[id] = $(id)));
+  initTable();
+  bindSearch();
+  bindAdd();
+});
+
 function bindSearch() {
   const box = els[UI.q];
   if (!box) return;
@@ -448,8 +689,8 @@ function bindAdd() {
     const row = await table.addRow(
       {
         id: null,
+        traveler_no: "", // สามารถให้ backend autogen ได้ถ้าไม่ได้กรอก
         lot_id: null,
-        lot_code: "",
         lot_no: "",
         due_date: null,
         status: "open",
@@ -459,14 +700,6 @@ function bindAdd() {
       },
       true
     );
-    row.getCell("lot_id")?.edit(true); // ต้องกรอก lot_id เพื่อ POST
+    row.getCell("lot_no")?.edit(true);
   });
 }
-
-/* ===== BOOT ===== */
-document.addEventListener("DOMContentLoaded", async () => {
-  Object.values(UI).forEach((id) => (els[id] = $(id)));
-  initTable();
-  bindSearch();
-  bindAdd();
-});
