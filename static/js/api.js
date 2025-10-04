@@ -39,7 +39,41 @@ function isJSON(res) {
   return ct.includes("application/json");
 }
 
+// /** jfetch: ใช้กับทุก API เพื่อให้ base ตรงกันหมด */
+// export async function jfetch(path, init = {}) {
+//   const url = withBase(path);
+//   const res = await fetch(url, {
+//     headers: { "content-type": "application/json", ...(init.headers || {}) },
+//     ...init,
+//   });
+
+//   if (!res.ok) {
+//     let msg = `${res.status}: `;
+//     try {
+//       if (isJSON(res)) {
+//         const data = await res.json();
+//         msg += data?.detail || data?.message || JSON.stringify(data);
+//       } else {
+//         msg += await res.text();
+//       }
+//     } catch {
+//       msg += res.statusText || "Request failed";
+//     }
+//     throw new Error(msg);
+//   }
+//   return isJSON(res) ? res.json() : res.text();
+// }
 /** jfetch: ใช้กับทุก API เพื่อให้ base ตรงกันหมด */
+function _hasBody(res) {
+  // no-body statuses per spec
+  if (res.status === 204 || res.status === 205 || res.status === 304) return false;
+  return true; // keep old behavior for 200/201 even if body is empty
+}
+function _isJSON(res) {
+  const ct = res.headers.get("content-type") || "";
+  return /\bapplication\/json\b/i.test(ct);
+}
+
 export async function jfetch(path, init = {}) {
   const url = withBase(path);
   const res = await fetch(url, {
@@ -50,19 +84,27 @@ export async function jfetch(path, init = {}) {
   if (!res.ok) {
     let msg = `${res.status}: `;
     try {
-      if (isJSON(res)) {
+      if (_hasBody(res) && _isJSON(res)) {
         const data = await res.json();
         msg += data?.detail || data?.message || JSON.stringify(data);
-      } else {
+      } else if (_hasBody(res)) {
         msg += await res.text();
+      } else {
+        msg += res.statusText || "Request failed";
       }
     } catch {
       msg += res.statusText || "Request failed";
     }
     throw new Error(msg);
   }
-  return isJSON(res) ? res.json() : res.text();
+
+  // ✅ success: tolerate empty/no-content responses (e.g., DELETE 204)
+  if (!_hasBody(res)) return null;
+
+  // keep old behavior for everything else
+  return _isJSON(res) ? res.json() : res.text();
 }
+
 
 // /static/js/api.js
 export function showToast(msg, ok = true) {

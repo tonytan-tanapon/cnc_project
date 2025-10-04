@@ -315,38 +315,27 @@ function strOrNull(v) {
 /* Build payload for API */
 function buildLinePayload(row) {
   const payload = {};
-
   if (row.part_id != null) payload.part_id = row.part_id;
   if (row.revision_id != null) payload.revision_id = row.revision_id;
   if (row.qty != null) payload.qty = numOrNull(row.qty);
   if (row.unit_price != null) payload.unit_price = numOrNull(row.unit_price);
   if (row.note != null) payload.note = strOrNull(row.note);
-
-  // Due 1
-  if (row.due_date === "" || row.due_date == null) {
-    payload.due_date = null;                         // 👈 send null
-  } else {
-    const iso1 = toISODate(row.due_date);
-    if (iso1) payload.due_date = iso1;
+  if (row.due_date != null) {
+    const iso = toISODate(row.due_date);
+    if (iso) payload.due_date = iso;
   }
-
-  // Due 2
-  if (row.second_due_date === "" || row.second_due_date == null) {
-    payload.second_due_date = null;                  // 👈 send null
-  } else {
+  if (row.second_due_date != null) {
     const iso2 = toISODate(row.second_due_date);
     if (iso2) payload.second_due_date = iso2;
   }
 
-  // DO NOT delete the keys when they are null; we want to clear on server
-  // (keep any existing deletions for other fields, but not the dates)
   if (payload.qty == null) delete payload.qty;
   if (payload.unit_price == null) delete payload.unit_price;
   if (!payload.note) delete payload.note;
-
+  if (!payload.due_date) delete payload.due_date;
+  if (!payload.second_due_date) delete payload.second_due_date;
   return payload;
 }
-
 
 function normalizeServerLine(row) {
   return {
@@ -693,14 +682,11 @@ function initLinesTable() {
 
   // AUTOSAVE on cell edit (debounced per-row)
   linesTable.on("cellEdited", (cell) => {
-  const row = cell.getRow();
-  setDirtyClass(row, true);
-  setTimeout(() => {
-    // If a date field was cleared, autosave will send null now
-    autosaveRow(row);
-  }, 0);
-});
-
+    const row = cell.getRow();
+    setDirtyClass(row, true);
+    // defer tiny bit to let Tabulator close editor DOM
+    setTimeout(() => autosaveRow(row), 0);
+  });
 
   linesTable.on("tableBuilt", () => {
     ready = true;

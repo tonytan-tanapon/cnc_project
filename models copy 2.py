@@ -1,33 +1,12 @@
-# models.py
-from datetime import date, datetime, timezone
-
 from sqlalchemy import (
-    Boolean,
-    CheckConstraint,
-    Column,
-    Date,
-    DateTime,
-    ForeignKey,
-    ForeignKeyConstraint,
-    Index,
-    Integer,
-    Numeric,
-    String,
-    Text,
-    UniqueConstraint,
-    select,
-    func,
-    event,
+    Column, Integer, String, Text, Date, DateTime, ForeignKey, UniqueConstraint, Index,
+    Numeric, Boolean, CheckConstraint
 )
-from sqlalchemy.orm import (
-    relationship,
-    validates,
-    object_session,
-    column_property,
-    aliased,
-)
-from sqlalchemy.ext.hybrid import hybrid_property
-
+from sqlalchemy.sql import func
+from sqlalchemy.orm import validates, object_session
+from sqlalchemy import ForeignKeyConstraint
+from sqlalchemy.orm import relationship
+from datetime import datetime, date, timezone
 from database import Base
 
 
@@ -74,20 +53,14 @@ class PO(Base):
     id = Column(Integer, primary_key=True, index=True)
     po_number = Column(String, unique=True, index=True, nullable=False)
     description = Column(String, nullable=True)
-    customer_id = Column(Integer, ForeignKey("customers.id"), nullable=False, index=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    customer_id = Column(Integer, ForeignKey("customers.id"), nullable=False)
 
     customer = relationship("Customer", back_populates="pos", foreign_keys=[customer_id])
 
     lines = relationship("POLine", back_populates="po", cascade="all, delete-orphan")
     shipments = relationship("CustomerShipment", back_populates="po", cascade="all, delete-orphan")
     invoices = relationship("CustomerInvoice", back_populates="po", cascade="all, delete-orphan")
-    lots = relationship(
-        "ProductionLot",
-        back_populates="po",
-        cascade="all, delete-orphan",
-        foreign_keys="ProductionLot.po_id",
-    )
+    lots = relationship("ProductionLot", back_populates="po", cascade="all, delete-orphan", foreign_keys="ProductionLot.po_id")
 
     def __repr__(self):
         return f"<PO(po_number={self.po_number}, customer_id={self.customer_id})>"
@@ -98,11 +71,12 @@ class Employee(Base):
     id = Column(Integer, primary_key=True, index=True)
     emp_code = Column(String, unique=True, index=True, nullable=False)
     name = Column(String, nullable=False)
+    # lastname = Column(String, nullable=False)
     position = Column(String, nullable=True)
     department = Column(String, nullable=True)
     email = Column(String, nullable=True)
     phone = Column(String, nullable=True)
-    status = Column(String, default="active", nullable=False)  # active / inactive
+    status = Column(String, default="active")  # active / inactive
 
     user = relationship("User", back_populates="employee", uselist=False)
 
@@ -120,7 +94,7 @@ class RawMaterial(Base):
     code = Column(String, unique=True, index=True, nullable=False)   # ex. AL6061-RND-20
     name = Column(String, nullable=False)                            # Aluminium 6061 Round Bar Ø20
     spec = Column(String, nullable=True)                             # AMS/ASTM/ISO
-    uom = Column(String, default="kg", nullable=False)               # main stock unit
+    uom = Column(String, default="kg")                               # หน่วยหลักที่เก็บสต็อก
     remark = Column(Text, nullable=True)
 
     batches = relationship("RawBatch", back_populates="material")
@@ -129,44 +103,21 @@ class RawMaterial(Base):
         return f"<RawMaterial(code={self.code}, name={self.name})>"
 
 
-class MaterialPO(Base):
-    __tablename__ = "material_pos"
-    id = Column(Integer, primary_key=True)
-    po_number = Column(String, unique=True, index=True, nullable=False)
-    supplier_id = Column(Integer, ForeignKey("suppliers.id"), nullable=False, index=True)
-    order_date = Column(Date, default=date.today, nullable=False)
-    status = Column(String, default="open", nullable=False)  # open/confirmed/received/closed
-    notes = Column(Text)
-
-    supplier = relationship("Supplier")
-    lines = relationship("MaterialPOLine", back_populates="po", cascade="all, delete-orphan")
-
-
-class MaterialPOLine(Base):
-    __tablename__ = "material_po_lines"
-    id = Column(Integer, primary_key=True)
-    po_id = Column(Integer, ForeignKey("material_pos.id"), nullable=False, index=True)
-    material_id = Column(Integer, ForeignKey("raw_materials.id"), nullable=False, index=True)
-    qty_ordered = Column(Numeric(18, 3), nullable=False)
-    unit_price = Column(Numeric(18, 2), nullable=True)
-    due_date = Column(Date, nullable=True)
-
-    po = relationship("MaterialPO", back_populates="lines")
-    material = relationship("RawMaterial")
-
-
+# ==================
+# RawBatch (updated)
+# ==================
 class RawBatch(Base):
     __tablename__ = "raw_batches"
 
     id = Column(Integer, primary_key=True)
-    material_id = Column(Integer, ForeignKey("raw_materials.id"), nullable=False, index=True)
-    supplier_id = Column(Integer, ForeignKey("suppliers.id"), nullable=True, index=True)
+    material_id = Column(Integer, ForeignKey("raw_materials.id"), nullable=False)
+    supplier_id = Column(Integer, ForeignKey("suppliers.id"), nullable=True)
 
-    # Link to Material PO
+    # ผูกกับ Material PO
     material_po_line_id = Column(Integer, ForeignKey("material_po_lines.id"), index=True, nullable=True)
-    po_id = Column(Integer, ForeignKey("material_pos.id"), index=True, nullable=True)  # denormalized for faster lookups
+    po_id = Column(Integer, ForeignKey("material_pos.id"), index=True, nullable=True)  # denormalize เพื่อค้นเร็ว
 
-    batch_no = Column(String, index=True, nullable=False)  # supplier batch number
+    batch_no = Column(String, index=True, nullable=False)  # หมายเลขล็อตจาก supplier
     supplier_batch_no = Column(String, nullable=True)
     mill_name = Column(String, nullable=True)
     mill_heat_no = Column(String, nullable=True)
@@ -186,6 +137,7 @@ class RawBatch(Base):
     __table_args__ = (
         UniqueConstraint("material_id", "batch_no", "supplier_id", name="uq_batch_material_supplier"),
         Index("ix_raw_batches_mat_recv", "material_id", "received_at"),
+        # ✅ ดัชนีที่แนะนำเพิ่ม เพื่อรายงานหา supplier/PO ย้อนรอยได้เร็ว
         Index("ix_raw_batches_supplier", "supplier_id"),
         Index("ix_raw_batches_po", "po_id"),
     )
@@ -206,19 +158,20 @@ class Part(Base):
     description = Column(Text)
     default_uom = Column(String, default="ea")
     status = Column(String, default="active")
+    
 
     revisions = relationship("PartRevision", back_populates="part", cascade="all, delete-orphan")
 
-    # inverse side for ProductionLot.part
+    # NEW: inverse side for ProductionLot.part
     production_lots = relationship(
         "ProductionLot",
         back_populates="part",
         foreign_keys="ProductionLot.part_id",
     )
 
-    # selection relationships
+    # relationships (not columns)
     processes = relationship("PartProcessSelection", back_populates="part", cascade="all, delete-orphan")
-    finishes = relationship("PartFinishSelection", back_populates="part", cascade="all, delete-orphan")
+    finishes  = relationship("PartFinishSelection", back_populates="part", cascade="all, delete-orphan")
     other_notes = relationship("PartOtherNote", back_populates="part", cascade="all, delete-orphan")
 
     def __repr__(self):
@@ -229,27 +182,27 @@ class PartRevision(Base):
     __tablename__ = "part_revisions"
 
     id = Column(Integer, primary_key=True)
-    part_id = Column(Integer, ForeignKey("parts.id"), nullable=False, index=True)
+    part_id = Column(Integer, ForeignKey("parts.id"), nullable=False)
     rev = Column(String, nullable=False)
     drawing_file = Column(String)
     spec = Column(String)
-    is_current = Column(Boolean, default=False, nullable=False)
+    is_current = Column(Boolean, default=False)
 
     part = relationship("Part", back_populates="revisions", foreign_keys=[part_id])
 
     __table_args__ = (
+        # ป้องกัน rev ซ้ำใน part เดียวกัน
         UniqueConstraint("part_id", "rev", name="uq_part_rev"),
+        # ต้องมี (part_id, id) เป็น unique เพื่อรองรับ composite FK
         UniqueConstraint("part_id", "id", name="uq_part_id_id"),
-        Index("ix_part_revisions_part_rev", "part_id", "rev"),
     )
 
-    # FAIR quick link/cache
+    # --- FAIR quick link/cache ---
     fair_record_id = Column(
         Integer,
         ForeignKey("inspection_records.id", ondelete="SET NULL"),
         nullable=True,
-        unique=True,
-        index=True,
+        unique=True
     )
     fair_record = relationship("InspectionRecord", foreign_keys=[fair_record_id])
 
@@ -271,6 +224,9 @@ class PartRevision(Base):
     def __repr__(self):
         return f"<PartRevision(part_id={self.part_id}, rev={self.rev})>"
 
+# models.py
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, func, UniqueConstraint
+from sqlalchemy.orm import relationship
 
 class PartMaterial(Base):
     __tablename__ = "part_materials"
@@ -278,16 +234,16 @@ class PartMaterial(Base):
     part_id = Column(Integer, ForeignKey("parts.id", ondelete="CASCADE"), index=True, nullable=False)
     part_revision_id = Column(Integer, ForeignKey("part_revisions.id", ondelete="CASCADE"), index=True, nullable=True)
     raw_material_id = Column(Integer, ForeignKey("raw_materials.id", ondelete="RESTRICT"), index=True, nullable=False)
-    qty_per = Column(Numeric(18, 3), nullable=True)
-    uom = Column(String, nullable=True)
+    qty_per = Column(Numeric(18,3), nullable=True)
+    uom     = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     part = relationship("Part", backref="part_materials")
-    rev = relationship("PartRevision")
+    rev  = relationship("PartRevision")
     raw_material = relationship("RawMaterial")
 
     __table_args__ = (
-        UniqueConstraint("part_id", "part_revision_id", "raw_material_id", name="uq_part_rev_material_once"),
+        UniqueConstraint('part_id', 'part_revision_id', 'raw_material_id', name='uq_part_rev_material_once'),
     )
 
 
@@ -295,49 +251,53 @@ class PartMaterial(Base):
 # ======== Production / Lot / Traveler ====
 # =========================================
 
+# models.py (เฉพาะส่วน ProductionLot)
+
+# =======================
+# ProductionLot (updated)
+# =======================
 class ProductionLot(Base):
     __tablename__ = "production_lots"
 
     id = Column(Integer, primary_key=True)
     lot_no = Column(String, unique=True, index=True, nullable=False)
 
-    part_id = Column(Integer, ForeignKey("parts.id"), nullable=False, index=True)
+    part_id = Column(Integer, ForeignKey("parts.id"), nullable=False)
     part_revision_id = Column(Integer, ForeignKey("part_revisions.id"), nullable=True, index=True)
     po_id = Column(Integer, ForeignKey("purchase_orders.id"), nullable=True, index=True)
     po_line_id = Column(Integer, ForeignKey("po_lines.id"), nullable=True, index=True)
 
     planned_qty = Column(Integer, nullable=False, default=0)
-    started_at = Column(DateTime(timezone=True), nullable=True)
+    started_at  = Column(DateTime(timezone=True), nullable=True)
     finished_at = Column(DateTime(timezone=True), nullable=True)
     lot_due_date = Column(Date, nullable=True, index=True)
     status = Column(String, nullable=False, default="in_process")
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
+    # ✅ ดัชนีที่ใช้ค้นบ่อย
     __table_args__ = (
         Index("ix_lots_no", "lot_no"),
         Index("ix_lots_status", "status"),
         Index("ix_lots_part", "part_id", "part_revision_id"),
     )
 
+    # relations
     part = relationship("Part", foreign_keys=[part_id], back_populates="production_lots")
     part_revision = relationship("PartRevision", foreign_keys=[part_revision_id], back_populates="production_lots")
     po = relationship("PO", back_populates="lots", foreign_keys=[po_id])
     po_line = relationship("POLine", foreign_keys=[po_line_id])
     material_uses = relationship("LotMaterialUse", back_populates="lot", cascade="all, delete-orphan")
-    travelers = relationship(
-        "ShopTraveler",
-        back_populates="lot",
-        cascade="all, delete-orphan",
-        order_by="ShopTraveler.created_at.asc()",
-    )
+    travelers = relationship("ShopTraveler", back_populates="lot", cascade="all, delete-orphan",
+                             order_by="ShopTraveler.created_at.asc()")
 
-    fair_required = Column(Boolean, nullable=False, default=False)
+    # FAIR link per lot (optional)
+    fair_required = Column(Boolean, nullable=False, default=False, server_default="false")
     fair_record_id = Column(Integer, ForeignKey("inspection_records.id", ondelete="SET NULL"), nullable=True, index=True)
     fair_record = relationship(
         "InspectionRecord",
         foreign_keys=[fair_record_id],
         back_populates="fair_for_lot",
-        uselist=False,
+        uselist=False
     )
 
     @validates("po_line_id")
@@ -348,7 +308,7 @@ class ProductionLot(Base):
         pl = sess.get(POLine, v) if sess else None
         if not pl:
             return v
-        # sync from PO line
+        # sync ตามบรรทัด PO เสมอ
         self.po_id = pl.po_id
         self.part_id = pl.part_id
         self.part_revision_id = pl.revision_id
@@ -358,44 +318,161 @@ class ProductionLot(Base):
         return f"<ProductionLot(lot_no={self.lot_no}, status={self.status})>"
 
 
+
+from sqlalchemy import (
+    Column, Integer, ForeignKey, Numeric, Index, UniqueConstraint, CheckConstraint,
+    select, func, event
+)
+from sqlalchemy.orm import relationship
+from sqlalchemy.exc import IntegrityError
+
 class LotMaterialUse(Base):
     __tablename__ = "lot_material_use"
 
-    id = Column(Integer, primary_key=True)
-    lot_id = Column(Integer, ForeignKey("production_lots.id"), nullable=False, index=True)
-    batch_id = Column(Integer, ForeignKey("raw_batches.id"), nullable=False, index=True)
-    raw_material_id = Column(Integer, ForeignKey("raw_materials.id"), nullable=False, index=True)  # denormalized for faster join
-    qty = Column(Numeric(18, 3), nullable=False)
-    uom = Column(String, nullable=True)
-    used_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    id         = Column(Integer, primary_key=True)
+    lot_id     = Column(Integer, ForeignKey("production_lots.id"), nullable=False, index=True)
+    batch_id   = Column(Integer, ForeignKey("raw_batches.id"),    nullable=False, index=True)
+    raw_material_id = Column(Integer, ForeignKey("raw_materials.id"), nullable=False, index=True)  # denormalize ไว้ join เร็ว
+    qty        = Column(Numeric(18, 3), nullable=False)
+    uom        = Column(String, nullable=True)                     # เผื่อ batch กับ part ใช้ uom ไม่ตรงกัน
+    used_at    = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     used_by_id = Column(Integer, ForeignKey("employees.id"), nullable=True)
-    note = Column(Text, nullable=True)
+    note       = Column(Text, nullable=True)
 
-    lot = relationship("ProductionLot", back_populates="material_uses")
+    lot   = relationship("ProductionLot", back_populates="material_uses")
     batch = relationship("RawBatch", back_populates="uses")
     raw_material = relationship("RawMaterial")
     used_by = relationship("Employee")
 
     __table_args__ = (
+        # ❗️เอา CheckConstraint qty>0 ออก ถ้าต้องรองรับ “คืนวัสดุ/แก้ยอด” โดยให้เป็นลบได้
+        # CheckConstraint("qty > 0", name="ck_lmu_qty_positive"),
         Index("ix_lmu_lot", "lot_id"),
         Index("ix_lmu_batch", "batch_id"),
         Index("ix_lmu_rm", "raw_material_id"),
     )
 
+
     def __repr__(self):
         return f"<LotMaterialUse(lot_id={self.lot_id}, batch_id={self.batch_id}, qty={self.qty})>"
+
+# ==== Listener ====
+@event.listens_for(LotMaterialUse, "before_insert")
+@event.listens_for(LotMaterialUse, "before_update")
+def before_insert_update_lotmaterialuse(mapper, connection, target):
+    if target.batch_id:
+        rm_id = connection.execute(
+            select(RawBatch.material_id).where(RawBatch.id == target.batch_id)
+        ).scalar_one_or_none()
+        target.raw_material_id = rm_id
+
+@event.listens_for(RawBatch, "before_insert")
+@event.listens_for(RawBatch, "before_update")
+def _rawbatch_sync_po_from_line(mapper, connection, target: RawBatch):
+    if not target.material_po_line_id:
+        return
+    row = connection.execute(
+        select(MaterialPOLine.po_id, MaterialPOLine.material_id)
+        .where(MaterialPOLine.id == target.material_po_line_id)
+    ).first()
+    if not row:
+        return
+    po_id_from_line, mat_id_from_line = row
+    # ตั้งค่า po_id ให้ตรงกับ line เสมอ
+    target.po_id = po_id_from_line
+    # กันเพี้ยน: ถ้า batch.material_id ไม่เท่ากับ line.material_id → sync ให้ตรง
+    if mat_id_from_line and target.material_id != mat_id_from_line:
+        target.material_id = mat_id_from_line
+
+# ----------------------------
+# ORM-level guards (before insert/update)
+# ----------------------------
+
+
+@event.listens_for(LotMaterialUse, "before_insert")
+def _lmu_before_insert(mapper, connection, target: LotMaterialUse):
+    # total_used_other = SUM(qty) ของ batch นี้ (ยังไม่มีแถวตัวเอง)
+    total_used_other = connection.execute(
+        select(func.coalesce(func.sum(LotMaterialUse.qty), 0))
+        .where(LotMaterialUse.batch_id == target.batch_id)
+    ).scalar_one()
+
+    # qty_received ของ batch
+    qty_received = connection.execute(
+        select(func.coalesce(RawBatch.qty_received, 0))
+        .where(RawBatch.id == target.batch_id)
+    ).scalar_one()
+
+    total_after = (total_used_other or 0) + (target.qty or 0)
+
+    if total_after < 0:
+        raise IntegrityError(
+            "Return exceeds previously used",
+            params=None,
+            orig=ValueError(
+                f"batch {target.batch_id}: total_used would be {total_after} < 0"
+            ),
+        )
+    if total_after > (qty_received or 0):
+        raise IntegrityError(
+            "Consumption exceeds received",
+            params=None,
+            orig=ValueError(
+                f"batch {target.batch_id}: total_used would be {total_after} > qty_received {qty_received}"
+            ),
+        )
+
+
+@event.listens_for(LotMaterialUse, "before_update")
+def _lmu_before_update(mapper, connection, target: LotMaterialUse):
+    # รวมของ batch นี้ แต่ "ไม่รวม" แถวตัวเอง
+    total_used_other = connection.execute(
+        select(func.coalesce(func.sum(LotMaterialUse.qty), 0))
+        .where(
+            (LotMaterialUse.batch_id == target.batch_id) &
+            (LotMaterialUse.id != target.id)
+        )
+    ).scalar_one()
+
+    qty_received = connection.execute(
+        select(func.coalesce(RawBatch.qty_received, 0))
+        .where(RawBatch.id == target.batch_id)
+    ).scalar_one()
+
+    total_after = (total_used_other or 0) + (target.qty or 0)
+
+    if total_after < 0:
+        raise IntegrityError(
+            "Return exceeds previously used",
+            params=None,
+            orig=ValueError(
+                f"batch {target.batch_id}: total_used would be {total_after} < 0"
+            ),
+        )
+    if total_after > (qty_received or 0):
+        raise IntegrityError(
+            "Consumption exceeds received",
+            params=None,
+            orig=ValueError(
+                f"batch {target.batch_id}: total_used would be {total_after} > qty_received {qty_received}"
+            ),
+        )
+
+
 
 
 class ShopTraveler(Base):
     __tablename__ = "shop_travelers"
     id = Column(Integer, primary_key=True)
-    traveler_no = Column(String, unique=True, index=True)
+    traveler_no = Column(String, unique=True, index=True, nullable=False)  # ✅ new field
     lot_id = Column(Integer, ForeignKey("production_lots.id"), nullable=False)
-
+    
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     created_by_id = Column(Integer, ForeignKey("employees.id"), nullable=True)
     status = Column(String, nullable=False, default="open")
     notes = Column(Text, nullable=True)
+
+    # ✅ NEW: production due date for this traveler
     production_due_date = Column(Date, nullable=True, index=True)
 
     lot = relationship("ProductionLot", back_populates="travelers")
@@ -404,7 +481,7 @@ class ShopTraveler(Base):
         "ShopTravelerStep",
         back_populates="traveler",
         cascade="all, delete-orphan",
-        order_by="ShopTravelerStep.seq",
+        order_by="ShopTravelerStep.seq"
     )
 
     __table_args__ = (Index("ix_shop_travelers_status", "status"),)
@@ -413,10 +490,11 @@ class ShopTraveler(Base):
         return f"<ShopTraveler(lot_id={self.lot_id}, status={self.status})>"
 
 
+
 class ShopTravelerStep(Base):
     __tablename__ = "shop_traveler_steps"
     id = Column(Integer, primary_key=True)
-    traveler_id = Column(Integer, ForeignKey("shop_travelers.id"), nullable=False, index=True)
+    traveler_id = Column(Integer, ForeignKey("shop_travelers.id"), nullable=False)
 
     seq = Column(Integer, nullable=False)
     step_code = Column(String, nullable=True)
@@ -424,19 +502,20 @@ class ShopTravelerStep(Base):
     station = Column(String, nullable=True)
 
     status = Column(String, nullable=False, default="pending")
-    started_at = Column(DateTime(timezone=True), nullable=True)
+    started_at  = Column(DateTime(timezone=True), nullable=True)
     finished_at = Column(DateTime(timezone=True), nullable=True)
 
-    operator_id = Column(Integer, ForeignKey("employees.id"), nullable=True, index=True)
-    machine_id = Column(Integer, ForeignKey("machines.id"), nullable=True, index=True)
+    operator_id = Column(Integer, ForeignKey("employees.id"), nullable=True)
+    machine_id = Column(Integer, ForeignKey("machines.id"), nullable=True)
 
     qa_required = Column(Boolean, default=False, nullable=False)
     qa_result = Column(String, nullable=True)
     qa_notes = Column(Text, nullable=True)
 
-    qty_receive = Column(Numeric(18, 3), nullable=False, default=0)
-    qty_accept = Column(Numeric(18, 3), nullable=False, default=0)
-    qty_reject = Column(Numeric(18, 3), nullable=False, default=0)
+    # ✅ ใหม่
+    qty_receive = Column(Numeric(18, 3), nullable=False, default=0)  # (สะกด receive นะครับ)
+    qty_accept  = Column(Numeric(18, 3), nullable=False, default=0)
+    qty_reject  = Column(Numeric(18, 3), nullable=False, default=0)
 
     traveler = relationship("ShopTraveler", back_populates="steps")
     operator = relationship("Employee", foreign_keys=[operator_id])
@@ -460,7 +539,7 @@ class ShopTravelerStep(Base):
 class SubconOrder(Base):
     __tablename__ = "subcon_orders"
     id = Column(Integer, primary_key=True)
-    supplier_id = Column(Integer, ForeignKey("suppliers.id"), nullable=False, index=True)
+    supplier_id = Column(Integer, ForeignKey("suppliers.id"), nullable=False)
     ref_no = Column(String, nullable=True)
     status = Column(String, nullable=False, default="open")  # open/confirmed/shipped/received/closed/cancelled
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
@@ -482,8 +561,8 @@ class SubconOrder(Base):
 class SubconOrderLine(Base):
     __tablename__ = "subcon_order_lines"
     id = Column(Integer, primary_key=True)
-    order_id = Column(Integer, ForeignKey("subcon_orders.id"), nullable=False, index=True)
-    traveler_step_id = Column(Integer, ForeignKey("shop_traveler_steps.id"), nullable=False, index=True)
+    order_id = Column(Integer, ForeignKey("subcon_orders.id"), nullable=False)
+    traveler_step_id = Column(Integer, ForeignKey("shop_traveler_steps.id"), nullable=False)
 
     qty_planned = Column(Numeric(18, 3), nullable=False, default=0)
     unit_cost = Column(Numeric(18, 2), nullable=True)
@@ -503,7 +582,7 @@ class SubconOrderLine(Base):
 class SubconShipment(Base):
     __tablename__ = "subcon_shipments"
     id = Column(Integer, primary_key=True)
-    order_id = Column(Integer, ForeignKey("subcon_orders.id"), nullable=False, index=True)
+    order_id = Column(Integer, ForeignKey("subcon_orders.id"), nullable=False)
 
     shipped_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
@@ -523,8 +602,8 @@ class SubconShipment(Base):
 class SubconShipmentItem(Base):
     __tablename__ = "subcon_shipment_items"
     id = Column(Integer, primary_key=True)
-    shipment_id = Column(Integer, ForeignKey("subcon_shipments.id"), nullable=False, index=True)
-    traveler_step_id = Column(Integer, ForeignKey("shop_traveler_steps.id"), nullable=False, index=True)
+    shipment_id = Column(Integer, ForeignKey("subcon_shipments.id"), nullable=False)
+    traveler_step_id = Column(Integer, ForeignKey("shop_traveler_steps.id"), nullable=False)
 
     qty = Column(Numeric(18, 3), nullable=False, default=0)
 
@@ -540,7 +619,7 @@ class SubconShipmentItem(Base):
 class SubconReceipt(Base):
     __tablename__ = "subcon_receipts"
     id = Column(Integer, primary_key=True)
-    order_id = Column(Integer, ForeignKey("subcon_orders.id"), nullable=False, index=True)
+    order_id = Column(Integer, ForeignKey("subcon_orders.id"), nullable=False)
 
     received_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     received_by = Column(String, nullable=True)
@@ -557,8 +636,8 @@ class SubconReceipt(Base):
 class SubconReceiptItem(Base):
     __tablename__ = "subcon_receipt_items"
     id = Column(Integer, primary_key=True)
-    receipt_id = Column(Integer, ForeignKey("subcon_receipts.id"), nullable=False, index=True)
-    traveler_step_id = Column(Integer, ForeignKey("shop_traveler_steps.id"), nullable=False, index=True)
+    receipt_id = Column(Integer, ForeignKey("subcon_receipts.id"), nullable=False)
+    traveler_step_id = Column(Integer, ForeignKey("shop_traveler_steps.id"), nullable=False)
 
     qty_received = Column(Numeric(18, 3), nullable=False, default=0)
     qty_rejected = Column(Numeric(18, 3), nullable=False, default=0)
@@ -582,8 +661,8 @@ class SubconReceiptItem(Base):
 class Machine(Base):
     __tablename__ = "machines"
     id = Column(Integer, primary_key=True)
-    code = Column(String, unique=True, index=True, nullable=False)   # e.g. CNC-01
-    name = Column(String, nullable=False)                            # e.g. HAAS VF-2
+    code = Column(String, unique=True, index=True, nullable=False)   # เช่น CNC-01
+    name = Column(String, nullable=False)                            # เช่น HAAS VF-2
     type = Column(String, nullable=True)                             # CNC_MILL / CNC_LATHE / ...
     controller = Column(String, nullable=True)                       # FANUC / HAAS / ...
     axis_count = Column(Integer, nullable=True)
@@ -610,9 +689,9 @@ class Machine(Base):
 class StepMachineOption(Base):
     __tablename__ = "step_machine_options"
     id = Column(Integer, primary_key=True)
-    traveler_step_id = Column(Integer, ForeignKey("shop_traveler_steps.id"), nullable=False, index=True)
-    machine_id = Column(Integer, ForeignKey("machines.id"), nullable=False, index=True)
-    priority = Column(Integer, nullable=True)  # 1 = preferred
+    traveler_step_id = Column(Integer, ForeignKey("shop_traveler_steps.id"), nullable=False)
+    machine_id = Column(Integer, ForeignKey("machines.id"), nullable=False)
+    priority = Column(Integer, nullable=True)  # 1 = แนะนำสุด
 
     step = relationship("ShopTravelerStep", backref="eligible_machines")
     machine = relationship("Machine")
@@ -630,11 +709,11 @@ class StepMachineOption(Base):
 class MachineSchedule(Base):
     __tablename__ = "machine_schedule"
     id = Column(Integer, primary_key=True)
-    machine_id = Column(Integer, ForeignKey("machines.id"), nullable=False, index=True)
-    traveler_step_id = Column(Integer, ForeignKey("shop_traveler_steps.id"), nullable=False, index=True)
+    machine_id = Column(Integer, ForeignKey("machines.id"), nullable=False)
+    traveler_step_id = Column(Integer, ForeignKey("shop_traveler_steps.id"), nullable=False)
 
     planned_start = Column(DateTime(timezone=True), nullable=True)
-    planned_end = Column(DateTime(timezone=True), nullable=True)
+    planned_end   = Column(DateTime(timezone=True), nullable=True)
     status = Column(String, nullable=False, default="scheduled")  # scheduled/started/completed/cancelled
 
     machine = relationship("Machine", back_populates="schedules")
@@ -682,7 +761,7 @@ class MeasurementDevice(Base):
 class DeviceCalibration(Base):
     __tablename__ = "device_calibrations"
     id = Column(Integer, primary_key=True)
-    device_id = Column(Integer, ForeignKey("measurement_devices.id"), nullable=False, index=True)
+    device_id = Column(Integer, ForeignKey("measurement_devices.id"), nullable=False)
     calibrated_at = Column(Date, nullable=False)
     due_at = Column(Date, nullable=True)
     performed_by = Column(String, nullable=True)
@@ -700,7 +779,7 @@ class DeviceCalibration(Base):
 class InspectionRecord(Base):
     __tablename__ = "inspection_records"
     id = Column(Integer, primary_key=True)
-    traveler_step_id = Column(Integer, ForeignKey("shop_traveler_steps.id"), nullable=False, index=True)
+    traveler_step_id = Column(Integer, ForeignKey("shop_traveler_steps.id"), nullable=False)
 
     is_fair = Column(Boolean, nullable=False, default=False)
     fair_no = Column(String, nullable=True)
@@ -711,9 +790,10 @@ class InspectionRecord(Base):
         Integer,
         ForeignKey("part_revisions.id", ondelete="SET NULL"),
         nullable=True,
-        index=True,
+        index=True
     )
 
+    # CHANGED: explicitly bind the FK and make it bidirectional
     part_revision = relationship(
         "PartRevision",
         foreign_keys=[part_revision_id],
@@ -721,10 +801,11 @@ class InspectionRecord(Base):
         passive_deletes=True,
     )
 
-    inspector_id = Column(Integer, ForeignKey("employees.id"), nullable=True, index=True)
-    device_id = Column(Integer, ForeignKey("measurement_devices.id"), nullable=True, index=True)
-    started_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    inspector_id = Column(Integer, ForeignKey("employees.id"), nullable=True)
+    device_id = Column(Integer, ForeignKey("measurement_devices.id"), nullable=True)
+    started_at  = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     finished_at = Column(DateTime(timezone=True), nullable=True)
+
 
     overall_result = Column(String, nullable=True)
     notes = Column(Text, nullable=True)
@@ -734,7 +815,7 @@ class InspectionRecord(Base):
     device = relationship("MeasurementDevice")
     items = relationship("InspectionItem", back_populates="record", cascade="all, delete-orphan")
 
-    # inverse of ProductionLot.fair_record (FK lives on ProductionLot)
+    # NEW: inverse of ProductionLot.fair_record (FK lives on ProductionLot)
     fair_for_lot = relationship(
         "ProductionLot",
         back_populates="fair_record",
@@ -743,6 +824,7 @@ class InspectionRecord(Base):
     )
 
     __table_args__ = (
+        Index("ix_inspection_records_step", "traveler_step_id"),
         Index("ix_inspection_records_result", "overall_result"),
         Index("ix_inspection_records_fair_rev", "part_revision_id", "is_fair"),
     )
@@ -750,11 +832,12 @@ class InspectionRecord(Base):
     def __repr__(self):
         return f"<InspectionRecord(step_id={self.traveler_step_id}, FAIR={self.is_fair}, result={self.overall_result})>"
 
+    
 
 class InspectionItem(Base):
     __tablename__ = "inspection_items"
     id = Column(Integer, primary_key=True)
-    record_id = Column(Integer, ForeignKey("inspection_records.id"), nullable=False, index=True)
+    record_id = Column(Integer, ForeignKey("inspection_records.id"), nullable=False)
 
     characteristic = Column(String, nullable=False)
     nominal_value = Column(Numeric(18, 4), nullable=True)
@@ -763,7 +846,7 @@ class InspectionItem(Base):
     measured_value = Column(Numeric(18, 4), nullable=True)
     unit = Column(String, nullable=True)
     result = Column(String, nullable=True)               # pass / fail
-    device_id = Column(Integer, ForeignKey("measurement_devices.id"), nullable=True, index=True)
+    device_id = Column(Integer, ForeignKey("measurement_devices.id"), nullable=True)
     attachment = Column(String, nullable=True)
 
     record = relationship("InspectionRecord", back_populates="items")
@@ -800,6 +883,7 @@ class User(Base):
     )
     employee = relationship("Employee", back_populates="user", uselist=False)
 
+    # สำคัญ: นิยามความสัมพันธ์ไปยังตารางเชื่อม พร้อม cascade และ passive_deletes
     user_roles = relationship(
         "UserRole",
         back_populates="user",
@@ -807,7 +891,7 @@ class User(Base):
         passive_deletes=True,
     )
 
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    created_at    = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     last_login_at = Column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (Index("ix_users_active", "is_active"),)
@@ -823,6 +907,7 @@ class Role(Base):
     name = Column(String, nullable=False)
     description = Column(Text, nullable=True)
 
+    # ความสัมพันธ์กลับมาที่ตารางเชื่อม
     role_users = relationship(
         "UserRole",
         back_populates="role",
@@ -837,6 +922,7 @@ class Role(Base):
 class UserRole(Base):
     __tablename__ = "user_roles"
 
+    # ใส่ ondelete="CASCADE" ทั้งสองฝั่ง
     user_id = Column(
         Integer,
         ForeignKey("users.id", ondelete="CASCADE"),
@@ -849,14 +935,13 @@ class UserRole(Base):
         primary_key=True,
         nullable=False,
     )
-    assigned_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    assigned_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     user = relationship("User", back_populates="user_roles")
     role = relationship("Role", back_populates="role_users")
 
     def __repr__(self):
         return f"<UserRole(user_id={self.user_id}, role_id={self.role_id})>"
-
 
 class Permission(Base):
     __tablename__ = "permissions"
@@ -885,6 +970,12 @@ class RolePermission(Base):
 # ============== Time Tracking ============
 # =========================================
 
+
+
+
+# def now_utc():
+#     return datetime.now(timezone.utc)
+
 class TimeEntry(Base):
     __tablename__ = "time_entries"
 
@@ -892,9 +983,10 @@ class TimeEntry(Base):
 
     employee_id = Column(Integer, ForeignKey("employees.id"), nullable=False, index=True)
     payroll_emp_id = Column(Integer, ForeignKey("employees.id", ondelete="SET NULL"), nullable=True, index=True)
-    created_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    created_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     work_user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
 
+    # clock_in_at = Column(DateTime(timezone=True), default=now_utc, nullable=False)
     clock_in_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     clock_in_method = Column(String, nullable=True)
     clock_in_location = Column(String, nullable=True)
@@ -906,15 +998,17 @@ class TimeEntry(Base):
     status = Column(String, nullable=False, default="open")
     notes = Column(Text, nullable=True)
 
+    # CHANGED: make both Employee relationships explicit
     employee = relationship("Employee", foreign_keys=[employee_id])
     payroll_employee = relationship("Employee", foreign_keys=[payroll_emp_id])
 
     created_by_user = relationship("User", foreign_keys=[created_by_user_id])
     payroll_user = relationship("User", foreign_keys=[work_user_id])
 
-    pay_period_id = Column(Integer, ForeignKey("pay_periods.id"), index=True, nullable=True)
-    pay_period = relationship("PayPeriod", backref="time_entries")
 
+    # ...ฟิลด์เดิม...
+    pay_period_id = Column(Integer, ForeignKey("pay_periods.id"), index=True, nullable=True)
+    pay_period    = relationship("PayPeriod", backref="time_entries")
     __table_args__ = (
         Index("ix_time_entries_emp_status", "employee_id", "status"),
         Index("ix_time_entries_in", "clock_in_at"),
@@ -928,43 +1022,59 @@ class TimeEntry(Base):
         return f"<TimeEntry(emp_id={self.employee_id}, work_user_id={self.work_user_id}, status={self.status})>"
 
 
-class BreakEntry(Base):
-    __tablename__ = "break_entries"
-    id = Column(Integer, primary_key=True)
-    time_entry_id = Column(Integer, ForeignKey("time_entries.id"), nullable=False, index=True)
-    break_type = Column(String, nullable=False, default="lunch")
+
+# class BreakEntry(Base):
+#     __tablename__ = "time_breaks"   # <-- เปลี่ยนชื่อใหม่
+#     id = Column(Integer, primary_key=True)
+#     time_entry_id = Column(Integer, ForeignKey("time_entries.id"), nullable=False, index=True)
+#     break_type = Column(String, nullable=False, default="lunch")
+#     start_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+#     end_at   = Column(DateTime(timezone=True))
+#     method = Column(String)
+#     location = Column(String)
+#     notes = Column(Text)
+#     is_paid = Column(Boolean, default=False, nullable=False)
+
+#     time_entry = relationship("TimeEntry", backref="time_breaks")
+
+#     __table_args__ = (
+#         Index("ix_time_breaks_parent", "time_entry_id"),
+#         Index("ix_time_breaks_start", "start_at"),
+#         Index("ix_time_breaks_end", "end_at"),
+#     )
+class BreakEntry(Base): 
+    __tablename__ = "break_entries" 
+    id = Column(Integer, primary_key=True) 
+    time_entry_id = Column(Integer, ForeignKey("time_entries.id"), nullable=False, index=True) 
+    break_type = Column(String, nullable=False, default="lunch") # 👇 tz-aware & UTC 
+    # start_at = Column(DateTime(timezone=True), nullable=False, default=now_utc) 
     start_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
-    end_at = Column(DateTime(timezone=True), nullable=True)
-    method = Column(String, nullable=True)
-    location = Column(String, nullable=True)
-    notes = Column(Text, nullable=True)
-    is_paid = Column(Boolean, nullable=False, default=False)
-
-    time_entry = relationship("TimeEntry", backref="breaks")
-
-    __table_args__ = (
-        Index("ix_break_entries_parent", "time_entry_id"),
-        Index("ix_break_entries_start", "start_at"),
-        Index("ix_break_entries_end", "end_at"),
+    end_at = Column(DateTime(timezone=True), nullable=True) 
+    method = Column(String, nullable=True) 
+    location = Column(String, nullable=True) 
+    notes = Column(Text, nullable=True) 
+    is_paid = Column(Boolean, nullable=False, default=False) 
+    time_entry = relationship("TimeEntry", backref="breaks") 
+    __table_args__ = ( Index("ix_break_entries_parent", "time_entry_id"), 
+                      Index("ix_break_entries_start", "start_at"), 
+                      Index("ix_break_entries_end", "end_at"), 
     )
 
-
 class TimeLeave(Base):
-    __tablename__ = "time_leaves"
+    __tablename__ = "time_leaves"   # <-- ชื่อใหม่
     id = Column(Integer, primary_key=True)
     employee_id = Column(Integer, ForeignKey("employees.id"), nullable=False, index=True)
     leave_type = Column(String, nullable=False)  # vacation/sick/...
     start_at = Column(DateTime(timezone=True), nullable=False)
-    end_at = Column(DateTime(timezone=True), nullable=False)
-    hours = Column(Numeric(5, 2), nullable=True)
-    is_paid = Column(Boolean, nullable=False, default=True)
-    status = Column(String, nullable=False, default="approved")
-    notes = Column(Text)
+    end_at   = Column(DateTime(timezone=True), nullable=False)
+    hours    = Column(Numeric(5,2), nullable=True)
+    is_paid  = Column(Boolean, nullable=False, default=True)
+    status   = Column(String, nullable=False, default="approved")
+    notes    = Column(Text)
 
     employee = relationship("Employee")
 
     __table_args__ = (Index("ix_time_leaves_emp_date", "employee_id", "start_at", "end_at"),)
-
 
 class Holiday(Base):
     __tablename__ = "holidays"
@@ -972,54 +1082,58 @@ class Holiday(Base):
     holiday_date = Column(Date, nullable=False, unique=True)
     name = Column(String, nullable=False)
     is_paid = Column(Boolean, nullable=False, default=True)
-    hours = Column(Numeric(4, 2), nullable=True)
-    pay_multiplier = Column(Numeric(3, 2), default=1, nullable=False)
-
+    hours = Column(Numeric(4,2), nullable=True)      # เช่น 8.0 ชม/วัน
+    pay_multiplier = Column(Numeric(3,2), default=1) # ถ้ามีกฏจ่ายพิเศษ 1.5x/2x
 
 class PayRate(Base):
     __tablename__ = "pay_rates"
     id = Column(Integer, primary_key=True)
     employee_id = Column(Integer, ForeignKey("employees.id"), index=True, nullable=False)
-    effective_from = Column(DateTime(timezone=True), nullable=False)
-    hourly_rate = Column(Numeric(8, 2), nullable=False)
-    ot_multiplier = Column(Numeric(4, 2), default=1.5, nullable=False)
-    dt_multiplier = Column(Numeric(4, 2), default=2.0, nullable=False)
-
-    __table_args__ = (
-        Index("ix_pay_rates_emp_eff", "employee_id", "effective_from"),
-        UniqueConstraint("employee_id", "effective_from", name="uq_pay_rates_emp_eff"),
+    effective_from = Column(DateTime, nullable=False)
+    hourly_rate = Column(Numeric(8,2), nullable=False)
+    ot_multiplier = Column(Numeric(4,2), default=1.5)    # 1.5x
+    dt_multiplier = Column(Numeric(4,2), default=2.0)    # 2.0x
+    # optional: shift_diff, job_code, union_code, …
+    # __table_args__ = (Index("ix_pay_rates_emp_eff", "employee_id", "effective_from"),)
+    # ในโมเดล PayRate
+    __table_args__ = (Index("ix_pay_rates_emp_eff", "employee_id", "effective_from"),
+    # ไม่ให้ซ้ำวันเดียวกัน
+    UniqueConstraint("employee_id", "effective_from", name="uq_pay_rates_emp_eff"),
     )
 
 
+# models.py
 class PayPeriod(Base):
     __tablename__ = "pay_periods"
     id = Column(Integer, primary_key=True)
-    name = Column(String, nullable=True)  # eg. "2025-W17", "2025-PP-08A"
-    start_at = Column(DateTime(timezone=True), nullable=False)  # [start, end)
-    end_at = Column(DateTime(timezone=True), nullable=False)
-    status = Column(String, nullable=False, default="open")  # open/locked/paid
-    anchor = Column(String, nullable=True)
-    notes = Column(Text, nullable=True)
+    name = Column(String, nullable=True)            # eg. "2025-W17", "2025-PP-08A"
+    start_at = Column(DateTime(timezone=True), nullable=False)   # [start, end)
+    end_at   = Column(DateTime(timezone=True), nullable=False)
+    status   = Column(String, nullable=False, default="open")   # open/locked/paid
+    anchor   = Column(String, nullable=True)        # optional: biweekly, weekly, monthly
+    notes    = Column(Text, nullable=True)
 
     created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
-    locked_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    locked_by  = Column(Integer, ForeignKey("users.id"), nullable=True)
     locked_at = Column(DateTime(timezone=True), nullable=True)
-    paid_at = Column(DateTime(timezone=True), nullable=True)
+    paid_at   = Column(DateTime(timezone=True), nullable=True)
 
+     # ...ฟิลด์เดิม...
     created_by_emp_id = Column(Integer, ForeignKey("employees.id"), nullable=True)
-    locked_by_emp_id = Column(Integer, ForeignKey("employees.id"), nullable=True)
-    paid_by_emp_id = Column(Integer, ForeignKey("employees.id"), nullable=True)
+    locked_by_emp_id  = Column(Integer, ForeignKey("employees.id"), nullable=True)
+    paid_by_emp_id    = Column(Integer, ForeignKey("employees.id"), nullable=True)
 
     created_by_emp = relationship("Employee", foreign_keys=[created_by_emp_id])
-    locked_by_emp = relationship("Employee", foreign_keys=[locked_by_emp_id])
-    paid_by_emp = relationship("Employee", foreign_keys=[paid_by_emp_id])
+    locked_by_emp  = relationship("Employee", foreign_keys=[locked_by_emp_id])
+    paid_by_emp    = relationship("Employee", foreign_keys=[paid_by_emp_id])
 
     __table_args__ = (
+        # กันช่วงงวดซ้อนกัน
         Index("ix_pay_periods_range", "start_at", "end_at"),
+        # ไม่ให้มีช่วงเดียวกันซ้ำ
         UniqueConstraint("start_at", "end_at", name="uq_pay_periods_range"),
         CheckConstraint("end_at > start_at", name="ck_pay_periods_valid"),
     )
-
 
 class POLine(Base):
     __tablename__ = "po_lines"
@@ -1027,22 +1141,22 @@ class POLine(Base):
     id = Column(Integer, primary_key=True)
     po_id = Column(Integer, ForeignKey("purchase_orders.id"), nullable=False, index=True)
     part_id = Column(Integer, ForeignKey("parts.id"), nullable=False, index=True)
+    # เอา FK เดี่ยวออก ใช้ composite FK คู่ด้านล่างแทน
     revision_id = Column(Integer, nullable=True, index=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     qty_ordered = Column(Numeric(18, 3), nullable=False)
     unit_price = Column(Numeric(18, 2))
-    due_date = Column(DateTime(timezone=True))
-    second_due_date = Column(DateTime(timezone=True))
+    due_date = Column(Date)
     notes = Column(Text)
 
-    po = relationship("PO", back_populates="lines", foreign_keys=[po_id])
+    po   = relationship("PO", back_populates="lines", foreign_keys=[po_id])
     part = relationship("Part", foreign_keys=[part_id])
-    rev = relationship("PartRevision", foreign_keys=[revision_id])
+    rev  = relationship("PartRevision", foreign_keys=[revision_id])
 
     __table_args__ = (
         Index("ix_po_lines_po", "po_id"),
         Index("ix_po_lines_part_rev", "part_id", "revision_id"),
+        # Composite FK: บังคับ revision_id ต้องเป็นของ part_id นั้นจริง ๆ
         ForeignKeyConstraint(
             ["part_id", "revision_id"],
             ["part_revisions.part_id", "part_revisions.id"],
@@ -1053,9 +1167,9 @@ class POLine(Base):
     @validates("revision_id")
     def _validate_revision(self, key, rev_id):
         if rev_id is None:
-            return rev_id
+            return rev_id  # อนุญาต legacy
         if not self.part_id:
-            return rev_id
+            return rev_id  # จะตรวจอีกครั้งตอนตั้ง part_id
         sess = object_session(self)
         pr = sess.get(PartRevision, rev_id) if sess else None
         if pr and pr.part_id != self.part_id:
@@ -1070,14 +1184,15 @@ class POLine(Base):
             if pr and pr.part_id != part_id:
                 raise ValueError("revision_id does not belong to part_id")
         return part_id
-
+# ให้ lot อ้างบรรทัด PO ได้ (optional แต่ดีมาก)
+# ProductionLot.po_line_id = Column(Integer, ForeignKey("po_lines.id"), nullable=True, index=True)
 
 # ===== Customer Shipment =====
 class CustomerShipment(Base):
     __tablename__ = "customer_shipments"
     id = Column(Integer, primary_key=True)
     po_id = Column(Integer, ForeignKey("purchase_orders.id"), nullable=False, index=True)
-    shipped_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    shipped_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     ship_to = Column(String, nullable=True)
     carrier = Column(String, nullable=True)
     tracking_no = Column(String, nullable=True)
@@ -1086,18 +1201,17 @@ class CustomerShipment(Base):
     po = relationship("PO", back_populates="shipments")
     items = relationship("CustomerShipmentItem", back_populates="shipment", cascade="all, delete-orphan")
 
-
 class CustomerShipmentItem(Base):
     __tablename__ = "customer_shipment_items"
     id = Column(Integer, primary_key=True)
     shipment_id = Column(Integer, ForeignKey("customer_shipments.id"), nullable=False, index=True)
     po_line_id = Column(Integer, ForeignKey("po_lines.id"), nullable=False, index=True)
-    lot_id = Column(Integer, ForeignKey("production_lots.id"), nullable=True, index=True)
-    qty = Column(Numeric(18, 3), nullable=False)
+    lot_id = Column(Integer, ForeignKey("production_lots.id"), nullable=True, index=True)  # ถ้าผูกกับ lot โดยตรง
+    qty = Column(Numeric(18,3), nullable=False)
 
     shipment = relationship("CustomerShipment", back_populates="items")
-    po_line = relationship("POLine")
-    lot = relationship("ProductionLot")
+    po_line  = relationship("POLine")
+    lot      = relationship("ProductionLot")
 
 
 # ===== Customer Invoice =====
@@ -1113,33 +1227,55 @@ class CustomerInvoice(Base):
     po = relationship("PO", back_populates="invoices")
     lines = relationship("CustomerInvoiceLine", back_populates="invoice", cascade="all, delete-orphan")
 
-
 class CustomerInvoiceLine(Base):
     __tablename__ = "customer_invoice_lines"
     id = Column(Integer, primary_key=True)
     invoice_id = Column(Integer, ForeignKey("customer_invoices.id"), nullable=False, index=True)
-    po_line_id = Column(Integer, ForeignKey("po_lines.id"), nullable=False, index=True)
-    shipment_item_id = Column(Integer, ForeignKey("customer_shipment_items.id"), nullable=True, index=True)
-    qty = Column(Numeric(18, 3), nullable=False)
-    unit_price = Column(Numeric(18, 2), nullable=True)
-    amount = Column(Numeric(18, 2), nullable=True)
+    po_line_id = Column(Integer, ForeignKey("po_lines.id"), nullable=False)
+    shipment_item_id = Column(Integer, ForeignKey("customer_shipment_items.id"), nullable=True)  # ถ้าวางบิลตามของที่ส่ง
+    qty = Column(Numeric(18,3), nullable=False)
+    unit_price = Column(Numeric(18,2), nullable=True)
+    amount = Column(Numeric(18,2), nullable=True)  # เก็บหรือคำนวณก็ได้
 
     invoice = relationship("CustomerInvoice", back_populates="lines")
     po_line = relationship("POLine")
     shipment_item = relationship("CustomerShipmentItem")
 
 
+class MaterialPO(Base):
+    __tablename__ = "material_pos"
+    id = Column(Integer, primary_key=True)
+    po_number = Column(String, unique=True, index=True, nullable=False)
+    supplier_id = Column(Integer, ForeignKey("suppliers.id"), nullable=False)
+    order_date = Column(Date, default=date.today, nullable=False)
+    status = Column(String, default="open")  # open/confirmed/received/closed
+    notes = Column(Text)
+
+    supplier = relationship("Supplier")
+    lines = relationship("MaterialPOLine", back_populates="po", cascade="all, delete-orphan")
+
+class MaterialPOLine(Base):
+    __tablename__ = "material_po_lines"
+    id = Column(Integer, primary_key=True)
+    po_id = Column(Integer, ForeignKey("material_pos.id"), nullable=False, index=True)
+    material_id = Column(Integer, ForeignKey("raw_materials.id"), nullable=False)
+    qty_ordered = Column(Numeric(18,3), nullable=False)
+    unit_price = Column(Numeric(18,2), nullable=True)
+    due_date = Column(Date, nullable=True)
+
+    po = relationship("MaterialPO", back_populates="lines")
+    material = relationship("RawMaterial")
+
+
 class CustomerReturn(Base):
     __tablename__ = "customer_returns"
     id = Column(Integer, primary_key=True)
     po_id = Column(Integer, ForeignKey("purchase_orders.id"), nullable=False, index=True)
-    rma_no = Column(String, unique=True, index=True, nullable=True)
+    rma_no = Column(String, unique=True, index=True, nullable=True)   # ถ้ามีเลข RMA
     returned_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     reason = Column(Text)
-    status = Column(String, default="received", nullable=False)  # received/inspected/closed
-
+    status = Column(String, default="received")  # received/inspected/closed
     po = relationship("PO")
-
 
 class CustomerReturnItem(Base):
     __tablename__ = "customer_return_items"
@@ -1149,7 +1285,7 @@ class CustomerReturnItem(Base):
     po_line_id = Column(Integer, ForeignKey("po_lines.id"), nullable=False, index=True)
     lot_id = Column(Integer, ForeignKey("production_lots.id"), nullable=True, index=True)
 
-    qty = Column(Numeric(18, 3), nullable=False)
+    qty = Column(Numeric(18,3), nullable=False)
     reason_code = Column(String, nullable=True)   # DEFECT, WRONG_PART, DAMAGE, ...
     disposition = Column(String, nullable=True)   # REWORK, SCRAP, RETURN_TO_STOCK, CREDIT
 
@@ -1159,24 +1295,21 @@ class CustomerReturnItem(Base):
     lot = relationship("ProductionLot")
 
 
-############ Selection ############
-
+############ Seclection 
 class ManufacturingProcess(Base):
     __tablename__ = "mfg_processes"
-    id = Column(Integer, primary_key=True)
+    id   = Column(Integer, primary_key=True)
     code = Column(String, unique=True, index=True, nullable=False)
     name = Column(String, nullable=False)
     category = Column(String, nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
 
-
 class ChemicalFinish(Base):
     __tablename__ = "chemical_finishes"
-    id = Column(Integer, primary_key=True)
+    id   = Column(Integer, primary_key=True)
     code = Column(String, unique=True, index=True, nullable=False)
     name = Column(String, nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
-
 
 class PartProcessSelection(Base):
     __tablename__ = "part_process_selections"
@@ -1236,86 +1369,14 @@ class PartOtherNote(Base):
 
 
 # =========================================
-# ============== EVENT LISTENERS ==========
-# =========================================
-# (Declared AFTER classes they reference)
-
-@event.listens_for(LotMaterialUse, "before_insert")
-@event.listens_for(LotMaterialUse, "before_update")
-def _lmu_sync_raw_material(mapper, connection, target: LotMaterialUse):
-    """Ensure raw_material_id matches the batch's material each time."""
-    if target.batch_id:
-        rm_id = connection.execute(
-            select(RawBatch.material_id).where(RawBatch.id == target.batch_id)
-        ).scalar_one_or_none()
-        target.raw_material_id = rm_id
-
-
-@event.listens_for(RawBatch, "before_insert")
-@event.listens_for(RawBatch, "before_update")
-def _rawbatch_sync_po_from_line(mapper, connection, target: RawBatch):
-    """Keep RawBatch.po_id and material_id in sync with selected MaterialPOLine (if any)."""
-    if not target.material_po_line_id:
-        return
-    row = connection.execute(
-        select(MaterialPOLine.po_id, MaterialPOLine.material_id)
-        .where(MaterialPOLine.id == target.material_po_line_id)
-    ).first()
-    if not row:
-        return
-    po_id_from_line, mat_id_from_line = row
-    target.po_id = po_id_from_line
-    if mat_id_from_line and target.material_id != mat_id_from_line:
-        target.material_id = mat_id_from_line
-
-
-@event.listens_for(LotMaterialUse, "before_insert")
-def _lmu_before_insert_guard(mapper, connection, target: LotMaterialUse):
-    """Prevent using more than received; allow negative to represent returns but not below zero total."""
-    total_used_other = connection.execute(
-        select(func.coalesce(func.sum(LotMaterialUse.qty), 0)).where(LotMaterialUse.batch_id == target.batch_id)
-    ).scalar_one()
-
-    qty_received = connection.execute(
-        select(func.coalesce(RawBatch.qty_received, 0)).where(RawBatch.id == target.batch_id)
-    ).scalar_one()
-
-    total_after = (total_used_other or 0) + (target.qty or 0)
-    if total_after < 0:
-        raise ValueError(f"batch {target.batch_id}: total_used would be {total_after} < 0")
-    if total_after > (qty_received or 0):
-        raise ValueError(
-            f"batch {target.batch_id}: total_used would be {total_after} > qty_received {qty_received}"
-        )
-
-
-@event.listens_for(LotMaterialUse, "before_update")
-def _lmu_before_update_guard(mapper, connection, target: LotMaterialUse):
-    total_used_other = connection.execute(
-        select(func.coalesce(func.sum(LotMaterialUse.qty), 0)).where(
-            (LotMaterialUse.batch_id == target.batch_id) & (LotMaterialUse.id != target.id)
-        )
-    ).scalar_one()
-
-    qty_received = connection.execute(
-        select(func.coalesce(RawBatch.qty_received, 0)).where(RawBatch.id == target.batch_id)
-    ).scalar_one()
-
-    total_after = (total_used_other or 0) + (target.qty or 0)
-    if total_after < 0:
-        raise ValueError(f"batch {target.batch_id}: total_used would be {total_after} < 0")
-    if total_after > (qty_received or 0):
-        raise ValueError(
-            f"batch {target.batch_id}: total_used would be {total_after} > qty_received {qty_received}"
-        )
-
-
-# =========================================
 # === Computed stock properties (read-only)
 # === Put this AFTER LotMaterialUse class
 # =========================================
+from sqlalchemy.ext.hybrid import hybrid_property
+from sqlalchemy.orm import column_property,aliased
+from sqlalchemy import select, func
 
-# per-batch: used qty (sum from LotMaterialUse)
+# --- ต่อ batch: ยอดใช้ไป (รวมจาก LotMaterialUse)
 RawBatch.qty_used_calc = column_property(
     select(func.coalesce(func.sum(LotMaterialUse.qty), 0))
     .where(LotMaterialUse.batch_id == RawBatch.id)
@@ -1323,22 +1384,26 @@ RawBatch.qty_used_calc = column_property(
     .scalar_subquery()
 )
 
-# per-batch: available = received - used
-RawBatch.qty_available_calc = column_property(RawBatch.qty_received - RawBatch.qty_used_calc)
+# --- ต่อ batch: คงเหลือ = qty_received - qty_used_calc
+RawBatch.qty_available_calc = column_property(
+    (RawBatch.qty_received - RawBatch.qty_used_calc)
+)
 
-# material-level aggregates
-_rb = aliased(RawBatch)
-_lmu = aliased(LotMaterialUse)
+# --- ระดับวัสดุ (รวมทุก batch)
+rb  = aliased(RawBatch)
+lmu = aliased(LotMaterialUse)
+
 _used_per_rb_subq = (
-    select(func.coalesce(func.sum(_lmu.qty), 0))
-    .where(_lmu.batch_id == _rb.id)
-    .correlate_except(_lmu)
+    select(func.coalesce(func.sum(lmu.qty), 0))
+    .where(lmu.batch_id == rb.id)
+    .correlate_except(lmu)
     .scalar_subquery()
 )
 
+# on-hand รวมของวัสดุ = Σ (rb.qty_received - Σ lmu.qty ของ rb นั้น)
 RawMaterial.total_on_hand = column_property(
-    select(func.coalesce(func.sum(_rb.qty_received - _used_per_rb_subq), 0))
-    .where(_rb.material_id == RawMaterial.id)
-    .correlate_except(_rb)
+    select(func.coalesce(func.sum(rb.qty_received - _used_per_rb_subq), 0))
+    .where(rb.material_id == RawMaterial.id)
+    .correlate_except(rb)
     .scalar_subquery()
 )
