@@ -1,14 +1,16 @@
-// /static/js/page-lots.js — Production Lots (manual Save/Cancel; Tabulator)
+// /static/js/page-lots.js — Production Lots (Tabulator style like Customers)
 import { $, jfetch, toast } from "./api.js";
 import { attachAutocomplete } from "./autocomplete.js";
 
 /* ================== CONFIG ================== */
+// เพิ่มไว้บนสุดใกล้ ๆ CONFIG
 const JSON_HEADERS = { "Content-Type": "application/json" };
 const ENDPOINTS = {
   base: "/lots",
   keyset: "/lots/keyset", // DESC: newest -> oldest, supports ?q=&cursor=&limit=
   parts: "/parts",
   pos: "/pos",
+  // NEW: used-materials summary per lot
   usedMaterials: "/lots/used-materials", // expects ?lot_ids=1,2,3
 };
 const safe = (s) => String(s ?? "").replaceAll("<", "&lt;");
@@ -36,10 +38,7 @@ const toNum = (v) => {
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
 };
-const nowMs = () =>
-  typeof performance !== "undefined" && performance.now
-    ? performance.now()
-    : Date.now();
+const nowMs = () => performance?.now?.() || Date.now();
 const underCooldown = () => nowMs() - lastFetchAt < FETCH_COOLDOWN_MS;
 const markFetched = () => {
   lastFetchAt = nowMs();
@@ -112,16 +111,14 @@ function normalizeRow(r) {
     // total consumption (all materials)
     used_qty: 0,
 
-    // detail list of used materials
+    // NEW: detail list of used materials (from LotMaterialUse)
+    // [{ material_code, batch_no, qty, uom, supplier, po_number }]
     mat_used: [],
-
-    // manual edit state
-    _dirty: false,
-    _original: null,
   };
 }
 
 /* ================== ENRICH DATA ================== */
+// GET /reports/lot-consumption?lot_ids=1,2 → { "1": "35.000", "2": "0.000" }
 async function fetchLotConsumptionMap(lotIds) {
   if (!lotIds?.length) return {};
   const qs = lotIds.join(",");
@@ -135,9 +132,11 @@ async function fetchLotConsumptionMap(lotIds) {
   }
 }
 
+// GET /parts/{id}/materials → BOM array
 async function fetchPartMaterialsMap(partIds) {
   const out = {};
   const uniq = [...new Set((partIds || []).filter(Boolean))];
+
   await Promise.all(
     uniq.map(async (pid) => {
       try {
@@ -147,6 +146,7 @@ async function fetchPartMaterialsMap(partIds) {
           : Array.isArray(res?.items)
           ? res.items
           : [];
+
         out[pid] = arr.map((m) => ({
           material_id: m.material_id ?? m.id ?? null,
           material_code: m.material_code ?? m.code ?? "",
@@ -159,42 +159,23 @@ async function fetchPartMaterialsMap(partIds) {
       }
     })
   );
+
   return out;
 }
 
-/* -------- Used Materials (robust with fallbacks) -------- */
-let USED_MAT_AVAILABLE = true;
-function toQuery(params) {
-  return Object.entries(params)
-    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
-    .join("&");
-}
-
+// NEW: GET /lots/used-materials?lot_ids=1,2 → { "1":[{material_code,batch_no,qty,uom,supplier,po_number}], ... }
 async function fetchLotUsedMaterialsMap(lotIds) {
-  if (!USED_MAT_AVAILABLE) return {};
   if (!lotIds?.length) return {};
-  const ids = lotIds.map(String);
-
-  const tryCalls = [
-    `${ENDPOINTS.usedMaterials}?${toQuery({ lot_ids: ids.join(",") })}`, // spec
-    `${ENDPOINTS.usedMaterials}?${ids
-      .map((x) => `lot_ids[]=${encodeURIComponent(x)}`)
-      .join("&")}`, // array style
-    `${ENDPOINTS.usedMaterials}?${toQuery({ ids: ids.join(",") })}`, // generic
-  ];
-
-  for (const url of tryCalls) {
-    try {
-      const res = await jfetch(url);
-      if (res && typeof res === "object") return res;
-    } catch (e) {
-      const msg = String(e?.message || "");
-      if (msg.includes("404") || msg.includes("422")) continue;
-      continue;
-    }
+  const qs = lotIds.join(",");
+  try {
+    const res = await jfetch(
+      `${ENDPOINTS.usedMaterials}?lot_ids=${encodeURIComponent(qs)}`
+    );
+    // expected object map
+    return res || {};
+  } catch {
+    return {};
   }
-  USED_MAT_AVAILABLE = false;
-  return {};
 }
 
 async function refreshUsageForRows(rows) {
@@ -223,8 +204,8 @@ async function refreshMaterialsForRows(rows) {
   if (updates.length) await table?.updateOrAddData(updates, "id");
 }
 
+// NEW: refresh used-materials detail list
 async function refreshUsedForRows(rows) {
-  if (!USED_MAT_AVAILABLE) return;
   const lotIds = rows.map((r) => r.getData?.().id).filter(Boolean);
   if (!lotIds.length) return;
   const usedMap = await fetchLotUsedMaterialsMap(lotIds);
@@ -277,127 +258,23 @@ async function fetchPOs(term) {
     if (!q) {
       const res = await jfetch(`/pos/keyset?limit=10`);
       const items = Array.isArray(res) ? res : res.items ?? [];
-      return items.map((p) => ({ id: p.id, po_number: p.po_number ?? "" }));
+      return items.map((p) => ({
+        id: p.id,
+        po_number: p.po_number ?? "",
+      }));
     } else {
       const res = await jfetch(
         `/pos?q=${encodeURIComponent(q)}&page=1&page_size=10`
       );
       const items = Array.isArray(res) ? res : res.items ?? [];
-      return items.map((p) => ({ id: p.id, po_number: p.po_number ?? "" }));
+      return items.map((p) => ({
+        id: p.id,
+        po_number: p.po_number ?? "",
+      }));
     }
   } catch {
     return [];
   }
-}
-
-/* ================== EDIT STATE HELPERS ================== */
-function snapshotRow(d) {
-  return {
-    id: d.id ?? null,
-    lot_no: d.lot_no ?? "",
-    planned_qty: Number(d.planned_qty ?? 0),
-    status: d.status ?? "in_process",
-    started_at: d.started_at ?? null,
-    finished_at: d.finished_at ?? null,
-    part_id: d.part_id ?? null,
-    part_no: d.part_no ?? "",
-    part_name: d.part_name ?? "",
-    part_revision_id: d.part_revision_id ?? null,
-    part_rev: d.part_rev ?? "",
-    po_id: d.po_id ?? null,
-    po_number: d.po_number ?? "",
-    traveler_ids: Array.isArray(d.traveler_ids) ? [...d.traveler_ids] : [],
-    mat_summary: Array.isArray(d.mat_summary) ? [...d.mat_summary] : [],
-    used_qty: d.used_qty ?? 0,
-    mat_used: Array.isArray(d.mat_used) ? [...d.mat_used] : [],
-  };
-}
-
-function markDirty(row) {
-  const d = row.getData();
-  if (!d._original) d._original = snapshotRow(d);
-  if (!d._dirty) row.update({ _dirty: true }, true);
-}
-
-function clearDirty(row) {
-  const d = row.getData();
-  if (d._dirty || d._original)
-    row.update({ _dirty: false, _original: null }, true);
-}
-
-function validateRow(d) {
-  if (!trim(d.lot_no)) return "Lot No cannot be empty";
-  if (d.part_no && !d.part_id) return "Pick a Part from the list";
-  if (d.po_number && !d.po_id) return "Pick a PO from the list";
-  if (!Number.isFinite(Number(d.planned_qty))) return "Planned qty invalid";
-  return null;
-}
-
-function buildPayload(d) {
-  return {
-    lot_no: trim(d.lot_no) || null,
-    part_id: d.part_id ?? null,
-    part_revision_id: d.part_revision_id ?? null,
-    po_id: d.po_id ?? null,
-    planned_qty: Number(d.planned_qty ?? 0),
-    status: d.status || "in_process",
-  };
-}
-
-async function saveRow(row) {
-  const d = row.getData();
-  const err = validateRow(d);
-  if (err) {
-    toast(err, false);
-    return;
-  }
-  if (trim(d.part_no) && !d.part_id)
-    d.part_id = (await resolvePartId(d.part_no)) || d.part_id;
-  if (trim(d.po_number) && !d.po_id)
-    d.po_id = (await resolvePoId(d.po_number)) || d.po_id;
-
-  const body = buildPayload(d);
-  try {
-    let res;
-    if (!d.id) {
-      if (!body.lot_no) body.lot_no = "AUTO";
-      res = await jfetch(ENDPOINTS.base, {
-        method: "POST",
-        headers: JSON_HEADERS,
-        body: JSON.stringify(body),
-      });
-      const norm = normalizeRow(res || d);
-      row.update({ ...norm }, true);
-      toast(`Created "${norm.lot_no}"`);
-    } else {
-      res = await jfetch(`${ENDPOINTS.base}/${encodeURIComponent(d.id)}`, {
-        method: "PATCH",
-        headers: JSON_HEADERS,
-        body: JSON.stringify(body),
-      });
-      const norm = normalizeRow(res || d);
-      row.update({ ...norm }, true);
-      toast(`Saved "${norm.lot_no || norm.id}"`);
-    }
-
-    await refreshUsageForRows([row]);
-    await refreshMaterialsForRows([row]);
-    await refreshUsedForRows([row]);
-    clearDirty(row);
-  } catch (e) {
-    toast(e?.message || "Save failed", false);
-  }
-}
-
-function cancelRow(row) {
-  const d = row.getData();
-  if (d._original) {
-    row.update({ ...d._original }, true);
-  } else if (!d.id) {
-    row.delete();
-    return;
-  }
-  clearDirty(row);
 }
 
 /* ================== AUTOCOMPLETE (editors) ================== */
@@ -429,14 +306,15 @@ function partEditor(cell, onRendered, success, cancel) {
     onPick: (it) => {
       const row = cell.getRow();
       row.update({
-        part_id: it.id,
-        part_no: it.part_no,
-        part_name: it.name || "",
-        part_revision_id: it.part_revision_id ?? null,
-        part_rev: it.rev || "",
+        po_id: it.id,
+        po_number: it.po_number,
       });
-      success(`${it.part_no}`);
-      setTimeout(() => markDirty(row), 0);
+      // ให้ Tabulator เห็นการเปลี่ยนค่าแน่ ๆ
+      success(`${it.po_number}`);
+
+      // บังคับ autosave อีกชั้น (กันเคส success แล้วไม่ยิง cellEdited)
+      // ทำแบบ async เพื่อให้ Tabulator อัพเดตค่าเสร็จก่อน
+      setTimeout(() => autosaveCell(cell), 0);
     },
   });
 
@@ -454,7 +332,6 @@ function partEditor(cell, onRendered, success, cancel) {
         return;
       }
       success(input.value);
-      markDirty(cell.getRow());
     } else if (e.key === "Escape") {
       e.preventDefault();
       cancel();
@@ -464,7 +341,6 @@ function partEditor(cell, onRendered, success, cancel) {
   input.addEventListener("input", () => {
     const row = cell.getRow();
     row.update({ part_id: null, part_revision_id: null, part_rev: "" });
-    markDirty(row);
   });
 
   return input;
@@ -490,9 +366,11 @@ function poEditor(cell, onRendered, success, cancel) {
     maxHeight: 260,
     onPick: (it) => {
       const row = cell.getRow();
-      row.update({ po_id: it.id, po_number: it.po_number });
+      row.update({
+        po_id: it.id,
+        po_number: it.po_number,
+      });
       success(`${it.po_number}`);
-      setTimeout(() => markDirty(row), 0);
     },
   });
 
@@ -510,7 +388,6 @@ function poEditor(cell, onRendered, success, cancel) {
         return;
       }
       success(input.value);
-      markDirty(cell.getRow());
     } else if (e.key === "Escape") {
       e.preventDefault();
       cancel();
@@ -520,7 +397,6 @@ function poEditor(cell, onRendered, success, cancel) {
   input.addEventListener("input", () => {
     const row = cell.getRow();
     row.update({ po_id: null });
-    markDirty(row);
   });
 
   return input;
@@ -531,6 +407,7 @@ async function ensureLabelsForRows(rows) {
   const partIds = [...new Set(rows.map((r) => r.part_id).filter(Boolean))];
   const poIds = [...new Set(rows.map((r) => r.po_id).filter(Boolean))];
 
+  // parts
   if (partIds.length) {
     try {
       const res = await jfetch(
@@ -548,6 +425,7 @@ async function ensureLabelsForRows(rows) {
     } catch {}
   }
 
+  // pos
   if (poIds.length) {
     try {
       const res = await jfetch(
@@ -565,26 +443,150 @@ async function ensureLabelsForRows(rows) {
   }
 }
 
-/* ================== DELETE ================== */
-async function deleteRow(row) {
+/* ================== AUTOSAVE ================== */
+const createInFlight = new WeakSet();
+const patchTimers = new Map();
+const PATCH_MS = 350;
+
+function buildPayload(d) {
+  return {
+    lot_no: trim(d.lot_no) || null,
+    part_id: d.part_id ?? null,
+    part_revision_id: d.part_revision_id ?? null, // optional
+    po_id: d.po_id ?? null,
+    planned_qty: Number(d.planned_qty ?? 0),
+    status: d.status || "in_process",
+  };
+}
+
+async function ensureResolvedIdsForRow(d) {
+  if (trim(d.part_no) && !d.part_id) {
+    const pid = await resolvePartId(d.part_no);
+    if (pid) d.part_id = pid;
+  }
+  if (trim(d.po_number) && !d.po_id) {
+    const poid = await resolvePoId(d.po_number);
+    if (poid) d.po_id = poid;
+  }
+}
+
+async function autosaveCell(cell) {
+  const row = cell.getRow();
   const d = row.getData();
-  if (!d) return;
+  const fld = cell.getField();
+  const newVal = cell.getValue();
+  const oldVal = cell.getOldValue();
+
+  if (fld === "lot_no" && !trim(newVal)) {
+    toast("Lot No cannot be empty", false);
+    cell.setValue(oldVal, true);
+    return;
+  }
+
+  // บังคับให้เลือกจาก list เพื่อกัน false positives
+  if (fld === "part_no" && d.part_id == null) {
+    toast("Pick a part from the list", false);
+    cell.setValue(oldVal, true);
+    return;
+  }
+  // เผื่อกรณีผู้ใช้พิมพ์เองไม่กดเลือกจากลิสต์
+  if (fld === "po_number" && d.po_number && d.po_id == null) {
+    toast("Pick a PO from the list", false);
+    cell.setValue(oldVal, true);
+    return;
+  }
+
+  await ensureResolvedIdsForRow(d);
+  const payload = buildPayload(d);
+
+  // CREATE (no id yet)
   if (!d.id) {
-    row.delete();
+    if (!payload.part_id) return; // wait until part resolved
+    if (createInFlight.has(row)) return;
+    createInFlight.add(row);
+    try {
+      const body = { ...payload };
+      if (!trim(body.lot_no)) body.lot_no = "AUTO";
+      const created = await jfetch(ENDPOINTS.base, {
+        method: "POST",
+        headers: JSON_HEADERS, // ✅ ใส่ header
+        body: JSON.stringify(body),
+      });
+      const norm = normalizeRow(created || d);
+      row.update({ ...norm }); // ok to replace after create
+      if (norm.id != null) loadedIds.add(norm.id);
+      toast(`Lot "${norm.lot_no}" created`);
+    } catch (e) {
+      cell.setValue(oldVal, true);
+      toast(e?.message || "Create failed", false);
+    } finally {
+      createInFlight.delete(row);
+    }
     return;
   }
-  if (!confirm(`Delete lot "${d.lot_no || d.id}"?\nThis cannot be undone.`))
-    return;
-  try {
-    await jfetch(`${ENDPOINTS.base}/${encodeURIComponent(d.id)}`, {
-      method: "DELETE",
-    });
-    row.delete();
-    loadedIds.delete(d.id);
-    toast("Deleted");
-  } catch (e) {
-    toast(e?.message || "Delete failed", false);
-  }
+
+  if (patchTimers.has(row)) clearTimeout(patchTimers.get(row));
+  const t = setTimeout(async () => {
+    patchTimers.delete(row);
+    try {
+      // autosaveCell() — ส่วน PATCH
+      const updated = await jfetch(
+        `${ENDPOINTS.base}/${encodeURIComponent(d.id)}`,
+        {
+          method: "PATCH",
+          headers: JSON_HEADERS, // ✅ ใส่ header
+          body: JSON.stringify(payload),
+        }
+      );
+
+      const norm = normalizeRow(updated || d);
+      const fields = [
+        "lot_no",
+        "planned_qty",
+        "status",
+        "part_id",
+        "part_no",
+        "part_name",
+        "part_revision_id",
+        "part_rev",
+        "po_id",
+        "po_number",
+        "started_at",
+        "finished_at",
+      ];
+      for (const f of fields) {
+        const cur = row.getData()[f];
+        const nxt = norm[f];
+        if (cur !== nxt) row.getCell(f)?.setValue(nxt, true);
+      }
+      toast(`Saved "${norm.lot_no || norm.id}"`);
+    } catch (e) {
+      cell.setValue(oldVal, true);
+      toast(e?.message || "Save failed", false);
+      try {
+        const fresh = await jfetch(
+          `${ENDPOINTS.base}/${encodeURIComponent(d.id)}`
+        );
+        const norm = normalizeRow(fresh || d);
+        const fields = [
+          "lot_no",
+          "planned_qty",
+          "status",
+          "part_id",
+          "part_no",
+          "part_name",
+          "part_revision_id",
+          "part_rev",
+          "po_id",
+          "po_number",
+          "started_at",
+          "finished_at",
+        ];
+        for (const f of fields) row.getCell(f)?.setValue(norm[f], true);
+      } catch {}
+    }
+  }, PATCH_MS);
+  patchTimers.set(row, t);
 }
 
 /* ================== COLUMNS ================== */
@@ -622,6 +624,7 @@ function makeColumns() {
       },
     },
 
+    // NEW: Used Mat (detail from LotMaterialUse)
     {
       title: "Used Mat",
       field: "mat_used",
@@ -634,6 +637,7 @@ function makeColumns() {
         const arr = cell.getValue();
         if (!Array.isArray(arr) || !arr.length)
           return "<span class='muted'>—</span>";
+        // show: CODE (BATCH:QTY UOM) and optionally supplier/PO if present
         return arr
           .map((u) => {
             const code = u.material_code || u.code || "";
@@ -734,7 +738,6 @@ function makeColumns() {
         try {
           const t = await jfetch("/travelers", {
             method: "POST",
-            headers: JSON_HEADERS,
             body: JSON.stringify({ lot_id: d.id }),
           });
           toast("Traveler created");
@@ -780,10 +783,11 @@ function makeColumns() {
         try {
           await jfetch("/lot-uses/allocate", {
             method: "POST",
-            headers: JSON_HEADERS,
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload),
           });
           toast("Allocated successfully");
+          // refresh totals + detail list
           await refreshUsageForRows([cell.getRow()]);
           await refreshUsedForRows([cell.getRow()]);
         } catch (err) {
@@ -795,48 +799,46 @@ function makeColumns() {
     {
       title: "Actions",
       field: "_act",
-      width: 200,
+      width: 140,
       hozAlign: "center",
       headerSort: false,
       cssClass: "actions-cell",
-      formatter: (cell) => {
-        const d = cell.getRow().getData();
-        if (d._dirty) {
-          return `
-            <div class="row-actions">
-              <button class="btn-small" data-act="save">Save</button>
-              <button class="btn-small" data-act="cancel">Cancel</button>
-              <button class="btn-small btn-danger" data-act="del">Delete</button>
-            </div>`;
-        }
-        return `
-          <div class="row-actions">
-            <a class="btn-small" href="/static/lot-detail.html?id=${encodeURIComponent(
-              d.id || ""
-            )}">Open</a>
-            <button class="btn-small btn-danger" data-act="del">Delete</button>
-          </div>`;
-      },
-      cellClick: async (e, cell) => {
-        const row = cell.getRow();
-        const target = e.target.closest("button, a");
-        if (!target) return;
-        const act = target.getAttribute("data-act");
-        if (act === "save") {
-          await saveRow(row);
-          return;
-        }
-        if (act === "cancel") {
-          cancelRow(row);
-          return;
-        }
-        if (act === "del") {
-          await deleteRow(row);
-          return;
-        }
+      formatter: (cell) => `
+        <div class="row-actions">
+          <a class="btn-small" href="/static/lot-detail.html?id=${encodeURIComponent(
+            cell.getRow().getData().id || ""
+          )}">Open</a>
+          <button class="btn-small btn-danger" data-act="del">Delete</button>
+        </div>`,
+      cellClick: (e, cell) => {
+        const btn = e.target.closest("button[data-act='del']");
+        if (!btn) return;
+        deleteRow(cell.getRow());
       },
     },
   ];
+}
+
+/* ================== DELETE ================== */
+async function deleteRow(row) {
+  const d = row.getData();
+  if (!d) return;
+  if (!d.id) {
+    row.delete();
+    return;
+  }
+  if (!confirm(`Delete lot "${d.lot_no || d.id}"?\nThis cannot be undone.`))
+    return;
+  try {
+    await jfetch(`${ENDPOINTS.base}/${encodeURIComponent(d.id)}`, {
+      method: "DELETE",
+    });
+    row.delete();
+    loadedIds.delete(d.id);
+    toast("Deleted");
+  } catch (e) {
+    toast(e?.message || "Delete failed", false);
+  }
 }
 
 /* ================== TABLE ================== */
@@ -851,17 +853,15 @@ function initTable() {
     history: true,
   });
 
-  // mark dirty on any cell change
-  table.on("cellEdited", (cell) => {
-    const row = cell.getRow();
-    markDirty(row);
-  });
+  table.on("cellEdited", autosaveCell);
 
+  // Load only after Tabulator is fully ready
   table.on("tableBuilt", async () => {
     await Promise.resolve();
     resetAndLoadFirst();
   });
 
+  // Infinite scroll trigger
   const onScrollGeneric = () => {
     const root = document
       .querySelector(`#${UI.tableMount}`)
@@ -923,8 +923,6 @@ function bindAdd() {
         mat_summary: [],
         used_qty: 0,
         mat_used: [],
-        _dirty: true,
-        _original: null,
       },
       true
     );
@@ -948,8 +946,8 @@ async function fetchFirstPage(keyword, version) {
   if (version !== loadVersion) return null;
   return {
     items: Array.isArray(res?.items) ? res.items : [],
-    next_cursor: toNum(res?.next_cursor ?? null),
-    has_more: !!res?.has_more,
+    nextCursor: toNum(res?.next_cursor ?? null),
+    hasMore: !!res?.has_more,
   };
 }
 
@@ -966,8 +964,8 @@ async function fetchNextPage(version) {
   if (version !== loadVersion) return null;
   return {
     items: Array.isArray(res?.items) ? res.items : [],
-    next_cursor: toNum(res?.next_cursor ?? null),
-    has_more: !!res?.has_more,
+    nextCursor: toNum(res?.next_cursor ?? null),
+    hasMore: !!res?.has_more,
   };
 }
 
@@ -1010,21 +1008,17 @@ async function resetAndLoadFirst(keyword = "") {
     const res = await fetchFirstPage(currentKeyword, my);
     if (!res) return;
     let rows = res.items.map(normalizeRow);
-    await ensureLabelsForRows(rows);
+    await ensureLabelsForRows(rows); // <-- HYDRATE
     await appendRows(rows);
 
     cursorNext =
-      res.next_cursor ?? (rows.length ? rows[rows.length - 1].id : null);
-    hasMore = res.has_more && cursorNext != null;
+      res.nextCursor ?? (rows.length ? rows[rows.length - 1].id : null);
+    hasMore = res.hasMore && cursorNext != null;
 
     const justAdded = table?.getRows("visible") || table?.getRows() || [];
     await refreshUsageForRows(justAdded);
     await refreshMaterialsForRows(justAdded);
-    await refreshUsedForRows(justAdded);
-
-    if (!USED_MAT_AVAILABLE) {
-      table?.hideColumn?.("mat_used");
-    }
+    await refreshUsedForRows(justAdded); // NEW
   } catch (e) {
     toast(e?.message || "Load failed", false);
   } finally {
@@ -1041,13 +1035,13 @@ async function loadNextPageIfNeeded() {
     const res = await fetchNextPage(my);
     if (!res) return;
     let rows = res.items.map(normalizeRow);
-    await ensureLabelsForRows(rows);
+    await ensureLabelsForRows(rows); // <-- HYDRATE
     await appendRows(rows);
 
     const newRows = rows.map((r) => table?.getRow?.(r.id)).filter(Boolean);
     await refreshUsageForRows(newRows);
     await refreshMaterialsForRows(newRows);
-    await refreshUsedForRows(newRows);
+    await refreshUsedForRows(newRows); // NEW
 
     const fallbackLast = rows.length ? rows[rows.length - 1].id : null;
     if (rows.length === 0 && Number.isFinite(minLoadedId)) {
@@ -1055,8 +1049,8 @@ async function loadNextPageIfNeeded() {
       hasMore = true;
     } else {
       cursorNext =
-        res.next_cursor != null ? res.next_cursor : fallbackLast ?? cursorNext;
-      hasMore = res.has_more && cursorNext != null;
+        res.nextCursor != null ? res.nextCursor : fallbackLast ?? cursorNext;
+      hasMore = res.hasMore && cursorNext != null;
     }
   } catch (e) {
     hasMore = false;
@@ -1070,6 +1064,7 @@ async function loadNextPageIfNeeded() {
 document.addEventListener("DOMContentLoaded", () => {
   Object.values(UI).forEach((id) => (els[id] = $(id)));
 
+  // tiny styles for row actions
   if (!document.getElementById("lot-actions-css")) {
     const st = document.createElement("style");
     st.id = "lot-actions-css";

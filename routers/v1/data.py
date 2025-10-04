@@ -180,7 +180,7 @@ def list_lots(
             "qty_po": qty_map.get((r.po_id, r.part_id)),
             "customer_id": (po.customer.id if po and po.customer else None),
         })
-
+    print(items)
     return {"items": items, "total": total, "page": page, "page_size": page_size}
 
 
