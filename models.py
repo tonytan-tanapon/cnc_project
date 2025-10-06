@@ -35,8 +35,11 @@ from database import Base
 # =============== Master ==================
 # =========================================
 
+from sqlalchemy import text  # ✅ ย้ายมาด้านบน
+
 class Supplier(Base):
     __tablename__ = "suppliers"
+
     id = Column(Integer, primary_key=True)
     code = Column(String, unique=True, index=True, nullable=False)
     name = Column(String, nullable=False)
@@ -49,9 +52,115 @@ class Supplier(Base):
     # reverse relations
     raw_batches = relationship("RawBatch", back_populates="supplier")
 
+    # ✅ flags + server_default
+    is_material_supplier = Column(
+        Boolean, nullable=False, default=False, server_default=text("false")  # MySQL/SQLite ใช้ "0"
+    )
+    is_subcontractor = Column(
+        Boolean, nullable=False, default=False, server_default=text("false")  # MySQL/SQLite ใช้ "0"
+    )
+
+    __table_args__ = (
+        Index("ix_suppliers_roles", "is_material_supplier", "is_subcontractor"),
+    )
+
+    # ✅ ใส่ cascade แบบนี้
+    services = relationship(
+        "SupplierService",
+        cascade="all, delete-orphan",
+        back_populates="supplier"
+    )
+
+    material_categories = relationship(
+        "SupplierMaterialCategory",
+        cascade="all, delete-orphan",
+        back_populates="supplier"
+    )
+
     def __repr__(self):
         return f"<Supplier(code={self.code}, name={self.name})>"
 
+
+class SupplierServiceCatalog(Base):
+    __tablename__ = "supplier_service_catalog"
+    code = Column(String, primary_key=True)      # ex. ANODIZE
+    name = Column(String, nullable=False)        # ชื่ออ่านง่าย
+    category = Column(String, nullable=True)     # FINISH / HEAT_TREAT / TEST ...
+    is_active = Column(Boolean, nullable=False, default=True)
+
+    def __repr__(self):
+        return f"<SupplierServiceCatalog(code={self.code})>"
+
+class SupplierService(Base):
+    __tablename__ = "supplier_services"
+
+    id = Column(Integer, primary_key=True)
+    supplier_id = Column(
+        Integer,
+        ForeignKey("suppliers.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    service_code = Column(
+        String,
+        ForeignKey("supplier_service_catalog.code", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+
+    # relationships
+    supplier = relationship("Supplier", back_populates="services")
+    service  = relationship("SupplierServiceCatalog")
+
+    __table_args__ = (
+        UniqueConstraint("supplier_id", "service_code", name="uq_supplier_service_once"),
+        Index("ix_supplier_services_lookup", "service_code", "supplier_id"),
+    )
+
+    def __repr__(self):
+        return f"<SupplierService(supplier_id={self.supplier_id}, service_code={self.service_code})>"
+
+    
+# ===== Catalog: กลุ่มวัสดุ / รูปแบบ / เกรด (กันสะกดผิด) =====
+class SupplierMatCategoryCatalog(Base):
+    __tablename__ = "supplier_mat_category_catalog"
+    code = Column(String, primary_key=True)      # ex. ALUMINUM, STEEL, PLASTIC
+    name = Column(String, nullable=False)        # ex. Aluminum
+    parent_code = Column(String, ForeignKey("supplier_mat_category_catalog.code"), nullable=True)
+    # optional: จัดหมวดหมู่ย่อย เช่น "FORM", "ALLOY"
+    kind = Column(String, nullable=True)         # ex. FAMILY / FORM / GRADE
+    is_active = Column(Boolean, nullable=False, default=True)
+
+    parent = relationship("SupplierMatCategoryCatalog", remote_side=[code])
+
+    def __repr__(self):
+        return f"<MatCat(code={self.code})>"
+
+
+# ===== Mapping: supplier มี category อะไรบ้าง =====
+class SupplierMaterialCategory(Base):
+    __tablename__ = "supplier_material_categories"
+    id = Column(Integer, primary_key=True)
+    supplier_id = Column(Integer, ForeignKey("suppliers.id", ondelete="CASCADE"), index=True, nullable=False)
+    category_code = Column(String, ForeignKey("supplier_mat_category_catalog.code"), index=True, nullable=False)
+
+    # เมตาเฉพาะเจ้า: MOQ/รูปแบบ/ลีดไทม์/หมายเหตุ
+    min_order_qty = Column(Numeric(18, 3), nullable=True)
+    uom = Column(String, nullable=True)                # kg / ea / bar / sheet
+    lead_time_days = Column(Integer, nullable=True)
+    price_note = Column(Text, nullable=True)           # โครงราคา, ส่วนลด, เงื่อนไข
+    notes = Column(Text, nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("supplier_id", "category_code", name="uq_supplier_matcat_once"),
+        Index("ix_supplier_matcat_lookup", "category_code", "supplier_id"),
+    )
+
+    supplier = relationship("Supplier", back_populates="material_categories")
+    category = relationship("SupplierMatCategoryCatalog")
+
+    def __repr__(self):
+        return f"<SupplierMaterialCategory(supplier_id={self.supplier_id}, code={self.category_code})>"
 
 class Customer(Base):
     __tablename__ = "customers"
@@ -117,17 +226,22 @@ class Employee(Base):
 class RawMaterial(Base):
     __tablename__ = "raw_materials"
     id = Column(Integer, primary_key=True)
-    code = Column(String, unique=True, index=True, nullable=False)   # ex. AL6061-RND-20
-    name = Column(String, nullable=False)                            # Aluminium 6061 Round Bar Ø20
-    spec = Column(String, nullable=True)                             # AMS/ASTM/ISO
-    uom = Column(String, default="kg", nullable=False)               # main stock unit
+    code = Column(String, unique=True, index=True, nullable=False)
+    name = Column(String, nullable=False)
+    spec = Column(String, nullable=True)
+    uom = Column(String, default="kg", nullable=False)
     remark = Column(Text, nullable=True)
 
+    # map ไปยัง taxonomy
+    family_code = Column(String, ForeignKey("supplier_mat_category_catalog.code"), nullable=True, index=True)  # ex. ALUMINUM
+    form_code   = Column(String, ForeignKey("supplier_mat_category_catalog.code"), nullable=True, index=True)  # ex. ROUND_BAR
+    grade_code  = Column(String, ForeignKey("supplier_mat_category_catalog.code"), nullable=True, index=True)  # ex. 6061
+
+    family = relationship("SupplierMatCategoryCatalog", foreign_keys=[family_code])
+    form   = relationship("SupplierMatCategoryCatalog", foreign_keys=[form_code])
+    grade  = relationship("SupplierMatCategoryCatalog", foreign_keys=[grade_code])
+
     batches = relationship("RawBatch", back_populates="material")
-
-    def __repr__(self):
-        return f"<RawMaterial(code={self.code}, name={self.name})>"
-
 
 class MaterialPO(Base):
     __tablename__ = "material_pos"
@@ -150,9 +264,11 @@ class MaterialPOLine(Base):
     qty_ordered = Column(Numeric(18, 3), nullable=False)
     unit_price = Column(Numeric(18, 2), nullable=True)
     due_date = Column(Date, nullable=True)
-
+    
+    batches = relationship("RawBatch", back_populates="po_line")
     po = relationship("MaterialPO", back_populates="lines")
     material = relationship("RawMaterial")
+    
 
 
 class RawBatch(Base):
@@ -179,7 +295,7 @@ class RawBatch(Base):
     # relations
     material = relationship("RawMaterial", back_populates="batches")
     supplier = relationship("Supplier", back_populates="raw_batches")
-    po_line = relationship("MaterialPOLine", foreign_keys=[material_po_line_id])
+    po_line = relationship("MaterialPOLine", back_populates="batches", foreign_keys=[material_po_line_id])
     po = relationship("MaterialPO", foreign_keys=[po_id])
     uses = relationship("LotMaterialUse", back_populates="batch")
 
@@ -435,12 +551,15 @@ class ShopTravelerStep(Base):
     qa_notes = Column(Text, nullable=True)
 
     qty_receive = Column(Numeric(18, 3), nullable=False, default=0)
-    qty_accept = Column(Numeric(18, 3), nullable=False, default=0)
-    qty_reject = Column(Numeric(18, 3), nullable=False, default=0)
+    qty_accept  = Column(Numeric(18, 3), nullable=False, default=0)
+    qty_reject  = Column(Numeric(18, 3), nullable=False, default=0)
+
+    # 👇 ใหม่
+    step_note = Column(Text, nullable=True)
 
     traveler = relationship("ShopTraveler", back_populates="steps")
     operator = relationship("Employee", foreign_keys=[operator_id])
-    machine = relationship("Machine", back_populates="step_assignments")
+    machine  = relationship("Machine", back_populates="step_assignments")
 
     __table_args__ = (
         UniqueConstraint("traveler_id", "seq", name="uq_traveler_seq"),
@@ -451,7 +570,6 @@ class ShopTravelerStep(Base):
 
     def __repr__(self):
         return f"<ShopTravelerStep(traveler_id={self.traveler_id}, seq={self.seq}, status={self.status})>"
-
 
 # =========================================
 # ============ Subcontracting =============

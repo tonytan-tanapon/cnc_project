@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Subcon · Topnotch – MFG</title>
+
+    <link rel="stylesheet" href="/static/css/app.css" />
+    <link
+      rel="stylesheet"
+      href="/static/vendor/tabulator/tabulator_modern.min.css"
+    />
+    <script src="/static/vendor/tabulator/tabulator.min.js"></script>
+
+    <style>
+      .main--edge {
+        padding: 0;
+        height: 100vh;
+        overflow: hidden;
+      }
+      .panel--edge {
+        margin: 0;
+        border-radius: 0;
+        border-left-width: 0;
+        border-right-width: 0;
+      }
+      #scPanel {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        min-height: 0;
+      }
+      .header {
+        display: grid;
+        grid-template-columns: repeat(12, 1fr);
+        gap: 8px;
+        padding: 8px 0;
+        border-bottom: 1px solid #e5e7eb;
+      }
+      .col-3 {
+        grid-column: span 3;
+      }
+      .col-4 {
+        grid-column: span 4;
+      }
+      .col-6 {
+        grid-column: span 6;
+      }
+      .col-12 {
+        grid-column: span 12;
+      }
+      .header .field {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .header input,
+      .header select {
+        height: 36px;
+        padding: 0 12px;
+      }
+      .muted {
+        opacity: 0.65;
+      }
+      .list-topbar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        height: 44px;
+        border-bottom: 1px solid #e5e7eb;
+      }
+      .list-topbar .title {
+        font-weight: 600;
+        padding: 0 8px;
+      }
+      #btnAddLine,
+      #btnAddShipment,
+      #btnAddReceipt {
+        margin-left: auto;
+        height: 36px;
+        border-radius: 0;
+      }
+      .btn-mini {
+        font: inherit;
+        padding: 6px 10px;
+        border-radius: 8px;
+        border: 1px solid #e5e7eb;
+        background: #f8fafc;
+        cursor: pointer;
+      }
+      .btn-mini.btn-primary {
+        background: #2563eb;
+        color: #fff;
+        border-color: #1d4ed8;
+      }
+      .btn-mini.btn-secondary {
+        background: #6b7280;
+        color: #fff;
+        border-color: #4b5563;
+      }
+      .btn-mini.btn-danger {
+        background: #ef4444;
+        color: #fff;
+        border-color: #dc2626;
+      }
+      .hdr-actions {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+      .section {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow: auto;
+      }
+      .split {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+      }
+      .panel-block {
+        min-height: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <aside class="sidebar"><div id="navSlot" data-nav-slot></div></aside>
+
+      <main class="main main--edge">
+        <section class="panel panel--edge" id="scPanel">
+          <!-- Header -->
+          <div
+            style="
+              display: flex;
+              align-items: center;
+              gap: 8px;
+              padding: 8px 0 6px 0;
+            "
+          >
+            <h2 class="page-title" style="margin: 0">🔧 Subcontract Order</h2>
+            <span id="sc_subTitle" class="muted">(loading…)</span>
+          </div>
+
+          <div class="header">
+            <div class="field col-3">
+              <label>Ref No.</label>
+              <input id="sc_ref_no" placeholder="Optional reference…" />
+            </div>
+            <div class="field col-4">
+              <label>Supplier</label>
+              <input id="sc_supplier" placeholder="Search supplier…" />
+            </div>
+            <div class="field col-2">
+              <label>Status</label>
+              <select id="sc_status">
+                <option>open</option>
+                <option>confirmed</option>
+                <option>shipped</option>
+                <option>received</option>
+                <option>closed</option>
+                <option>cancelled</option>
+              </select>
+            </div>
+            <div class="field col-3">
+              <label>Due</label>
+              <input id="sc_due" type="date" />
+            </div>
+            <div class="field col-12">
+              <label>Notes</label>
+              <input id="sc_notes" placeholder="Optional notes" />
+            </div>
+            <div class="col-12">
+              <div id="sc_hint" class="muted" aria-live="polite"></div>
+              <div id="sc_error" class="err" style="display: none"></div>
+            </div>
+            <div class="field col-3">
+              <label>Created</label>
+              <div
+                id="sc_created"
+                class="muted"
+                style="height: 36px; display: flex; align-items: center"
+              >
+                —
+              </div>
+            </div>
+          </div>
+
+          <!-- Lines -->
+          <div class="list-topbar">
+            <div class="title">Lines</div>
+            <button id="btnAddLine" class="btn" type="button">
+              + Add Line
+            </button>
+          </div>
+          <div class="section panel-block">
+            <div id="sc_lines_table"></div>
+          </div>
+
+          <!-- Shipments & Receipts -->
+          <div class="list-topbar">
+            <div class="title">Shipments & Receipts</div>
+          </div>
+          <div class="section split">
+            <div class="panel-block">
+              <div
+                style="
+                  display: flex;
+                  align-items: center;
+                  gap: 8px;
+                  margin-bottom: 6px;
+                "
+              >
+                <div class="title">Shipments</div>
+                <button id="btnAddShipment" class="btn" type="button">
+                  + Add
+                </button>
+              </div>
+              <div id="sc_ship_table"></div>
+            </div>
+            <div class="panel-block">
+              <div
+                style="
+                  display: flex;
+                  align-items: center;
+                  gap: 8px;
+                  margin-bottom: 6px;
+                "
+              >
+                <div class="title">Receipts</div>
+                <button id="btnAddReceipt" class="btn" type="button">
+                  + Add
+                </button>
+              </div>
+              <div id="sc_rcpt_table"></div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite">
+      <span id="toastText"></span>
+    </div>
+
+    <script type="module" src="/static/js/nav-loader.js"></script>
+    <script type="module" src="/static/js/page-subcon-detail.js"></script>
+  </body>
+</html>

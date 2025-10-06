@@ -37,15 +37,19 @@ def create_traveler_step(payload: ShopTravelerStepCreate, db: Session = Depends(
         raise HTTPException(409, "This seq already exists in traveler")
 
     s = ShopTravelerStep(
-        traveler_id=payload.traveler_id,
-        seq=payload.seq,
-        step_name=payload.step_name,
-        step_code=payload.step_code,
-        station=payload.station,
-        operator_id=payload.operator_id,
-        qa_required=payload.qa_required or False,
-        status="pending",
-    )
+    traveler_id=payload.traveler_id,
+    seq=payload.seq,
+    step_name=payload.step_name,
+    step_code=payload.step_code,
+    station=payload.station,
+    operator_id=payload.operator_id,
+    qa_required=payload.qa_required or False,
+    status="pending" if not payload.status else payload.status,
+    qty_receive=payload.qty_receive or 0,
+    qty_accept=payload.qty_accept or 0,
+    qty_reject=payload.qty_reject or 0,
+    step_note=payload.step_note,          # 👈 ใหม่
+)
     db.add(s)
     db.commit()
     db.refresh(s)

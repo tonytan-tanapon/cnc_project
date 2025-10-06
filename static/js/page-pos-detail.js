@@ -112,9 +112,9 @@ async function searchCustomers(term) {
     );
     const items = Array.isArray(res) ? res : res.items ?? [];
     return items.map((x) => ({
-        id: x.id,
-        code: x.code ?? "",
-        name: x.name ?? "",
+      id: x.id,
+      code: x.code ?? "",
+      name: x.name ?? "",
     }));
   } catch {
     return [];
@@ -206,14 +206,19 @@ async function saveHeaderManual() {
         body: JSON.stringify(draft),
       });
       toast("PO created");
-      location.replace(`/static/pos-detail.html?id=${encodeURIComponent(created.id)}`);
+      location.replace(
+        `/static/pos-detail.html?id=${encodeURIComponent(created.id)}`
+      );
       return;
     } else {
       const patch = {};
-      if (draft.po_number !== (initial.po_number ?? "")) patch.po_number = draft.po_number;
+      if (draft.po_number !== (initial.po_number ?? ""))
+        patch.po_number = draft.po_number;
       const curCid = initial?.customer?.id ?? null;
-      if ((draft.customer_id ?? null) !== curCid) patch.customer_id = draft.customer_id;
-      if (draft.description !== (initial.description ?? "")) patch.description = draft.description;
+      if ((draft.customer_id ?? null) !== curCid)
+        patch.customer_id = draft.customer_id;
+      if (draft.description !== (initial.description ?? ""))
+        patch.description = draft.description;
 
       if (Object.keys(patch).length) {
         await jfetch(`/pos/${encodeURIComponent(initial.id)}`, {
@@ -249,7 +254,9 @@ async function cancelHeaderManual() {
       code: initial.customer.code,
       name: initial.customer.name,
     };
-    elCustomer.value = `${initial.customer.code} — ${initial.customer.name ?? ""}`;
+    elCustomer.value = `${initial.customer.code} — ${
+      initial.customer.name ?? ""
+    }`;
   } else {
     selectedCustomer = null;
     elCustomer.value = "";
@@ -324,7 +331,7 @@ function buildLinePayload(row) {
 
   // Due 1
   if (row.due_date === "" || row.due_date == null) {
-    payload.due_date = null;                         // 👈 send null
+    payload.due_date = null; // 👈 send null
   } else {
     const iso1 = toISODate(row.due_date);
     if (iso1) payload.due_date = iso1;
@@ -332,7 +339,7 @@ function buildLinePayload(row) {
 
   // Due 2
   if (row.second_due_date === "" || row.second_due_date == null) {
-    payload.second_due_date = null;                  // 👈 send null
+    payload.second_due_date = null; // 👈 send null
   } else {
     const iso2 = toISODate(row.second_due_date);
     if (iso2) payload.second_due_date = iso2;
@@ -346,7 +353,6 @@ function buildLinePayload(row) {
 
   return payload;
 }
-
 
 function normalizeServerLine(row) {
   return {
@@ -421,7 +427,9 @@ function autosaveRow(row, { immediate = false } = {}) {
       .finally(() => {
         createInFlight.delete(row);
         setTimeout(() => {
-          try { linesTable.redraw(true); } catch {}
+          try {
+            linesTable.redraw(true);
+          } catch {}
         }, 0);
       });
     return;
@@ -460,15 +468,23 @@ function autosaveRow(row, { immediate = false } = {}) {
       })
       .catch(async (e) => {
         const msg = String(e?.message || "").toLowerCase();
-        if (msg.includes("revision_id does not belong") || msg.includes("belongs to part")) {
+        if (
+          msg.includes("revision_id does not belong") ||
+          msg.includes("belongs to part")
+        ) {
           row.update({ revision_id: null, revision_text: "" });
-          toast("Selected revision doesn’t belong to this part. Cleared revision.", false);
+          toast(
+            "Selected revision doesn’t belong to this part. Cleared revision.",
+            false
+          );
         } else if (msg.includes("second_due_date") && msg.includes("earlier")) {
           toast("Due 2 cannot be earlier than Due 1", false);
         } else {
           // Try refresh from server
           try {
-            const fresh = await jfetch(`/pos/${encodeURIComponent(poid)}/lines/${d.id}`);
+            const fresh = await jfetch(
+              `/pos/${encodeURIComponent(poid)}/lines/${d.id}`
+            );
             row.update(normalizeServerLine(fresh));
           } catch {}
           toast(e?.message || "Save failed", false);
@@ -476,7 +492,9 @@ function autosaveRow(row, { immediate = false } = {}) {
       })
       .finally(() => {
         setTimeout(() => {
-          try { linesTable.redraw(true); } catch {}
+          try {
+            linesTable.redraw(true);
+          } catch {}
         }, 0);
       });
   };
@@ -693,14 +711,13 @@ function initLinesTable() {
 
   // AUTOSAVE on cell edit (debounced per-row)
   linesTable.on("cellEdited", (cell) => {
-  const row = cell.getRow();
-  setDirtyClass(row, true);
-  setTimeout(() => {
-    // If a date field was cleared, autosave will send null now
-    autosaveRow(row);
-  }, 0);
-});
-
+    const row = cell.getRow();
+    setDirtyClass(row, true);
+    setTimeout(() => {
+      // If a date field was cleared, autosave will send null now
+      autosaveRow(row);
+    }, 0);
+  });
 
   linesTable.on("tableBuilt", () => {
     ready = true;

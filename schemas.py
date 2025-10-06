@@ -455,37 +455,52 @@ class ShopTravelerStepBase(BaseModel):
     qty_reject:  Optional[Decimal] = None
 
 # ---------------- Create ----------------
-class ShopTravelerStepCreate(ShopTravelerStepBase):
-    traveler_id: int   # create ต้องมี traveler_id เสมอ
+class ShopTravelerStepCreate(BaseModel):
+    traveler_id: int
+    seq: int
+    step_code: Optional[str] = None
+    step_name: str
+    station: Optional[str] = None
+    operator_id: Optional[int] = None
+    qa_required: Optional[bool] = None
+    qty_receive: Optional[Decimal] = None
+    qty_accept: Optional[Decimal] = None
+    qty_reject: Optional[Decimal] = None
+    status: Optional[str] = None
+    step_note: Optional[str] = None        # 👈 ใหม่
+
 
 # ---------------- Update ----------------
 class ShopTravelerStepUpdate(BaseModel):
     seq: Optional[int] = None
-    step_name: Optional[str] = None
     step_code: Optional[str] = None
+    step_name: Optional[str] = None
     station: Optional[str] = None
     operator_id: Optional[int] = None
     qa_required: Optional[bool] = None
-    status: Optional[StepStatus] = None
-    started_at: Optional[datetime] = None
-    finished_at: Optional[datetime] = None
-    qa_result: Optional[str] = None
-    qa_notes: Optional[str] = None
-    # ปริมาณ (optional)
     qty_receive: Optional[Decimal] = None
-    qty_accept:  Optional[Decimal] = None
-    qty_reject:  Optional[Decimal] = None
+    qty_accept: Optional[Decimal] = None
+    qty_reject: Optional[Decimal] = None
+    status: Optional[str] = None
+    step_note: Optional[str] = None        # 👈 ใหม่
 
-# ---------------- Out ----------------
 class ShopTravelerStepOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
     id: int
     traveler_id: int
     seq: int
+    step_code: Optional[str] = None
     step_name: str
-
-    # class Config:
-    #     from_attributes = True
-    model_config = ConfigDict(from_attributes=True)  # ← แทน class Config    
+    station: Optional[str] = None
+    operator_id: Optional[int] = None
+    qa_required: bool
+    status: str
+    started_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None
+    qty_receive: Decimal
+    qty_accept: Decimal
+    qty_reject: Decimal
+    step_note: Optional[str] = None        # 👈 ใหม่
 # =========================================
 # ============== Subcontracting ===========
 # =========================================

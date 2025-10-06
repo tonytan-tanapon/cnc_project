@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Traveler Detail · Topnotch – MFG</title>
+    <link rel="stylesheet" href="/static/css/app.css" />
+  </head>
+  <body>
+    <div class="app">
+      <aside class="sidebar">
+        <div id="navSlot" data-nav-slot></div>
+      </aside>
+
+      <main class="main">
+        <div class="topbar">
+          <div class="search">
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              aria-hidden="true"
+            >
+              <path
+                d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zM9.5 14C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"
+              />
+            </svg>
+            <input id="globalSearch" type="search" placeholder="Search…" />
+          </div>
+          <a class="btn" href="/static/travelers.html">← Back</a>
+        </div>
+
+        <section id="page-traveler-detail">
+          <h2 class="page-title">🧾 Traveler Steps</h2>
+          <p class="subtitle" id="t_sub"></p>
+
+          <div class="card">
+            <div class="grid" style="margin-top: 8px">
+              <div class="col-3">
+                <label>Lot ID</label><input id="lot_id" type="number" />
+              </div>
+              <div class="col-3">
+                <label>Created by (Emp ID)</label
+                ><input id="created_by_id" type="number" />
+              </div>
+              <div class="col-3">
+                <label>Status</label
+                ><input id="status" placeholder="open / in_progress / closed" />
+              </div>
+              <div class="col-12">
+                <label>Notes</label><textarea id="notes" rows="2"></textarea>
+              </div>
+
+              <div class="col-12">
+                <button class="btn" id="btnSaveT" type="button">Save</button>
+                <button class="btn ghost" id="btnResetT" type="button">
+                  Reset
+                </button>
+                <button
+                  class="btn danger"
+                  id="btnDeleteT"
+                  type="button"
+                  style="float: right"
+                >
+                  Delete
+                </button>
+                <span class="hint" id="t_hint"></span>
+              </div>
+            </div>
+          </div>
+
+          <h3 class="subtitle">Steps</h3>
+
+          <div class="card">
+            <b>Add Step</b>
+            <div class="grid" style="margin-top: 8px">
+              <div class="col-2">
+                <label>Seq</label><input id="s_seq" type="number" value="1" />
+              </div>
+              <div class="col-4">
+                <label>Station</label
+                ><input id="s_station" placeholder="CNC-1" />
+              </div>
+              <div class="col-6">
+                <label>Step Name</label
+                ><input id="s_name" placeholder="Milling" />
+              </div>
+              <div class="col-4">
+                <label>Step Code</label><input id="s_code" placeholder="MILL" />
+              </div>
+              <div class="col-4">
+                <label>Operator ID</label><input id="s_op" type="number" />
+              </div>
+              <div class="col-4">
+                <label>QA Required?</label>
+                <select id="s_qa">
+                  <option value="false">false</option>
+                  <option value="true">true</option>
+                </select>
+              </div>
+              <div class="col-12">
+                <button class="btn" id="s_create" type="button">
+                  Add Step
+                </button>
+                <span class="hint">POST /traveler-steps</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="toolbar">
+              <input id="s_result" placeholder="passed / failed / skipped" />
+              <input id="s_qa_result" placeholder="qa_result" />
+              <input id="s_qa_notes" placeholder="qa_notes" />
+              <button class="btn" id="s_finish_selected" type="button">
+                Finish (selected)
+              </button>
+            </div>
+            <div id="steps_table"></div>
+          </div>
+
+          <div id="errorBox" class="hint" style="display: none"></div>
+        </section>
+      </main>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite">
+      <span id="toastText"></span>
+    </div>
+
+    <script type="module" src="/static/js/nav-loader.js"></script>
+    <script type="module" src="/static/js/page-traveler-detail.js?v=4"></script>
+  </body>
+</html>

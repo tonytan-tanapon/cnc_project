@@ -3,181 +3,155 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Subcontracting · Topnotch MFG</title>
+    <title>Subcontract Orders · Topnotch – MFG</title>
+
+    <!-- Global styles -->
     <link rel="stylesheet" href="/static/css/app.css" />
+
+    <!-- Tabulator -->
+    <link
+      rel="stylesheet"
+      href="/static/vendor/tabulator/tabulator_modern.min.css"
+    />
+
+    <style>
+      .main--edge {
+        padding: 0;
+        height: 100vh;
+        overflow: hidden;
+      }
+      .panel--edge {
+        margin: 0;
+        border-radius: 0;
+        border-left-width: 0;
+        border-right-width: 0;
+      }
+      #listPanel {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        min-height: 0;
+      }
+      .list-headline {
+        padding: 8px 0;
+        font-weight: 700;
+      }
+      .list-topbar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        height: 44px;
+        padding: 0;
+        border-bottom: 1px solid #e5e7eb;
+      }
+      .list-topbar .search-lg {
+        flex: 0 0 260px;
+        min-width: 200px;
+        height: 36px;
+        padding: 0 12px;
+        border-radius: 0;
+      }
+      #_add {
+        margin-left: 0 !important;
+        height: 36px;
+        border-radius: 0;
+      }
+
+      #listBody {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow: auto;
+      }
+      #listBody .tabulator {
+        height: 100% !important;
+        border: 0;
+      }
+      #listBody .tabulator-tableholder {
+        overflow: auto !important;
+        scrollbar-gutter: stable both-edges;
+      }
+      #listBody .tabulator-tableholder::-webkit-scrollbar {
+        width: 16px;
+        height: 16px;
+      }
+      #listBody .tabulator-tableholder::-webkit-scrollbar-track {
+        background: #f1f5f9;
+        border-radius: 8px;
+      }
+      #listBody .tabulator-tableholder::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 8px;
+        border: 3px solid #f1f5f9;
+      }
+      #listBody .tabulator-tableholder::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
+      }
+      #listBody .tabulator-tableholder {
+        scrollbar-width: auto;
+        scrollbar-color: #cbd5e1 #f1f5f9;
+      }
+      #listBody .tabulator-cell.actions-cell {
+        overflow: visible;
+      }
+      #listBody .tabulator-cell.wrap {
+        white-space: normal;
+        word-break: break-word;
+      }
+
+      .btn-small {
+        padding: 4px 8px;
+        font-size: 14px;
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
+        background: #111;
+        color: #fff;
+        cursor: pointer;
+      }
+      .btn-small:hover {
+        opacity: 0.9;
+      }
+      a.view-link {
+        color: #2563eb;
+        text-decoration: underline;
+        font-weight: 600;
+      }
+      a.view-link:hover {
+        text-decoration: none;
+      }
+    </style>
   </head>
   <body>
     <div class="app">
-      <!-- Sidebar (include partial เพื่อไม่ต้องซ้ำ) -->
-      <!-- <aside class="sidebar" data-include="/static/partials/nav.html"></aside> -->
-      <aside class="sidebar">
-        <!-- เมนูจะถูก inject จาก /static/partials/nav.html -->
-        <div id="navSlot" data-nav-slot></div>
-      </aside>
-      <!-- Main -->
-      <main class="main">
-        <!-- Topbar -->
-        <div class="topbar">
-          <div class="search">
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="currentColor"
-              aria-hidden="true"
-            >
-              <path
-                d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zM9.5 14C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"
-              />
-            </svg>
-            <input id="globalSearch" type="search" placeholder="Search…" />
+      <aside class="sidebar"><div id="navSlot" data-nav-slot></div></aside>
+
+      <main class="main main--edge">
+        <section class="panel panel--edge" id="listPanel">
+          <div class="list-headline">Subcontract Orders</div>
+          <div class="list-topbar">
+            <input
+              id="_q"
+              type="search"
+              class="search-lg"
+              placeholder="Search subcon orders…"
+              aria-label="Search subcon orders"
+            />
+            <button id="_add" class="btn" type="button">+ Add</button>
           </div>
-          <input id="apiBase" placeholder="API Base (default /api/v1)" />
-          <button class="btn" id="btnPing" type="button">Ping</button>
-        </div>
-
-        <!-- Page -->
-        <section id="page-subcon">
-          <h2 class="page-title">🚚 Subcontracting</h2>
-
-          <div class="card">
-            <b>Create Subcon Order</b>
-            <div class="grid" style="margin-top: 8px">
-              <div class="col-3">
-                <label>Supplier ID</label><input id="sc_sup" type="number" />
-              </div>
-              <div class="col-3">
-                <label>Ref No</label><input id="sc_ref" />
-              </div>
-              <div class="col-3">
-                <label>Due Date</label><input id="sc_due" type="date" />
-              </div>
-              <div class="col-3">
-                <label>Notes</label><input id="sc_notes" />
-              </div>
-              <div class="col-12">
-                <label class="hint"
-                  >Lines (traveler_step_id, qty_planned, unit_cost)</label
-                >
-                <textarea id="sc_lines" rows="3">
-[
-  {"traveler_step_id": 1, "qty_planned": 100, "unit_cost": 2.50}
-]</textarea
-                >
-              </div>
-              <div class="col-12">
-                <button class="btn" id="sc_create" type="button">
-                  Create Order
-                </button>
-              </div>
-            </div>
-
-            <div class="toolbar">
-              <button class="btn" id="sc_reload" type="button">
-                Reload Orders
-              </button>
-            </div>
-            <div id="sc_table"></div>
-          </div>
-
-          <div class="grid">
-            <div class="col-6">
-              <div class="card">
-                <b>Create Shipment</b>
-                <div class="grid" style="margin-top: 8px">
-                  <div class="col-3">
-                    <label>Order ID</label><input id="sh_order" type="number" />
-                  </div>
-                  <div class="col-3">
-                    <label>Carrier</label><input id="sh_carrier" />
-                  </div>
-                  <div class="col-3">
-                    <label>Tracking</label><input id="sh_track" />
-                  </div>
-                  <div class="col-3">
-                    <label>Package No</label><input id="sh_pkg" />
-                  </div>
-                  <div class="col-12">
-                    <label class="hint">Items (traveler_step_id, qty)</label>
-                    <textarea id="sh_items" rows="3">
-[
-  {"traveler_step_id": 1, "qty": 50}
-]</textarea
-                    >
-                  </div>
-                  <div class="col-12">
-                    <button class="btn" id="sh_create" type="button">
-                      Create Shipment
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div class="col-6">
-              <div class="card">
-                <b>Create Receipt</b>
-                <div class="grid" style="margin-top: 8px">
-                  <div class="col-3">
-                    <label>Order ID</label><input id="rc_order" type="number" />
-                  </div>
-                  <div class="col-3">
-                    <label>Doc No</label><input id="rc_doc" />
-                  </div>
-                  <div class="col-3">
-                    <label>Received By</label><input id="rc_by" />
-                  </div>
-                  <div class="col-3">
-                    <label>Received At</label
-                    ><input id="rc_at" type="datetime-local" />
-                  </div>
-                  <div class="col-12">
-                    <label class="hint"
-                      >Items (traveler_step_id, qty_received, qty_rejected,
-                      scrap_qty, qa_result, qa_notes)</label
-                    >
-                    <textarea id="rc_items" rows="3">
-[
-  {"traveler_step_id": 1, "qty_received": 40, "qty_rejected": 5, "scrap_qty": 0, "qa_result": "pass", "qa_notes": "OK"}
-]</textarea
-                    >
-                  </div>
-                  <div class="col-12">
-                    <button class="btn" id="rc_create" type="button">
-                      Create Receipt
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+          <div id="listBody"></div>
         </section>
       </main>
     </div>
 
-    <!-- Toast -->
+    <!-- Toast (global) -->
     <div class="toast" id="toast" role="status" aria-live="polite">
       <span id="toastText"></span>
     </div>
 
-    <!-- โหลด nav partial + active + topbar -->
-    <!-- <script type="module">
-    const side = document.querySelector('.sidebar[data-include]');
-    if (side) {
-      fetch(side.getAttribute('data-include'))
-        .then(r => r.text())
-        .then(html => {
-          side.innerHTML = html;
-          import('/static/js/nav-active.js?v=1').then(m => m.activateCurrentNav && m.activateCurrentNav());
-        })
-        .catch(()=>{});
-    }
-    import('/static/js/api.js?v=4').then(m => m.initTopbar && m.initTopbar());
-  </script> -->
-    <!-- โหลดเมนู + ไฮไลท์ active อัตโนมัติ -->
-    <script type="module" src="/static/js/nav-loader.js"></script>
+    <!-- Vendor -->
+    <script src="/static/vendor/tabulator/tabulator.min.js"></script>
 
-    <!-- Page script -->
-    <script type="module" src="/static/js/page-subcon.js?v=1"></script>
+    <!-- App boot -->
+    <script type="module" src="/static/js/nav-loader.js"></script>
+    <script type="module" src="/static/js/page-subcon.js"></script>
   </body>
 </html>
