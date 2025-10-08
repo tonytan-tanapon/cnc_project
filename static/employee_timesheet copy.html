@@ -36,7 +36,7 @@
   <table>
     <thead>
       <tr>
-        <th>No</th>
+        <th>No</th>                <!-- NEW: clickable -->
         <th>Date</th>
         <th>Shifts</th>
         <th>Breaks</th>
@@ -75,69 +75,35 @@
   const EMP = "/employees";
   const DEFAULT_OT_MULTIPLIER = 1.5;
 
-  /* ===================== Los Angeles helpers ===================== */
-  const LA_TZ = "America/Los_Angeles";
-
-  // Offset between UTC date & LA wall-clock time at that instant (handles DST)
-  function laOffsetMs(d = new Date()) {
-    const laStr = d.toLocaleString("en-US", { timeZone: LA_TZ });
-    const laAsLocal = new Date(laStr);
-    return laAsLocal.getTime() - d.getTime();
-  }
-  function toLA(d = new Date()) { return new Date(d.getTime() + laOffsetMs(d)); }
-
-  // Format HH:MM using LA wall clock
-  function fmtTimeLA(iso){
-    if(!iso) return '';
-    const d = typeof iso === 'string' ? new Date(iso) : iso;
-    const la = toLA(d);
-    const pad = n=>String(n).padStart(2,'0');
-    return `${pad(la.getHours())}:${pad(la.getMinutes())}`;
-  }
-
-  // "YYYY-MM-DD" key for the LA calendar day of this timestamp
-  function laDateKey(iso){
-    if(!iso) return null;
-    const d = typeof iso === 'string' ? new Date(iso) : iso;
-    const la = toLA(d);
-    const y = la.getFullYear();
-    const m = String(la.getMonth()+1).padStart(2,'0');
-    const dd = String(la.getDate()).padStart(2,'0');
-    return `${y}-${m}-${dd}`;
-  }
-  /* =============================================================== */
-
   const pad = n=>String(n).padStart(2,'0');
-  // For filenames etc., keep plain date (assumes pp.start_at / end_at are date-like)
   const fmtDate = iso => iso ? new Date(iso).toISOString().slice(0,10) : '';
-
+  const fmtTime = iso => { if(!iso) return ''; const d=new Date(iso); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
   const currency = v =>
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 })
-      .format(Number(v ?? 0));
+  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    .format(Number(v ?? 0));
   const getQS = k => new URL(location.href).searchParams.get(k);
-
+  const utcDateKey = iso => iso ? new Date(iso).toISOString().slice(0,10) : null;
+  
   const fmtMDY = (v) => {
-    if (!v) return '';
-    const s = String(v);
-    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) { // already YYYY-MM-DD
-      const [y, m, d] = s.split('-');
-      return `${m}/${d}/${y}`;
-    }
-    // otherwise parse and display LA calendar date
-    const dt = new Date(s);
-    if (isNaN(dt)) return '';
-    const la = toLA(dt);
-    const mm = String(la.getMonth() + 1).padStart(2, '0');
-    const dd = String(la.getDate()).padStart(2, '0');
-    const yy = la.getFullYear();
-    return `${mm}/${dd}/${yy}`;
-  };
-
+  if (!v) return '';
+  const s = String(v);
+  // If already "YYYY-MM-DD", just rearrange
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    const [y, m, d] = s.split('-');
+    return `${m}/${d}/${y}`;
+  }
+  // Otherwise parse as Date (ISO or similar)
+  const dt = new Date(s);
+  if (isNaN(dt)) return '';
+  const mm = String(dt.getMonth() + 1).padStart(2, '0');
+  const dd = String(dt.getDate()).padStart(2, '0');
+  const yy = dt.getFullYear();
+  return `${mm}/${dd}/${yy}`;
+};
   // cache
   let lastSummary = null, lastBreaksByDate = {}, lastShiftsByDate = {};
   let currentEmployeeId = null, currentPpId = null;
   let currentEmpName = '', currentPpStart = '', currentPpEnd = '';
-
   async function safeGetPayPeriod(pp_id){
     try{ const pp = await apiGET(`${PP}/${pp_id}`); if(pp) return pp; }catch{}
     const all = await apiGET(PP);
@@ -156,8 +122,8 @@
     if(!list || !list.length) return '';
     const sorted = [...list].sort((a,b)=>new Date(a.start_at||0) - new Date(b.start_at||0));
     return sorted.map(s=>{
-      const si = fmtTimeLA(s.start_at);
-      const so = s.end_at ? fmtTimeLA(s.end_at) : '…';
+      const si = fmtTime(s.start_at);
+      const so = s.end_at ? fmtTime(s.end_at) : '…';
       return `${si}-${so}`;
     }).join('<br>');
   }
@@ -166,8 +132,9 @@
     if(!list || !list.length) return '';
     const sorted = [...list].sort((a,b)=>new Date(a.start_at||0) - new Date(b.start_at||0));
     return sorted.map(b=>{
-      const s = fmtTimeLA(b.start_at);
-      const e = fmtTimeLA(b.end_at);
+      const s = fmtTime(b.start_at);
+      const e = fmtTime(b.end_at);
+      // const tag = (b.is_paid ? '' : ' (unpaid)');
       return `${s}-${e}`;
     }).join('<br>');
   }
@@ -191,6 +158,7 @@
       const breaksTxt = formatBreaksCell(breaksByDate[row.date] || []);
       const shiftsTxt = formatShiftsCell(shiftsByDate[row.date] || []);
 
+      // const editUrl = `employee_timesheet_edit.html?pp_id=${encodeURIComponent(currentPpId)}&employee_id=${encodeURIComponent(currentEmployeeId)}&date=${row.date}`;
       const editUrl = `employee_timesheet_edit.html?pp_id=${encodeURIComponent(currentPpId)}&employee_id=${encodeURIComponent(currentEmployeeId)}&date=${row.date}&return=${encodeURIComponent(location.href)}`;
       const tr = document.createElement('tr');
       tr.innerHTML = `
@@ -220,14 +188,12 @@
         <td class="num mono">${currency(sumPayReg+sumPayOT)}</td>
       </tr>`;
   }
-
   const safeFilename = (s) =>
-    String(s ?? '')
-      .normalize('NFKC')
-      .replace(/[<>:"/\\|?*\x00-\x1F]/g, '')
-      .replace(/\s+/g, '_')
-      .slice(0, 120);
-
+  String(s ?? '')
+    .normalize('NFKC')
+    .replace(/[<>:"/\\|?*\x00-\x1F]/g, '')  // อักขระต้องห้ามบน Windows/macOS
+    .replace(/\s+/g, '_')
+    .slice(0, 120);
   function exportCSV(){
     const header = [
       'no','date','shifts','breaks',
@@ -257,11 +223,12 @@
     const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href = url;
+    // a.download = `timesheet_${new Date().toISOString().slice(0,10)}.csv`;
     const fname = `payroll_${safeFilename(currentEmpName)}_${currentPpStart}_${currentPpEnd}.csv`;
     a.download = fname;
     a.click(); URL.revokeObjectURL(url);
   }
-
+  
   async function loadPage(fetchFromApi = true){
     const pp_id = getQS('pp_id');
     const employee_id = getQS('employee_id');
@@ -278,24 +245,21 @@
 
     let emp=null; try{ emp = await apiGET(`${EMP}/${employee_id}`);}catch{}
     document.getElementById('header').textContent =
-      `Payroll — ${emp?.name ?? ('Emp #'+employee_id)} (${fmtMDY(pp.start_at)} → ${fmtMDY(pp.end_at)})`;
+  `Payroll — ${emp?.name ?? ('Emp #'+employee_id)} (${fmtMDY(pp.start_at)} → ${fmtMDY(pp.end_at)})`;
+
 
     currentEmpName = emp?.name ?? `Emp_${employee_id}`;
     currentPpStart = fmtDate(pp.start_at); // YYYY-MM-DD
     currentPpEnd   = fmtDate(pp.end_at);   // YYYY-MM-DD
-
     if (fetchFromApi){
       const [summary, details] = await Promise.all([
         apiGET(`/payroll/pay-periods/${pp_id}/employees/${employee_id}/daily-summary?closed_only=false&ot_daily_threshold=8`),
         apiGET(`/payroll/time-entries/by-employee?employee_id=${employee_id}&pp_id=${pp_id}`)
       ]);
-
       const breaksByDate = {};
       const shiftsByDate = {};
-
-      // IMPORTANT: group by LA date (matches how the UI shows "Date")
       for(const te of (details || [])){
-        const dayKey = laDateKey(te.clock_in_at || te.clock_out_at);
+        const dayKey = utcDateKey(te.clock_in_at || te.clock_out_at);
         if(!dayKey) continue;
         (shiftsByDate[dayKey] ??= []).push({ start_at: te.clock_in_at, end_at: te.clock_out_at });
         for(const b of (te.breaks || [])){ (breaksByDate[dayKey] ??= []).push(b); }
