@@ -44,6 +44,10 @@ then
 alembic revision --autogenerate -m "add tables"
 alembic upgrade head
 
+
+alembic stamp head
+alembic upgrade head
+
 7b9ab10e8cdd
 
 install
