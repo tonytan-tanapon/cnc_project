@@ -205,6 +205,65 @@ def list_lots_keyset(
 
     return {"items": items, "next_cursor": next_cursor, "prev_cursor": None, "has_more": has_more}
 
+# ---------- used-materials ----------
+# routers/lots.py
+from fastapi import APIRouter, Depends, HTTPException, Query, Request   # << เพิ่ม Request
+
+@router.get("/used-materials")
+def used_materials(request: Request, db: Session = Depends(get_db)) -> Dict[str, list]:
+    # ---- รวบรวม lot_ids จากทุกรูปแบบ ----
+    ids: list[int] = []
+
+    # 1) ?lot_ids=1&lot_ids=2&lot_ids=3
+    ids += [int(x) for x in request.query_params.getlist("lot_ids") if x.strip().isdigit()]
+
+    # 2) ?lot_ids[]=1&lot_ids[]=2
+    ids += [int(x) for x in request.query_params.getlist("lot_ids[]") if x.strip().isdigit()]
+
+    # 3) CSV: ?lot_ids=1,2,3 หรือ ?ids=1,2,3
+    for key in ("lot_ids", "ids"):
+        csv = request.query_params.get(key)
+        if csv and "," in csv:
+            ids += [int(x) for x in csv.split(",") if x.strip().isdigit()]
+
+    ids = sorted(set(ids))
+    if not ids:
+        # ไม่ 422 อีกแล้ว แต่แจ้งชัดว่าต้องส่งยังไง
+        raise HTTPException(status_code=400, detail="Provide lot_ids (e.g. ?lot_ids=1&lot_ids=2)")
+
+    rows = (
+        db.query(
+            LotMaterialUse.lot_id,
+            RawMaterial.code.label("material_code"),
+            RawBatch.batch_no,
+            LotMaterialUse.qty,
+            LotMaterialUse.uom,
+            Supplier.name.label("supplier"),
+            MaterialPO.po_number.label("po_number"),
+        )
+        .join(RawBatch, RawBatch.id == LotMaterialUse.batch_id)
+        .join(RawMaterial, RawMaterial.id == LotMaterialUse.raw_material_id)
+        .outerjoin(Supplier, Supplier.id == RawBatch.supplier_id)
+        .outerjoin(MaterialPO, MaterialPO.id == RawBatch.po_id)
+        .filter(LotMaterialUse.lot_id.in_(ids))
+        .order_by(LotMaterialUse.lot_id.asc(), RawMaterial.code.asc(), RawBatch.batch_no.asc())
+        .all()
+    )
+
+    out: Dict[str, list] = {str(i): [] for i in ids}
+    for r in rows:
+        out[str(int(r.lot_id))].append(
+            {
+                "material_code": r.material_code or "",
+                "batch_no": r.batch_no or "",
+                "qty": float(r.qty) if r.qty is not None else None,
+                "uom": r.uom,
+                "supplier": r.supplier,
+                "po_number": r.po_number,
+            }
+        )
+    return out
+
 @router.get("/{lot_id}", response_model=ProductionLotOut)
 def get_lot(lot_id: int, db: Session = Depends(get_db)):
     lot = (
@@ -278,49 +337,3 @@ def delete_lot(lot_id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"message": "Lot deleted"}
 
-# ---------- used-materials ----------
-@router.get("/used-materials")
-def used_materials(lot_ids: str = Query(..., description="comma-separated lot ids, e.g. 1,2,3"),
-                   db: Session = Depends(get_db)) -> Dict[str, list]:
-    """
-    GET /lots/used-materials?lot_ids=1,2 → {"1":[{material_code,batch_no,qty,uom,supplier,po_number}], "2":[...]}
-    """
-    try:
-        ids = [int(x) for x in lot_ids.split(",") if x.strip()]
-    except ValueError:
-        raise HTTPException(400, "lot_ids must be comma-separated integers")
-    if not ids:
-        return {}
-
-    rows = (
-        db.query(
-            LotMaterialUse.lot_id,
-            RawMaterial.code.label("material_code"),
-            RawBatch.batch_no,
-            LotMaterialUse.qty,
-            LotMaterialUse.uom,
-            Supplier.name.label("supplier"),
-            MaterialPO.po_number.label("po_number"),
-        )
-        .join(RawBatch, RawBatch.id == LotMaterialUse.batch_id)
-        .join(RawMaterial, RawMaterial.id == LotMaterialUse.raw_material_id)
-        .outerjoin(Supplier, Supplier.id == RawBatch.supplier_id)
-        .outerjoin(MaterialPO, MaterialPO.id == RawBatch.po_id)
-        .filter(LotMaterialUse.lot_id.in__(ids))
-        .order_by(LotMaterialUse.lot_id.asc(), RawMaterial.code.asc(), RawBatch.batch_no.asc())
-        .all()
-    )
-
-    out: Dict[str, list] = {str(i): [] for i in ids}
-    for r in rows:
-        out[str(int(r.lot_id))].append(
-            {
-                "material_code": r.material_code or "",
-                "batch_no": r.batch_no or "",
-                "qty": float(r.qty) if r.qty is not None else None,
-                "uom": r.uom,
-                "supplier": r.supplier,
-                "po_number": r.po_number,
-            }
-        )
-    return out

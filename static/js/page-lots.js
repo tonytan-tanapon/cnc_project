@@ -9,7 +9,7 @@ const ENDPOINTS = {
   keyset: "/lots/keyset", // DESC: newest -> oldest, supports ?q=&cursor=&limit=
   parts: "/parts",
   pos: "/pos",
-  usedMaterials: "/lots/used-materials", // expects ?lot_ids=1,2,3
+  usedMaterials: "/lots/used-materials", // supports ?lot_ids=1&lot_ids=2 or CSV
 };
 const safe = (s) => String(s ?? "").replaceAll("<", "&lt;");
 const FIRST_PAGE_LIMIT = 200; // bigger first paint
@@ -176,11 +176,18 @@ async function fetchLotUsedMaterialsMap(lotIds) {
   const ids = lotIds.map(String);
 
   const tryCalls = [
-    `${ENDPOINTS.usedMaterials}?${toQuery({ lot_ids: ids.join(",") })}`, // spec
+    // ✅ FastAPI มาตรฐาน: ?lot_ids=1&lot_ids=2&lot_ids=3
+    `${ENDPOINTS.usedMaterials}?${ids
+      .map((x) => `lot_ids=${encodeURIComponent(x)}`)
+      .join("&")}`,
+    // CSV: ?lot_ids=1,2,3
+    `${ENDPOINTS.usedMaterials}?${toQuery({ lot_ids: ids.join(",") })}`,
+    // array style: ?lot_ids[]=1&lot_ids[]=2
     `${ENDPOINTS.usedMaterials}?${ids
       .map((x) => `lot_ids[]=${encodeURIComponent(x)}`)
-      .join("&")}`, // array style
-    `${ENDPOINTS.usedMaterials}?${toQuery({ ids: ids.join(",") })}`, // generic
+      .join("&")}`,
+    // generic: ?ids=1,2,3
+    `${ENDPOINTS.usedMaterials}?${toQuery({ ids: ids.join(",") })}`,
   ];
 
   for (const url of tryCalls) {
@@ -196,7 +203,6 @@ async function fetchLotUsedMaterialsMap(lotIds) {
   USED_MAT_AVAILABLE = false;
   return {};
 }
-
 async function refreshUsageForRows(rows) {
   const lotIds = rows.map((r) => r.getData?.().id).filter(Boolean);
   if (!lotIds.length) return;
