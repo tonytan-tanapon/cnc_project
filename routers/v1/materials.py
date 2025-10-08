@@ -9,16 +9,25 @@ from pydantic import BaseModel
 from database import get_db
 from models import RawMaterial
 from schemas import RawMaterialCreate, RawMaterialUpdate, RawMaterialOut
-from utils.code_generator import next_code  # same util you used for customers
+from utils.code_generator import next_code  # same util used for customers
 
 router = APIRouter(prefix="/materials", tags=["materials"])
 
-# ---------- next-code (optional, for AUTOGEN in UI) ----------
+# ---------- next-code (for AUTOGEN in UI) ----------
 @router.get("/next-code")
 def get_next_material_code(prefix: str = "M", width: int = 4, db: Session = Depends(get_db)):
     return {"next_code": next_code(db, RawMaterial, "code", prefix=prefix, width=width)}
 
-# ---------- Page (offset) ----------
+
+# ---------- Pydantic Models ----------
+class MaterialMini(BaseModel):
+    id: int
+    code: Optional[str] = None
+    name: Optional[str] = None
+
+    model_config = {"from_attributes": True}  # Pydantic v2 style
+
+
 class MaterialPage(BaseModel):
     items: List[RawMaterialOut]
     total: int
@@ -26,15 +35,7 @@ class MaterialPage(BaseModel):
     per_page: int
     pages: int
 
-# ---------- Mini for lookup ----------
-class MaterialMini(BaseModel):
-    id: int
-    code: Optional[str] = None
-    name: Optional[str] = None
-    class Config:
-        from_attributes = True  # Pydantic v2
 
-# ---------- Cursor page (keyset DESC: new -> old) ----------
 class MaterialCursorPage(BaseModel):
     items: List[RawMaterialOut]
     next_cursor: Optional[int] = None   # go older
@@ -42,24 +43,12 @@ class MaterialCursorPage(BaseModel):
     has_more: bool
 
 
-# --- add near the top ---
-from pydantic import BaseModel
-from typing import List
-
-class MaterialMini(BaseModel):
-    id: int
-    code: str | None = None
-    name: str | None = None
-    # pydantic v2:
-    model_config = {"from_attributes": True}
-    # if v1:
-    # class Config: orm_mode = True
-
-# --- add this route (place it ABOVE "/{mat_id}" route) ---
+# ---------- lookup (id list) ----------
 @router.get("/lookup", response_model=List[MaterialMini])
 def lookup_materials(ids: str, db: Session = Depends(get_db)):
     """
-    ?ids=1,2,3  ->  [{id, code, name}, ...]
+    Accepts comma-separated ids, e.g. ?ids=1,2,3
+    Returns minimal fields for mapping on other pages.
     """
     try:
         id_list = [int(x) for x in ids.split(",") if x.strip().isdigit()]
@@ -69,12 +58,15 @@ def lookup_materials(ids: str, db: Session = Depends(get_db)):
         return []
     rows = db.query(RawMaterial).filter(RawMaterial.id.in_(id_list)).all()
     return rows
-# ---------- list (OFFSET) ----------
+
+
+# ---------- list (OFFSET, with ?all=1 support) ----------
 @router.get("", response_model=MaterialPage)
 def list_materials(
     q: Optional[str] = Query(None, description="Search by code/name/spec (ILIKE)"),
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
+    all: bool = Query(False, description="Return all items without pagination"),
     db: Session = Depends(get_db),
 ):
     qry = db.query(RawMaterial)
@@ -85,11 +77,25 @@ def list_materials(
             RawMaterial.name.ilike(like),
             RawMaterial.spec.ilike(like),
         ))
-    total = qry.count()
+
     qry = qry.order_by(RawMaterial.id.desc())
+
+    if all:
+        items = qry.all()
+        total = len(items)
+        return {
+            "items": items,
+            "total": total,
+            "page": 1,
+            "per_page": total or 1,
+            "pages": 1,
+        }
+
+    total = qry.count()
     offset = (page - 1) * per_page
     items = qry.offset(offset).limit(per_page).all()
     pages = (total + per_page - 1) // per_page if per_page else 1
+
     return {
         "items": items,
         "total": total,
@@ -98,7 +104,8 @@ def list_materials(
         "pages": max(pages, 1),
     }
 
-# ---------- list (KEYSET /cursor DESC: show newest -> oldest) ----------
+
+# ---------- list (KEYSET / cursor DESC: newest -> oldest) ----------
 @router.get("/keyset", response_model=MaterialCursorPage)
 def list_materials_keyset(
     q: Optional[str] = Query(None, description="Search by code/name/spec (ILIKE)"),
@@ -118,12 +125,10 @@ def list_materials_keyset(
 
     going_prev = before is not None and cursor is None
     if going_prev:
-        # go to newer page: id > before, order ASC, then reverse to DESC
         qry = qry.filter(RawMaterial.id > before).order_by(RawMaterial.id.asc())
         rows = qry.limit(limit + 1).all()
         rows = list(reversed(rows))
     else:
-        # first page or go older: id < cursor, order DESC
         if cursor is not None:
             qry = qry.filter(RawMaterial.id < cursor)
         qry = qry.order_by(RawMaterial.id.desc())
@@ -143,23 +148,8 @@ def list_materials_keyset(
         "has_more": has_more,
     }
 
-# ---------- lookup (id list) ----------
-@router.get("/lookup", response_model=List[MaterialMini])
-def lookup_materials(ids: str, db: Session = Depends(get_db)):
-    """
-    Accepts comma-separated ids, e.g. ?ids=1,2,3
-    Returns minimal fields for mapping on other pages.
-    """
-    try:
-        id_list = [int(x) for x in ids.split(",") if x.strip().isdigit()]
-    except Exception:
-        id_list = []
-    if not id_list:
-        return []
-    rows = db.query(RawMaterial).filter(RawMaterial.id.in_(id_list)).all()
-    return rows
-# /bulk
-# ---------- create (supports AUTO/AUTOGEN for code) ----------
+
+# ---------- create ----------
 @router.post("", response_model=RawMaterialOut)
 def create_material(payload: RawMaterialCreate, db: Session = Depends(get_db)):
     raw_code = (payload.code or "").strip().upper()
@@ -176,10 +166,11 @@ def create_material(payload: RawMaterialCreate, db: Session = Depends(get_db)):
         uom=payload.uom,
         remark=payload.remark,
     )
-    # retry a few times if AUTOGEN collides
     for _ in range(3):
         try:
-            db.add(m); db.commit(); db.refresh(m)
+            db.add(m)
+            db.commit()
+            db.refresh(m)
             return m
         except IntegrityError:
             db.rollback()
@@ -189,6 +180,7 @@ def create_material(payload: RawMaterialCreate, db: Session = Depends(get_db)):
                 raise HTTPException(409, "Material code already exists")
     raise HTTPException(500, "Failed to generate unique material code")
 
+
 # ---------- get/update/delete ----------
 @router.get("/{mat_id}", response_model=RawMaterialOut)
 def get_material(mat_id: int, db: Session = Depends(get_db)):
@@ -197,6 +189,7 @@ def get_material(mat_id: int, db: Session = Depends(get_db)):
         raise HTTPException(404, "Material not found")
     return m
 
+
 @router.patch("/{mat_id}", response_model=RawMaterialOut)
 def update_material(mat_id: int, payload: RawMaterialUpdate, db: Session = Depends(get_db)):
     m = db.get(RawMaterial, mat_id)
@@ -204,18 +197,19 @@ def update_material(mat_id: int, payload: RawMaterialUpdate, db: Session = Depen
         raise HTTPException(404, "Material not found")
     for k, v in payload.dict(exclude_unset=True).items():
         setattr(m, k, v)
-    db.commit(); db.refresh(m)
+    db.commit()
+    db.refresh(m)
     return m
+
 
 @router.delete("/{mat_id}")
 def delete_material(mat_id: int, db: Session = Depends(get_db)):
     m = db.get(RawMaterial, mat_id)
     if not m:
         raise HTTPException(404, "Material not found")
-    # block delete if batches exist
     if getattr(m, "batches", None):
-        # m.batches relationship must be configured on the model
         if m.batches:
             raise HTTPException(400, "Material has batches; cannot delete")
-    db.delete(m); db.commit()
+    db.delete(m)
+    db.commit()
     return {"message": "Material deleted"}
