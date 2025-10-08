@@ -1,7 +1,8 @@
+# routers/v1/pos.py
 from __future__ import annotations
 
 from typing import List, Optional, Tuple
-from datetime import datetime
+from datetime import datetime, date, timezone  # <- single import line
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field, ConfigDict
@@ -10,12 +11,24 @@ from sqlalchemy.orm import Session, joinedload
 
 from database import get_db
 from models import PO, POLine, Customer, Part, PartRevision
-from datetime import datetime, date   # add date
+
 pos_router = APIRouter(prefix="/pos", tags=["pos"])
+
+# ---- helpers to coerce datetime -> date for API ----
+def _as_date(v):
+    if v is None:
+        return None
+    if isinstance(v, date) and not isinstance(v, datetime):
+        return v
+    if isinstance(v, datetime):
+        return v.date()
+    try:
+        return datetime.fromisoformat(str(v)).date()
+    except Exception:
+        return None
 
 # ---------- Helpers ----------
 def _next_po_number_yearly(db: Session) -> str:
-    """Generate PO number like PO25-0001 based on current year."""
     yy = datetime.now().strftime("%y")
     prefix = f"PO{yy}-"
     last = (
@@ -79,8 +92,8 @@ class PoLineCreate(BaseModel):
     qty: float = 1
     unit_price: float = 0
     note: str = ""
-    due_date: Optional[date] = None            # ← add
-    second_due_date: Optional[date] = None      # ← add
+    due_date: Optional[date] = None
+    second_due_date: Optional[date] = None
 
 class PoLineUpdate(BaseModel):
     part_id: Optional[int] = None
@@ -88,8 +101,8 @@ class PoLineUpdate(BaseModel):
     qty: Optional[float] = None
     unit_price: Optional[float] = None
     note: Optional[str] = None
-    due_date: Optional[date] = None            # ← add
-    second_due_date: Optional[date] = None      # ← add
+    due_date: Optional[date] = None
+    second_due_date: Optional[date] = None
 
 class PoLineOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -101,11 +114,10 @@ class PoLineOut(BaseModel):
     unit_price: float
     amount: float
     note: Optional[str] = None
-    due_date: Optional[date] = None            # ← add
-    second_due_date: Optional[date] = None      # ← add
-  
+    due_date: Optional[date] = None
+    second_due_date: Optional[date] = None
 
-# ---------- Keyset endpoint (for infinite scroll) ----------
+# ---------- Keyset endpoint ----------
 @pos_router.get("/keyset", response_model=dict)
 def list_pos_keyset(
     q: Optional[str] = Query(default=None),
@@ -133,7 +145,7 @@ def list_pos_keyset(
     data = [PoOut.model_validate(i) for i in items]
 
     next_cursor = data[-1].id if data else None
-    has_more = len(data) == limit   # clearer signal for client
+    has_more = len(data) == limit
     return {
         "items": data,
         "next_cursor": next_cursor,
@@ -146,12 +158,9 @@ class PoMini(BaseModel):
     po_number: Optional[str] = None
     class Config:
         from_attributes = True
-from models import PO  # ตัวอย่างชื่อโมเดล
+
 @pos_router.get("/lookup", response_model=List[PoMini])
 def lookup_pos(ids: str = Query(...), db: Session = Depends(get_db)):
-    """
-    รับ ?ids=1,2,3 แล้วคืน [{id, po_number}, ...]
-    """
     try:
         id_list = [int(x) for x in ids.split(",") if x.strip().isdigit()]
     except Exception:
@@ -160,6 +169,7 @@ def lookup_pos(ids: str = Query(...), db: Session = Depends(get_db)):
         return []
     rows = db.query(PO).filter(PO.id.in_(id_list)).all()
     return rows
+
 # ---------- PO (header) ----------
 @pos_router.get("/", response_model=dict)
 def list_pos(
@@ -190,9 +200,9 @@ def create_po(payload: PoCreate, db: Session = Depends(get_db)):
 
     po_number = payload.po_number or _next_po_number_yearly(db)
     po = PO(
-      po_number=po_number,
-      customer_id=cust.id,
-      description=payload.description,
+        po_number=po_number,
+        customer_id=cust.id,
+        description=payload.description,
     )
     db.add(po)
     db.commit()
@@ -201,7 +211,6 @@ def create_po(payload: PoCreate, db: Session = Depends(get_db)):
 
 @pos_router.patch("/{po_id}", response_model=PoOut)
 def update_po(po_id: int, payload: PoUpdate, db: Session = Depends(get_db)):
-   
     po = db.query(PO).get(po_id)
     if not po:
         raise HTTPException(404, "PO not found")
@@ -228,7 +237,11 @@ def get_po(po_id: int, db: Session = Depends(get_db)):
 
 @pos_router.get("/{po_id}/lines/{line_id}", response_model=PoLineOut)
 def get_line(po_id: int, line_id: int, db: Session = Depends(get_db)):
-    line = db.query(POLine).options(joinedload(POLine.part), joinedload(POLine.rev)).get(line_id)
+    line = (
+        db.query(POLine)
+        .options(joinedload(POLine.part), joinedload(POLine.rev))
+        .get(line_id)
+    )
     if not line or line.po_id != po_id:
         raise HTTPException(404, "Line not found")
     amount = float(line.qty_ordered or 0) * float(line.unit_price or 0)
@@ -241,9 +254,9 @@ def get_line(po_id: int, line_id: int, db: Session = Depends(get_db)):
         unit_price=float(line.unit_price or 0),
         amount=amount,
         note=line.notes,
-        due_date=line.due_date,
+        due_date=_as_date(line.due_date),                 # <-- normalize
+        second_due_date=_as_date(line.second_due_date),   # <-- normalize
     )
-
 
 @pos_router.delete("/{po_id}", status_code=204)
 def delete_po(po_id: int, db: Session = Depends(get_db)):
@@ -257,7 +270,6 @@ def delete_po(po_id: int, db: Session = Depends(get_db)):
 # ---------- PO Lines ----------
 @pos_router.get("/{po_id}/lines", response_model=List[PoLineOut])
 def list_lines(po_id: int, db: Session = Depends(get_db)):
-  
     po = db.query(PO).get(po_id)
     if not po:
         raise HTTPException(404, "PO not found")
@@ -283,12 +295,11 @@ def list_lines(po_id: int, db: Session = Depends(get_db)):
                 unit_price=float(r.unit_price or 0),
                 amount=amount,
                 note=r.notes,
-                due_date=r.due_date,                   # ← add
-                second_due_date=r.second_due_date,   # ← add
+                due_date=_as_date(r.due_date),                 # <-- normalize
+                second_due_date=_as_date(r.second_due_date),   # <-- normalize
             )
         )
     return out
-
 
 @pos_router.post("/{po_id}/lines", response_model=PoLineOut, status_code=201)
 def create_line(po_id: int, payload: PoLineCreate, db: Session = Depends(get_db)):
@@ -306,10 +317,9 @@ def create_line(po_id: int, payload: PoLineCreate, db: Session = Depends(get_db)
         if not rev or rev.part_id != part.id:
             raise HTTPException(400, "revision_id does not belong to part_id")
 
-
-    #  # ✅ validation for second_due_date
-    # if payload.second_due_date and payload.due_date and payload.second_due_date < payload.due_date:
-    #     raise HTTPException(400, "second_due_date cannot be earlier than due_date")
+    # validate due order if both present
+    if payload.second_due_date and payload.due_date and payload.second_due_date < payload.due_date:
+        raise HTTPException(400, "second_due_date cannot be earlier than due_date")
 
     line = POLine(
         po_id=po.id,
@@ -318,8 +328,8 @@ def create_line(po_id: int, payload: PoLineCreate, db: Session = Depends(get_db)
         qty_ordered=payload.qty,
         unit_price=payload.unit_price,
         notes=payload.note,
-        due_date=payload.due_date,                 # ← add
-        second_due_date=payload.second_due_date,   # ← add
+        due_date=payload.due_date,
+        second_due_date=payload.second_due_date,
     )
     db.add(line)
     db.commit()
@@ -335,15 +345,12 @@ def create_line(po_id: int, payload: PoLineCreate, db: Session = Depends(get_db)
         unit_price=float(line.unit_price or 0),
         amount=amount,
         note=line.notes,
-        due_date=line.due_date,                    # ← add
-        second_due_date=payload.second_due_date,   # ← add
+        due_date=_as_date(line.due_date),                 # <-- normalize
+        second_due_date=_as_date(line.second_due_date),   # <-- normalize
     )
-
 
 @pos_router.patch("/{po_id}/lines/{line_id}", response_model=PoLineOut)
 def update_line(po_id: int, line_id: int, payload: PoLineUpdate, db: Session = Depends(get_db)):
-
-    print(payload)
     line = db.query(POLine).get(line_id)
     if not line or line.po_id != po_id:
         raise HTTPException(404, "Line not found")
@@ -373,17 +380,16 @@ def update_line(po_id: int, line_id: int, payload: PoLineUpdate, db: Session = D
         line.unit_price = payload.unit_price
     if payload.note is not None:
         line.notes = payload.note
-    if payload.due_date is not None:            # includes null -> clear
-        line.due_date = payload.due_date or None
-    if payload.second_due_date is not None:     # includes null -> clear
-       
-        # validate order only when both present
-        if payload.due_date and payload.second_due_date and payload.second_due_date < payload.due_date:
-          
-            raise HTTPException(400, "second_due_date cannot be earlier than due_date")
-       
-        line.second_due_date = payload.second_due_date or None
 
+    # validate date order if both present in payload
+    if payload.due_date is not None and payload.second_due_date is not None:
+        if payload.due_date and payload.second_due_date and payload.second_due_date < payload.due_date:
+            raise HTTPException(400, "second_due_date cannot be earlier than due_date")
+
+    if payload.due_date is not None:
+        line.due_date = payload.due_date or None
+    if payload.second_due_date is not None:
+        line.second_due_date = payload.second_due_date or None
 
     db.commit()
     db.refresh(line)
@@ -397,10 +403,9 @@ def update_line(po_id: int, line_id: int, payload: PoLineUpdate, db: Session = D
         unit_price=float(line.unit_price or 0),
         amount=amount,
         note=line.notes,
-        due_date=line.due_date,                     # ← add
-         second_due_date=line.second_due_date,      # ← add
+        due_date=_as_date(line.due_date),                 # <-- normalize
+        second_due_date=_as_date(line.second_due_date),   # <-- normalize
     )
-
 
 @pos_router.delete("/{po_id}/lines/{line_id}", status_code=204)
 def delete_line(po_id: int, line_id: int, db: Session = Depends(get_db)):
