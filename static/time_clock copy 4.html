@@ -454,60 +454,6 @@
       const API_BASE = ""; // same origin as your kiosk.html
       const api = (p) => `${API_BASE}${p}`;
 
-      /* ----------------- Los Angeles timezone helpers ----------------- */
-      const LA_TZ = "America/Los_Angeles";
-
-      function laOffsetMs(d = new Date()) {
-        // "what time would LA show?" parsed as local; diff gives offset
-        const laStr = d.toLocaleString("en-US", { timeZone: LA_TZ });
-        const laAsLocal = new Date(laStr);
-        return laAsLocal.getTime() - d.getTime();
-      }
-
-      function toLA(d = new Date()) {
-        return new Date(d.getTime() + laOffsetMs(d));
-      }
-
-      function fromLA(laDate) {
-        return new Date(laDate.getTime() - laOffsetMs(laDate));
-      }
-
-      function startOfTodayISO_LA() {
-        const laNow = toLA(new Date());
-        const laStart = new Date(laNow.getFullYear(), laNow.getMonth(), laNow.getDate(), 0, 0, 0, 0);
-        return fromLA(laStart).toISOString();
-      }
-
-      function startOfTomorrowISO_LA() {
-        const laNow = toLA(new Date());
-        const laStart = new Date(laNow.getFullYear(), laNow.getMonth(), laNow.getDate() + 1, 0, 0, 0, 0);
-        return fromLA(laStart).toISOString();
-      }
-
-      function fmtDateTimeLA(ts) {
-        if (!ts) return "";
-        const d = typeof ts === "string" ? new Date(ts) : ts;
-        const la = toLA(d);
-        const yyyy = la.getFullYear();
-        const mm = String(la.getMonth() + 1).padStart(2, "0");
-        const dd = String(la.getDate()).padStart(2, "0");
-        const hh = String(la.getHours()).padStart(2, "0");
-        const mi = String(la.getMinutes()).padStart(2, "0");
-        const ss = String(la.getSeconds()).padStart(2, "0");
-        return `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss}`;
-      }
-
-      function fmtClockLA() {
-        const la = toLA(new Date());
-        return la.toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-          second: "2-digit",
-          hour12: true,
-          timeZone: LA_TZ,
-        });
-      }
-
       /* ----------------- Offline keys & helpers ----------------- */
       const QUEUE_KEY = "kiosk_queue_v1";
       const EMP_CACHE_KEY = "kiosk_emp_cache_v1";
@@ -515,20 +461,24 @@
       const EMP_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
       const pad = (n) => String(n).padStart(2, "0");
-
-      // keep (used for some places if needed)
       const fmtTime = (ts) => {
         if (!ts) return "";
-        const d = toLA(new Date(ts));
+        const d = new Date(ts);
         return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(
           d.getSeconds()
         )}`;
       };
-
-      // override the range helpers to use LA day
-      const startOfTodayISO = startOfTodayISO_LA;
-      const startOfTomorrowISO = startOfTomorrowISO_LA;
-
+      const startOfTodayISO = () => {
+        const d = new Date();
+        d.setHours(0, 0, 0, 0);
+        return d.toISOString();
+      };
+      const startOfTomorrowISO = () => {
+        const d = new Date();
+        d.setHours(0, 0, 0, 0);
+        d.setDate(d.getDate() + 1);
+        return d.toISOString();
+      };
       const setView = (id) => {
         ["v_id", "v_act"].forEach((v) => $(v).classList.remove("active"));
         $(id).classList.add("active");
@@ -539,7 +489,7 @@
           .slice(2, 8)}`;
 
       function todayKey(code) {
-        const d = toLA(new Date()); // LA calendar key
+        const d = new Date();
         const y = d.getFullYear();
         const m = pad(d.getMonth() + 1);
         const dd = pad(d.getDate());
@@ -675,7 +625,13 @@
             : status === "break"
             ? "On Break"
             : "Off Duty";
-        timeEl.textContent = fmtClockLA();
+        const now = new Date();
+        timeEl.textContent = now.toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+          hour12: true,
+        });
       }
 
       /* ----------------- state ----------------- */
@@ -689,7 +645,7 @@
         status: "off",
         busy: false,
         hasBreakUsed: false,
-        shadow: { openTimeEntryId: null, openBreakId: null }, // offline shadow
+        shadow: { openTimeEntryId: null, openBreakId: null }, // ใช้ตอนออฟไลน์
       };
 
       /* ----------------- UI logic (hide/show buttons) ----------------- */
@@ -766,7 +722,7 @@
                 ? "Start Break"
                 : "Stop Break";
             return `<tr>
-                  <td>${fmtDateTimeLA(r.ts)}</td>
+                  <td>${fmtDateTime(r.ts)}</td>
                   <td><span class="badge ${badgeCls}">${label}</span></td>
                   <td>${r.note || ""}</td>
                 </tr>`;
@@ -776,7 +732,7 @@
 
       async function fetchTodayLog() {
         if (!state.employeeId) {
-          // offline/no employee_id → local events
+          // ออฟไลน์/ไม่รู้ employee_id → ใช้ events local
           const events = getLocalEvents(state.code).sort(
             (a, b) => new Date(b.ts) - new Date(a.ts)
           );
@@ -787,8 +743,8 @@
 
         const qs = new URLSearchParams({
           employee_id: String(state.employeeId),
-          start_at: startOfTodayISO(),     // LA midnight (UTC instant)
-          end_at: startOfTomorrowISO(),    // LA tomorrow midnight (UTC instant)
+          start_at: startOfTodayISO(),
+          end_at: startOfTomorrowISO(),
         }).toString();
 
         try {
@@ -809,7 +765,7 @@
               (b) => b.start_at != null
             );
           } else {
-            // if none from server, fall back to local events
+            // ถ้าไม่มีจากเซิร์ฟเวอร์ ให้ดูจาก local events เผื่อกรณีออฟไลน์ก่อนหน้า
             state.hasBreakUsed = getLocalEvents(state.code).some(
               (e) => e.kind === "sbr"
             );
@@ -828,7 +784,7 @@
               events.push({ kind: "out", ts: te.clock_out_at });
           }
 
-          // mix with local
+          // ผสมกับ events local
           events.push(...getLocalEvents(state.code));
           events.sort((a, b) => new Date(b.ts) - new Date(a.ts));
           renderLog(events.slice(0, 4));
@@ -840,6 +796,7 @@
           );
           renderLog(events.slice(0, 4));
           updateButtons();
+          // ออฟไลน์ก็ไม่ต้อง toast ซ้ำ ๆ ให้รก
           if (navigator.onLine) toast(e.message || "Load log failed", false);
         }
       }
@@ -855,16 +812,18 @@
           state.breakId = data.break_id || null;
           state.employeeId = data.employee_id || null;
           state.empName = data.name || state.empName || "Employee";
+          // จำพนักงานไว้สำหรับล็อกอินออฟไลน์ครั้งต่อไป
           rememberEmployee(code, {
             name: state.empName,
             employee_id: state.employeeId,
           });
         } catch (e) {
-          // offline login via cache
+          // ล็อกอินออฟไลน์ด้วยแคช
           const cached = recallEmployee(code);
           if (!cached) throw e;
           state.empName = cached.name || "Employee";
           state.employeeId = cached.employee_id || null;
+          // เดาสถานะจาก shadow (ปุ่มจะถูกต้อง)
           if (state.shadow.openBreakId) state.status = "break";
           else if (state.shadow.openTimeEntryId) state.status = "in";
           else state.status = "off";
@@ -888,7 +847,7 @@
             code: state.code,
             method: "web",
           });
-          // optimistic update
+          // อัปเดตสถานะทันที (optimistic)
           state.status = "in";
           state.shadow.openTimeEntryId = state.shadow.openTimeEntryId || uuid();
           pushLocalEvent(state.code, {
@@ -1034,7 +993,7 @@
       }
 
       async function handleFourDigits(code) {
-        // offline + cached → allow
+        // ถ้าออฟไลน์และมีแคช → เข้าได้เลย
         if (!navigator.onLine) {
           const cached = recallEmployee(code);
           if (cached) {
@@ -1056,7 +1015,7 @@
             return;
           }
         }
-        // normal: online or no cache
+        // ปกติ: ออนไลน์ หรือไม่มีแคช
         try {
           await fetchStateByCode(code); // validate + pull name/status
           state.code = code;
@@ -1086,7 +1045,7 @@
         });
         updateButtons();
         startChipClock();
-        processQueue(); // flush any pending
+        processQueue(); // เผื่อมีคิวค้างจากก่อนหน้า
       });
 
       function renderIdDots() {
@@ -1101,17 +1060,41 @@
       function startClock() {
         const el = document.getElementById("clock");
         const tick = () => {
-          el.textContent = fmtClockLA();
+          const now = new Date();
+          let hh = now.getHours();
+          const ampm = hh >= 12 ? "PM" : "AM";
+          hh = hh % 12 || 12; // convert 0 → 12
+          const mm = String(now.getMinutes()).padStart(2, "0");
+          const ss = String(now.getSeconds()).padStart(2, "0");
+          el.textContent = `${hh}:${mm}:${ss} ${ampm}`;
         };
         tick();
         return setInterval(tick, 1000);
+      }
+
+      function fmtDateTime(ts) {
+        if (!ts) return "";
+        const d = new Date(ts);
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, "0");
+        const dd = String(d.getDate()).padStart(2, "0");
+        const hh = String(d.getHours()).padStart(2, "0");
+        const mi = String(d.getMinutes()).padStart(2, "0");
+        const ss = String(d.getSeconds()).padStart(2, "0");
+        return `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss}`;
       }
 
       function startChipClock() {
         const timeEl = document.getElementById("chip_time");
         if (!timeEl) return;
         setInterval(() => {
-          timeEl.textContent = fmtClockLA();
+          const now = new Date();
+          timeEl.textContent = now.toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+            hour12: true,
+          });
         }, 1000);
       }
     </script>
