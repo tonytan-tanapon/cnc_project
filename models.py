@@ -1460,3 +1460,16 @@ RawMaterial.total_on_hand = column_property(
     .correlate_except(_rb)
     .scalar_subquery()
 )
+
+
+from sqlalchemy import Integer, String, Column, UniqueConstraint
+
+class DocCounter(Base):
+    __tablename__ = "doc_counters"
+    doc_type = Column(String, primary_key=True)   # "LOT", "TRV", ฯลฯ
+    year = Column(Integer, primary_key=True)
+    seq = Column(Integer, nullable=False, default=0)
+
+    __table_args__ = (
+        UniqueConstraint("doc_type", "year", name="uq_doc_counters_type_year"),
+    )
