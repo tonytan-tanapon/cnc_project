@@ -22,6 +22,7 @@ def get_url() -> str:
     url = config.get_main_option("sqlalchemy.url", "")
     if not url:
         url = os.getenv("DATABASE_URL", "")
+        print("url", url)
         if url:
             config.set_main_option("sqlalchemy.url", url)
     return url

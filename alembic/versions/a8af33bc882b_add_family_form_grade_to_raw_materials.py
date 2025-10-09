@@ -19,14 +19,16 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade():
-    with op.batch_alter_table("raw_materials") as batch:
-        batch.add_column(sa.Column("family_code", sa.String(), nullable=True))
-        batch.add_column(sa.Column("form_code",   sa.String(), nullable=True))
-        batch.add_column(sa.Column("grade_code",  sa.String(), nullable=True))
+    pass
+    # with op.batch_alter_table("raw_materials") as batch:
+    #     batch.add_column(sa.Column("family_code", sa.String(), nullable=True))
+    #     batch.add_column(sa.Column("form_code",   sa.String(), nullable=True))
+    #     batch.add_column(sa.Column("grade_code",  sa.String(), nullable=True))
 
 def downgrade():
-    with op.batch_alter_table("raw_materials") as batch:
-        batch.drop_column("grade_code")
-        batch.drop_column("form_code")
-        batch.drop_column("family_code")
+    pass
+    # with op.batch_alter_table("raw_materials") as batch:
+    #     batch.drop_column("grade_code")
+    #     batch.drop_column("form_code")
+    #     batch.drop_column("family_code")
         
