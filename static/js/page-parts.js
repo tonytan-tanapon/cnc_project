@@ -1,14 +1,13 @@
 // /static/js/page-parts.js — AUTOSAVE + Tab nav + Undo/Redo + Delete only
-// + Remote pagination with "Show All" default (all=1) for fast, load-all behavior
+// + Infinite scroll (remote progressive load)
 import { $, jfetch, showToast as toast } from "./api.js";
 
 const UI = { q: "_q", add: "_add", table: "listBody" };
 const DETAIL_PAGE = "./part-detail.html";
 const partDetail = (id) => `${DETAIL_PAGE}?id=${encodeURIComponent(id)}`;
 
-/* ===== Remote pagination defaults ===== */
-const DEFAULT_PAGE_SIZE = true; // true = Show All (โหลดทั้งหมด)
-const PAGE_SIZE_CHOICES = [20, 50, 100, 200, true]; // true = Show All
+/* ===== Remote load defaults (chunked) ===== */
+const CHUNK_SIZE = 200; // rows per fetch
 let totalItems = 0;
 
 /* ===== AUTOSAVE GUARDS ===== */
@@ -89,11 +88,9 @@ function makeColumns() {
       headerHozAlign: "right",
       headerSort: false,
       formatter: (cell) => {
+        // For progressive load, position() keeps increasing with loaded rows
         const pos = cell.getRow().getPosition(true);
-        const curPage = table.getPage() || 1;
-        const ps = table.getPageSize();
-        const eff = ps === true ? totalItems || table.getDataCount() : ps || 1;
-        return (curPage - 1) * eff + pos;
+        return pos;
       },
     },
 
@@ -322,7 +319,7 @@ async function deleteRow(row) {
   }
 }
 
-/* ===== TABLE (Remote pagination, Show All default) ===== */
+/* ===== TABLE (Infinite scroll with remote progressive load) ===== */
 function initTable() {
   table = new Tabulator(`#${UI.table}`, {
     layout: "fitColumns",
@@ -333,23 +330,23 @@ function initTable() {
     history: true,
     selectableRows: 1,
 
-    pagination: true,
-    paginationMode: "remote",
-    paginationSize: DEFAULT_PAGE_SIZE, // true = Show All
-    paginationSizeSelector: PAGE_SIZE_CHOICES, // [20,50,100,200,true]
-    paginationCounter: "rows",
+    // === Infinite scroll (remote progressive load) ===
+    pagination: false,
+    progressiveLoad: "scroll",          // auto-fetch next page when near bottom
+    progressiveLoadDelay: 150,          // small delay to avoid hammering the API
+    progressiveLoadScrollMargin: 400,   // start loading when 400px from bottom
+    paginationSize: CHUNK_SIZE,         // chunk size per fetch
 
     ajaxURL: "/parts",
     ajaxRequestFunc: async (_url, _config, params) => {
+      // Tabulator passes the current page for progressive loads too
       const page = params.page || 1;
-      const showAll = params.size === true;
-      const size = showAll ? DEFAULT_PAGE_SIZE : Number(params.size) || 50;
+      const size = Number(params.size) || CHUNK_SIZE;
 
       const keyword = (els[UI.q]?.value || "").trim();
       const usp = new URLSearchParams();
       usp.set("page", String(page));
-      if (showAll) usp.set("all", "1");
-      else usp.set("page_size", String(size));
+      usp.set("page_size", String(size));
       usp.set("include", "revisions");
       if (keyword) usp.set("q", keyword);
       usp.set("_", String(Date.now()));
@@ -359,9 +356,12 @@ function initTable() {
       totalItems = Number(res?.total ?? items.length);
 
       const rows = items.map(normalizeRow);
-      const last_page = showAll
-        ? 1
-        : Math.max(1, Math.ceil((totalItems || rows.length) / (size || 1)));
+      // Tell Tabulator when to stop requesting more pages
+      const last_page = Math.max(
+        1,
+        Math.ceil((totalItems || rows.length) / (size || 1))
+      );
+
       return { data: rows, last_page };
     },
 
@@ -452,8 +452,9 @@ function bindSearch() {
   box.addEventListener("input", () => {
     clearTimeout(t);
     t = setTimeout(() => {
-      // ให้ Tabulator ยิงขอใหม่โดยเริ่ม page 1 (เลี่ยงซ้ำซ้อน)
-      table?.setPage(1);
+      // Progressive load: clear current data and trigger a fresh AJAX load (starts at page 1)
+      table?.clearData();
+      table?.setData(); // re-fire ajaxRequestFunc with page=1
     }, 300);
   });
 }
@@ -484,5 +485,5 @@ document.addEventListener("DOMContentLoaded", async () => {
   initTable();
   bindSearch();
   bindAdd();
-  // ปล่อยให้ Tabulator ยิง ajax ตาม paginationMode:"remote"
+  // Progressive loading handles further fetches automatically on scroll
 });
