@@ -6,7 +6,6 @@ from database import get_db
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
-# Whitelist mapping: Tabulator field -> SQL column/expression
 SORTABLE = {
     "part_no": "part_no",
     "revision": "revision",
@@ -28,22 +27,38 @@ SORTABLE = {
 def get_due_date_monitor(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, gt=0, le=1000),
-    sort_by: str = Query("po_line_due_date"),     # default sort
-    sort_dir: str = Query("asc"),                 # asc|desc
+    sort_by: str = Query("po_line_due_date"),
+    sort_dir: str = Query("asc"),
+    q: str | None = Query(None, description="search part/po/lot/customer"),
     db: Session = Depends(get_db),
 ):
     col = SORTABLE.get(sort_by, "po_line_due_date")
     dir_sql = "ASC" if str(sort_dir).lower() != "desc" else "DESC"
-
-    # NULLS LAST so blank dates don’t float to top on ASC
     order_sql = f"{col} {dir_sql} NULLS LAST, po_no ASC, lot_no ASC"
+
+    where_sql = "WHERE days_until_po_due >= 0"
+    params = {"limit": limit, "skip": skip}
+
+    if q and q.strip():
+        params["q"] = f"%{q.strip()}%"
+        # *** ชั่วคราว: ยังไม่ใช้ part_name เพราะไม่มีใน view ***
+        where_sql += """
+          AND (
+            part_no ILIKE :q OR
+            COALESCE(revision,'') ILIKE :q OR
+            COALESCE(lot_no,'') ILIKE :q OR
+            COALESCE(po_no,'') ILIKE :q OR
+            COALESCE(customer_no,'') ILIKE :q
+          )
+        """
 
     sql = text(f"""
         SELECT *
         FROM vw_deadline_monitor_with_days
-        WHERE days_until_po_due >= 0
+        {where_sql}
         ORDER BY {order_sql}
         LIMIT :limit OFFSET :skip
     """)
-    rows = db.execute(sql, {"limit": limit, "skip": skip}).mappings().all()
+
+    rows = db.execute(sql, params).mappings().all()
     return {"items": [dict(r) for r in rows]}

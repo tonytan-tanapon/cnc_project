@@ -6,11 +6,13 @@ from . import (
     travelers, traveler_steps, suppliers, subcon, payroll, time_clock,
     parts, users, pay_periods, payroll_extras, data, data_detail,part_selections,lookups, 
     part_materials,report_materials, po_lines,
-    reports_due_date_monitor
+    reports_due_date_monitor,lots_browse
 )
 
 api_v1 = APIRouter()
 
+
+api_v1.include_router(lots_browse.router)  
 # Routers ที่ export เป็น .router
 api_v1.include_router(auth.router)
 api_v1.include_router(customers.router)
@@ -47,5 +49,6 @@ api_v1.include_router(payroll.rates_router)    # /pay-rates/...
 api_v1.include_router(part_materials.router)    # /pay-rates/...
 
 api_v1.include_router(report_materials.router)   
-api_v1.include_router(reports_due_date_monitor.router)   
+api_v1.include_router(reports_due_date_monitor.router) 
+   
 __all__ = ["api_v1"]

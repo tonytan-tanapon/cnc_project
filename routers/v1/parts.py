@@ -165,31 +165,63 @@ def list_parts_keyset(
 
 @parts_router.get("/", response_model=dict)
 def list_parts(
-    q: Optional[str] = Query(default=None, description="search part_no/name"),
-    page: int = 1,
-    page_size: int = 100,
-    include: Optional[str] = Query(default=None, description="e.g. 'revisions'"),
     db: Session = Depends(get_db),
+    q: str | None = Query(None, description="search in part_no or name"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=1000),
 ):
-    query = db.query(Part)
-
+    query = db.query(Part).options(selectinload(Part.revisions))
     if q:
         like = f"%{q}%"
         query = query.filter(or_(Part.part_no.ilike(like), Part.name.ilike(like)))
 
-    include_revs = (include == "revisions")
-    if include_revs:
-        query = query.options(selectinload(Part.revisions))  # ลด N+1
+    query = query.order_by(Part.part_no.asc())
+    items = query.offset((page - 1) * page_size).limit(page_size).all()
 
-    total = query.count()
-    items = (
-        query.order_by(Part.part_no)
-        .offset((page - 1) * page_size)
-        .limit(page_size)
-        .all()
-    )
-    data = [to_part_out(p, include_revs=include_revs) for p in items]
-    return {"items": data, "total": total, "page": page, "page_size": page_size}
+    # ใส่ current_rev ให้พร้อมใช้ (ถ้าอยากส่งมาใน payload)
+    def to_dict(p: Part):
+        cur_rev = ""
+        if p.revisions:
+            cur = next((r for r in p.revisions if getattr(r, "is_current", False)), None)
+            cur_rev = cur.rev if cur else ""
+        return {
+            "id": p.id,
+            "part_no": p.part_no,
+            "name": p.name,
+            "default_uom": p.default_uom,
+            "status": p.status,
+            "current_rev": cur_rev,
+            # "revisions": [{"id": r.id, "rev": r.rev, "is_current": r.is_current} for r in p.revisions],
+        }
+
+    return {"items": [to_dict(p) for p in items]}
+# @parts_router.get("/", response_model=dict)
+# def list_parts(
+#     q: Optional[str] = Query(default=None, description="search part_no/name"),
+#     page: int = 1,
+#     page_size: int = 100,
+#     include: Optional[str] = Query(default=None, description="e.g. 'revisions'"),
+#     db: Session = Depends(get_db),
+# ):
+#     query = db.query(Part)
+
+#     if q:
+#         like = f"%{q}%"
+#         query = query.filter(or_(Part.part_no.ilike(like), Part.name.ilike(like)))
+
+#     include_revs = (include == "revisions")
+#     if include_revs:
+#         query = query.options(selectinload(Part.revisions))  # ลด N+1
+
+#     total = query.count()
+#     items = (
+#         query.order_by(Part.part_no)
+#         .offset((page - 1) * page_size)
+#         .limit(page_size)
+#         .all()
+#     )
+#     data = [to_part_out(p, include_revs=include_revs) for p in items]
+#     return {"items": data, "total": total, "page": page, "page_size": page_size}
 
 # ===================== CRUD =====================
 

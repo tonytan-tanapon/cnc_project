@@ -57,7 +57,7 @@ const DEFAULT_PAGE_SIZE = true;
 })();
 
 function initTable() {
-  console.log("initTable");
+  // console.log("initTable");
   if (!tableMount) return;
 
   table = new Tabulator(tableMount, {
@@ -93,7 +93,7 @@ function initTable() {
       const items = Array.isArray(resp) ? resp : resp.items ?? [];
       // console
       totalItems = Number(resp?.total ?? items.length);
-      console.log(items);
+      // console.log(items);
       // Map fields; backend should include customer_id and part_revision_id.
       const rows = items.map((r) => ({
         id: r.id,
@@ -227,7 +227,7 @@ if (selPerPage) {
 btnReload?.addEventListener("click", () => table?.replaceData());
 
 document.addEventListener("DOMContentLoaded", () => {
-  console.log("part");
+  // console.log("part");
 
   initTopbar?.();
   initTable();
