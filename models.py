@@ -428,6 +428,8 @@ class ProductionLot(Base):
     lot_due_date = Column(Date, nullable=True, index=True)
     status = Column(String, nullable=False, default="in_process")
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    note =  Column(String,  nullable=True)
+
 
     __table_args__ = (
         Index("ix_lots_no", "lot_no"),
@@ -449,6 +451,7 @@ class ProductionLot(Base):
 
     fair_required = Column(Boolean, nullable=False, default=False)
     fair_record_id = Column(Integer, ForeignKey("inspection_records.id", ondelete="SET NULL"), nullable=True, index=True)
+    fair_note =  Column(String,  nullable=True)
     fair_record = relationship(
         "InspectionRecord",
         foreign_keys=[fair_record_id],
@@ -1200,6 +1203,7 @@ class CustomerShipment(Base):
     carrier = Column(String, nullable=True)
     tracking_no = Column(String, nullable=True)
     notes = Column(Text)
+    package_no = Column(String, nullable=True, index=True)  # <-- add this
 
     po = relationship("PO", back_populates="shipments")
     items = relationship("CustomerShipmentItem", back_populates="shipment", cascade="all, delete-orphan")
