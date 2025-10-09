@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Due Date Monitor · Topnotch – MFG</title>
+
+    <link rel="stylesheet" href="/static/css/app.css" />
+    <link
+      rel="stylesheet"
+      href="/static/vendor/tabulator/tabulator_modern.min.css"
+    />
+
+    <style>
+      .main--edge {
+        padding: 0;
+        height: 100vh;
+        overflow: hidden;
+      }
+      .panel--edge {
+        margin: 0;
+        border-radius: 0;
+        border-left-width: 0;
+        border-right-width: 0;
+      }
+      #listPanel {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        min-height: 0;
+      }
+
+      .list-topbar {
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+        gap: 8px;
+        height: 44px;
+        padding: 0;
+        border-bottom: 1px solid #e5e7eb;
+      }
+      .list-topbar .search-lg {
+        flex: 0 0 260px;
+        min-width: 200px;
+        height: 36px;
+        padding: 0 12px;
+        border-radius: 0;
+      }
+      #_export {
+        margin-left: 0 !important;
+        height: 36px;
+        border-radius: 0;
+      }
+
+      #listBody {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow: auto;
+      }
+      #listBody .tabulator {
+        height: 100% !important;
+        border: 0;
+      }
+      #listBody .tabulator-tableholder {
+        overflow: auto !important;
+      }
+      #listBody .tabulator-cell.wrap {
+        white-space: normal;
+        word-break: break-word;
+      }
+      #listBody .tabulator-cell.actions-cell {
+        overflow: visible;
+      }
+
+      a.view-link {
+        color: #2563eb;
+        text-decoration: underline;
+        font-weight: 600;
+      }
+      a.view-link:hover {
+        text-decoration: none;
+      }
+      .muted {
+        opacity: 0.6;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <aside class="sidebar"><div id="navSlot" data-nav-slot></div></aside>
+
+      <main class="main main--edge">
+        <section class="panel panel--edge" id="listPanel">
+          <div>Due Date Monitor</div>
+          <div class="list-topbar">
+            <input
+              id="_q"
+              type="search"
+              class="search-lg"
+              placeholder="Search Part / PO / Customer…"
+            />
+            <button id="_export" class="btn" type="button">Export CSV</button>
+          </div>
+          <div id="listBody"></div>
+        </section>
+      </main>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite">
+      <span id="toastText"></span>
+    </div>
+
+    <script type="module" src="/static/js/nav-loader.js"></script>
+    <script src="/static/vendor/tabulator/tabulator.min.js"></script>
+    <!-- Your page logic (infinite scroll + server sorting) -->
+    <script type="module" src="/static/js/page-view-due-date-monitor.js"></script>
+  </body>
+</html>

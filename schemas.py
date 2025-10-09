@@ -861,3 +861,22 @@ class PayPeriodOut(PayPeriodBase):
     locked_at: Optional[datetime] = None
     paid_at: Optional[datetime] = None
     model_config = ConfigDict(from_attributes=True)
+
+
+
+class DetailRow(BaseModel):
+    # ... other fields ...
+    po_due_date: date | None = None
+    lot_due_date: date | None = None
+
+    @field_validator("po_due_date", "lot_due_date", mode="before")
+    @classmethod
+    def _ensure_date(cls, v):
+        if v is None:
+            return None
+        if isinstance(v, date) and not isinstance(v, datetime):
+            return v
+        if isinstance(v, datetime):
+            return v.date()
+        # strings -> try ISO
+        return datetime.fromisoformat(str(v)).date()

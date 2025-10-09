@@ -28,11 +28,17 @@ let lookups = { processes: [], finishes: [] };
 let idCutting = null;
 let idHeat    = null;
 
-const fmtDate = (s) => {
-  if (!s) return '';
-  const d = new Date(s);
-  return isNaN(d) ? '' : d.toLocaleDateString();
-};
+ const fmtDate = (s) => {
+   if (!s) return '';
+   // Accept 'YYYY-MM-DD' or ISO datetime. Prefer exact date parsing to avoid TZ shifts.
+   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+     const [y, m, d] = s.split('-').map(Number);
+     const dt = new Date(y, m - 1, d);     // local date (no TZ shift)
+     return dt.toLocaleDateString();
+   }
+   const d = new Date(s);
+   return isNaN(d) ? '' : d.toLocaleDateString();
+ };
 
 // ---- styles (once)
 (() => {
@@ -543,13 +549,13 @@ function initTable(){
       { title: "Prod allocate",  field: "lot_qty", width: 110, hozAlign: "right", headerHozAlign: "right",
         formatter: (cell) => fmtQty(cell.getValue())
       },
-      { title: "Prod Date",   field: "po_due_date", minWidth: 130, sorter: "date",
+      { title: "Prod Date",   field: "lot_due_date", minWidth: 130, sorter: "date",
         formatter: (cell) => fmtDate(cell.getValue())
       },
       { title: "PO Qty",   field: "qty", width: 110, hozAlign: "right", headerHozAlign: "right",
         formatter: (cell) => fmtQty(cell.getValue())
       },
-      { title: "PO Date", field: "lot_due_date", minWidth: 130, sorter: "date",
+      { title: "PO Date", field: "po_due_date", minWidth: 130, sorter: "date",
         formatter: (cell) => fmtDate(cell.getValue())
       },
       { title: "Ship Qty", field: "qty", width: 110, hozAlign: "right", headerHozAlign: "right",

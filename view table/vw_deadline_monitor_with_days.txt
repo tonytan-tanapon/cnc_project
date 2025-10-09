@@ -1,0 +1,33 @@
+DROP VIEW IF EXISTS vw_deadline_monitor_with_days;
+
+CREATE OR REPLACE VIEW vw_deadline_monitor_with_days AS
+SELECT
+    p.part_no,
+    p.part_name,
+    COALESCE(pr_lot.rev, pr_line.rev) AS revision,
+    pl.lot_no,
+    po.po_number AS po_no,
+    c.code AS customer_no,
+    pol.qty_ordered AS po_qty,
+    pl.planned_qty AS lot_qty,
+    pol.due_date AS po_line_due_date,
+    pl.started_at AS lot_started_at,
+    pl.lot_due_date AS lot_due_date,
+    pl.status AS lot_status,
+    (pol.due_date::date    - CURRENT_DATE) AS days_until_po_due,
+    (pl.lot_due_date::date - CURRENT_DATE) AS days_until_lot_due,
+    (pl.started_at::date   - CURRENT_DATE) AS days_until_lot_start
+FROM production_lots pl
+JOIN parts p                    ON p.id = pl.part_id
+LEFT JOIN part_revisions pr_lot ON pr_lot.id = pl.part_revision_id
+LEFT JOIN po_lines pol          ON pol.id = pl.po_line_id
+LEFT JOIN part_revisions pr_line ON pr_line.id = pol.revision_id
+LEFT JOIN purchase_orders po    ON po.id = COALESCE(pl.po_id, pol.po_id)
+LEFT JOIN customers c           ON c.id = po.customer_id
+ORDER BY COALESCE(pol.due_date, pl.lot_due_date) ASC NULLS LAST,
+         po.po_number,
+         pl.lot_no;
+
+
+SELECT * FROM vw_deadline_monitor_with_days 
+where days_until_po_due > 0 LIMIT 100;

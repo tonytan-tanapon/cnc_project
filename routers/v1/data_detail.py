@@ -31,7 +31,21 @@ class DetailOut(BaseModel):
     count: int
     meta: Optional[DetailMeta] = None
 
+# routers/v1/data_detail.py
+from datetime import date, datetime
 
+def _as_date(v):
+    if v is None:
+        return None
+    if isinstance(v, date) and not isinstance(v, datetime):
+        return v
+    if isinstance(v, datetime):
+        return v.date()
+    try:
+        # handles 'YYYY-MM-DD' or ISO strings
+        return datetime.fromisoformat(str(v)).date()
+    except Exception:
+        return None
 def _pick_col(model, *names, default=None):
     """
     Return the first attribute present on `model` from `names`, else `default`.
@@ -120,8 +134,8 @@ def data_detail(
             lot_no=str(lot_no or ""),
             po_number=str(po_number or "") if po_number is not None else None,
             qty=float(qty or 0),
-            lot_due_date=lot_due_date,
-            po_due_date=po_due_date,
+            po_due_date=_as_date(po_due_date),
+            lot_due_date=_as_date(lot_due_date),
             lot_qty=float(qty or 0),
             ship_date=None,
             ship_qty=0.0
