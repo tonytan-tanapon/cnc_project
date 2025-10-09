@@ -18,9 +18,9 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade():
-    with op.batch_alter_table("suppliers") as batch:
-        batch.add_column(sa.Column("is_material_supplier", sa.Boolean(), nullable=False, server_default=sa.false()))
-        batch.add_column(sa.Column("is_subcontractor", sa.Boolean(), nullable=False, server_default=sa.false()))
+    # with op.batch_alter_table("suppliers") as batch:
+    #     batch.add_column(sa.Column("is_material_supplier", sa.Boolean(), nullable=False, server_default=sa.false()))
+    #     batch.add_column(sa.Column("is_subcontractor", sa.Boolean(), nullable=False, server_default=sa.false()))
     # เอา server_default ออก เพื่อไม่ให้ติด default ที่ DB ถ้าไม่ต้องการ
     with op.batch_alter_table("suppliers") as batch:
         batch.alter_column("is_material_supplier", server_default=None)
