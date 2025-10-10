@@ -418,25 +418,44 @@
         busy: false,
         hasBreakUsed: false,
         shadow: { openTimeEntryId: null, openBreakId: null }, // offline shadow
-        exiting: false, // <—— NEW: prevent next-step UI flash
+        exiting: false, // prevent next-step UI flash
       };
+
+      // === NEW: hard reset of login UI after auto-logout or manual logout ===
+      function resetLoginUI() {
+        // clear PIN digits (dots)
+        state.idDigits = "";
+        renderIdDots();
+
+        // restore header
+        const title = document.getElementById("top_title");
+        if (title) title.textContent = "TopNotch v1.0";
+
+        // clear welcome name
+        const nameEl = $("emp_name");
+        if (nameEl) nameEl.textContent = "";
+
+        // chip off (keeps internal UI consistent)
+        setChip("off");
+      }
+
       // ออกจากหน้า Actions ทันที เพื่อกันปุ่มเฟสถัดไปแว้บ
-function beginSubmitAndLeaveView(msg = "Saving…") {
-  state.exiting = true;
-  const mask = $("exitmask");
-  if (mask) {
-    mask.firstChild.nodeValue = msg;
-    mask.style.display = "flex";
-  }
-  // ซ่อนและปิดการคลิกทุกปุ่มในหน้านี้ (กัน accidental double tap)
-  document.querySelectorAll(".bigbtn, #btn_logout").forEach((b) => {
-    b.setAttribute("disabled", "true");
-    b.style.pointerEvents = "none";
-    b.style.visibility = "hidden";
-  });
-  // ย้ายไปหน้า PIN ทันที → จะไม่มีโอกาสเห็นปุ่มเฟสถัดไป
-  setView("v_id");
-}
+      function beginSubmitAndLeaveView(msg = "Saving…") {
+        state.exiting = true;
+        const mask = $("exitmask");
+        if (mask) {
+          mask.firstChild.nodeValue = msg;
+          mask.style.display = "flex";
+        }
+        // ซ่อนและปิดการคลิกทุกปุ่มในหน้านี้ (กัน accidental double tap)
+        document.querySelectorAll(".bigbtn, #btn_logout").forEach((b) => {
+          b.setAttribute("disabled", "true");
+          b.style.pointerEvents = "none";
+          b.style.visibility = "hidden";
+        });
+        // ย้ายไปหน้า PIN ทันที → จะไม่มีโอกาสเห็นปุ่มเฟสถัดไป
+        setView("v_id");
+      }
 
       /* ===== Exit mode helpers ===== */
       function enterExitMode(msg = "Saving…") {
@@ -467,10 +486,10 @@ function beginSubmitAndLeaveView(msg = "Saving…") {
       /* ----------------- UI logic (hide/show buttons) ----------------- */
       function updateButtons() {
         // During exit mode, keep everything hidden regardless of status
-         if (state.exiting) {
-    ["btn_in","btn_out","btn_sbr","btn_ebr"].forEach((id) => hide($(id)));
-    return;
-  }
+        if (state.exiting) {
+          ["btn_in","btn_out","btn_sbr","btn_ebr"].forEach((id) => hide($(id)));
+          return;
+        }
         const inBtn = $("btn_in");
         const outBtn = $("btn_out");
         const sbrBtn = $("btn_sbr");
@@ -488,11 +507,14 @@ function beginSubmitAndLeaveView(msg = "Saving…") {
       }
 
       function logout() {
+        // go to PIN first
         setView("v_id");
-        clearId();
-        const title = document.getElementById("top_title");
-        if (title) title.textContent = "TopNotch v1.0";
+        // full UI reset
+        resetLoginUI();
+
         toast("Logged out");
+
+        // wipe session-ish state
         state.code = "";
         state.empName = "";
         state.employeeId = null;
@@ -502,8 +524,8 @@ function beginSubmitAndLeaveView(msg = "Saving…") {
         state.hasBreakUsed = false;
         state.shadow.openTimeEntryId = null;
         state.shadow.openBreakId = null;
-        leaveExitMode(); // <—— ensure overlay clears after logout
-        setChip("off");
+
+        leaveExitMode();
         updateButtons();
         renderLog([]);
       }
@@ -616,118 +638,127 @@ function beginSubmitAndLeaveView(msg = "Saving…") {
 
       /* ----------------- actions (queue when offline) ----------------- */
       async function clockIn() {
-  if (state.busy) return;
-  state.busy = true;
-  beginSubmitAndLeaveView("Saving Clock In…");   // <-- เปลี่ยนจาก enterExitMode()
+        if (state.busy) return;
+        state.busy = true;
+        beginSubmitAndLeaveView("Saving Clock In…");
 
-  try {
-    const resp = await safePost("/time-entries/start", { code: state.code, method: "web" });
+        try {
+          const resp = await safePost("/time-entries/start", { code: state.code, method: "web" });
 
-    // อัปเดต local state/queue แบบเงียบ ๆ (ไม่เรียก updateButtons/fetchTodayLog เพื่อกันแฟลช)
-    state.status = "in";
-    state.shadow.openTimeEntryId = state.shadow.openTimeEntryId || uuid();
-    pushLocalEvent(state.code, { kind: "in", ts: new Date().toISOString() });
+          // shadow + local log (no UI flash)
+          state.status = "in";
+          state.shadow.openTimeEntryId = state.shadow.openTimeEntryId || uuid();
+          pushLocalEvent(state.code, { kind: "in", ts: new Date().toISOString() });
 
-    toast(resp.queued ? "Clocked in (queued)" : "Clocked in");
-    // สำเร็จ → ถือว่าล็อกเอาต์แล้ว (เราอยู่หน้า PIN อยู่แล้ว)
-    // reset state แบบ logout ย่อ
-    state.code = "";
-    state.idDigits = "";
-    state.busy = false;
-    leaveExitMode(); // เอา overlay ออก
-    return; // จบ
-  } catch (e) {
-    // ล้มเหลว → กลับไปหน้า Actions พร้อมปุ่มเดิม
-    leaveExitMode();
-    setView("v_act");
-    state.busy = false;
-    toast(e.message || "Clock in failed", false);
-  }
-}
+          toast(resp.queued ? "Clocked in (queued)" : "Clocked in");
 
-async function clockOut() {
-  if (state.busy) return;
-  state.busy = true;
-  beginSubmitAndLeaveView("Saving Clock Out…");
+          // clear session code + reset PIN screen UI
+          state.code = "";
+          state.idDigits = "";
+          resetLoginUI();
 
-  try {
-    const resp = await safePost("/time-entries/stop", { code: state.code, method: "web" });
-    pushLocalEvent(state.code, { kind: "out", ts: new Date().toISOString() });
+          state.busy = false;
+          leaveExitMode();
+          return;
+        } catch (e) {
+          leaveExitMode();
+          setView("v_act");
+          state.busy = false;
+          toast(e.message || "Clock in failed", false);
+        }
+      }
 
-    // เคลียร์สถานะการทำงาน
-    state.status = "off";
-    state.timeEntryId = null;
-    state.breakId = null;
-    state.hasBreakUsed = false;
-    state.shadow.openTimeEntryId = null;
-    state.shadow.openBreakId = null;
+      async function clockOut() {
+        if (state.busy) return;
+        state.busy = true;
+        beginSubmitAndLeaveView("Saving Clock Out…");
 
-    toast(resp.queued ? "Clocked out (queued)" : "Clocked out");
-    state.code = "";
-    state.idDigits = "";
-    state.busy = false;
-    leaveExitMode();
-    return;
-  } catch (e) {
-    leaveExitMode();
-    setView("v_act");
-    state.busy = false;
-    toast(e.message || "Clock out failed", false);
-  }
-}
+        try {
+          const resp = await safePost("/time-entries/stop", { code: state.code, method: "web" });
+          pushLocalEvent(state.code, { kind: "out", ts: new Date().toISOString() });
 
-async function startBreak() {
-  if (state.busy) return;
-  state.busy = true;
-  beginSubmitAndLeaveView("Saving Break Start…");
+          // reset working state
+          state.status = "off";
+          state.timeEntryId = null;
+          state.breakId = null;
+          state.hasBreakUsed = false;
+          state.shadow.openTimeEntryId = null;
+          state.shadow.openBreakId = null;
 
-  try {
-    const resp = await safePost("/breaks/start", { code: state.code, break_type: "lunch", is_paid: false, method: "web" });
-    state.status = "break";
-    state.shadow.openBreakId = state.shadow.openBreakId || uuid();
-    pushLocalEvent(state.code, { kind: "sbr", ts: new Date().toISOString() });
+          toast(resp.queued ? "Clocked out (queued)" : "Clocked out");
 
-    toast(resp.queued ? "Break started (queued)" : "Break started");
-    state.code = "";
-    state.idDigits = "";
-    state.busy = false;
-    leaveExitMode();
-    return;
-  } catch (e) {
-    leaveExitMode();
-    setView("v_act");
-    state.busy = false;
-    toast(e.message || "Start break failed", false);
-  }
-}
+          state.code = "";
+          state.idDigits = "";
+          resetLoginUI();
 
-async function stopBreak() {
-  if (state.busy) return;
-  state.busy = true;
-  beginSubmitAndLeaveView("Saving Break Stop…");
+          state.busy = false;
+          leaveExitMode();
+          return;
+        } catch (e) {
+          leaveExitMode();
+          setView("v_act");
+          state.busy = false;
+          toast(e.message || "Clock out failed", false);
+        }
+      }
 
-  try {
-    const resp = await safePost("/breaks/stop", { code: state.code });
-    pushLocalEvent(state.code, { kind: "ebr", ts: new Date().toISOString() });
+      async function startBreak() {
+        if (state.busy) return;
+        state.busy = true;
+        beginSubmitAndLeaveView("Saving Break Start…");
 
-    state.status = "in";
-    state.shadow.openBreakId = null;
-    state.hasBreakUsed = true;
+        try {
+          const resp = await safePost("/breaks/start", { code: state.code, break_type: "lunch", is_paid: false, method: "web" });
+          state.status = "break";
+          state.shadow.openBreakId = state.shadow.openBreakId || uuid();
+          pushLocalEvent(state.code, { kind: "sbr", ts: new Date().toISOString() });
 
-    toast(resp.queued ? "Break stopped (queued)" : "Break stopped");
-    state.code = "";
-    state.idDigits = "";
-    state.busy = false;
-    leaveExitMode();
-    return;
-  } catch (e) {
-    leaveExitMode();
-    setView("v_act");
-    state.busy = false;
-    toast(e.message || "Stop break failed", false);
-  }
-}
+          toast(resp.queued ? "Break started (queued)" : "Break started");
 
+          state.code = "";
+          state.idDigits = "";
+          resetLoginUI();
+
+          state.busy = false;
+          leaveExitMode();
+          return;
+        } catch (e) {
+          leaveExitMode();
+          setView("v_act");
+          state.busy = false;
+          toast(e.message || "Start break failed", false);
+        }
+      }
+
+      async function stopBreak() {
+        if (state.busy) return;
+        state.busy = true;
+        beginSubmitAndLeaveView("Saving Break Stop…");
+
+        try {
+          const resp = await safePost("/breaks/stop", { code: state.code });
+          pushLocalEvent(state.code, { kind: "ebr", ts: new Date().toISOString() });
+
+          state.status = "in";
+          state.shadow.openBreakId = null;
+          state.hasBreakUsed = true;
+
+          toast(resp.queued ? "Break stopped (queued)" : "Break stopped");
+
+          state.code = "";
+          state.idDigits = "";
+          resetLoginUI();
+
+          state.busy = false;
+          leaveExitMode();
+          return;
+        } catch (e) {
+          leaveExitMode();
+          setView("v_act");
+          state.busy = false;
+          toast(e.message || "Stop break failed", false);
+        }
+      }
 
       /* ----------------- keypad ----------------- */
       function renderPad(el) {
@@ -796,8 +827,8 @@ async function stopBreak() {
         $("btn_sbr").addEventListener("click", startBreak);
         $("btn_ebr").addEventListener("click", stopBreak);
         $("btn_logout").addEventListener("click", () => {
-  if (!state.exiting) logout();
-});
+          if (!state.exiting) logout();
+        });
         updateButtons();
         startChipClock();
         processQueue();
