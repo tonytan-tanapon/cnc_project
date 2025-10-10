@@ -30,20 +30,35 @@
         --btn-fs-max: 84px;
       }
 
-      * { box-sizing: border-box; }
+      * {
+        box-sizing: border-box;
+      }
       body {
         margin: 0;
         background: var(--bg);
         color: var(--text);
         font: 20px/1.5 system-ui, -apple-system, Segoe UI, Roboto, Arial;
       }
-      .wrap { max-width: 980px; margin: 24px auto; padding: 0 14px; }
-      h1 { margin: 0 0 16px; font-size: 28px; }
-      .muted { color: var(--muted); }
+      .wrap {
+        max-width: 980px;
+        margin: 24px auto;
+        padding: 0 14px;
+      }
+      h1 {
+        margin: 0 0 16px;
+        font-size: 28px;
+      }
+      .muted {
+        color: var(--muted);
+      }
 
       /* View toggling */
-      .view { display: none; }
-      .view.active { display: block; }
+      .view {
+        display: none;
+      }
+      .view.active {
+        display: block;
+      }
 
       /* Panels & rows */
       .panel {
@@ -53,103 +68,248 @@
         box-shadow: var(--shadow);
         padding: 16px;
       }
-      .row { display: flex; gap: 12px; align-items: center; }
+      .row {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+      }
 
       /* Top display strip */
       .display {
-        font-size: 28px; font-weight: 700;
-        border: 2px solid var(--line); border-radius: 12px;
-        padding: 12px 14px; min-height: 56px;
-        display: flex; align-items: center; justify-content: space-between; gap: 20px;
+        font-size: 28px;
+        font-weight: 700;
+        border: 2px solid var(--line);
+        border-radius: 12px;
+        padding: 12px 14px;
+        min-height: 56px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
       }
       .display span.value {
-        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+          "Liberation Mono", monospace;
       }
 
       /* Keypad */
-      .keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 16px; }
-      .key {
-        font-size: 32px; font-weight: 700; border: 2px solid var(--line);
-        border-radius: 10px; padding: 22px 0; background: #fff; cursor: pointer;
+      .keypad {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+        margin-top: 16px;
       }
-      .key:active { transform: scale(0.98); }
+      .key {
+        font-size: 32px;
+        font-weight: 700;
+        border: 2px solid var(--line);
+        border-radius: 10px;
+        padding: 22px 0;
+        background: #fff;
+        cursor: pointer;
+      }
+      .key:active {
+        transform: scale(0.98);
+      }
 
       /* Status chip */
-      .chip { display: inline-flex; align-items: center; gap: 8px; border: 2px solid var(--line); border-radius: 999px; padding: 6px 12px; font-size: 16px; }
-      .dot { width: 14px; height: 14px; border-radius: 999px; display: inline-block; }
-      .dot.off { background: #9ca3af; }
-      .dot.in { background: #16a34a; }
-      .dot.break { background: #d97706; }
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        border: 2px solid var(--line);
+        border-radius: 999px;
+        padding: 6px 12px;
+        font-size: 16px;
+      }
+      .dot {
+        width: 14px;
+        height: 14px;
+        border-radius: 999px;
+        display: inline-block;
+      }
+      .dot.off {
+        background: #9ca3af;
+      }
+      .dot.in {
+        background: #16a34a;
+      }
+      .dot.break {
+        background: #d97706;
+      }
 
       /* Button layout */
-      .grid-actions { display: grid; grid-template-columns: 1fr; gap: 16px; }
+      .grid-actions {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 16px;
+      }
 
       /* BIG ACTION BUTTONS */
       .bigbtn {
-        display: flex; align-items: center; justify-content: center;
-        border: 2px solid transparent; border-radius: var(--btn-radius);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 2px solid transparent;
+        border-radius: var(--btn-radius);
         min-height: clamp(var(--btn-min), var(--btn-vh), var(--btn-max));
-        padding: 36px 28px; font-weight: 800; color: #fff; box-shadow: var(--shadow);
+        padding: 36px 28px;
+        font-weight: 800;
+        color: #fff;
+        box-shadow: var(--shadow);
         cursor: pointer;
-        font-size: clamp(var(--btn-fs-min), var(--btn-fs-vw), var(--btn-fs-max));
-        line-height: 1.1; white-space: normal; text-wrap: balance; gap: 14px;
+        font-size: clamp(
+          var(--btn-fs-min),
+          var(--btn-fs-vw),
+          var(--btn-fs-max)
+        );
+        line-height: 1.1;
+        white-space: normal;
+        text-wrap: balance;
       }
-      .bigbtn .ico { width: 1.6em; height: 1.6em; flex: 0 0 auto; stroke-width: 2.2; }
-      .bigbtn:hover:not([disabled]) { filter: saturate(1.08) brightness(0.98); }
-      .bigbtn:active:not([disabled]) { transform: scale(0.98); filter: brightness(0.92); }
-      .bigbtn:focus-visible { outline: 3px solid rgba(0,0,0,0.2); outline-offset: 2px; }
+      .bigbtn {
+        gap: 14px;
+      }
+      .bigbtn .ico {
+        width: 1.6em;
+        height: 1.6em;
+        flex: 0 0 auto;
+        stroke-width: 2.2;
+      }
+      .bigbtn:hover:not([disabled]) {
+        filter: saturate(1.08) brightness(0.98);
+      }
+      .bigbtn:active:not([disabled]) {
+        transform: scale(0.98);
+        filter: brightness(0.92);
+      }
+      .bigbtn:focus-visible {
+        outline: 3px solid rgba(0, 0, 0, 0.2);
+        outline-offset: 2px;
+      }
       .bigbtn[disabled] {
-        background: var(--disabled); color: #9ca3af; cursor: not-allowed; box-shadow: none; transform: none;
+        background: var(--disabled);
+        color: #9ca3af;
+        cursor: not-allowed;
+        box-shadow: none;
+        transform: none;
       }
 
       /* Action colors */
-      .btn-in { background: var(--in); }
-      .btn-sbr { background: var(--sbr); }
-      .btn-ebr { background: var(--ebr); }
-      .btn-out { background: var(--out); }
+      .btn-in {
+        background: var(--in);
+      }
+      .btn-sbr {
+        background: var(--sbr);
+      }
+      .btn-ebr {
+        background: var(--ebr);
+      }
+      .btn-out {
+        background: var(--out);
+      }
 
       /* Table & badges */
-      table { border-collapse: collapse; width: 100%; font-size: 18px; }
-      th, td { padding: 10px; border-bottom: 1px solid var(--line); text-align: left; }
-      th { background: #f9fafb; }
-      .badge { display: inline-block; padding: 4px 8px; border-radius: 999px; font-size: 14px; color: #fff; }
-      .b-in { background: var(--in); }
-      .b-out { background: var(--out); }
-      .b-sbr { background: var(--sbr); }
-      .b-ebr { background: var(--ebr); }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 18px;
+      }
+      th,
+      td {
+        padding: 10px;
+        border-bottom: 1px solid var(--line);
+        text-align: left;
+      }
+      th {
+        background: #f9fafb;
+      }
+      .badge {
+        display: inline-block;
+        padding: 4px 8px;
+        border-radius: 999px;
+        font-size: 14px;
+        color: #fff;
+      }
+      .b-in {
+        background: var(--in);
+      }
+      .b-out {
+        background: var(--out);
+      }
+      .b-sbr {
+        background: var(--sbr);
+      }
+      .b-ebr {
+        background: var(--ebr);
+      }
 
       /* Passcode dots */
-      .passdots { display: flex; gap: 14px; align-items: center; justify-content: center; width: 100%; }
-      .passdot { width: 16px; height: 16px; border-radius: 999px; border: 2px solid var(--line); }
-      .passdot.filled { background: #111; border-color: #111; }
+      .passdots {
+        display: flex;
+        gap: 14px;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+      }
+      .passdot {
+        width: 16px;
+        height: 16px;
+        border-radius: 999px;
+        border: 2px solid var(--line);
+      }
+      .passdot.filled {
+        background: #111;
+        border-color: #111;
+      }
 
       /* Topbar */
       .topbar {
-        display: flex; align-items: center; justify-content: space-between;
-        padding: 12px 14px; margin: 0 0 12px; border: 2px solid var(--line);
-        border-radius: 12px; background: #fff; box-shadow: var(--shadow);
-        font-weight: 700; font-size: 22px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 14px;
+        margin: 0 0 12px;
+        border: 2px solid var(--line);
+        border-radius: 12px;
+        background: #fff;
+        box-shadow: var(--shadow);
+        font-weight: 700;
+        font-size: 22px;
       }
-      #top_title { font-weight: 700; font-size: 22px; }
-      #id_val { flex: 1; display: flex; justify-content: center; letter-spacing: 3px; }
-      #clock { font-size: 20px; font-weight: 600; white-space: nowrap; }
+      #top_title {
+        font-weight: 700;
+        font-size: 22px;
+      }
+      #id_val {
+        flex: 1;
+        display: flex;
+        justify-content: center;
+        letter-spacing: 3px;
+      }
+      #clock {
+        font-size: 20px;
+        font-weight: 600;
+        white-space: nowrap;
+      }
 
       /* Row for Start Break + Clock Out side-by-side */
-      .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-      .row-2:has(.bigbtn[style*="display: none"]) .bigbtn:not([style*="display: none"]) { grid-column: 1 / -1; }
+      .row-2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+      }
+      .row-2:has(.bigbtn[style*="display: none"])
+        .bigbtn:not([style*="display: none"]) {
+        grid-column: 1 / -1;
+      }
 
       /* Mobile */
-      @media (max-width: 540px) { .row-2 { grid-template-columns: 1fr; } }
-
-      /* ===== Exit overlay (prevents accidental second tap) ===== */
-      .exitmask {
-        position: fixed; inset: 0; display: none;
-        align-items: center; justify-content: center;
-        background: rgba(255,255,255,0.82); backdrop-filter: blur(2px);
-        z-index: 9999; text-align: center; padding: 24px;
-        font-weight: 800; font-size: 26px; color: #111;
+      @media (max-width: 540px) {
+        .row-2 {
+          grid-template-columns: 1fr;
+        }
       }
-      .exitmask .sub { display:block; margin-top: 8px; font-weight: 600; font-size: 18px; color: var(--muted); }
     </style>
   </head>
   <body>
@@ -158,7 +318,12 @@
       <div class="panel">
         <div class="display" style="margin-top: 12px">
           <span id="top_title">TopNotch v1.0</span>
-          <span id="id_val" class="passdots" aria-label="Enter 4-digit code" aria-live="polite"></span>
+          <span
+            id="id_val"
+            class="passdots"
+            aria-label="Enter 4-digit code"
+            aria-live="polite"
+          ></span>
           <span id="clock" aria-live="polite"></span>
         </div>
         <div class="keypad" id="id_pad" style="margin-top: 16px"></div>
@@ -168,49 +333,100 @@
     <!-- View 2: Actions -->
     <section id="v_act" class="view">
       <div class="panel">
-        <div class="row" style="justify-content: space-between; gap: 16px; flex-wrap: wrap">
-          <div><div style="font-size: 22px; font-weight: 800">Welcome, <span id="emp_name"></span></div></div>
+        <div
+          class="row"
+          style="justify-content: space-between; gap: 16px; flex-wrap: wrap"
+        >
+          <div>
+            <div style="font-size: 22px; font-weight: 800">
+              Welcome, <span id="emp_name"></span>
+            </div>
+          </div>
           <div class="chip" id="chip">
             <span class="dot off"></span>
             <span id="chip_status">Off Duty</span>
-            <span id="chip_time" style="margin-left: 8px; font-weight: 600; font-size: 16px"></span>
+            <span
+              id="chip_time"
+              style="margin-left: 8px; font-weight: 600; font-size: 16px"
+            ></span>
           </div>
         </div>
 
         <div class="grid-actions" style="margin-top: 16px">
           <button class="bigbtn btn-in" id="btn_in">
-            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M5 4v16"></path><path d="M10 12h10"></path><path d="M16 8l4 4-4 4"></path>
-            </svg><span>Clock In</span>
+            <svg
+              class="ico"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              aria-hidden="true"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M5 4v16"></path>
+              <path d="M10 12h10"></path>
+              <path d="M16 8l4 4-4 4"></path></svg
+            ><span>Clock In</span>
           </button>
 
           <div class="row-2">
             <button class="bigbtn btn-sbr" id="btn_sbr">
-              <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" stroke-linecap="round" stroke-linejoin="round">
+              <svg
+                class="ico"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                aria-hidden="true"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
                 <rect x="3" y="10" width="12" height="6" rx="2"></rect>
                 <path d="M15 11h3a2 2 0 0 1 0 4h-3"></path>
-                <path d="M7 7v2M9 6v2M11 7v2"></path>
-              </svg><span>Start Break</span>
+                <path d="M7 7v2M9 6v2M11 7v2"></path></svg
+              ><span>Start Break</span>
             </button>
 
             <button class="bigbtn btn-out" id="btn_out">
-              <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M19 4v16"></path><path d="M14 12H4"></path><path d="M8 8l-4 4 4 4"></path>
-              </svg><span>Clock Out</span>
+              <svg
+                class="ico"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                aria-hidden="true"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M19 4v16"></path>
+                <path d="M14 12H4"></path>
+                <path d="M8 8l-4 4 4 4"></path></svg
+              ><span>Clock Out</span>
             </button>
           </div>
 
           <button class="bigbtn btn-ebr" id="btn_ebr">
-            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" stroke-linecap="round" stroke-linejoin="round">
+            <svg
+              class="ico"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              aria-hidden="true"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
               <rect x="3" y="8" width="18" height="12" rx="2"></rect>
               <path d="M9 8V6h6v2"></path>
-              <path d="M3 13h18"></path>
-            </svg><span>Stop Break</span>
+              <path d="M3 13h18"></path></svg
+            ><span>Stop Break</span>
           </button>
         </div>
 
-        <div class="row" style="justify-content: space-between; margin-top: 16px">
-          <button class="key action" id="btn_logout" style="padding: 12px 16px">Logout</button>
+        <div
+          class="row"
+          style="justify-content: space-between; margin-top: 16px"
+        >
+          <button class="key action" id="btn_logout" style="padding: 12px 16px">
+            Logout
+          </button>
         </div>
       </div>
 
@@ -231,11 +447,6 @@
       </div>
     </section>
 
-    <!-- Exit overlay -->
-    <div id="exitmask" class="exitmask" aria-live="polite">
-      Saving…<span class="sub">Please wait</span>
-    </div>
-
     <script type="module">
       import { $, jfetch, toast } from "/static/js/api.js?v=1";
 
@@ -247,23 +458,32 @@
       const LA_TZ = "America/Los_Angeles";
 
       function laOffsetMs(d = new Date()) {
+        // "what time would LA show?" parsed as local; diff gives offset
         const laStr = d.toLocaleString("en-US", { timeZone: LA_TZ });
         const laAsLocal = new Date(laStr);
         return laAsLocal.getTime() - d.getTime();
       }
-      function toLA(d = new Date()) { return new Date(d.getTime() + laOffsetMs(d)); }
-      function fromLA(laDate) { return new Date(laDate.getTime() - laOffsetMs(laDate)); }
+
+      function toLA(d = new Date()) {
+        return new Date(d.getTime() + laOffsetMs(d));
+      }
+
+      function fromLA(laDate) {
+        return new Date(laDate.getTime() - laOffsetMs(laDate));
+      }
 
       function startOfTodayISO_LA() {
         const laNow = toLA(new Date());
         const laStart = new Date(laNow.getFullYear(), laNow.getMonth(), laNow.getDate(), 0, 0, 0, 0);
         return fromLA(laStart).toISOString();
       }
+
       function startOfTomorrowISO_LA() {
         const laNow = toLA(new Date());
         const laStart = new Date(laNow.getFullYear(), laNow.getMonth(), laNow.getDate() + 1, 0, 0, 0, 0);
         return fromLA(laStart).toISOString();
       }
+
       function fmtDateTimeLA(ts) {
         if (!ts) return "";
         const d = typeof ts === "string" ? new Date(ts) : ts;
@@ -271,16 +491,20 @@
         const yyyy = la.getFullYear();
         const mm = String(la.getMonth() + 1).padStart(2, "0");
         const dd = String(la.getDate()).padStart(2, "0");
-        const hh = String(la.getHours()).padPadStart?.(2,"0") ?? String(la.getHours()).padStart(2,"0");
+        const hh = String(la.getHours()).padStart(2, "0");
         const mi = String(la.getMinutes()).padStart(2, "0");
         const ss = String(la.getSeconds()).padStart(2, "0");
         return `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss}`;
       }
+
       function fmtClockLA() {
         const la = toLA(new Date());
         return la.toLocaleTimeString([], {
-          hour: "2-digit", minute: "2-digit", second: "2-digit",
-          hour12: true, timeZone: LA_TZ,
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+          hour12: true,
+          timeZone: LA_TZ,
         });
       }
 
@@ -288,14 +512,20 @@
       const QUEUE_KEY = "kiosk_queue_v1";
       const EMP_CACHE_KEY = "kiosk_emp_cache_v1";
       const EVENTS_PREFIX = "kiosk_events_v1_";
-      const SHADOW_KEY = "kiosk_shadow_v1";
       const EMP_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
       const pad = (n) => String(n).padStart(2, "0");
+
+      // keep (used for some places if needed)
       const fmtTime = (ts) => {
         if (!ts) return "";
         const d = toLA(new Date(ts));
-        return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+        return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(
+          d.getSeconds()
+        )}`;
       };
+
+      // override the range helpers to use LA day
       const startOfTodayISO = startOfTodayISO_LA;
       const startOfTomorrowISO = startOfTomorrowISO_LA;
 
@@ -303,10 +533,13 @@
         ["v_id", "v_act"].forEach((v) => $(v).classList.remove("active"));
         $(id).classList.add("active");
       };
-      const uuid = () => `loc-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+      const uuid = () =>
+        `loc-${Date.now().toString(36)}-${Math.random()
+          .toString(36)
+          .slice(2, 8)}`;
 
       function todayKey(code) {
-        const d = toLA(new Date());
+        const d = toLA(new Date()); // LA calendar key
         const y = d.getFullYear();
         const m = pad(d.getMonth() + 1);
         const dd = pad(d.getDate());
@@ -324,14 +557,24 @@
       function getLocalEvents(code) {
         if (!code) return [];
         const key = todayKey(code);
-        try { return JSON.parse(localStorage.getItem(key) || "[]"); } catch { return []; }
+        try {
+          return JSON.parse(localStorage.getItem(key) || "[]");
+        } catch {
+          return [];
+        }
       }
 
       /* employee cache */
       function loadEmpCache() {
-        try { return JSON.parse(localStorage.getItem(EMP_CACHE_KEY) || "{}"); } catch { return {}; }
+        try {
+          return JSON.parse(localStorage.getItem(EMP_CACHE_KEY) || "{}");
+        } catch {
+          return {};
+        }
       }
-      function saveEmpCache(c) { localStorage.setItem(EMP_CACHE_KEY, JSON.stringify(c)); }
+      function saveEmpCache(c) {
+        localStorage.setItem(EMP_CACHE_KEY, JSON.stringify(c));
+      }
       function rememberEmployee(code, info) {
         if (!code) return;
         const c = loadEmpCache();
@@ -341,69 +584,45 @@
       function recallEmployee(code) {
         const rec = loadEmpCache()[code];
         if (!rec) return null;
-        if (EMP_TTL_MS && Date.now() - (rec.updated_at || 0) > EMP_TTL_MS) return null;
+        if (EMP_TTL_MS && Date.now() - (rec.updated_at || 0) > EMP_TTL_MS)
+          return null;
         return rec;
       }
 
-      /* shadow persistence */
-      function loadShadow() {
-        try { return JSON.parse(localStorage.getItem(SHADOW_KEY) || "{}"); } catch { return {}; }
-      }
-      function saveShadow(sh) { localStorage.setItem(SHADOW_KEY, JSON.stringify(sh || {})); }
-
       /* queue for offline POSTs */
       function loadQueue() {
-        try { return JSON.parse(localStorage.getItem(QUEUE_KEY) || "[]"); } catch { return []; }
-      }
-      function saveQueue(q) { localStorage.setItem(QUEUE_KEY, JSON.stringify(q)); }
-
-      // --- NEW safePost: never queue 4xx; queue only network/5xx ---
-      async function safePost(endpoint, body) {
         try {
-          const res = await fetch(api(endpoint), {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body),
-          });
-
-          if (res.ok) {
-            let data = null;
-            try { data = await res.json(); } catch {}
-            return { ok: true, queued: false, res: data };
-          }
-
-          if (res.status >= 400 && res.status < 500) {
-            const text = await res.text().catch(() => "");
-            throw new Error(text || `HTTP ${res.status} (Bad Request)`);
-          }
-
-          // treat other errors (5xx) as queueable
-          throw new Error(`HTTP ${res.status} (Server Error)`);
-        } catch (err) {
-          const msg = String(err?.message || "");
-          const isLikelyNetwork =
-            err instanceof TypeError ||
-            msg.includes("NetworkError") ||
-            msg.includes("Failed to fetch");
-
-          if (!isLikelyNetwork && !/HTTP 5\d{2}/.test(msg)) {
-            // not network and not 5xx => don't queue
-            throw err;
-          }
-
-          const q = loadQueue();
-          q.push({
-            id: uuid(),
-            endpoint,
-            method: "POST",
-            body,
-            created_at: Date.now(),
-            tries: 0,
-            last_error: msg || null,
-          });
-          saveQueue(q);
-          return { ok: false, queued: true };
+          return JSON.parse(localStorage.getItem(QUEUE_KEY) || "[]");
+        } catch {
+          return [];
         }
+      }
+      function saveQueue(q) {
+        localStorage.setItem(QUEUE_KEY, JSON.stringify(q));
+      }
+
+      async function safePost(endpoint, body) {
+        const attempt = async () =>
+          jfetch(api(endpoint), { method: "POST", body: JSON.stringify(body) });
+        if (navigator.onLine) {
+          try {
+            const res = await attempt();
+            return { ok: true, queued: false, res };
+          } catch (e) {
+            /* fall back to queue */
+          }
+        }
+        const q = loadQueue();
+        q.push({
+          id: uuid(),
+          endpoint,
+          method: "POST",
+          body,
+          created_at: Date.now(),
+          tries: 0,
+        });
+        saveQueue(q);
+        return { ok: false, queued: true };
       }
 
       async function processQueue() {
@@ -413,37 +632,37 @@
         for (let i = 0; i < q.length; i++) {
           const item = q[i];
           try {
-            const res = await fetch(api(item.endpoint), {
+            await jfetch(api(item.endpoint), {
               method: item.method,
-              headers: { "Content-Type": "application/json" },
               body: JSON.stringify(item.body),
             });
-
-            if (res.ok) {
-              q.splice(i, 1); i--; changed = true;
-            } else if (res.status >= 400 && res.status < 500) {
-              // permanent client error -> drop it
-              q.splice(i, 1); i--; changed = true;
-            } else {
-              // 5xx -> keep for retry
-              item.tries = (item.tries || 0) + 1;
-            }
-          } catch {
-            // network -> keep for retry
+            q.splice(i, 1);
+            i--;
+            changed = true;
+          } catch (e) {
             item.tries = (item.tries || 0) + 1;
           }
         }
         if (changed) saveQueue(q);
         if ($("v_act").classList.contains("active") && state.code) {
-          try { await fetchStateByCode(state.code); } catch {}
+          try {
+            await fetchStateByCode(state.code);
+          } catch {}
         }
       }
       setInterval(processQueue, 15000);
       window.addEventListener("online", processQueue);
 
       /* ----------------- UI helpers ----------------- */
-      function hide(el) { if (!el) return; if (document.activeElement === el) el.blur(); el.style.display = "none"; }
-      function show(el) { if (!el) return; el.style.display = ""; }
+      function hide(el) {
+        if (!el) return;
+        if (document.activeElement === el) el.blur();
+        el.style.display = "none";
+      }
+      function show(el) {
+        if (!el) return;
+        el.style.display = "";
+      }
 
       function setChip(status) {
         const dot = document.querySelector("#chip .dot");
@@ -451,8 +670,11 @@
         const timeEl = document.getElementById("chip_time");
         dot.className = "dot " + (status || "off");
         txt.textContent =
-          status === "in" ? "Clocked In" :
-          status === "break" ? "On Break" : "Off Duty";
+          status === "in"
+            ? "Clocked In"
+            : status === "break"
+            ? "On Break"
+            : "Off Duty";
         timeEl.textContent = fmtClockLA();
       }
 
@@ -467,70 +689,11 @@
         status: "off",
         busy: false,
         hasBreakUsed: false,
-        shadow: { openTimeEntryId: null, openBreakId: null, ...loadShadow() },
-        exiting: false,
+        shadow: { openTimeEntryId: null, openBreakId: null }, // offline shadow
       };
-
-      // === NEW: hard reset of login UI after auto-logout or manual logout ===
-      function resetLoginUI() {
-        state.idDigits = "";
-        renderIdDots();
-
-        const title = document.getElementById("top_title");
-        if (title) title.textContent = "TopNotch v1.0";
-
-        const nameEl = $("emp_name");
-        if (nameEl) nameEl.textContent = "";
-
-        setChip("off");
-      }
-
-      // infer status purely from local events (used for offline login fallback)
-      function inferStatusFromLocal(code) {
-        const evts = getLocalEvents(code).sort((a,b)=>new Date(a.ts)-new Date(b.ts));
-        let status = "off";
-        for (const e of evts) {
-          if (e.kind === "in") status = "in";
-          if (e.kind === "sbr") status = "break";
-          if (e.kind === "ebr") status = "in";
-          if (e.kind === "out") status = "off";
-        }
-        return status;
-      }
-
-      // Fast exit flow: move to PIN immediately and mask the UI
-      function beginSubmitAndLeaveView(msg = "Saving…") {
-        state.exiting = true;
-        const mask = $("exitmask");
-        if (mask) {
-          mask.firstChild.nodeValue = msg;
-          mask.style.display = "flex";
-        }
-        document.querySelectorAll(".bigbtn, #btn_logout").forEach((b) => {
-          b.setAttribute("disabled", "true");
-          b.style.pointerEvents = "none";
-          b.style.visibility = "hidden";
-        });
-        setView("v_id");
-      }
-
-      function leaveExitMode() {
-        state.exiting = false;
-        const mask = $("exitmask");
-        if (mask) mask.style.display = "none";
-        document.querySelectorAll(".bigbtn, #btn_logout").forEach((b) => {
-          b.removeAttribute("disabled");
-          b.style.pointerEvents = "";
-          b.style.visibility = "";
-        });
-      }
 
       /* ----------------- UI logic (hide/show buttons) ----------------- */
       function updateButtons() {
-        if (state.exiting) {
-          ["btn_in","btn_out","btn_sbr","btn_ebr"].forEach((id) => hide($(id)));
-          return;
-        }
         const inBtn = $("btn_in");
         const outBtn = $("btn_out");
         const sbrBtn = $("btn_sbr");
@@ -541,18 +704,28 @@
         const onBreak = !!(state.breakId || state.shadow.openBreakId);
         const usedBreakThisShift = !!state.hasBreakUsed;
 
-        if (st === "off") { show(inBtn); return; }
-        if (st === "break" || onBreak) { show(ebrBtn); return; }
-        if (usedBreakThisShift) { show(outBtn); }
-        else { show(sbrBtn); show(outBtn); }
+        if (st === "off") {
+          show(inBtn);
+          return;
+        }
+        if (st === "break" || onBreak) {
+          show(ebrBtn);
+          return;
+        }
+        if (usedBreakThisShift) {
+          show(outBtn);
+        } else {
+          show(sbrBtn);
+          show(outBtn);
+        }
       }
 
       function logout() {
         setView("v_id");
-        resetLoginUI();
-
+        clearId();
+        const title = document.getElementById("top_title");
+        if (title) title.textContent = "TopNotch v1.0";
         toast("Logged out");
-
         state.code = "";
         state.empName = "";
         state.employeeId = null;
@@ -562,9 +735,7 @@
         state.hasBreakUsed = false;
         state.shadow.openTimeEntryId = null;
         state.shadow.openBreakId = null;
-        saveShadow(state.shadow);
-
-        leaveExitMode();
+        setChip("off");
         updateButtons();
         renderLog([]);
       }
@@ -576,26 +747,39 @@
           tb.innerHTML = `<tr><td colspan="3"><span class="muted">No entries yet today</span></td></tr>`;
           return;
         }
-        tb.innerHTML = rows.map((r) => {
-          const badgeCls =
-            r.kind === "in" ? "b-in" :
-            r.kind === "out" ? "b-out" :
-            r.kind === "sbr" ? "b-sbr" : "b-ebr";
-          const label =
-            r.kind === "in" ? "Clock In" :
-            r.kind === "out" ? "Clock Out" :
-            r.kind === "sbr" ? "Start Break" : "Stop Break";
-          return `<tr>
+        tb.innerHTML = rows
+          .map((r) => {
+            const badgeCls =
+              r.kind === "in"
+                ? "b-in"
+                : r.kind === "out"
+                ? "b-out"
+                : r.kind === "sbr"
+                ? "b-sbr"
+                : "b-ebr";
+            const label =
+              r.kind === "in"
+                ? "Clock In"
+                : r.kind === "out"
+                ? "Clock Out"
+                : r.kind === "sbr"
+                ? "Start Break"
+                : "Stop Break";
+            return `<tr>
                   <td>${fmtDateTimeLA(r.ts)}</td>
                   <td><span class="badge ${badgeCls}">${label}</span></td>
                   <td>${r.note || ""}</td>
                 </tr>`;
-        }).join("");
+          })
+          .join("");
       }
 
       async function fetchTodayLog() {
         if (!state.employeeId) {
-          const events = getLocalEvents(state.code).sort((a, b) => new Date(b.ts) - new Date(a.ts));
+          // offline/no employee_id → local events
+          const events = getLocalEvents(state.code).sort(
+            (a, b) => new Date(b.ts) - new Date(a.ts)
+          );
           renderLog(events.slice(0, 4));
           updateButtons();
           return;
@@ -603,22 +787,32 @@
 
         const qs = new URLSearchParams({
           employee_id: String(state.employeeId),
-          start_at: startOfTodayISO(),
-          end_at: startOfTomorrowISO(),
+          start_at: startOfTodayISO(),     // LA midnight (UTC instant)
+          end_at: startOfTomorrowISO(),    // LA tomorrow midnight (UTC instant)
         }).toString();
 
         try {
           let rows;
-          try { rows = await jfetch(api(`/time-entries/range?${qs}`)); }
-          catch { rows = await jfetch(api(`/time-entries?${qs}`)); }
+          try {
+            rows = await jfetch(api(`/time-entries/range?${qs}`));
+          } catch {
+            rows = await jfetch(api(`/time-entries?${qs}`));
+          }
 
           let currentTE = null;
-          if (state.timeEntryId != null) currentTE = rows.find((te) => te.id === state.timeEntryId) || null;
+          if (state.timeEntryId != null) {
+            currentTE = rows.find((te) => te.id === state.timeEntryId) || null;
+          }
 
           if (currentTE && Array.isArray(currentTE.breaks)) {
-            state.hasBreakUsed = currentTE.breaks.some((b) => b.start_at != null);
+            state.hasBreakUsed = currentTE.breaks.some(
+              (b) => b.start_at != null
+            );
           } else {
-            state.hasBreakUsed = getLocalEvents(state.code).some((e) => e.kind === "sbr");
+            // if none from server, fall back to local events
+            state.hasBreakUsed = getLocalEvents(state.code).some(
+              (e) => e.kind === "sbr"
+            );
           }
 
           const events = [];
@@ -630,16 +824,20 @@
                 if (br.end_at) events.push({ kind: "ebr", ts: br.end_at });
               }
             }
-            if (te.clock_out_at) events.push({ kind: "out", ts: te.clock_out_at });
+            if (te.clock_out_at)
+              events.push({ kind: "out", ts: te.clock_out_at });
           }
 
+          // mix with local
           events.push(...getLocalEvents(state.code));
           events.sort((a, b) => new Date(b.ts) - new Date(a.ts));
           renderLog(events.slice(0, 4));
 
           updateButtons();
         } catch (e) {
-          const events = getLocalEvents(state.code).sort((a, b) => new Date(b.ts) - new Date(a.ts));
+          const events = getLocalEvents(state.code).sort(
+            (a, b) => new Date(b.ts) - new Date(a.ts)
+          );
           renderLog(events.slice(0, 4));
           updateButtons();
           if (navigator.onLine) toast(e.message || "Load log failed", false);
@@ -649,22 +847,27 @@
       /* ----------------- server state ----------------- */
       async function fetchStateByCode(code) {
         try {
-          const data = await jfetch(api(`/time-entries/state/${encodeURIComponent(code)}`));
+          const data = await jfetch(
+            api(`/time-entries/state/${encodeURIComponent(code)}`)
+          );
           state.status = data.status || "off";
           state.timeEntryId = data.time_entry_id || null;
           state.breakId = data.break_id || null;
           state.employeeId = data.employee_id || null;
           state.empName = data.name || state.empName || "Employee";
-          rememberEmployee(code, { name: state.empName, employee_id: state.employeeId });
+          rememberEmployee(code, {
+            name: state.empName,
+            employee_id: state.employeeId,
+          });
         } catch (e) {
+          // offline login via cache
           const cached = recallEmployee(code);
           if (!cached) throw e;
           state.empName = cached.name || "Employee";
           state.employeeId = cached.employee_id || null;
-
           if (state.shadow.openBreakId) state.status = "break";
           else if (state.shadow.openTimeEntryId) state.status = "in";
-          else state.status = inferStatusFromLocal(code);
+          else state.status = "off";
         }
 
         $("emp_name").textContent = state.empName;
@@ -680,46 +883,43 @@
       async function clockIn() {
         if (state.busy) return;
         state.busy = true;
-        beginSubmitAndLeaveView("Saving Clock In…");
-
         try {
-          // If backend accepts employee_id, include it
-          const payload = { code: state.code, method: "web" };
-          if (state.employeeId) payload.employee_id = state.employeeId;
-
-          const resp = await safePost("/time-entries/start", payload);
-
+          const resp = await safePost("/time-entries/start", {
+            code: state.code,
+            method: "web",
+          });
+          // optimistic update
           state.status = "in";
-          if (!state.shadow.openTimeEntryId) state.shadow.openTimeEntryId = uuid();
-          saveShadow(state.shadow);
+          state.shadow.openTimeEntryId = state.shadow.openTimeEntryId || uuid();
+          pushLocalEvent(state.code, {
+            kind: "in",
+            ts: new Date().toISOString(),
+          });
 
-          pushLocalEvent(state.code, { kind: "in", ts: new Date().toISOString() });
-
+          setChip("in");
+          updateButtons();
+          await fetchTodayLog();
           toast(resp.queued ? "Clocked in (queued)" : "Clocked in");
-
-          state.code = "";
-          state.idDigits = "";
-          resetLoginUI();
-
-          state.busy = false;
-          leaveExitMode();
-          return;
+          logout();
         } catch (e) {
-          leaveExitMode();
-          setView("v_act");
-          state.busy = false;
           toast(e.message || "Clock in failed", false);
+        } finally {
+          state.busy = false;
         }
       }
 
       async function clockOut() {
         if (state.busy) return;
         state.busy = true;
-        beginSubmitAndLeaveView("Saving Clock Out…");
-
         try {
-          const resp = await safePost("/time-entries/stop", { code: state.code, method: "web" });
-          pushLocalEvent(state.code, { kind: "out", ts: new Date().toISOString() });
+          const resp = await safePost("/time-entries/stop", {
+            code: state.code,
+            method: "web",
+          });
+          pushLocalEvent(state.code, {
+            kind: "out",
+            ts: new Date().toISOString(),
+          });
 
           state.status = "off";
           state.timeEntryId = null;
@@ -727,92 +927,98 @@
           state.hasBreakUsed = false;
           state.shadow.openTimeEntryId = null;
           state.shadow.openBreakId = null;
-          saveShadow(state.shadow);
 
+          setChip("off");
+          updateButtons();
+          await fetchTodayLog();
           toast(resp.queued ? "Clocked out (queued)" : "Clocked out");
-
-          state.code = "";
-          state.idDigits = "";
-          resetLoginUI();
-
-          state.busy = false;
-          leaveExitMode();
-          return;
+          logout();
         } catch (e) {
-          leaveExitMode();
-          setView("v_act");
-          state.busy = false;
           toast(e.message || "Clock out failed", false);
+        } finally {
+          state.busy = false;
         }
       }
 
       async function startBreak() {
         if (state.busy) return;
         state.busy = true;
-        beginSubmitAndLeaveView("Saving Break Start…");
-
         try {
-          const resp = await safePost("/breaks/start", { code: state.code, break_type: "lunch", is_paid: false, method: "web" });
+          const resp = await safePost("/breaks/start", {
+            code: state.code,
+            break_type: "lunch",
+            is_paid: false,
+            method: "web",
+          });
           state.status = "break";
-          if (!state.shadow.openBreakId) state.shadow.openBreakId = uuid();
-          saveShadow(state.shadow);
+          state.shadow.openBreakId = state.shadow.openBreakId || uuid();
+          pushLocalEvent(state.code, {
+            kind: "sbr",
+            ts: new Date().toISOString(),
+          });
 
-          pushLocalEvent(state.code, { kind: "sbr", ts: new Date().toISOString() });
-
+          setChip("break");
+          updateButtons();
+          await fetchTodayLog();
           toast(resp.queued ? "Break started (queued)" : "Break started");
-
-          state.code = "";
-          state.idDigits = "";
-          resetLoginUI();
-
-          state.busy = false;
-          leaveExitMode();
-          return;
+          logout();
         } catch (e) {
-          leaveExitMode();
-          setView("v_act");
-          state.busy = false;
           toast(e.message || "Start break failed", false);
+        } finally {
+          state.busy = false;
         }
       }
 
       async function stopBreak() {
         if (state.busy) return;
         state.busy = true;
-        beginSubmitAndLeaveView("Saving Break Stop…");
-
         try {
           const resp = await safePost("/breaks/stop", { code: state.code });
-          pushLocalEvent(state.code, { kind: "ebr", ts: new Date().toISOString() });
+          pushLocalEvent(state.code, {
+            kind: "ebr",
+            ts: new Date().toISOString(),
+          });
 
           state.status = "in";
           state.shadow.openBreakId = null;
           state.hasBreakUsed = true;
-          saveShadow(state.shadow);
 
+          setChip("in");
+          updateButtons();
+          await fetchTodayLog();
           toast(resp.queued ? "Break stopped (queued)" : "Break stopped");
-
-          state.code = "";
-          state.idDigits = "";
-          resetLoginUI();
-
-          state.busy = false;
-          leaveExitMode();
-          return;
+          logout();
         } catch (e) {
-          leaveExitMode();
-          setView("v_act");
-          state.busy = false;
           toast(e.message || "Stop break failed", false);
+        } finally {
+          state.busy = false;
         }
       }
 
       /* ----------------- keypad ----------------- */
       function renderPad(el) {
-        const keys = ["1","2","3","4","5","6","7","8","9","⌫","0","Clear"];
-        el.innerHTML = keys.map(
-          (k) => `<button class="key${isNaN(+k) ? " action" : ""}" data-k="${k}">${k}</button>`
-        ).join("");
+        const keys = [
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7",
+          "8",
+          "9",
+          "⌫",
+          "0",
+          "Clear",
+        ];
+        el.innerHTML = keys
+          .map(
+            (k) =>
+              `<button class="key${
+                isNaN(+k) ? " action" : ""
+              }" data-k="${k}">${k}</button>`
+          )
+          .join("");
         el.addEventListener("click", async (e) => {
           const b = e.target.closest("button[data-k]");
           if (!b) return;
@@ -828,15 +1034,15 @@
       }
 
       async function handleFourDigits(code) {
+        // offline + cached → allow
         if (!navigator.onLine) {
           const cached = recallEmployee(code);
           if (cached) {
             state.empName = cached.name || "Employee";
             state.employeeId = cached.employee_id || null;
-
             if (state.shadow.openBreakId) state.status = "break";
             else if (state.shadow.openTimeEntryId) state.status = "in";
-            else state.status = inferStatusFromLocal(code);
+            else state.status = "off";
 
             $("emp_name").textContent = state.empName;
             const title = document.getElementById("top_title");
@@ -850,8 +1056,9 @@
             return;
           }
         }
+        // normal: online or no cache
         try {
-          await fetchStateByCode(code);
+          await fetchStateByCode(code); // validate + pull name/status
           state.code = code;
           setView("v_act");
         } catch (e) {
@@ -875,29 +1082,37 @@
         $("btn_sbr").addEventListener("click", startBreak);
         $("btn_ebr").addEventListener("click", stopBreak);
         $("btn_logout").addEventListener("click", () => {
-          if (!state.exiting) logout();
+          logout();
         });
         updateButtons();
         startChipClock();
-        processQueue();
+        processQueue(); // flush any pending
       });
 
       function renderIdDots() {
         const n = state.idDigits.length;
-        const dots = Array.from({ length: 4 }, (_, i) => `<span class="passdot${i < n ? " filled" : ""}"></span>`).join("");
+        const dots = Array.from(
+          { length: 4 },
+          (_, i) => `<span class="passdot${i < n ? " filled" : ""}"></span>`
+        ).join("");
         $("id_val").innerHTML = dots;
       }
 
       function startClock() {
         const el = document.getElementById("clock");
-        const tick = () => { el.textContent = fmtClockLA(); };
-        tick(); return setInterval(tick, 1000);
+        const tick = () => {
+          el.textContent = fmtClockLA();
+        };
+        tick();
+        return setInterval(tick, 1000);
       }
 
       function startChipClock() {
         const timeEl = document.getElementById("chip_time");
         if (!timeEl) return;
-        setInterval(() => { timeEl.textContent = fmtClockLA(); }, 1000);
+        setInterval(() => {
+          timeEl.textContent = fmtClockLA();
+        }, 1000);
       }
     </script>
   </body>
