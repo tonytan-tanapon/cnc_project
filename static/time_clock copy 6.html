@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>
-      Kiosk — Time Clock (online only)
+      Kiosk — Time Clock (PIN only, colored buttons, protected actions)
     </title>
     <style>
       :root {
@@ -19,14 +19,14 @@
         --ebr: #6366f1;
         --disabled: #e5e7eb;
 
-        /* Action button sizing */
-        --btn-min: 220px;
-        --btn-vh: 24vh;
-        --btn-max: 360px;
+        /* Action button sizing (tweak these) */
+        --btn-min: 220px; /* minimum height */
+        --btn-vh: 24vh; /* responsive chunk of viewport height */
+        --btn-max: 360px; /* maximum height */
         --btn-radius: 12px;
 
-        --btn-fs-min: 42px;
-        --btn-fs-vw: 4.8vw;
+        --btn-fs-min: 42px; /* minimum font size */
+        --btn-fs-vw: 4.8vw; /* responsive scaling */
         --btn-fs-max: 84px;
       }
 
@@ -124,6 +124,12 @@
       .passdot.filled { background: #111; border-color: #111; }
 
       /* Topbar */
+      .topbar {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 12px 14px; margin: 0 0 12px; border: 2px solid var(--line);
+        border-radius: 12px; background: #fff; box-shadow: var(--shadow);
+        font-weight: 700; font-size: 22px;
+      }
       #top_title { font-weight: 700; font-size: 22px; }
       #id_val { flex: 1; display: flex; justify-content: center; letter-spacing: 3px; }
       #clock { font-size: 20px; font-weight: 600; white-space: nowrap; }
@@ -135,7 +141,7 @@
       /* Mobile */
       @media (max-width: 540px) { .row-2 { grid-template-columns: 1fr; } }
 
-      /* Exit overlay */
+      /* ===== Exit overlay (prevents accidental second tap) ===== */
       .exitmask {
         position: fixed; inset: 0; display: none;
         align-items: center; justify-content: center;
@@ -239,6 +245,7 @@
 
       /* ----------------- Los Angeles timezone helpers ----------------- */
       const LA_TZ = "America/Los_Angeles";
+
       function laOffsetMs(d = new Date()) {
         const laStr = d.toLocaleString("en-US", { timeZone: LA_TZ });
         const laAsLocal = new Date(laStr);
@@ -246,6 +253,7 @@
       }
       function toLA(d = new Date()) { return new Date(d.getTime() + laOffsetMs(d)); }
       function fromLA(laDate) { return new Date(laDate.getTime() - laOffsetMs(laDate)); }
+
       function startOfTodayISO_LA() {
         const laNow = toLA(new Date());
         const laStart = new Date(laNow.getFullYear(), laNow.getMonth(), laNow.getDate(), 0, 0, 0, 0);
@@ -276,22 +284,17 @@
         });
       }
 
-      /* ----------------- state ----------------- */
-      const state = {
-        code: "",
-        idDigits: "",
-        empName: "",
-        employeeId: null,
-        timeEntryId: null,
-        breakId: null,
-        status: "off",
-        busy: false,
-        hasBreakUsed: false,
-        exiting: false,
-      };
-
-      /* ----------------- small helpers ----------------- */
+      /* ----------------- Offline keys & helpers ----------------- */
+      const QUEUE_KEY = "kiosk_queue_v1";
+      const EMP_CACHE_KEY = "kiosk_emp_cache_v1";
+      const EVENTS_PREFIX = "kiosk_events_v1_";
+      const EMP_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
       const pad = (n) => String(n).padStart(2, "0");
+      const fmtTime = (ts) => {
+        if (!ts) return "";
+        const d = toLA(new Date(ts));
+        return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+      };
       const startOfTodayISO = startOfTodayISO_LA;
       const startOfTomorrowISO = startOfTomorrowISO_LA;
 
@@ -299,7 +302,96 @@
         ["v_id", "v_act"].forEach((v) => $(v).classList.remove("active"));
         $(id).classList.add("active");
       };
+      const uuid = () => `loc-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
+      function todayKey(code) {
+        const d = toLA(new Date());
+        const y = d.getFullYear();
+        const m = pad(d.getMonth() + 1);
+        const dd = pad(d.getDate());
+        return `${EVENTS_PREFIX}${y}-${m}-${dd}::${code || "unknown"}`;
+      }
+
+      /* local events (for table) */
+      function pushLocalEvent(code, ev) {
+        if (!code) return;
+        const key = todayKey(code);
+        const arr = JSON.parse(localStorage.getItem(key) || "[]");
+        arr.push(ev);
+        localStorage.setItem(key, JSON.stringify(arr));
+      }
+      function getLocalEvents(code) {
+        if (!code) return [];
+        const key = todayKey(code);
+        try { return JSON.parse(localStorage.getItem(key) || "[]"); } catch { return []; }
+      }
+
+      /* employee cache */
+      function loadEmpCache() {
+        try { return JSON.parse(localStorage.getItem(EMP_CACHE_KEY) || "{}"); } catch { return {}; }
+      }
+      function saveEmpCache(c) { localStorage.setItem(EMP_CACHE_KEY, JSON.stringify(c)); }
+      function rememberEmployee(code, info) {
+        if (!code) return;
+        const c = loadEmpCache();
+        c[code] = { ...(c[code] || {}), ...info, updated_at: Date.now() };
+        saveEmpCache(c);
+      }
+      function recallEmployee(code) {
+        const rec = loadEmpCache()[code];
+        if (!rec) return null;
+        if (EMP_TTL_MS && Date.now() - (rec.updated_at || 0) > EMP_TTL_MS) return null;
+        return rec;
+      }
+
+      /* queue for offline POSTs */
+      function loadQueue() {
+        try { return JSON.parse(localStorage.getItem(QUEUE_KEY) || "[]"); } catch { return []; }
+      }
+      function saveQueue(q) { localStorage.setItem(QUEUE_KEY, JSON.stringify(q)); }
+
+      async function safePost(endpoint, body) {
+        const attempt = async () =>
+          jfetch(api(endpoint), { method: "POST", body: JSON.stringify(body) });
+        if (navigator.onLine) {
+          try {
+            const res = await attempt();
+            return { ok: true, queued: false, res };
+          } catch (e) {
+            /* fall back to queue */
+          }
+        }
+        const q = loadQueue();
+        q.push({
+          id: uuid(), endpoint, method: "POST", body,
+          created_at: Date.now(), tries: 0,
+        });
+        saveQueue(q);
+        return { ok: false, queued: true };
+      }
+
+      async function processQueue() {
+        const q = loadQueue();
+        if (q.length === 0 || !navigator.onLine) return;
+        let changed = false;
+        for (let i = 0; i < q.length; i++) {
+          const item = q[i];
+          try {
+            await jfetch(api(item.endpoint), { method: item.method, body: JSON.stringify(item.body) });
+            q.splice(i, 1); i--; changed = true;
+          } catch (e) {
+            item.tries = (item.tries || 0) + 1;
+          }
+        }
+        if (changed) saveQueue(q);
+        if ($("v_act").classList.contains("active") && state.code) {
+          try { await fetchStateByCode(state.code); } catch {}
+        }
+      }
+      setInterval(processQueue, 15000);
+      window.addEventListener("online", processQueue);
+
+      /* ----------------- UI helpers ----------------- */
       function hide(el) { if (!el) return; if (document.activeElement === el) el.blur(); el.style.display = "none"; }
       function show(el) { if (!el) return; el.style.display = ""; }
 
@@ -314,18 +406,40 @@
         timeEl.textContent = fmtClockLA();
       }
 
-      // Clear PIN dots/title/name when leaving to PIN
+      /* ----------------- state ----------------- */
+      const state = {
+        code: "",
+        idDigits: "",
+        empName: "",
+        employeeId: null,
+        timeEntryId: null,
+        breakId: null,
+        status: "off",
+        busy: false,
+        hasBreakUsed: false,
+        shadow: { openTimeEntryId: null, openBreakId: null }, // offline shadow
+        exiting: false, // prevent next-step UI flash
+      };
+
+      // === NEW: hard reset of login UI after auto-logout or manual logout ===
       function resetLoginUI() {
+        // clear PIN digits (dots)
         state.idDigits = "";
         renderIdDots();
+
+        // restore header
         const title = document.getElementById("top_title");
         if (title) title.textContent = "TopNotch v1.0";
+
+        // clear welcome name
         const nameEl = $("emp_name");
         if (nameEl) nameEl.textContent = "";
+
+        // chip off (keeps internal UI consistent)
         setChip("off");
       }
 
-      // Fast exit: go to PIN immediately and block input
+      // ออกจากหน้า Actions ทันที เพื่อกันปุ่มเฟสถัดไปแว้บ
       function beginSubmitAndLeaveView(msg = "Saving…") {
         state.exiting = true;
         const mask = $("exitmask");
@@ -333,12 +447,30 @@
           mask.firstChild.nodeValue = msg;
           mask.style.display = "flex";
         }
+        // ซ่อนและปิดการคลิกทุกปุ่มในหน้านี้ (กัน accidental double tap)
         document.querySelectorAll(".bigbtn, #btn_logout").forEach((b) => {
           b.setAttribute("disabled", "true");
           b.style.pointerEvents = "none";
           b.style.visibility = "hidden";
         });
+        // ย้ายไปหน้า PIN ทันที → จะไม่มีโอกาสเห็นปุ่มเฟสถัดไป
         setView("v_id");
+      }
+
+      /* ===== Exit mode helpers ===== */
+      function enterExitMode(msg = "Saving…") {
+        state.exiting = true;
+        const mask = $("exitmask");
+        if (mask) {
+          mask.firstChild.nodeValue = msg;
+          mask.style.display = "flex";
+        }
+        // Disable and hide all action buttons & logout immediately
+        document.querySelectorAll(".bigbtn, #btn_logout").forEach((b) => {
+          b.setAttribute("disabled", "true");
+          b.style.pointerEvents = "none";
+          b.style.visibility = "hidden"; // not just disabled → not visible
+        });
       }
       function leaveExitMode() {
         state.exiting = false;
@@ -347,12 +479,13 @@
         document.querySelectorAll(".bigbtn, #btn_logout").forEach((b) => {
           b.removeAttribute("disabled");
           b.style.pointerEvents = "";
-          b.style.visibility = "";
+          b.style.visibility = ""; // restore
         });
       }
 
       /* ----------------- UI logic (hide/show buttons) ----------------- */
       function updateButtons() {
+        // During exit mode, keep everything hidden regardless of status
         if (state.exiting) {
           ["btn_in","btn_out","btn_sbr","btn_ebr"].forEach((id) => hide($(id)));
           return;
@@ -364,7 +497,7 @@
         [inBtn, outBtn, sbrBtn, ebrBtn].forEach(hide);
 
         const st = state.status; // 'off' | 'in' | 'break'
-        const onBreak = !!state.breakId;
+        const onBreak = !!(state.breakId || state.shadow.openBreakId);
         const usedBreakThisShift = !!state.hasBreakUsed;
 
         if (st === "off") { show(inBtn); return; }
@@ -374,10 +507,14 @@
       }
 
       function logout() {
+        // go to PIN first
         setView("v_id");
+        // full UI reset
         resetLoginUI();
+
         toast("Logged out");
 
+        // wipe session-ish state
         state.code = "";
         state.empName = "";
         state.employeeId = null;
@@ -385,6 +522,8 @@
         state.breakId = null;
         state.status = "off";
         state.hasBreakUsed = false;
+        state.shadow.openTimeEntryId = null;
+        state.shadow.openBreakId = null;
 
         leaveExitMode();
         updateButtons();
@@ -417,10 +556,12 @@
 
       async function fetchTodayLog() {
         if (!state.employeeId) {
-          renderLog([]);
+          const events = getLocalEvents(state.code).sort((a, b) => new Date(b.ts) - new Date(a.ts));
+          renderLog(events.slice(0, 4));
           updateButtons();
           return;
         }
+
         const qs = new URLSearchParams({
           employee_id: String(state.employeeId),
           start_at: startOfTodayISO(),
@@ -432,13 +573,13 @@
           try { rows = await jfetch(api(`/time-entries/range?${qs}`)); }
           catch { rows = await jfetch(api(`/time-entries?${qs}`)); }
 
-          // derive hasBreakUsed for button logic
           let currentTE = null;
           if (state.timeEntryId != null) currentTE = rows.find((te) => te.id === state.timeEntryId) || null;
+
           if (currentTE && Array.isArray(currentTE.breaks)) {
             state.hasBreakUsed = currentTE.breaks.some((b) => b.start_at != null);
           } else {
-            state.hasBreakUsed = rows.some((te) => Array.isArray(te.breaks) && te.breaks.some((b)=>b.start_at));
+            state.hasBreakUsed = getLocalEvents(state.code).some((e) => e.kind === "sbr");
           }
 
           const events = [];
@@ -453,11 +594,14 @@
             if (te.clock_out_at) events.push({ kind: "out", ts: te.clock_out_at });
           }
 
+          events.push(...getLocalEvents(state.code));
           events.sort((a, b) => new Date(b.ts) - new Date(a.ts));
           renderLog(events.slice(0, 4));
+
           updateButtons();
         } catch (e) {
-          renderLog([]);
+          const events = getLocalEvents(state.code).sort((a, b) => new Date(b.ts) - new Date(a.ts));
+          renderLog(events.slice(0, 4));
           updateButtons();
           if (navigator.onLine) toast(e.message || "Load log failed", false);
         }
@@ -465,12 +609,23 @@
 
       /* ----------------- server state ----------------- */
       async function fetchStateByCode(code) {
-        const data = await jfetch(api(`/time-entries/state/${encodeURIComponent(code)}`));
-        state.status = data.status || "off";
-        state.timeEntryId = data.time_entry_id || null;
-        state.breakId = data.break_id || null;
-        state.employeeId = data.employee_id || null;
-        state.empName = data.name || state.empName || "Employee";
+        try {
+          const data = await jfetch(api(`/time-entries/state/${encodeURIComponent(code)}`));
+          state.status = data.status || "off";
+          state.timeEntryId = data.time_entry_id || null;
+          state.breakId = data.break_id || null;
+          state.employeeId = data.employee_id || null;
+          state.empName = data.name || state.empName || "Employee";
+          rememberEmployee(code, { name: state.empName, employee_id: state.employeeId });
+        } catch (e) {
+          const cached = recallEmployee(code);
+          if (!cached) throw e;
+          state.empName = cached.name || "Employee";
+          state.employeeId = cached.employee_id || null;
+          if (state.shadow.openBreakId) state.status = "break";
+          else if (state.shadow.openTimeEntryId) state.status = "in";
+          else state.status = "off";
+        }
 
         $("emp_name").textContent = state.empName;
         const title = document.getElementById("top_title");
@@ -481,100 +636,128 @@
         await fetchTodayLog();
       }
 
-      /* ----------------- actions (online only) ----------------- */
+      /* ----------------- actions (queue when offline) ----------------- */
       async function clockIn() {
         if (state.busy) return;
         state.busy = true;
         beginSubmitAndLeaveView("Saving Clock In…");
-        try {
-          const payload = { code: state.code, method: "web" };
-          if (state.employeeId) payload.employee_id = state.employeeId;
-          await jfetch(api("/time-entries/start"), { method: "POST", body: JSON.stringify(payload) });
 
-          toast("Clocked in");
+        try {
+          const resp = await safePost("/time-entries/start", { code: state.code, method: "web" });
+
+          // shadow + local log (no UI flash)
+          state.status = "in";
+          state.shadow.openTimeEntryId = state.shadow.openTimeEntryId || uuid();
+          pushLocalEvent(state.code, { kind: "in", ts: new Date().toISOString() });
+
+          toast(resp.queued ? "Clocked in (queued)" : "Clocked in");
+
+          // clear session code + reset PIN screen UI
           state.code = "";
           state.idDigits = "";
           resetLoginUI();
+
+          state.busy = false;
+          leaveExitMode();
+          return;
         } catch (e) {
           leaveExitMode();
           setView("v_act");
           state.busy = false;
           toast(e.message || "Clock in failed", false);
-          return;
         }
-        state.busy = false;
-        leaveExitMode();
       }
 
       async function clockOut() {
         if (state.busy) return;
         state.busy = true;
         beginSubmitAndLeaveView("Saving Clock Out…");
-        try {
-          await jfetch(api("/time-entries/stop"), { method: "POST", body: JSON.stringify({ code: state.code, method: "web" }) });
 
+        try {
+          const resp = await safePost("/time-entries/stop", { code: state.code, method: "web" });
+          pushLocalEvent(state.code, { kind: "out", ts: new Date().toISOString() });
+
+          // reset working state
           state.status = "off";
           state.timeEntryId = null;
           state.breakId = null;
           state.hasBreakUsed = false;
+          state.shadow.openTimeEntryId = null;
+          state.shadow.openBreakId = null;
 
-          toast("Clocked out");
+          toast(resp.queued ? "Clocked out (queued)" : "Clocked out");
+
           state.code = "";
           state.idDigits = "";
           resetLoginUI();
+
+          state.busy = false;
+          leaveExitMode();
+          return;
         } catch (e) {
           leaveExitMode();
           setView("v_act");
           state.busy = false;
           toast(e.message || "Clock out failed", false);
-          return;
         }
-        state.busy = false;
-        leaveExitMode();
       }
 
       async function startBreak() {
         if (state.busy) return;
         state.busy = true;
         beginSubmitAndLeaveView("Saving Break Start…");
-        try {
-          await jfetch(api("/breaks/start"), { method: "POST", body: JSON.stringify({ code: state.code, break_type: "lunch", is_paid: false, method: "web" }) });
 
-          toast("Break started");
+        try {
+          const resp = await safePost("/breaks/start", { code: state.code, break_type: "lunch", is_paid: false, method: "web" });
+          state.status = "break";
+          state.shadow.openBreakId = state.shadow.openBreakId || uuid();
+          pushLocalEvent(state.code, { kind: "sbr", ts: new Date().toISOString() });
+
+          toast(resp.queued ? "Break started (queued)" : "Break started");
+
           state.code = "";
           state.idDigits = "";
           resetLoginUI();
+
+          state.busy = false;
+          leaveExitMode();
+          return;
         } catch (e) {
           leaveExitMode();
           setView("v_act");
           state.busy = false;
           toast(e.message || "Start break failed", false);
-          return;
         }
-        state.busy = false;
-        leaveExitMode();
       }
 
       async function stopBreak() {
         if (state.busy) return;
         state.busy = true;
         beginSubmitAndLeaveView("Saving Break Stop…");
-        try {
-          await jfetch(api("/breaks/stop"), { method: "POST", body: JSON.stringify({ code: state.code }) });
 
-          toast("Break stopped");
+        try {
+          const resp = await safePost("/breaks/stop", { code: state.code });
+          pushLocalEvent(state.code, { kind: "ebr", ts: new Date().toISOString() });
+
+          state.status = "in";
+          state.shadow.openBreakId = null;
+          state.hasBreakUsed = true;
+
+          toast(resp.queued ? "Break stopped (queued)" : "Break stopped");
+
           state.code = "";
           state.idDigits = "";
           resetLoginUI();
+
+          state.busy = false;
+          leaveExitMode();
+          return;
         } catch (e) {
           leaveExitMode();
           setView("v_act");
           state.busy = false;
           toast(e.message || "Stop break failed", false);
-          return;
         }
-        state.busy = false;
-        leaveExitMode();
       }
 
       /* ----------------- keypad ----------------- */
@@ -598,6 +781,27 @@
       }
 
       async function handleFourDigits(code) {
+        if (!navigator.onLine) {
+          const cached = recallEmployee(code);
+          if (cached) {
+            state.empName = cached.name || "Employee";
+            state.employeeId = cached.employee_id || null;
+            if (state.shadow.openBreakId) state.status = "break";
+            else if (state.shadow.openTimeEntryId) state.status = "in";
+            else state.status = "off";
+
+            $("emp_name").textContent = state.empName;
+            const title = document.getElementById("top_title");
+            if (title) title.textContent = `TopNotch v1.0 — ${state.empName}`;
+
+            setChip(state.status);
+            state.code = code;
+            setView("v_act");
+            await fetchTodayLog();
+            toast("Offline login (cached)");
+            return;
+          }
+        }
         try {
           await fetchStateByCode(code);
           state.code = code;
@@ -627,12 +831,12 @@
         });
         updateButtons();
         startChipClock();
+        processQueue();
       });
 
       function renderIdDots() {
         const n = state.idDigits.length;
-        const dots = Array.from({ length: 4 }, (_, i) =>
-          `<span class="passdot${i < n ? " filled" : ""}"></span>`).join("");
+        const dots = Array.from({ length: 4 }, (_, i) => `<span class="passdot${i < n ? " filled" : ""}"></span>`).join("");
         $("id_val").innerHTML = dots;
       }
 
