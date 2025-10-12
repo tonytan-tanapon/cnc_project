@@ -1,0 +1,18 @@
+{
+  "title": "Suppliers",
+  "apiBase": "/api/v1/suppliers/suppliers",
+  "apiPage": "/api/v1/suppliers/page",
+  "apiKeyset": "/api/v1/suppliers/keyset",
+  "apiLookup": "/api/v1/suppliers/lookup",
+  "apiNextCode": "/api/v1/suppliers/next-code",
+  "apiSearch": "/api/v1/suppliers/search",
+  "columns": [
+    { "title": "Code", "field": "code", "editor": "input", "width": 120 },
+    { "title": "Name", "field": "name", "editor": "input", "width": 200 },
+    { "title": "Contact", "field": "contact", "editor": "input", "width": 160 },
+    { "title": "Email", "field": "email", "editor": "input", "width": 220 },
+    { "title": "Phone", "field": "phone", "editor": "input", "width": 140 },
+    { "title": "Address", "field": "address", "editor": "input", "widthGrow": 3 },
+    { "title": "Payment Terms", "field": "payment_terms", "editor": "input", "width": 160 }
+  ]
+}
