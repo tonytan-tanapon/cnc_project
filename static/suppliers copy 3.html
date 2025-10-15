@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Suppliers</title>
+
+    <link
+      href="https://unpkg.com/tabulator-tables@6.2.0/dist/css/tabulator.min.css"
+      rel="stylesheet"
+    />
+    <script src="https://unpkg.com/tabulator-tables@6.2.0/dist/js/tabulator.min.js"></script>
+
+    <style>
+      body {
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial;
+        margin: 0;
+        padding: 20px;
+        background: #f9fafb;
+      }
+      h1 {
+        margin: 0 0 12px;
+        font-size: 26px;
+      }
+      #controls {
+        margin-bottom: 12px;
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+      input[type="text"] {
+        flex: 1;
+        padding: 6px 10px;
+        border: 1px solid #ccc;
+        border-radius: 6px;
+        font-size: 15px;
+      }
+      button {
+        padding: 6px 12px;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 500;
+      }
+      #addRowBtn {
+        background: #111;
+        color: #fff;
+      }
+      #addRowBtn:hover {
+        background: #333;
+      }
+      #table {
+        background: #fff;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+      }
+      .btn-edit {
+        background: #3b82f6;
+        color: #fff;
+        border-radius: 4px;
+        padding: 3px 8px;
+        margin-right: 4px;
+      }
+      .btn-save {
+        background: #22c55e;
+        color: #fff;
+        border-radius: 4px;
+        padding: 3px 8px;
+        margin-right: 4px;
+      }
+      .btn-cancel {
+        background: #f59e0b;
+        color: #fff;
+        border-radius: 4px;
+        padding: 3px 8px;
+        margin-right: 4px;
+      }
+      .btn-delete {
+        background: #ef4444;
+        color: #fff;
+        border-radius: 4px;
+        padding: 3px 8px;
+      }
+      button:hover {
+        opacity: 0.9;
+      }
+      .row-edited {
+        background-color: #fff7d6 !important;
+      }
+      .tabulator-cell input {
+        width: 100%;
+        box-sizing: border-box;
+        font-size: 14px;
+      }
+      .tabulator-tableholder {
+        will-change: transform;
+      }
+    </style>
+  </head>
+
+  <body>
+    <h1>Suppliers</h1>
+
+    <div id="controls">
+      <input id="searchBox" type="text" placeholder="Search suppliers..." />
+      <button id="addRowBtn">+ Add</button>
+    </div>
+
+    <div id="table"></div>
+
+    <script type="module">
+      import { initDynamicTable } from "/static/js/dynamic-table.js";
+
+      const config = {
+        apiBase: "/api/v1/suppliers/suppliers",
+        apiKeyset: "/api/v1/suppliers/keyset",
+        apiNextCode: "/api/v1/suppliers/next-code",
+        columns: [
+          { title: "Code", field: "code", width: 120 },
+          { title: "Name", field: "name" },
+          { title: "Contact", field: "contact" },
+          { title: "Email", field: "email" },
+          { title: "Phone", field: "phone" },
+          { title: "Address", field: "address" },
+          { title: "Payment Terms", field: "payment_terms" },
+        ],
+      };
+
+      const { table, addNewRow } = initDynamicTable(config);
+
+      // search
+      const searchBox = document.getElementById("searchBox");
+      let debounceTimer;
+      searchBox.addEventListener("input", (e) => {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(async () => {
+          const q = e.target.value.trim();
+          const url = q
+            ? `${config.apiKeyset}?q=${encodeURIComponent(q)}`
+            : config.apiKeyset;
+          const res = await fetch(url);
+          const js = await res.json();
+          if (Array.isArray(js.items)) table.setData(js.items);
+        }, 250);
+      });
+
+      // add
+      document.getElementById("addRowBtn").addEventListener("click", () => {
+        addNewRow();
+      });
+    </script>
+  </body>
+</html>

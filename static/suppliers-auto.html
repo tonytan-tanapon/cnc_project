@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Suppliers</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <link
+      href="https://unpkg.com/tabulator-tables@5.5.2/dist/css/tabulator.min.css"
+      rel="stylesheet"
+    />
+    <style>
+      body {
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica,
+          Arial;
+        margin: 20px;
+      }
+      .toolbar {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        align-items: center;
+        margin-bottom: 12px;
+      }
+      .toolbar input,
+      .toolbar select,
+      .toolbar button {
+        padding: 6px 10px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+      }
+      .toolbar button.primary {
+        background: #2563eb;
+        color: #fff;
+        border-color: #2563eb;
+      }
+      .muted {
+        color: #6b7280;
+      }
+      .pill {
+        padding: 2px 8px;
+        border-radius: 999px;
+        border: 1px solid #e5e7eb;
+        font-size: 12px;
+      }
+      .link {
+        color: #2563eb;
+        text-decoration: none;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Suppliers <span id="stats" class="muted pill"></span></h1>
+
+    <div class="toolbar">
+      <input id="q" type="search" placeholder="Search code or name…" />
+      <select id="mode">
+        <option value="page">Page mode</option>
+        <option value="keyset">Infinite scroll</option>
+      </select>
+      <select id="pagesize">
+        <option>10</option>
+        <option selected>20</option>
+        <option>50</option>
+        <option>100</option>
+      </select>
+      <button id="btnRefresh">Refresh</button>
+      <button id="btnAdd" class="primary">+ Add Supplier</button>
+      <span class="muted">Next Code:</span>
+      <button id="btnNext">Fetch</button>
+      <span id="nextCode" class="pill"></span>
+    </div>
+
+    <div id="table"></div>
+
+    <template id="actionBtns">
+      <button data-act="view">View</button>
+      <button data-act="edit">Edit</button>
+      <button data-act="del" style="color: #b91c1c; border-color: #b91c1c">
+        Delete
+      </button>
+    </template>
+
+    <script src="https://unpkg.com/tabulator-tables@5.5.2/dist/js/tabulator.min.js"></script>
+    <script>
+      // ---------- config ----------
+      const BASE = '/api/v1/suppliers'; // ปรับให้ตรง path จริงของคุณ
+      const state = { mode: 'page', limit: 20, q: '', cursor: null, total: 0 };
+
+      // ---------- helpers ----------
+      const $ = (sel) => document.querySelector(sel);
+      const fmtBool = (v)=> v ? '✅' : '—';
+      const debounce = (fn,ms=300)=>{ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a),ms);}};
+
+      async function json(url, opts={}){
+        const res = await fetch(url, {headers:{'Content-Type':'application/json'}, ...opts});
+        if(!res.ok) throw new Error(await res.text()||res.statusText);
+        return res.json();
+      }
+
+      // ---------- Tabulator ----------
+      let table;
+      function makeTable(){
+        table = new Tabulator("#table", {
+          layout:"fitColumns",
+          height:"75vh",
+          placeholder:"No data",
+          progressiveLoad: false, // จะสลับเองตามโหมด
+          columns:[
+            {title:"ID", field:"id", width:70, hozAlign:"right"},
+            {
+              title:"Code", field:"code", headerSort:true, editor:"input",
+              formatter: (cell)=>{
+                const r=cell.getRow().getData();
+                return `<a class="link" href="/suppliers/${r.id}" title="Open">${cell.getValue()||''}</a>`;
+              }
+            },
+            {title:"Name", field:"name", editor:"input"},
+            {title:"Contact", field:"contact", editor:"input"},
+            {title:"Email", field:"email", editor:"input"},
+            {title:"Phone", field:"phone", editor:"input"},
+            {title:"Material?", field:"is_material_supplier",
+              editor:true, formatter:(c)=>fmtBool(c.getValue()) },
+            {title:"Subcon?", field:"is_subcontractor",
+              editor:true, formatter:(c)=>fmtBool(c.getValue()) },
+            {
+              title:"Actions", field:"_act", hozAlign:"center", width:200, headerSort:false,
+              formatter:()=>{
+                return document.querySelector('#actionBtns').innerHTML;
+              },
+              cellClick: async (e, cell)=>{
+                const act = e.target?.dataset?.act;
+                if(!act) return;
+                const {id} = cell.getRow().getData();
+                if(act==='view') window.location.href = `/suppliers/${id}`;
+                if(act==='edit') window.location.href = `/suppliers/${id}/edit`;
+                if(act==='del'){
+                  if(confirm('Delete this supplier?')){
+                    await json(`${BASE}/${id}`, {method:'DELETE'});
+                    reload();
+                  }
+                }
+              }
+            },
+          ],
+          cellEdited: async (cell)=>{
+            // autosave on edit
+            const row = cell.getRow().getData();
+            const payload = {...row}; delete payload.id;
+            // Uppercase code if provided
+            if(payload.code) payload.code = (payload.code||'').trim().toUpperCase();
+            await json(`${BASE}/${row.id}`, {method:'PUT', body: JSON.stringify(payload)});
+          },
+          rowClick: (e,row)=>{
+            // (ตัวอย่าง) คลิกทั้งแถวเพื่อเปิด detail
+            // window.location.href = `/suppliers/${row.getData().id}`;
+          },
+        });
+      }
+
+      // ---------- data loading ----------
+      async function loadPage(){
+        const params = new URLSearchParams();
+        if(state.q) params.set('q', state.q);
+        params.set('page', 1); // Tabulator handle pagination client side? — เราจะโหลด server page เดียวแล้วโชว์
+        params.set('per_page', state.limit);
+        const data = await json(`${BASE}/page?${params.toString()}`);
+        state.total = data.total;
+        $('#stats').textContent = `${data.total} rows`;
+        table.setData(data.items);
+      }
+
+      async function loadKeyset(reset=false){
+        if(reset) state.cursor = null;
+        const params = new URLSearchParams();
+        if(state.q) params.set('q', state.q);
+        params.set('limit', state.limit);
+        if(state.cursor) params.set('cursor', state.cursor);
+        const data = await json(`${BASE}/keyset?${params.toString()}`);
+        if(reset){
+          table.clearData();
+        }
+        table.addData(data.items);
+        $('#stats').textContent = `∞ scroll • loaded ${table.getDataCount()} rows`;
+        state.cursor = data.next_cursor;
+        // ถ้ายังมีต่อ ให้ตั้ง progressive loader
+        table.modules?.ajax?.loading = false;
+        return data.has_more;
+      }
+
+      function configureMode(){
+        const mode = state.mode;
+        if(mode==='page'){
+          table.updateDefinition({ progressiveLoad:false });
+          loadPage();
+        }else{
+          // keyset mode
+          table.updateDefinition({ progressiveLoad:"scroll" });
+          // hook progressive function
+          table.modules.ajax = table.modules.ajax || {};
+          table.modules.ajax.progressiveLoadFunc = async ()=>{
+            // Tabulator จะเรียกเพิ่มเมื่อเลื่อนสุด
+            const more = await loadKeyset(false);
+            if(!more){
+              // ไม่มีข้อมูลเพิ่มแล้ว ปิด progressiveLoad ชั่วคราว
+              table.updateDefinition({ progressiveLoad:false });
+            }
+          };
+          loadKeyset(true);
+        }
+      }
+
+      // ---------- actions ----------
+      async function reload(){
+        configureMode();
+      }
+
+      async function addSupplier(){
+        // ดึง next-code (optional)
+        let next = '';
+        try{
+          const r = await json(`${BASE}/next-code`);
+          next = r.next_code || '';
+          $('#nextCode').textContent = next;
+        }catch(_){}
+        const name = prompt('Supplier name?');
+        if(!name) return;
+        const body = { code: next || 'AUTO', name };
+        await json(BASE, {method:'POST', body: JSON.stringify(body)});
+        reload();
+      }
+
+      async function showNext(){
+        const r = await json(`${BASE}/next-code`);
+        $('#nextCode').textContent = r.next_code || '';
+      }
+
+      // ---------- autocomplete example ----------
+      // ใช้กับ input ใด ๆ ที่อยากให้แนะนำชื่อซัพพลายเออร์ (เรียก /search)
+      async function supplierSuggest(q){
+        if(!q) return [];
+        const r = await json(`${BASE}/search?` + new URLSearchParams({q, limit: 10}));
+        return r.map(x=>`${x.code || ''} — ${x.name}`);
+      }
+      // (ตัวอย่าง: กด / พิมพ์ในช่องค้นหา → log suggestion)
+      $('#q').addEventListener('input', debounce(async (e)=>{
+        state.q = e.target.value.trim();
+        if(state.mode==='page') await loadPage(); else await loadKeyset(true);
+        // demo suggestion
+        // console.log(await supplierSuggest(state.q));
+      }, 400));
+
+      // ---------- wire up ----------
+      (function init(){
+        makeTable();
+        $('#mode').addEventListener('change', (e)=>{ state.mode = e.target.value; reload(); });
+        $('#pagesize').addEventListener('change', (e)=>{ state.limit = +e.target.value; reload(); });
+        $('#btnRefresh').addEventListener('click', reload);
+        $('#btnAdd').addEventListener('click', addSupplier);
+        $('#btnNext').addEventListener('click', showNext);
+        // default load
+        reload();
+      })();
+    </script>
+  </body>
+</html>
