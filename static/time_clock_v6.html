@@ -209,25 +209,20 @@
       </div>
 
       <div class="panel" style="margin-top: 16px">
-  <div style="font-size: 22px; font-weight: 700; margin-bottom: 8px">
-    Work Summary (Past 30 Days)
-  </div>
-  <table>
-    <thead>
-      <tr>
-        <th style="width: 140px">Date</th>
-        <th style="width: 120px">Clock In</th>
-        <th style="width: 120px">Start Break</th>
-        <th style="width: 120px">Stop Break</th>
-        <th style="width: 120px">Clock Out</th>
-        <!-- <th style="width: 80px">Hrs</th> -->
-      </tr>
-    </thead>
-    <tbody id="log"></tbody>
-  </table>
-</div>
-
-
+        <div style="font-size: 22px; font-weight: 700; margin-bottom: 8px">
+          Activities in the Past 30 Days
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 220px">Time</th>
+              <th style="width: 160px">Action</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody id="log"></tbody>
+        </table>
+      </div>
     </section>
 
     <!-- Exit overlay -->
@@ -402,133 +397,82 @@
       }
 
       /* ----------------- log renderer ----------------- */
- /* ----------------- render summarized daily log with weekly separators ----------------- */
-function renderLog(rows) {
-  const tb = $("log");
-  if (!rows || rows.length === 0) {
-    tb.innerHTML = `<tr><td colspan="6"><span class="muted">No records in the past 30 days</span></td></tr>`;
-    return;
-  }
-
-  let html = "";
-  let lastWeek = null;
-
-  for (const r of rows) {
-    const d = new Date(r.date);
-    const weekYear = `${d.getFullYear()}-${getWeekNumber(d)}`;
-    const isNewWeek = weekYear !== lastWeek;
-    lastWeek = weekYear;
-
-    if (isNewWeek && html !== "") {
-      html += `<tr><td colspan="6" style="border-top: 3px solid #000;"></td></tr>`;
-    }
-
-    // Format total hours (HH:MM)
-    let hrmin = "";
-    if (typeof r.total_hours === "number") {
-      const hrs = Math.floor(r.total_hours);
-      const mins = Math.round((r.total_hours - hrs) * 60);
-      hrmin = `${hrs}:${String(mins).padStart(2, "0")}`;
-    } else if (typeof r.total_hours === "string" && r.total_hours.includes(":")) {
-      hrmin = r.total_hours; // already formatted
-    }
-
-    html += `
-      <tr>
-        <td style="font-weight:600">${r.date}</td>
-        <td>${r.clock_in || ""}</td>
-        <td>${r.start_break || ""}</td>
-        <td>${r.stop_break || ""}</td>
-        <td>${r.clock_out || ""}</td>
-        <td>${hrmin}</td>
-      </tr>
-    `;
-  }
-
-  tb.innerHTML = html;
-}
-
-/* ----------------- helper to get ISO week number ----------------- */
-function getWeekNumber(date) {
-  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-  const dayNum = d.getUTCDay() || 7;
-  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
-  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-  return Math.ceil(((d - yearStart) / 86400000 + 1) / 7);
-}
-
-/* ----------------- fetch 30-day log and summarize ----------------- */
-async function fetchTodayLog() {
-  if (!state.employeeId) {
-    renderLog([]);
-    updateButtons();
-    return;
-  }
-
-  const qs = new URLSearchParams({
-    employee_id: String(state.employeeId),
-    start_at: startOf30DaysAgoISO_LA(),
-    end_at: startOfTomorrowISO(),
-  }).toString();
-
-  try {
-    let rows;
-    try { rows = await jfetch(api(`/time-entries/range?${qs}`)); }
-    catch { rows = await jfetch(api(`/time-entries?${qs}`)); }
-
-    const summaries = [];
-
-    for (const te of rows) {
-      const d = toLA(new Date(te.clock_in_at || te.clock_out_at));
-      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
-      const clock_in = te.clock_in_at ? fmtDateTimeLA(te.clock_in_at).split(" ")[1] : "";
-      const clock_out = te.clock_out_at ? fmtDateTimeLA(te.clock_out_at).split(" ")[1] : "";
-      let start_break = "", stop_break = "";
-
-      if (Array.isArray(te.breaks) && te.breaks.length > 0) {
-        const br = te.breaks[0];
-        start_break = br.start_at ? fmtDateTimeLA(br.start_at).split(" ")[1] : "";
-        stop_break = br.end_at ? fmtDateTimeLA(br.end_at).split(" ")[1] : "";
-      }
-
-      // compute hours (exclude break)
-      let hrs = "";
-      if (te.clock_in_at && te.clock_out_at) {
-        const inT = new Date(te.clock_in_at);
-        const outT = new Date(te.clock_out_at);
-        let diff = (outT - inT) / 3600000; // total hrs
-        if (Array.isArray(te.breaks)) {
-          for (const br of te.breaks) {
-            if (br.start_at && br.end_at) {
-              diff -= (new Date(br.end_at) - new Date(br.start_at)) / 3600000;
-            }
-          }
+      function renderLog(rows) {
+        const tb = $("log");
+        if (!rows || rows.length === 0) {
+          tb.innerHTML = `<tr><td colspan="3"><span class="muted">No entries yet today</span></td></tr>`;
+          return;
         }
-        hrs = diff.toFixed(2);
+        tb.innerHTML = rows.map((r) => {
+          const badgeCls =
+            r.kind === "in" ? "b-in" :
+            r.kind === "out" ? "b-out" :
+            r.kind === "sbr" ? "b-sbr" : "b-ebr";
+          const label =
+            r.kind === "in" ? "Clock In" :
+            r.kind === "out" ? "Clock Out" :
+            r.kind === "sbr" ? "Start Break" : "Stop Break";
+          return `<tr>
+                  <td>${fmtDateTimeLA(r.ts)}</td>
+                  <td><span class="badge ${badgeCls}">${label}</span></td>
+                  <td>${r.note || ""}</td>
+                </tr>`;
+        }).join("");
       }
 
-      summaries.push({
-        date: dateStr,
-        clock_in,
-        start_break,
-        stop_break,
-        clock_out,
-        total_hours: hrs,
-      });
-    }
+      async function fetchTodayLog() {
+        if (!state.employeeId) {
+          renderLog([]);
+          updateButtons();
+          return;
+        }
+        // const qs = new URLSearchParams({
+        //   employee_id: String(state.employeeId),
+        //   start_at: startOfTodayISO(),
+        //   end_at: startOfTomorrowISO(),
+        // }).toString();
+        const qs = new URLSearchParams({
+  employee_id: String(state.employeeId),
+  start_at: startOf30DaysAgoISO_LA(),
+  end_at: startOfTomorrowISO(),
+}).toString();
 
-    // Sort by most recent date
-    summaries.sort((a, b) => new Date(b.date) - new Date(a.date));
-    renderLog(summaries);
-    updateButtons();
-  } catch (e) {
-    renderLog([]);
-    updateButtons();
-    if (navigator.onLine) toast(e.message || "Load log failed", false);
-  }
-}
+        try {
+          let rows;
+          try { rows = await jfetch(api(`/time-entries/range?${qs}`)); }
+          catch { rows = await jfetch(api(`/time-entries?${qs}`)); }
 
+          // derive hasBreakUsed for button logic
+          let currentTE = null;
+          if (state.timeEntryId != null) currentTE = rows.find((te) => te.id === state.timeEntryId) || null;
+          if (currentTE && Array.isArray(currentTE.breaks)) {
+            state.hasBreakUsed = currentTE.breaks.some((b) => b.start_at != null);
+          } else {
+            state.hasBreakUsed = rows.some((te) => Array.isArray(te.breaks) && te.breaks.some((b)=>b.start_at));
+          }
 
+          const events = [];
+          for (const te of rows) {
+            if (te.clock_in_at) events.push({ kind: "in", ts: te.clock_in_at });
+            if (Array.isArray(te.breaks)) {
+              for (const br of te.breaks) {
+                if (br.start_at) events.push({ kind: "sbr", ts: br.start_at });
+                if (br.end_at) events.push({ kind: "ebr", ts: br.end_at });
+              }
+            }
+            if (te.clock_out_at) events.push({ kind: "out", ts: te.clock_out_at });
+          }
+
+          events.sort((a, b) => new Date(b.ts) - new Date(a.ts));
+          renderLog(events);
+          // renderLog(events.slice(0, 4));
+          updateButtons();
+        } catch (e) {
+          renderLog([]);
+          updateButtons();
+          if (navigator.onLine) toast(e.message || "Load log failed", false);
+        }
+      }
 
       /* ----------------- server state ----------------- */
       async function fetchStateByCode(code) {

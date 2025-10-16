@@ -187,6 +187,8 @@ def upsert_raw_batch(
 ) -> RawBatch:
     """Each Heat lot = 1 unique batch per RawMaterial."""
     batch_no = heat_no or f"HT-{rm.id}-{mpo.id}"
+
+    
     rb = db.scalar(
         select(RawBatch).where(
             and_(RawBatch.material_id == rm.id, RawBatch.batch_no == batch_no)
@@ -203,10 +205,11 @@ def upsert_raw_batch(
         if length_text and rb.length_text != length_text:
             rb.length_text = length_text
             updated = True
+       
         if updated:
             db.flush()
         return rb
-
+    
     rb = RawBatch(
         material_id=rm.id,
         po_id=mpo.id,
@@ -217,6 +220,7 @@ def upsert_raw_batch(
         length_text=length_text,
         weight=weight,
         qty_received=weight or Decimal(0),
+        heat_lot = heat_no, 
     )
     db.add(rb)
     db.flush()
