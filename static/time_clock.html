@@ -481,15 +481,14 @@ async function fetchTodayLog() {
     for (const te of rows) {
       const d = toLA(new Date(te.clock_in_at || te.clock_out_at));
       const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
-      const clock_in = te.clock_in_at ? fmtDateTimeLA(te.clock_in_at).split(" ")[1] : "";
-      const clock_out = te.clock_out_at ? fmtDateTimeLA(te.clock_out_at).split(" ")[1] : "";
-      let start_break = "", stop_break = "";
-
-      if (Array.isArray(te.breaks) && te.breaks.length > 0) {
-        const br = te.breaks[0];
-        start_break = br.start_at ? fmtDateTimeLA(br.start_at).split(" ")[1] : "";
-        stop_break = br.end_at ? fmtDateTimeLA(br.end_at).split(" ")[1] : "";
-      }
+      const clock_in = te.clock_in_at ? fmtDateTimeLA(te.clock_in_at).split(" ")[1].slice(0,5) : "";
+const clock_out = te.clock_out_at ? fmtDateTimeLA(te.clock_out_at).split(" ")[1].slice(0,5) : "";
+let start_break = "", stop_break = "";
+if (Array.isArray(te.breaks) && te.breaks.length > 0) {
+  const br = te.breaks[0];
+  start_break = br.start_at ? fmtDateTimeLA(br.start_at).split(" ")[1].slice(0,5) : "";
+  stop_break = br.end_at ? fmtDateTimeLA(br.end_at).split(" ")[1].slice(0,5) : "";
+}
 
       // compute hours (exclude break)
       let hrs = "";
