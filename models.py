@@ -227,10 +227,13 @@ class RawMaterial(Base):
     __tablename__ = "raw_materials"
     id = Column(Integer, primary_key=True)
     code = Column(String, unique=True, index=True, nullable=False)
-    name = Column(String, nullable=False)
+    name = Column(String, nullable=False) # type spec
+    type = Column(String, nullable=True) 
     spec = Column(String, nullable=True)
     uom = Column(String, default="kg", nullable=False)
     remark = Column(Text, nullable=True)
+    size = Column(Numeric(18, 2), nullable=True)
+    size_text = Column(String, nullable=True)
 
     # map ไปยัง taxonomy
     family_code = Column(String, ForeignKey("supplier_mat_category_catalog.code"), nullable=True, index=True)  # ex. ALUMINUM
@@ -246,7 +249,8 @@ class RawMaterial(Base):
 class MaterialPO(Base):
     __tablename__ = "material_pos"
     id = Column(Integer, primary_key=True)
-    po_number = Column(String, unique=True, index=True, nullable=False)
+    mat_po_no = Column(String, unique=False, index=True, nullable=True)
+    po_number = Column(String, unique=True, index=True, nullable=True)
     supplier_id = Column(Integer, ForeignKey("suppliers.id"), nullable=False, index=True)
     order_date = Column(Date, default=date.today, nullable=False)
     status = Column(String, default="open", nullable=False)  # open/confirmed/received/closed
@@ -262,12 +266,22 @@ class MaterialPOLine(Base):
     po_id = Column(Integer, ForeignKey("material_pos.id"), nullable=False, index=True)
     material_id = Column(Integer, ForeignKey("raw_materials.id"), nullable=False, index=True)
     qty_ordered = Column(Numeric(18, 3), nullable=False)
+
     unit_price = Column(Numeric(18, 2), nullable=True)
     due_date = Column(Date, nullable=True)
+
+    heat_lot = Column(Text, nullable=True)
+    size = Column(Text, nullable=True)
+    
+    length = Column(Numeric(18, 3), nullable=True)
+    weight = Column(Numeric(18, 3), nullable=True)
+    cert = Column(Text, nullable=True)
     
     batches = relationship("RawBatch", back_populates="po_line")
     po = relationship("MaterialPO", back_populates="lines")
     material = relationship("RawMaterial")
+
+
     
 
 
@@ -292,6 +306,11 @@ class RawBatch(Base):
     cert_file = Column(String, nullable=True)
     location = Column(String, nullable=True)
 
+    heat_lot = Column(Text, nullable=True)
+    size = Column(Text, nullable=True)
+    length = Column(Numeric(18, 3), nullable=True)
+    weight = Column(Numeric(18, 3), nullable=True)
+    cert = Column(Text, nullable=True)
     # relations
     material = relationship("RawMaterial", back_populates="batches")
     supplier = relationship("Supplier", back_populates="raw_batches")
@@ -429,6 +448,7 @@ class ProductionLot(Base):
     status = Column(String, nullable=False, default="in_process")
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     note =  Column(String,  nullable=True)
+    
 
 
     __table_args__ = (
@@ -1231,6 +1251,7 @@ class CustomerInvoice(Base):
     invoice_date = Column(Date, nullable=False, default=date.today)
     status = Column(String, nullable=False, default="open")  # open/paid/void
     notes = Column(Text)
+    residual_inv = Column(Integer)
 
     po = relationship("PO", back_populates="invoices")
     lines = relationship("CustomerInvoiceLine", back_populates="invoice", cascade="all, delete-orphan")

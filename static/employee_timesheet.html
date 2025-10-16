@@ -25,6 +25,13 @@
     .bar{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin:12px 0; justify-content:flex-end; }
     .link{ color:#2563eb; text-decoration:none; font-weight:600 }
     .link:hover{ text-decoration:underline }
+    .center { text-align: center }
+    /* total “badge” buttons */
+    .badge {
+      background:#0f172a;
+      border-color:#0f172a;
+      font-weight:600;
+    }
   </style>
 </head>
 <body>
@@ -54,82 +61,118 @@
     <tfoot id="tblFoot"></tfoot>
   </table>
   <div class="muted" style="margin-top:4px">* Unpaid break hours</div>
+
+  <!-- controls -->
   <div class="bar">
     <label>Rate:
       <input id="rate" type="number" step="0.01" min="0" value="20.00" inputmode="decimal">
     </label>
     <label>OT Rate: <input id="ot_rate" type="number" step="0.01" placeholder="default 1.5×"></label>
     <button id="recalc">calculate</button>
-    <button id="exportCsv">Export CSV</button>
+
+    <!-- total “badges” (auto-updated) -->
+    <button id="btnRegTotal" class="badge" title="Total Regular Hours" disabled>Reg Hrs: 0.00</button>
+    <button id="btnOTTotal"  class="badge" title="Total Overtime Hours" disabled>OT Hrs: 0.00</button>
+    <button id="btnGrandTotal" class="badge" title="Grand Total Pay" disabled>Total: $0.00</button>
+  </div>
+
+  <div class="bar">
+    <button id="btnCsv">Export CSV</button>
+    <button id="btnXlsx">Export Excel</button>
+    <button id="btnPdf">Export PDF</button>
   </div>
 
   <script type="module">
   import { $ as _$$, jfetch, toast } from "/static/js/api.js?v=1";
   const $ = (sel)=>document.querySelector(sel);
 
+  /* ========= SheetJS loader (tries CDNs, then local) ========= */
+  const SHEETJS_URLS = [
+    "https://cdn.jsdelivr.net/npm/xlsx@0.19.3/dist/xlsx.full.min.js",
+    "https://unpkg.com/xlsx@0.19.3/dist/xlsx.full.min.js",
+    "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.19.3/xlsx.full.min.js",
+  ];
+  const SHEETJS_LOCAL = "/static/vendor/xlsx/xlsx.full.min.js"; // <- host file here as fallback
+
+  function loadScript(src){
+    return new Promise((resolve, reject)=>{
+      const s = document.createElement("script");
+      s.src = src;
+      s.async = true;
+      s.onload = () => resolve(true);
+      s.onerror = () => reject(new Error("load failed: " + src));
+      document.head.appendChild(s);
+    });
+  }
+
+  async function ensureSheetJS(){
+    if (window.XLSX) return window.XLSX;
+    const candidates = [...SHEETJS_URLS, SHEETJS_LOCAL];
+    for (const url of candidates){
+      try{
+        await loadScript(url);
+        if (window.XLSX) return window.XLSX;
+      }catch(_e){ /* try next */ }
+    }
+    return null;
+  }
+
+  /* ========= jsPDF + autoTable loader ========= */
+  const JSPDF_URLS = [
+    "https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js",
+    "https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js"
+  ];
+  const AUTOTABLE_URLS = [
+    "https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js",
+    "https://unpkg.com/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"
+  ];
+  const JSPDF_LOCAL = "/static/vendor/jspdf/jspdf.umd.min.js";
+  const AUTOTABLE_LOCAL = "/static/vendor/jspdf/jspdf.plugin.autotable.min.js";
+
+  async function ensureJsPDF(){
+    if (window.jspdf?.jsPDF) return window.jspdf.jsPDF;
+    for (const url of [...JSPDF_URLS, JSPDF_LOCAL]){
+      try { await loadScript(url); if (window.jspdf?.jsPDF) break; } catch{}
+    }
+    for (const url of [...AUTOTABLE_URLS, AUTOTABLE_LOCAL]){
+      try { await loadScript(url); if (window.jspdf?.jsPDF && window.jspdf?.API?.autoTable) break; } catch{}
+    }
+    return window.jspdf?.jsPDF || null;
+  }
+
+  /* ========= Helpers / API ========= */
   const API_BASE = '';
   const api = (p) => `${API_BASE}${p}`;
-  async function apiGET(path){ try{ return await jfetch(api(path)); }catch(e){ console.error(e); toast?.(e?.message||'API error'); throw e; } }
+  async function apiGET(path){
+    try{ return await jfetch(api(path)); }
+    catch(e){ console.error(e); toast?.(e?.message||'API error'); throw e; }
+  }
 
   const PP  = "/pay-periods";
   const EMP = "/employees";
   const DEFAULT_OT_MULTIPLIER = 1.5;
 
-  /* ===================== Los Angeles helpers ===================== */
-  const LA_TZ = "America/Los_Angeles";
-
-  // Offset between UTC date & LA wall-clock time at that instant (handles DST)
-  function laOffsetMs(d = new Date()) {
-    const laStr = d.toLocaleString("en-US", { timeZone: LA_TZ });
-    const laAsLocal = new Date(laStr);
-    return laAsLocal.getTime() - d.getTime();
-  }
-  function toLA(d = new Date()) { return new Date(d.getTime() + laOffsetMs(d)); }
-
-  // Format HH:MM using LA wall clock
-  function fmtTimeLA(iso){
-    if(!iso) return '';
-    const d = typeof iso === 'string' ? new Date(iso) : iso;
-    const la = toLA(d);
-    const pad = n=>String(n).padStart(2,'0');
-    return `${pad(la.getHours())}:${pad(la.getMinutes())}`;
-  }
-
-  // "YYYY-MM-DD" key for the LA calendar day of this timestamp
-  function laDateKey(iso){
-    if(!iso) return null;
-    const d = typeof iso === 'string' ? new Date(iso) : iso;
-    const la = toLA(d);
-    const y = la.getFullYear();
-    const m = String(la.getMonth()+1).padStart(2,'0');
-    const dd = String(la.getDate()).padStart(2,'0');
-    return `${y}-${m}-${dd}`;
-  }
-  /* =============================================================== */
-
   const pad = n=>String(n).padStart(2,'0');
-  // For filenames etc., keep plain date (assumes pp.start_at / end_at are date-like)
   const fmtDate = iso => iso ? new Date(iso).toISOString().slice(0,10) : '';
-
+  const fmtTime = iso => { if(!iso) return ''; const d=new Date(iso); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
   const currency = v =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 })
       .format(Number(v ?? 0));
   const getQS = k => new URL(location.href).searchParams.get(k);
+  const utcDateKey = iso => iso ? new Date(iso).toISOString().slice(0,10) : null;
 
   const fmtMDY = (v) => {
     if (!v) return '';
     const s = String(v);
-    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) { // already YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
       const [y, m, d] = s.split('-');
       return `${m}/${d}/${y}`;
     }
-    // otherwise parse and display LA calendar date
     const dt = new Date(s);
     if (isNaN(dt)) return '';
-    const la = toLA(dt);
-    const mm = String(la.getMonth() + 1).padStart(2, '0');
-    const dd = String(la.getDate()).padStart(2, '0');
-    const yy = la.getFullYear();
+    const mm = String(dt.getMonth() + 1).padStart(2, '0');
+    const dd = String(dt.getDate()).padStart(2, '0');
+    const yy = dt.getFullYear();
     return `${mm}/${dd}/${yy}`;
   };
 
@@ -145,6 +188,57 @@
     if(!found) throw new Error(`PayPeriod id=${pp_id} not found`); return found;
   }
 
+  // ----- helpers: choose week start (Sun=0 or Mon=1) -----
+  function weekKeyLocal(dateISO, weekStartsOn = 1 /* 1=Mon start */) {
+    const d = new Date(dateISO + "T00:00:00");
+    const day = d.getDay(); // 0..6 (Sun..Sat)
+    const diff = (day - weekStartsOn + 7) % 7;
+    const weekStart = new Date(d); weekStart.setDate(d.getDate() - diff);
+    const y = weekStart.getFullYear();
+    const m = String(weekStart.getMonth() + 1).padStart(2, "0");
+    const dd = String(weekStart.getDate()).padStart(2, "0");
+    return `${y}-${m}-${dd}`;
+  }
+
+  // ----- apply six-day rule on top of daily 8h rule -----
+  function applySixDayRule(rows, { weekStartsOn = 1 } = {}) {
+    const normalized = rows.map(r => {
+      const total = Number(r.reg_hours || 0) + Number(r.ot_hours || 0);
+      let reg = Number(r.reg_hours || 0);
+      let ot  = Number(r.ot_hours || 0);
+      if (reg === 0 && ot === 0 && total > 0) {
+        reg = Math.min(8, total);
+        ot  = Math.max(0, total - 8);
+      }
+      return { ...r, reg_hours: reg, ot_hours: ot, _total_hours: reg + ot };
+    });
+
+    const byWeek = new Map();
+    normalized.forEach((r, i) => {
+      const wk = weekKeyLocal(r.date, weekStartsOn);
+      if (!byWeek.has(wk)) byWeek.set(wk, []);
+      byWeek.get(wk).push(i);
+    });
+
+    for (const [, idxs] of byWeek) {
+      const worked = idxs.filter(i => normalized[i]._total_hours > 0);
+      if (worked.length >= 6) {
+        worked.sort((i1, i2) => {
+          const a = normalized[i1]._total_hours, b = normalized[i2]._total_hours;
+          if (a !== b) return a - b;
+          return new Date(normalized[i1].date) - new Date(normalized[i2].date);
+        });
+        const pick = worked[0];
+        const day = normalized[pick];
+        day.ot_hours = Number(day.ot_hours || 0) + Number(day.reg_hours || 0);
+        day.reg_hours = 0;
+      }
+    }
+
+    normalized.forEach(r => delete r._total_hours);
+    return normalized;
+  }
+
   function effectiveRates(){
     const r = Number($('#rate').value || 0);
     const otField = $('#ot_rate').value;
@@ -156,8 +250,8 @@
     if(!list || !list.length) return '';
     const sorted = [...list].sort((a,b)=>new Date(a.start_at||0) - new Date(b.start_at||0));
     return sorted.map(s=>{
-      const si = fmtTimeLA(s.start_at);
-      const so = s.end_at ? fmtTimeLA(s.end_at) : '…';
+      const si = fmtTime(s.start_at);
+      const so = s.end_at ? fmtTime(s.end_at) : '…';
       return `${si}-${so}`;
     }).join('<br>');
   }
@@ -166,10 +260,16 @@
     if(!list || !list.length) return '';
     const sorted = [...list].sort((a,b)=>new Date(a.start_at||0) - new Date(b.start_at||0));
     return sorted.map(b=>{
-      const s = fmtTimeLA(b.start_at);
-      const e = fmtTimeLA(b.end_at);
+      const s = fmtTime(b.start_at);
+      const e = fmtTime(b.end_at);
       return `${s}-${e}`;
     }).join('<br>');
+  }
+
+  function updateTotalBadges({ sumReg, sumOT, sumPayReg, sumPayOT }){
+    $('#btnRegTotal').textContent   = `Reg Hrs: ${sumReg.toFixed(2)}`;
+    $('#btnOTTotal').textContent    = `OT Hrs: ${sumOT.toFixed(2)}`;
+    $('#btnGrandTotal').textContent = `Total: ${currency(sumPayReg + sumPayOT)}`;
   }
 
   function render(summary, breaksByDate = {}, shiftsByDate = {}){
@@ -177,10 +277,18 @@
     const { rate, otRate } = effectiveRates();
 
     let sumReg=0, sumOT=0, sumPayReg=0, sumPayOT=0, idx=0;
+    let lastWeekKey = null;
 
     for(const row of (summary.rows || [])){
-      idx += 1;
+      const weekKey = weekKeyLocal(row.date, 1); // Monday-start
+      if (lastWeekKey !== null && weekKey !== lastWeekKey) {
+        const sep = document.createElement('tr');
+        sep.innerHTML = `<td colspan="12" style="background:#f4f4f5;height:6px;border:0"></td>`;
+        tb.appendChild(sep);
+      }
+      lastWeekKey = weekKey;
 
+      idx += 1;
       const reg = Number(row.reg_hours || 0);
       const ot  = Number(row.ot_hours || 0);
       const payReg = reg * rate;
@@ -219,6 +327,9 @@
         <td class="num mono">${currency(sumPayOT)}</td>
         <td class="num mono">${currency(sumPayReg+sumPayOT)}</td>
       </tr>`;
+
+    // update totals badges
+    updateTotalBadges({ sumReg, sumOT, sumPayReg, sumPayOT });
   }
 
   const safeFilename = (s) =>
@@ -228,40 +339,230 @@
       .replace(/\s+/g, '_')
       .slice(0, 120);
 
+  /* ========= CSV ========= */
   function exportCSV(){
     const header = [
       'no','date','shifts','breaks',
       'break_unpaid_h','reg_h','ot_h','rate','ot_rate','pay_reg','pay_ot','pay_total'
     ];
     const rows = [];
+    let lastWeekKey = null;
+
     document.querySelectorAll('#tblBody tr').forEach(tr=>{
-      const tds = tr.querySelectorAll('td');
+      const t = tr.querySelectorAll('td');
+      const date = (t[1]?.innerText || '').trim();
+      if (date) {
+        const [mm,dd,yy] = date.split('/');
+        const iso = `${yy}-${mm}-${dd}`;
+        const wk = weekKeyLocal(iso, 1);
+        if (lastWeekKey !== null && wk !== lastWeekKey) rows.push([]); // separator
+        lastWeekKey = wk;
+      }
       rows.push([
-        (tds[0]?.textContent||'').trim(),
-        (tds[1]?.textContent||'').trim(),
-        (tds[2]?.textContent||'').trim(),
-        (tds[3]?.textContent||'').trim(),
-        (tds[4]?.textContent||'').trim(),
-        (tds[5]?.textContent||'').trim(),
-        (tds[6]?.textContent||'').trim(),
-        (tds[7]?.textContent||'').trim(),
-        (tds[8]?.textContent||'').trim(),
-        (tds[9]?.textContent||'').trim(),
-        (tds[10]?.textContent||'').trim(),
-        (tds[11]?.textContent||'').trim(),
+        t[0]?.innerText.trim() ?? '',
+        date,
+        t[2]?.innerText.trim() ?? '',
+        t[3]?.innerText.trim() ?? '',
+        t[4]?.innerText.trim() ?? '',
+        t[5]?.innerText.trim() ?? '',
+        t[6]?.innerText.trim() ?? '',
+        t[7]?.innerText.trim() ?? '',
+        t[8]?.innerText.trim() ?? '',
+        t[9]?.innerText.trim() ?? '',
+        t[10]?.innerText.trim() ?? '',
+        t[11]?.innerText.trim() ?? '',
       ]);
     });
-    const csv = [header, ...rows]
-      .map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(','))
-      .join('\n');
+
+    // Totals (read from tfoot)
+    const tfootTds = Array.from(document.querySelectorAll('#tblFoot td'));
+    const totalReg = tfootTds[1]?.innerText ?? '';
+    const totalOT  = tfootTds[2]?.innerText ?? '';
+    const totalPayReg = tfootTds[4]?.innerText ?? '';
+    const totalPayOT  = tfootTds[5]?.innerText ?? '';
+    const totalGrand  = tfootTds[6]?.innerText ?? '';
+
+    rows.push([]);
+    rows.push(['','','','','Total', totalReg, totalOT, '', '', totalPayReg, totalPayOT, totalGrand]);
+
+    const csv = [header, ...rows].map(r => r.map(v => `"${String(v||'').replace(/"/g,'""')}"`).join(',')).join('\n');
     const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url;
-    const fname = `payroll_${safeFilename(currentEmpName)}_${currentPpStart}_${currentPpEnd}.csv`;
+    const a = document.createElement('a');
+    a.href = url;
+    const fname = `${safeFilename(currentEmpName)}_${currentPpStart}_${currentPpEnd}.csv`;
     a.download = fname;
-    a.click(); URL.revokeObjectURL(url);
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
+  /* ========= Excel ========= */
+  async function exportExcel(){
+    const XLSX = await ensureSheetJS();
+    if (!XLSX){ alert("Excel library not available. Try CSV."); exportCSV(); return; }
+
+    const header = ['no','date','shifts','breaks','break_unpaid_h','reg_h','ot_h','rate','ot_rate','pay_reg','pay_ot','pay_total'];
+    const rows = [header];
+
+    let lastWeekKey = null;
+    const bodyTrs = Array.from(document.querySelectorAll('#tblBody tr'));
+    bodyTrs.forEach(tr=>{
+      const t = tr.querySelectorAll('td');
+      const date = (t[1]?.innerText || '').trim();
+      if (date) {
+        const [mm,dd,yy] = date.split('/');
+        const iso = `${yy}-${mm}-${dd}`;
+        const wk = weekKeyLocal(iso, 1);
+        if (lastWeekKey !== null && wk !== lastWeekKey) rows.push([]); // blank separator
+        lastWeekKey = wk;
+      }
+      const numTxt = (s)=>Number(String(s||'').replace(/[^0-9.\-]/g,'')||0);
+      rows.push([
+        t[0]?.innerText.trim() || '',
+        date,
+        t[2]?.innerText.trim() || '',
+        t[3]?.innerText.trim() || '',
+        numTxt(t[4]?.innerText),
+        numTxt(t[5]?.innerText),
+        numTxt(t[6]?.innerText),
+        numTxt(t[7]?.innerText),
+        numTxt(t[8]?.innerText),
+        numTxt(t[9]?.innerText),
+        numTxt(t[10]?.innerText),
+        numTxt(t[11]?.innerText),
+      ]);
+    });
+
+    // total line
+    rows.push([]);
+    rows.push(['','','','','Total','','','','','','','']);
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+
+    // widths
+    ws['!cols'] = [
+      { wch: 4 },{ wch: 10 },{ wch: 18 },{ wch: 18 },
+      { wch: 12 },{ wch: 10 },{ wch: 10 },{ wch: 10 },
+      { wch: 10 },{ wch: 12 },{ wch: 12 },{ wch: 12 },
+    ];
+
+    const ref = XLSX.utils.decode_range(ws['!ref']);
+    const firstDataExcelRow = 2; // header=1
+    const totalRow = ref.e.r;    // last row index (1-based in Excel display)
+
+    // “Total” label at col E (index 4)
+    ws[XLSX.utils.encode_cell({r: totalRow, c: 4})] = { t:'s', v:'Total' };
+
+    // sums: Reg (F), OT (G), Pay Reg (J), Pay OT (K), Grand (L)
+    function excelCol(c){ return XLSX.utils.encode_col(c); }
+    const lastDataExcelRow = totalRow - 1;
+    const plainCols = [5,6];        // F,G -> hours
+    const moneyCols = [9,10,11];    // J,K,L -> pay
+
+    for (const c of plainCols){
+      const colL = excelCol(c);
+      ws[XLSX.utils.encode_cell({r: totalRow, c})] = { t:'n', f:`SUM(${colL}${firstDataExcelRow}:${colL}${lastDataExcelRow})`, z:'0.00' };
+    }
+    for (const c of moneyCols){
+      const colL = excelCol(c);
+      ws[XLSX.utils.encode_cell({r: totalRow, c})] = { t:'n', f:`SUM(${colL}${firstDataExcelRow}:${colL}${lastDataExcelRow})`, z:'$#,##0.00' };
+    }
+
+    let sheetName = `${currentPpStart}_to_${currentPpEnd}`;
+    sheetName = sheetName.replace(/[\\/:*?\[\]]/g, "").slice(0, 31);
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+
+    const fname = `${safeFilename(currentEmpName)}_${currentPpStart}_${currentPpEnd}.xlsx`;
+    XLSX.writeFile(wb, fname);
+  }
+
+  /* ========= PDF ========= */
+  async function exportPDF(){
+    const jsPDF = await ensureJsPDF();
+    if (!jsPDF){ alert("PDF library not available. Try Excel/CSV."); return; }
+
+    const doc = new jsPDF({ unit: "pt", format: "a4" }); // portrait A4
+    const marginX = 36, marginY = 48;
+
+    // Title block
+    doc.setFontSize(14);
+    doc.text(`Payroll — ${currentEmpName}`, marginX, marginY);
+    doc.setFontSize(11);
+    doc.text(`Period: ${fmtMDY(currentPpStart)} to ${fmtMDY(currentPpEnd)}`, marginX, marginY+16);
+
+    // Build table data from DOM
+    const headers = [
+      'No','Date','Shifts','Breaks','Break (hrs)','Reg (hrs)','OT (hrs)','Rate','OT Rate','Pay (Reg)','Pay (OT)','Total Pay'
+    ];
+    const body = [];
+    let lastWeekKey = null;
+
+    const trs = Array.from(document.querySelectorAll('#tblBody tr'));
+    trs.forEach(tr=>{
+      const t = tr.querySelectorAll('td');
+      const date = (t[1]?.innerText || '').trim();
+      if (date){
+        const [mm,dd,yy] = date.split('/');
+        const wk = weekKeyLocal(`${yy}-${mm}-${dd}`, 1);
+        if (lastWeekKey !== null && wk !== lastWeekKey) body.push([]); // visual separator row
+        lastWeekKey = wk;
+      }
+      body.push(Array.from(t).map(td => td.innerText.trim()));
+    });
+
+    // Totals from tfoot
+    const tfootTds = Array.from(document.querySelectorAll('#tblFoot td'));
+    const totalsRow = ['', '', '', '', 'Total',
+      tfootTds[1]?.innerText ?? '',
+      tfootTds[2]?.innerText ?? '',
+      '',
+      '',
+      tfootTds[4]?.innerText ?? '',
+      tfootTds[5]?.innerText ?? '',
+      tfootTds[6]?.innerText ?? '',
+    ];
+    body.push([]);
+    body.push(totalsRow);
+
+    // AutoTable
+    doc.autoTable({
+      startY: marginY + 28,
+      head: [headers],
+      body,
+      styles: { fontSize: 8, cellPadding: 4, halign: 'center' },
+      columnStyles: {
+        0: { halign:'right', cellWidth: 28 },
+        1: { cellWidth: 60 },
+        2: { halign:'left', cellWidth: 120 },
+        3: { halign:'left', cellWidth: 120 },
+        4: { cellWidth: 60 },
+        5: { cellWidth: 60 },
+        6: { cellWidth: 60 },
+        7: { cellWidth: 60 },
+        8: { cellWidth: 60 },
+        9: { cellWidth: 70 },
+        10:{ cellWidth: 70 },
+        11:{ cellWidth: 80 },
+      },
+      theme: 'grid',
+      didParseCell: data => {
+        // make the “Total” row bold
+        if (data.row.raw === totalsRow) data.cell.styles.fontStyle = 'bold';
+      },
+      // Add simple pagination footer
+      didDrawPage: (data) => {
+        const page = doc.getNumberOfPages();
+        doc.setFontSize(9);
+        doc.text(`Page ${page}`, doc.internal.pageSize.getWidth()-marginX, doc.internal.pageSize.getHeight()-20, { align:'right' });
+      }
+    });
+
+    const fname = `${safeFilename(currentEmpName)}_${currentPpStart}_${currentPpEnd}.pdf`;
+    doc.save(fname);
+  }
+
+  /* ========= Page load ========= */
   async function loadPage(fetchFromApi = true){
     const pp_id = getQS('pp_id');
     const employee_id = getQS('employee_id');
@@ -281,8 +582,8 @@
       `Payroll — ${emp?.name ?? ('Emp #'+employee_id)} (${fmtMDY(pp.start_at)} → ${fmtMDY(pp.end_at)})`;
 
     currentEmpName = emp?.name ?? `Emp_${employee_id}`;
-    currentPpStart = fmtDate(pp.start_at); // YYYY-MM-DD
-    currentPpEnd   = fmtDate(pp.end_at);   // YYYY-MM-DD
+    currentPpStart = fmtDate(pp.start_at);
+    currentPpEnd   = fmtDate(pp.end_at);
 
     if (fetchFromApi){
       const [summary, details] = await Promise.all([
@@ -290,12 +591,12 @@
         apiGET(`/payroll/time-entries/by-employee?employee_id=${employee_id}&pp_id=${pp_id}`)
       ]);
 
+      summary.rows = applySixDayRule(summary.rows || [], { weekStartsOn: 1 });
+
       const breaksByDate = {};
       const shiftsByDate = {};
-
-      // IMPORTANT: group by LA date (matches how the UI shows "Date")
       for(const te of (details || [])){
-        const dayKey = laDateKey(te.clock_in_at || te.clock_out_at);
+        const dayKey = utcDateKey(te.clock_in_at || te.clock_out_at);
         if(!dayKey) continue;
         (shiftsByDate[dayKey] ??= []).push({ start_at: te.clock_in_at, end_at: te.clock_out_at });
         for(const b of (te.breaks || [])){ (breaksByDate[dayKey] ??= []).push(b); }
@@ -305,6 +606,7 @@
     render(lastSummary, lastBreaksByDate, lastShiftsByDate);
   }
 
+  /* ========= Wire up ========= */
   document.getElementById('rate').addEventListener('input', ()=>{
     const r = Number(document.getElementById('rate').value || 0);
     const ot = document.getElementById('ot_rate');
@@ -316,7 +618,10 @@
   document.getElementById('recalc').addEventListener('click', ()=>{
     render(lastSummary, lastBreaksByDate, lastShiftsByDate);
   });
-  document.getElementById('exportCsv').addEventListener('click', exportCSV);
+
+  document.getElementById('btnCsv').addEventListener('click', exportCSV);
+  document.getElementById('btnXlsx').addEventListener('click', exportExcel);
+  document.getElementById('btnPdf').addEventListener('click', exportPDF);
 
   document.addEventListener('DOMContentLoaded', ()=>loadPage(true));
   </script>
