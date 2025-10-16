@@ -47,7 +47,7 @@ TRUNCATE TABLE
     public.chemical_finishes,
     public.part_process_selections,
     public.part_finish_selections,
-    public.part_other_notes
+    public.part_other_notes,
 RESTART IDENTITY CASCADE;
 """
 

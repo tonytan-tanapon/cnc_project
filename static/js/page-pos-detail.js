@@ -414,7 +414,7 @@ function autosaveRow(row, { immediate = false } = {}) {
         const norm = normalizeServerLine(created);
         row.update(norm);
         setDirtyClass(row, false);
-        toast("Line added");
+        toast("POS added");
       })
       .catch((e) => {
         const msg = String(e?.message || "").toLowerCase();
@@ -766,7 +766,7 @@ async function deleteLine(row) {
     row.delete();
     return;
   }
-  if (!confirm("Delete line?\nThis action cannot be undone.")) return;
+  if (!confirm("Delete POS?\nThis action cannot be undone.")) return;
   const poid = initial?.id ?? poIdQS;
   try {
     await jfetch(`/pos/${encodeURIComponent(poid)}/lines/${d.id}`, {

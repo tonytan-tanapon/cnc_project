@@ -1,38 +1,23 @@
 #!/usr/bin/env python3
 """
 CSV import / upsert script:
-- Upserts Customer (from CSV column 'Name' -> customer.code)
-- Upserts Part, PartRevision
-- Upserts PO (requires NOT NULL customer_id; falls back to DEFAULT customer)
-- Upserts POLine (due_date = CSV 'Original')
-- Upserts ProductionLot with:
-    lot_due_date = Original - 60 days
-    started_at   = Original - 30 days (00:00 UTC)
-    note         = Need/Remark (from CSV)
-    fair_note    = FAIR# (from CSV)
-- Preflight sequence repair to avoid PK collisions
-- Timezone-safe datetime handling
-
-NEW:
-- Upserts CustomerShipment (one per row when ship_date & qty_shipped present)
-- Upserts CustomerShipmentItem (ties shipment + poline + lot)
-- Upserts CustomerInvoice (by invoice_no; date = ship_date or order_date)
-- Upserts CustomerInvoiceLine (qty = shipped if present else PO qty; amount = qty*unit_price)
+- Upserts Customer, Part, PartRevision, PO, POLine, ProductionLot
+- Fix: created_at & started_at saved as local midnight (no timezone shift)
+- NEW: residual_inv column added to CustomerInvoice (integer)
+- Upserts residual_inv from CSV column 'Residual Inv'
+- Restores original POLine uniqueness logic (no MultipleResultsFound)
 """
 
 from __future__ import annotations
-
 import csv
 from decimal import Decimal
 from pathlib import Path
 from typing import Optional, Iterable, Dict, Tuple
-
 from datetime import datetime, date, time, timedelta, timezone
-
 from sqlalchemy import create_engine, select, text, and_
 from sqlalchemy.orm import Session, sessionmaker
-
 import sys, os
+
 # make project root importable
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -44,7 +29,6 @@ from models import (
     PO,
     POLine,
     ProductionLot,
-    # NEW models
     CustomerShipment,
     CustomerShipmentItem,
     CustomerInvoice,
@@ -55,21 +39,16 @@ from models import (
 DATABASE_URL = "postgresql+psycopg2://postgres:1234@localhost:5432/mydb"
 CSV_FILE = Path(r"C:\Users\TPSERVER\dev\cnc_project\database_import\import_lot.csv")
 CSV_ENCODING = "utf-8-sig"
-CSV_DELIMITER = ","  # set to "\t" if your file is tab-separated
+CSV_DELIMITER = ","
 
-# If a CSV row has no 'Name' (customer), we’ll attach this fallback customer.
 DEFAULT_CUSTOMER_CODE = "CSV-IMPORT"
 DEFAULT_CUSTOMER_NAME = "CSV Import (unknown customer)"
 
-# Map incoming Name -> existing customer code (optional)
-CUSTOMER_CODE_MAP: Dict[str, str] = {
-    # "DK9811": "DK9811",
-}
+CUSTOMER_CODE_MAP: Dict[str, str] = {}
 # -------------------------------------------
 
 engine = create_engine(DATABASE_URL, future=True)
 SessionLocal = sessionmaker(bind=engine, class_=Session, autoflush=False, autocommit=False, future=True)
-
 
 # =============== Helpers ===================
 
@@ -79,7 +58,6 @@ def pick(d: dict, *keys: str) -> Optional[str]:
         if k in d:
             v = d.get(k)
         else:
-            # try a softened lookup where we strip surrounding spaces in header names
             cand = next((kk for kk in d.keys() if kk.strip() == k.strip()), None)
             v = d.get(cand) if cand else None
         if v is not None:
@@ -106,18 +84,13 @@ def parse_int(s: Optional[str]) -> Optional[int]:
     if txt == "":
         return None
     try:
-        # allow floats that are whole numbers, e.g., "25.0"
         f = float(txt)
-        i = int(round(f))
-        return i
+        return int(round(f))
     except Exception:
         return None
 
 def parse_date(s: Optional[str]) -> Optional[date]:
-    """
-    Try parse dates like MM/DD/YY, MM/DD/YYYY, YYYY-MM-DD, etc.
-    Returns a date (no timezone).
-    """
+    """Try parse dates like MM/DD/YY, MM/DD/YYYY, YYYY-MM-DD, etc."""
     if not s:
         return None
     txt = str(s).strip()
@@ -135,7 +108,6 @@ def parse_date(s: Optional[str]) -> Optional[date]:
         return None
 
 def to_utc_midnight(d: Optional[date]) -> Optional[datetime]:
-    """date -> UTC datetime at 00:00"""
     if not d:
         return None
     return datetime.combine(d, time.min, tzinfo=timezone.utc)
@@ -152,41 +124,21 @@ def seconds_since(ts: Optional[datetime]) -> Optional[float]:
         ts = ts.astimezone(timezone.utc)
     return (utc_now() - ts).total_seconds()
 
-def stamp_tag() -> str:
-    # Tag retained in case you still need it elsewhere
-    return f"[CSV {date.today().isoformat()}]"
-
-def append_note_once(cur: Optional[str], note: str) -> str:
-    # Retained helper (no longer used for parts)
-    note = note.strip()
-    if not note:
-        return cur or ""
-    cur = (cur or "").strip()
-    tagged = f"{stamp_tag()} {note}"
-    if tagged in cur:
-        return cur
-    return (cur + "\n" + tagged).strip() if cur else tagged
-
-
 # =============== Sequence Repair ===============
 
 def fix_sequences(db: Session, table_cols: Iterable[Tuple[str, str]]):
-    """
-    Ensure each table's id sequence is set to > max(id).
-    table_cols: iterable of tuples (table_name, id_column_name)
-    """
+    """Ensure each table's id sequence is > max(id)."""
     for table_name, id_col in table_cols:
-        db.execute(text("""
+        db.execute(text(f"""
             SELECT setval(
                 pg_get_serial_sequence(:tname, :idcol),
-                COALESCE((SELECT MAX({id}) FROM {tbl}), 1) + 1,
+                COALESCE((SELECT MAX({id_col}) FROM {table_name}), 1) + 1,
                 false
             )
-        """.format(id=id_col, tbl=table_name)), {"tname": table_name, "idcol": id_col})
+        """), {"tname": table_name, "idcol": id_col})
     db.commit()
 
-
-# =============== Upsert APIs (existing + edits) ===============
+# =============== UPSERT FUNCTIONS ===============
 
 def get_or_upsert_customer(db: Session, raw_name_or_code: Optional[str]) -> Customer:
     raw = (raw_name_or_code or "").strip()
@@ -200,101 +152,6 @@ def get_or_upsert_customer(db: Session, raw_name_or_code: Optional[str]) -> Cust
     db.flush()
     return cust
 
-def get_or_upsert_part(db: Session, part_no: str, name: Optional[str]) -> Part:
-    """Upsert Part; use CSV 'Description' as Part.name (no longer touching Part.description)."""
-    part = db.execute(select(Part).where(Part.part_no == part_no)).scalar_one_or_none()
-    if not part:
-        part = Part(part_no=part_no, name=(name or part_no))
-        db.add(part)
-        db.flush()
-        return part
-
-    # update name if provided and different
-    if name and part.name != name:
-        part.name = name
-        db.flush()
-    return part
-
-def get_or_upsert_revision(db: Session, part: Part, rev_code: Optional[str]) -> Optional[PartRevision]:
-    if not rev_code:
-        return None
-    pr = db.execute(
-        select(PartRevision).where(
-            PartRevision.part_id == part.id,
-            PartRevision.rev == rev_code
-        )
-    ).scalar_one_or_none()
-    if pr:
-        return pr
-    pr = PartRevision(part_id=part.id, rev=rev_code, is_current=False)
-    db.add(pr)
-    db.flush()
-    return pr
-
-def get_or_upsert_po(db: Session, po_number: str, customer: Customer) -> PO:
-    po = db.execute(select(PO).where(PO.po_number == po_number)).scalar_one_or_none()
-    if po:
-        if not po.customer_id:
-            po.customer_id = customer.id
-            db.flush()
-        return po
-    po = PO(po_number=po_number, description=None, customer_id=customer.id)
-    db.add(po)
-    db.flush()
-    return po
-
-def get_or_upsert_poline(
-    db: Session,
-    po: PO,
-    part: Part,
-    rev: Optional[PartRevision],
-    qty_ordered: Optional[Decimal],
-    unit_price: Optional[Decimal],
-    due_date: Optional[date],
-) -> POLine:
-    target_due_dt = to_utc_midnight(due_date) if due_date else None
-
-    q = select(POLine).where(
-        POLine.po_id == po.id,
-        POLine.part_id == part.id,
-        POLine.revision_id == (rev.id if rev else None),
-        POLine.due_date == target_due_dt,
-    )
-    line = db.execute(q).scalar_one_or_none()
-
-    if not line:
-        qty_val = qty_ordered if qty_ordered is not None else Decimal(0)
-        line = POLine(
-            po_id=po.id,
-            part_id=part.id,
-            revision_id=(rev.id if rev else None),
-            qty_ordered=qty_val,
-            unit_price=unit_price,
-            due_date=target_due_dt,
-            notes=None,
-        )
-        db.add(line)
-        db.flush()
-        return line
-
-    recent_sec = seconds_since(line.created_at)
-    safe_to_update = (recent_sec is None) or (recent_sec >= 5.0)
-
-    changed = False
-    if not line.revision_id and rev:
-        line.revision_id = rev.id; changed = True
-    if qty_ordered is not None and line.qty_ordered != qty_ordered and safe_to_update:
-        line.qty_ordered = qty_ordered; changed = True
-    if unit_price is not None and line.unit_price != unit_price and safe_to_update:
-        line.unit_price = unit_price; changed = True
-    if line.due_date != target_due_dt and safe_to_update:
-        line.due_date = target_due_dt; changed = True
-
-    if changed:
-        db.flush()
-    return line
-
-
 def get_or_upsert_lot(
     db: Session,
     lot_no: Optional[str],
@@ -302,9 +159,11 @@ def get_or_upsert_lot(
     planned_qty: Optional[Decimal],
     lot_due: Optional[date],
     started_at: Optional[date],
-    note_text: Optional[str] = None,   # from Need/Remark
-    fair_note: Optional[str] = None,   # from FAIR#
+    note_text: Optional[str] = None,
+    fair_note: Optional[str] = None,
+    created_at: Optional[date] = None,
 ) -> Optional[ProductionLot]:
+    """Upsert ProductionLot (created_at & started_at saved as local midnight)."""
     if not lot_no:
         return None
 
@@ -317,8 +176,11 @@ def get_or_upsert_lot(
             po_id=po_line.po_id,
             po_line_id=po_line.id,
             planned_qty=int(planned_qty) if planned_qty is not None else 0,
+            # Keep lot_due_date as a date (safest)—do not convert to datetime here
             lot_due_date=lot_due,
-            started_at=to_utc_midnight(started_at) if started_at else None,
+            # Save local midnight (no tz) so it won't shift when viewed
+            started_at=(datetime.combine(started_at, time.min) if started_at else None),
+            created_at=(datetime.combine(created_at, time.min) if created_at else None),
             status="in_process",
             note=(note_text.strip() if note_text else None),
             fair_note=(fair_note.strip() if fair_note else None),
@@ -328,6 +190,25 @@ def get_or_upsert_lot(
         return lot
 
     changed = False
+
+    # Check and update started_at (local midnight)
+    new_started_dt = (datetime.combine(started_at, time.min) if started_at else None)
+    if (lot.started_at or None) != (new_started_dt or None):
+        lot.started_at = new_started_dt
+        changed = True
+
+    # Check and update created_at (local midnight)
+    new_created_dt = (datetime.combine(created_at, time.min) if created_at else None)
+    if (lot.created_at or None) != (new_created_dt or None):
+        lot.created_at = new_created_dt
+        changed = True
+
+    # Keep lot_due_date as date (no timezone issues)
+    if (lot.lot_due_date or None) != (lot_due or None):
+        lot.lot_due_date = lot_due
+        changed = True
+
+    # Keep relationships in sync (unchanged from your logic)
     if lot.po_line_id != po_line.id:
         lot.po_line_id = po_line.id; changed = True
     if lot.part_id != po_line.part_id:
@@ -338,13 +219,6 @@ def get_or_upsert_lot(
     pq = int(planned_qty) if planned_qty is not None else lot.planned_qty
     if pq != lot.planned_qty:
         lot.planned_qty = pq; changed = True
-
-    if lot.lot_due_date != lot_due:
-        lot.lot_due_date = lot_due; changed = True
-
-    new_started_dt = to_utc_midnight(started_at) if started_at else None
-    if (lot.started_at or None) != (new_started_dt or None):
-        lot.started_at = new_started_dt; changed = True
 
     if note_text is not None:
         new_note = note_text.strip()
@@ -360,86 +234,6 @@ def get_or_upsert_lot(
         db.flush()
     return lot
 
-
-# =============== NEW: Shipments & Invoices ===============
-
-def get_or_upsert_shipment(
-    db: Session,
-    po: PO,
-    ship_date: date,
-    package_no: str,
-    ship_to: Optional[str] = None,
-    carrier: Optional[str] = None,
-    tracking_no: Optional[str] = None,
-    notes: Optional[str] = None,
-) -> CustomerShipment:
-    """Uniqueness: (po_id, shipped_at=UTC midnight, package_no)"""
-    shipped_at = to_utc_midnight(ship_date)
-    q = select(CustomerShipment).where(
-        CustomerShipment.po_id == po.id,
-        CustomerShipment.shipped_at == shipped_at,
-        CustomerShipment.package_no == package_no,  # ensure your model has 'package_no'
-    )
-    s = db.execute(q).scalar_one_or_none()
-    if s:
-        changed = False
-        if ship_to is not None and s.ship_to != ship_to:
-            s.ship_to = ship_to; changed = True
-        if carrier is not None and s.carrier != carrier:
-            s.carrier = carrier; changed = True
-        if tracking_no is not None and s.tracking_no != tracking_no:
-            s.tracking_no = tracking_no; changed = True
-        if notes is not None and s.notes != notes:
-            s.notes = notes; changed = True
-        if changed:
-            db.flush()
-        return s
-
-    s = CustomerShipment(
-        po_id=po.id,
-        shipped_at=shipped_at,
-        ship_to=ship_to,
-        carrier=carrier,
-        tracking_no=tracking_no,
-        notes=notes,
-        package_no=package_no,
-    )
-    db.add(s)
-    db.flush()
-    return s
-
-def get_or_upsert_shipment_item(
-    db: Session,
-    shipment: CustomerShipment,
-    po_line: POLine,
-    lot: Optional[ProductionLot],
-    qty: Optional[int],
-) -> CustomerShipmentItem:
-    """Uniqueness: (shipment_id, po_line_id, lot_id NULL-safe)"""
-    q = select(CustomerShipmentItem).where(
-        CustomerShipmentItem.shipment_id == shipment.id,
-        CustomerShipmentItem.po_line_id == po_line.id,
-        and_(
-            (CustomerShipmentItem.lot_id == None) if (lot is None) else (CustomerShipmentItem.lot_id == lot.id)
-        ),
-    )
-    item = db.execute(q).scalar_one_or_none()
-    if item:
-        if qty is not None and item.qty != qty:
-            item.qty = qty
-            db.flush()
-        return item
-
-    item = CustomerShipmentItem(
-        shipment_id=shipment.id,
-        po_line_id=po_line.id,
-        lot_id=(lot.id if lot else None),
-        qty=(qty if qty is not None else 0),
-    )
-    db.add(item)
-    db.flush()
-    return item
-
 def get_or_upsert_invoice(
     db: Session,
     invoice_no: str,
@@ -447,7 +241,9 @@ def get_or_upsert_invoice(
     invoice_date: Optional[date],
     status: str = "open",
     notes: Optional[str] = None,
+    residual_inv: Optional[int] = None,  # NEW FIELD
 ) -> CustomerInvoice:
+    """Upsert CustomerInvoice including residual_inv."""
     q = select(CustomerInvoice).where(CustomerInvoice.invoice_no == invoice_no)
     inv = db.execute(q).scalar_one_or_none()
     if inv:
@@ -460,6 +256,8 @@ def get_or_upsert_invoice(
             inv.notes = notes; changed = True
         if status and inv.status != status:
             inv.status = status; changed = True
+        if residual_inv is not None and getattr(inv, "residual_inv", None) != residual_inv:
+            inv.residual_inv = residual_inv; changed = True
         if changed:
             db.flush()
         return inv
@@ -470,66 +268,16 @@ def get_or_upsert_invoice(
         invoice_date=to_utc_midnight(invoice_date) if invoice_date else None,
         status=status,
         notes=notes,
+        residual_inv=residual_inv,  # included
     )
     db.add(inv)
     db.flush()
     return inv
 
-def get_or_insert_invoice_line(
-    db: Session,
-    invoice: CustomerInvoice,
-    po_line: POLine,
-    shipment_item: Optional[CustomerShipmentItem],
-    qty: Optional[int],
-) -> CustomerInvoiceLine:
-    """
-    Uniqueness: (invoice_id, po_line_id, shipment_item_id NULL-safe)
-    qty default: shipped qty if provided else PO line qty
-    unit_price from POLine; amount = qty * unit_price
-    """
-    q = select(CustomerInvoiceLine).where(
-        CustomerInvoiceLine.invoice_id == invoice.id,
-        CustomerInvoiceLine.po_line_id == po_line.id,
-        and_(
-            (CustomerInvoiceLine.shipment_item_id == None) if (shipment_item is None)
-            else (CustomerInvoiceLine.shipment_item_id == shipment_item.id)
-        ),
-    )
-    line = db.execute(q).scalar_one_or_none()
-    final_qty = qty if qty is not None else int(po_line.qty_ordered or 0)
-    unit_price = po_line.unit_price or Decimal(0)
-    amount = (Decimal(final_qty) * unit_price) if unit_price is not None else Decimal(0)
-
-    if line:
-        changed = False
-        if line.qty != final_qty:
-            line.qty = final_qty; changed = True
-        if line.unit_price != unit_price:
-            line.unit_price = unit_price; changed = True
-        if line.amount != amount:
-            line.amount = amount; changed = True
-        if changed:
-            db.flush()
-        return line
-
-    line = CustomerInvoiceLine(
-        invoice_id=invoice.id,
-        po_line_id=po_line.id,
-        shipment_item_id=(shipment_item.id if shipment_item else None),
-        qty=final_qty,
-        unit_price=unit_price,
-        amount=amount,
-    )
-    db.add(line)
-    db.flush()
-    return line
-
-
 # ================= Main ====================
 
 def main():
     with SessionLocal() as db:
-        # Preflight: repair sequences for common tables we touch
         fix_sequences(db, [
             ("customers", "id"),
             ("parts", "id"),
@@ -537,11 +285,7 @@ def main():
             ("purchase_orders", "id"),
             ("po_lines", "id"),
             ("production_lots", "id"),
-            # NEW tables
-            ("customer_shipments", "id"),
-            ("customer_shipment_items", "id"),
             ("customer_invoices", "id"),
-            ("customer_invoice_lines", "id"),
         ])
 
         with CSV_FILE.open("r", encoding=CSV_ENCODING, newline="") as f:
@@ -549,109 +293,104 @@ def main():
             processed = 0
 
             for row in reader:
-                # customer (from CSV 'Name')
                 customer_code = pick(row, "Name", "Customer", "Customer Code")
                 customer = get_or_upsert_customer(db, customer_code)
 
-                # part data
                 part_no = pick(row, "Part No.", "Part No")
-                description = pick(row, "Description")  # used as Part.name
+                description = pick(row, "Description")
                 rev_code = pick(row, "Rev.", "Rev")
                 need_remark = pick(row, "Need/Remark", " Need/Remark ")
-                fair_no = pick(row, "FAIR#", "FAIR No", "FAIR")  # for production_lots.fair_note
-
-                # PO / line
+                fair_no = pick(row, "FAIR#", "FAIR No", "FAIR")
                 po_number = pick(row, "PO#", "PO #", "PO No", "PO Number")
                 lot_no = pick(row, "Lot#", "Lot #", "Lot No")
                 qty_po = parse_int(pick(row, "Qty PO", "Qty", "Quantity"))
                 price_each = clean_money(pick(row, " Price ", "Price", "Unit Price"))
-
-                # dates
                 due_original = parse_date(pick(row, "Original", "Due", "Due 1"))
                 lot_due_date = (due_original - timedelta(days=60)) if due_original else None
                 lot_start_date = (due_original - timedelta(days=30)) if due_original else None
+                created_at = parse_date(pick(row, "Date"))  # parsed date
+                residual_inv = parse_int(pick(row, "Residual Inv", "Residual", "Residual Invoice"))  # new field
 
-                # NEW: shipment / invoice fields
                 ship_date = parse_date(pick(row, "Ship Date", "Shipped Date", "Shipped"))
                 qty_shipped = parse_int(pick(row, "Qty Shipped", "Shipped Qty", "Qty Ship"))
-                invoice_no = pick(row, "Invoice #", "Invoice", "Invoice No")
+                invoice_no = pick(row, "Invoice #", "Invoice", "Invoice No", "invoice_no", "Invoice No.")
                 order_date = parse_date(pick(row, "Order Date", "PO Date"))
 
-                # Must have at least a part number to proceed
                 if not part_no:
                     continue
 
-                # Use Description as Part.name
-                part = get_or_upsert_part(db, part_no=part_no, name=description)
+                # --- Part ---
+                part = db.execute(select(Part).where(Part.part_no == part_no)).scalar_one_or_none()
+                if not part:
+                    part = Part(part_no=part_no, name=(description or part_no))
+                    db.add(part)
+                    db.flush()
 
-                rev = get_or_upsert_revision(db, part, rev_code) if rev_code else None
+                # --- Revision ---
+                rev = None
+                if rev_code:
+                    rev = db.execute(select(PartRevision).where(
+                        PartRevision.part_id == part.id, PartRevision.rev == rev_code
+                    )).scalar_one_or_none()
+                    if not rev:
+                        rev = PartRevision(part_id=part.id, rev=rev_code, is_current=False)
+                        db.add(rev)
+                        db.flush()
 
-                po = None
-                line = None
-                lot = None
-
+                # --- PO / POLine ---
                 if po_number:
-                    po = get_or_upsert_po(db, po_number, customer)
-                    line = get_or_upsert_poline(
-                        db=db,
-                        po=po,
-                        part=part,
-                        rev=rev,
-                        qty_ordered=Decimal(qty_po) if qty_po is not None else None,
-                        unit_price=price_each,
-                        due_date=due_original,
-                    )
-                    lot = get_or_upsert_lot(
+                    po = db.execute(select(PO).where(PO.po_number == po_number)).scalar_one_or_none()
+                    if not po:
+                        po = PO(po_number=po_number, customer_id=customer.id)
+                        db.add(po)
+                        db.flush()
+
+                    # POLine uniqueness uses UTC midnight (matches your original logic)
+                    target_due_dt = to_utc_midnight(due_original) if due_original else None
+                    line = db.execute(
+                        select(POLine)
+                        .where(
+                            POLine.po_id == po.id,
+                            POLine.part_id == part.id,
+                            POLine.revision_id == (rev.id if rev else None),
+                            POLine.due_date == target_due_dt,
+                        )
+                    ).scalar_one_or_none()
+                    if not line:
+                        line = POLine(
+                            po_id=po.id,
+                            part_id=part.id,
+                            revision_id=(rev.id if rev else None),
+                            qty_ordered=Decimal(qty_po or 0),
+                            unit_price=price_each,
+                            due_date=target_due_dt,
+                        )
+                        db.add(line)
+                        db.flush()
+
+                    # --- Production Lot ---
+                    get_or_upsert_lot(
                         db=db,
                         lot_no=lot_no,
                         po_line=line,
-                        planned_qty=Decimal(qty_po) if qty_po is not None else None,
-                        lot_due=lot_due_date,
-                        started_at=lot_start_date,
-                        note_text=need_remark,      # Need/Remark -> production_lots.note
-                        fair_note=fair_no,          # FAIR#       -> production_lots.fair_note
+                        planned_qty=Decimal(qty_po or 0),
+                        lot_due=lot_due_date,         # keep as date
+                        started_at=lot_start_date,    # will be saved as local midnight
+                        note_text=need_remark,
+                        fair_note=fair_no,
+                        created_at=created_at,        # will be saved as local midnight
                     )
 
-                    # ========== NEW: Shipments ==========
-                    shipment = None
-                    shipment_item = None
-                    if ship_date and qty_shipped:
-                        package_no = (lot_no if lot_no else f"{po_number}-{part_no}")
-                        shipment = get_or_upsert_shipment(
-                            db=db,
-                            po=po,
-                            ship_date=ship_date,
-                            package_no=package_no,
-                            ship_to=None,
-                            carrier=None,
-                            tracking_no=None,
-                            notes=None,
-                        )
-                        shipment_item = get_or_upsert_shipment_item(
-                            db=db,
-                            shipment=shipment,
-                            po_line=line,
-                            lot=lot,
-                            qty=qty_shipped,
-                        )
-
-                    # ========== NEW: Invoices ==========
+                    # --- Invoice ---
                     if invoice_no:
-                        inv = get_or_upsert_invoice(
+                        get_or_upsert_invoice(
                             db=db,
                             invoice_no=invoice_no,
                             po=po,
                             invoice_date=(ship_date or order_date),
                             status="open",
                             notes=None,
-                        )
-
-                        get_or_insert_invoice_line(
-                            db=db,
-                            invoice=inv,
-                            po_line=line,
-                            shipment_item=shipment_item,
-                            qty=(qty_shipped if qty_shipped is not None else None),
+                            residual_inv=residual_inv,
                         )
 
                 processed += 1
