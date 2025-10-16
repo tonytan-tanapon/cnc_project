@@ -278,6 +278,17 @@
         const ss = String(la.getSeconds()).padStart(2, "0");
         return `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss}`;
       }
+      function fmtTimeLA_AMPM(ts) {
+  if (!ts) return "";
+  const d = typeof ts === "string" ? new Date(ts) : ts;
+  const la = toLA(d);
+  return la.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+    timeZone: "America/Los_Angeles",
+  });
+}
       function fmtClockLA() {
         const la = toLA(new Date());
         return la.toLocaleTimeString([], {
@@ -481,13 +492,13 @@ async function fetchTodayLog() {
     for (const te of rows) {
       const d = toLA(new Date(te.clock_in_at || te.clock_out_at));
       const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
-      const clock_in = te.clock_in_at ? fmtDateTimeLA(te.clock_in_at).split(" ")[1].slice(0,5) : "";
-const clock_out = te.clock_out_at ? fmtDateTimeLA(te.clock_out_at).split(" ")[1].slice(0,5) : "";
+      const clock_in = te.clock_in_at ? fmtTimeLA_AMPM(te.clock_in_at) : "";
+const clock_out = te.clock_out_at ? fmtTimeLA_AMPM(te.clock_out_at) : "";
 let start_break = "", stop_break = "";
 if (Array.isArray(te.breaks) && te.breaks.length > 0) {
   const br = te.breaks[0];
-  start_break = br.start_at ? fmtDateTimeLA(br.start_at).split(" ")[1].slice(0,5) : "";
-  stop_break = br.end_at ? fmtDateTimeLA(br.end_at).split(" ")[1].slice(0,5) : "";
+  start_break = br.start_at ? fmtTimeLA_AMPM(br.start_at) : "";
+  stop_break = br.end_at ? fmtTimeLA_AMPM(br.end_at) : "";
 }
 
       // compute hours (exclude break)
