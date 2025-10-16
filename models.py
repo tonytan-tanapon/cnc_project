@@ -268,18 +268,22 @@ class MaterialPOLine(Base):
     qty_ordered = Column(Numeric(18, 3), nullable=False)
 
     unit_price = Column(Numeric(18, 2), nullable=True)
+    price_each = Column(Numeric(18, 2), nullable=True)   # ✅ NEW
+    total_price = Column(Numeric(18, 2), nullable=True)   # ✅ NEW
+    cut_charge = Column(Numeric(18, 2), nullable=True)    # ✅ NEW
     due_date = Column(Date, nullable=True)
 
+    part_no = Column(String, nullable=True, index=True)   # ✅ NEW (เพื่อ map กับ CSV)
     heat_lot = Column(Text, nullable=True)
     size = Column(Text, nullable=True)
-    
     length = Column(Numeric(18, 3), nullable=True)
     weight = Column(Numeric(18, 3), nullable=True)
     cert = Column(Text, nullable=True)
-    
+
     batches = relationship("RawBatch", back_populates="po_line")
     po = relationship("MaterialPO", back_populates="lines")
     material = relationship("RawMaterial")
+
 
 
     
@@ -309,6 +313,7 @@ class RawBatch(Base):
     heat_lot = Column(Text, nullable=True)
     size = Column(Text, nullable=True)
     length = Column(Numeric(18, 3), nullable=True)
+    length_text = Column(String, nullable=True)   # ✅ NEW (raw text เช่น "20 ft")
     weight = Column(Numeric(18, 3), nullable=True)
     cert = Column(Text, nullable=True)
     # relations
