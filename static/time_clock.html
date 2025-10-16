@@ -215,7 +215,7 @@
   <table>
     <thead>
       <tr>
-        <th style="width: 140px">Date</th>
+        <th style="width: 180px">Date</th>
         <th style="width: 120px">Clock In</th>
         <th style="width: 120px">Start Break</th>
         <th style="width: 120px">Stop Break</th>
@@ -446,7 +446,7 @@ function renderLog(rows) {
 
     html += `
       <tr>
-        <td style="font-weight:600">${r.date}</td>
+        <td style="font-weight:600">${r.date} (${getWeekdayLetter(new Date(r.date))})</td>
         <td>${r.clock_in || ""}</td>
         <td>${r.start_break || ""}</td>
         <td>${r.stop_break || ""}</td>
@@ -467,7 +467,10 @@ function getWeekNumber(date) {
   const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
   return Math.ceil(((d - yearStart) / 86400000 + 1) / 7);
 }
-
+function getWeekdayLetter(date) {
+  const days = ["Su", "M", "T", "W", "Th", "F", "Sa"];
+  return days[date.getDay()];
+}
 /* ----------------- fetch 30-day log and summarize ----------------- */
 async function fetchTodayLog() {
   if (!state.employeeId) {
