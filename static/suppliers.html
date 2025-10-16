@@ -149,19 +149,22 @@
         clearTimeout(debounceTimer);
         debounceTimer = setTimeout(async () => {
           const q = e.target.value.trim();
-          if (!q) {
-            // ถ้าช่องค้นหาว่าง โหลดใหม่จาก keyset
-            table.setData(config.apiKeyset + "?limit=50");
-            return;
-          }
           try {
+            if (!q) {
+              // ถ้าไม่มีข้อความค้นหา -> โหลดข้อมูลเริ่มต้นใหม่
+              table.clearData(); // ✅ ปลอดภัยกว่า setData()
+              window._activeTable?.clearHistory?.();
+              window._activeTable?.setSort("id", "desc");
+              return;
+            }
+
             const res = await jfetch(
               `${config.apiSearch}?q=${encodeURIComponent(q)}`
             );
-            if (Array.isArray(res.items)) {
-              table.setData(res.items);
-            } else if (Array.isArray(res)) {
-              table.setData(res);
+            const items = Array.isArray(res.items) ? res.items : res;
+            if (Array.isArray(items)) {
+              table.clearData(); // ✅ กัน loop ซ้ำ
+              table.addData(items);
             } else {
               toast("No results", false);
             }
