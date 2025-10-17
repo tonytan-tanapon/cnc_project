@@ -6,7 +6,7 @@ from . import (
     travelers, traveler_steps, suppliers, subcon, payroll, time_clock,
     parts, users, pay_periods, payroll_extras, data, data_detail,part_selections,lookups, 
     part_materials,report_materials, po_lines,
-    reports_due_date_monitor,lots_browse, 
+    reports_due_date_monitor,lots_browse, shipment_status,customer_shipments,
 
     ############ auto routers ######################
     suppliers_auto
@@ -60,10 +60,10 @@ api_v1.include_router(part_materials.router)    # /pay-rates/...
 api_v1.include_router(report_materials.router)   
 api_v1.include_router(reports_due_date_monitor.router) 
    
-
+api_v1.include_router(customer_shipments.shipment_router) 
 
 
 ############### auto routers ######################
-api_v1.include_router(suppliers_auto.router)
+api_v1.include_router(shipment_status.router)
 
 __all__ = ["api_v1"]

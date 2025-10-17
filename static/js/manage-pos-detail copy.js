@@ -275,8 +275,9 @@ async function cancelHeaderManual() {
       code: initial.customer.code,
       name: initial.customer.name,
     };
-    elCustomer.value = `${initial.customer.code} — ${initial.customer.name ?? ""
-      }`;
+    elCustomer.value = `${initial.customer.code} — ${
+      initial.customer.name ?? ""
+    }`;
   } else {
     selectedCustomer = null;
     elCustomer.value = "";
@@ -323,9 +324,9 @@ function fmtMoney(n) {
   return n == null
     ? ""
     : Number(n).toLocaleString(undefined, {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    });
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
 }
 function fmtQty(n) {
   return Number(n ?? 0).toLocaleString(undefined, { maximumFractionDigits: 3 });
@@ -392,14 +393,14 @@ function normalizeServerLine(row) {
     lots: Array.isArray(row.lots)
       ? row.lots
       : row.lot_id && row.lot_no
-        ? [{ id: row.lot_id, lot_no: row.lot_no }]
-        : [],
+      ? [{ id: row.lot_id, lot_no: row.lot_no }]
+      : [],
 
     travelers: Array.isArray(row.travelers)
       ? row.travelers
       : row.traveler_id && row.traveler_no
-        ? [{ id: row.traveler_id, traveler_no: row.traveler_no }]
-        : [],
+      ? [{ id: row.traveler_id, traveler_no: row.traveler_no }]
+      : [],
   };
 }
 
@@ -459,7 +460,7 @@ function autosaveRow(row, { immediate = false } = {}) {
         setTimeout(() => {
           try {
             linesTable.redraw(true);
-          } catch { }
+          } catch {}
         }, 0);
       });
     return;
@@ -514,7 +515,7 @@ function autosaveRow(row, { immediate = false } = {}) {
               `/pos/${encodeURIComponent(poid)}/lines/${d.id}`
             );
             row.update(normalizeServerLine(fresh));
-          } catch { }
+          } catch {}
           toast(e?.message || "Save failed", false);
         }
       })
@@ -522,7 +523,7 @@ function autosaveRow(row, { immediate = false } = {}) {
         setTimeout(() => {
           try {
             linesTable.redraw(true);
-          } catch { }
+          } catch {}
         }, 0);
       });
   };
@@ -671,7 +672,7 @@ function initLinesTable() {
     if (!ready || !holder.offsetWidth) return;
     try {
       linesTable.redraw(true);
-    } catch { }
+    } catch {}
   };
 
   linesTable = new Tabulator(holder, {
@@ -693,34 +694,35 @@ function initLinesTable() {
       //   formatter: (cell) => cell.getRow().getPosition(true),
       // },
       {
-        title: "Part No.",
-        field: "part_no",
-        width: 160,
-        editor: partAutocompleteEditor,
-        formatter: (cell) => {
-          const d = cell.getData();
-          const pid = d.part_id ?? d.part?.id ?? null;
-          const pno = d.part_no ?? d.part?.part_no ?? "";
-          const revId =
-            d.revision_id ??
-            d.revision?.id ??
-            d.rev?.id ??
-            d.revision?.revision_id ??
-            null;
-          const custId = selectedCustomer?.id ?? initial?.customer?.id ?? null;
+  title: "Part No.",
+  field: "part_no",
+  width: 160,
+  editor: partAutocompleteEditor,
+  formatter: (cell) => {
+    const d = cell.getData();
+    const pid = d.part_id ?? d.part?.id ?? null;
+    const pno = d.part_no ?? d.part?.part_no ?? "";
+    const revId =
+      d.revision_id ??
+      d.revision?.id ??
+      d.rev?.id ??
+      d.revision?.revision_id ??
+      null;
+    const custId = selectedCustomer?.id ?? initial?.customer?.id ?? null;
 
-          if (!pid) return safe(String(pno || ""));
+    if (!pid) return safe(String(pno || ""));
 
-          const href = `/static/manage-part-detail.html?part_id=${encodeURIComponent(
-            pid
-          )}${revId ? `&part_revision_id=${encodeURIComponent(revId)}` : ""}${custId ? `&customer_id=${encodeURIComponent(custId)}` : ""
-            }`;
+    const href = `/static/manage-part-detail.html?part_id=${encodeURIComponent(
+      pid
+    )}${revId ? `&part_revision_id=${encodeURIComponent(revId)}` : ""}${
+      custId ? `&customer_id=${encodeURIComponent(custId)}` : ""
+    }`;
 
-          return `<a class="link" href="${href}" >${safe(
-            String(pno)
-          )}</a>`;
-        },
-      },
+    return `<a class="link" href="${href}" >${safe(
+      String(pno)
+    )}</a>`;
+  },
+},
       {
         title: "Revision",
         field: "revision_text",
@@ -769,7 +771,7 @@ function initLinesTable() {
       {
         title: "Lot",
         field: "lots",
-        width: 120,
+        width: 220,
         headerSort: false,
         formatter: (cell) => {
           const lots = cell.getValue() || [];
@@ -787,7 +789,7 @@ function initLinesTable() {
       {
         title: "Traveler",
         field: "travelers",
-        width: 120,
+        width: 240,
         headerSort: false,
         formatter: (cell) => {
           const trs = cell.getValue() || [];
@@ -802,47 +804,6 @@ function initLinesTable() {
             .join("<br>");
         },
       },
-      {
-        title: "Materials",
-        field: "materials",
-        width: 120,
-        hozAlign: "center",
-        headerSort: false,
-        formatter: () => `<button class="btn-mini btn-primary" data-act="materials">Materials</button>`,
-        cellClick: (e, cell) => {
-          const row = cell.getRow();
-          const lots = row.getData().lots || [];
-          if (!lots.length) {
-            toast("No lot found for this line", false);
-            return;
-          }
-          const lotId = lots[0].id; // or prompt user if multiple lots exist
-          window.open(`/static/manage-lot-materials.html?lot_id=${encodeURIComponent(lotId)}`);
-        },
-
-      },
-
-      {
-        title: "Shippments",
-        field: "shippments",
-        width: 120,
-        hozAlign: "center",
-        headerSort: false,
-        formatter: () => `<button class="btn-mini btn-primary" data-act="shippments">shippments</button>`,
-        cellClick: (e, cell) => {
-          const row = cell.getRow();
-          const lots = row.getData().lots || [];
-          if (!lots.length) {
-            toast("No lot found for this line", false);
-            return;
-          }
-          const lotId = lots[0].id; // or prompt user if multiple lots exist
-          window.open(`/static/manage-shipments?lot_id=${encodeURIComponent(lotId)}`);
-        },
-
-
-      },
-
 
       {
         title: "Build",
@@ -860,37 +821,37 @@ function initLinesTable() {
       },
 
       {
-        title: "Actions",
-        field: "_actions",
-        width: 160,
-        hozAlign: "center",
-        headerSort: false,
-        formatter: () => `
+  title: "Actions",
+  field: "_actions",
+  width: 160,
+  hozAlign: "center",
+  headerSort: false,
+  formatter: () => `
     <div>
       <button class="btn-mini btn-secondary" data-act="edit">✎ Edit</button>
       <button class="btn-mini btn-danger" data-act="del">Delete</button>
     </div>
   `,
-        cellClick: async (e, cell) => {
-          const btn = e.target.closest("button[data-act]");
-          if (!btn) return;
-          const act = btn.dataset.act;
-          const row = cell.getRow();
+  cellClick: async (e, cell) => {
+    const btn = e.target.closest("button[data-act]");
+    if (!btn) return;
+    const act = btn.dataset.act;
+    const row = cell.getRow();
 
-          if (act === "edit") {
-            // Switch to edit mode for that row
-            toggleRowEdit(row, true);
-            setReadMode(false);
-            const firstEditable = row.getCells().find(c => c.getColumn().getDefinition().editor);
-            if (firstEditable) firstEditable.edit(true);
-            toast("Editing mode");
-            return;
-          }
-          if (act === "del") {
-            await deleteLine(row);
-          }
-        },
-      },
+    if (act === "edit") {
+      // Switch to edit mode for that row
+      toggleRowEdit(row, true);
+      setReadMode(false);
+      const firstEditable = row.getCells().find(c => c.getColumn().getDefinition().editor);
+      if (firstEditable) firstEditable.edit(true);
+      toast("Editing mode");
+      return;
+    }
+    if (act === "del") {
+      await deleteLine(row);
+    }
+  },
+},
     ],
   });
 
@@ -913,13 +874,13 @@ function initLinesTable() {
   window.addEventListener("resize", safeRedraw);
 
   // Double-click to enter edit mode
-  linesTable.on("rowDblClick", (e, row) => {
-    toggleRowEdit(row, true);
-    setReadMode(false);
-    const firstEditable = row.getCells().find(c => c.getColumn().getDefinition().editor);
-    if (firstEditable) firstEditable.edit(true);
-    toast("Editing mode");
-  });
+linesTable.on("rowDblClick", (e, row) => {
+  toggleRowEdit(row, true);
+  setReadMode(false);
+  const firstEditable = row.getCells().find(c => c.getColumn().getDefinition().editor);
+  if (firstEditable) firstEditable.edit(true);
+  toast("Editing mode");
+});
 
 }
 

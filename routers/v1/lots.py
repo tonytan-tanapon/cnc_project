@@ -337,3 +337,5 @@ def delete_lot(lot_id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"message": "Lot deleted"}
 
+
+

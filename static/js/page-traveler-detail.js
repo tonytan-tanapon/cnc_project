@@ -577,15 +577,7 @@ function initStepsTable() {
     reactiveData: true,
     index: "id",
     columns: [
-      {
-        title: "No.",
-        field: "_rowno",
-        width: 70,
-        hozAlign: "right",
-        headerHozAlign: "right",
-        headerSort: false,
-        formatter: (cell) => cell.getRow().getPosition(true),
-      },
+    
       {
         title: "Seq",
         field: "seq",

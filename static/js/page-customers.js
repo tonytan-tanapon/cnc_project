@@ -151,7 +151,7 @@ function showLoader(on) {
 /* ===== COLUMNS ===== */
 function makeColumns() {
   return [
-    { title: "No.", width: 60, headerSort: false, formatter: "rownum" },
+    
     { title: "Code", field: "code", width: 100, editor: "input" },
     {
       title: "Name",

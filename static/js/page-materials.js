@@ -62,7 +62,7 @@ function normalizeRow(r) {
 /* ===== TABLE COLUMNS ===== */
 function makeColumns() {
   return [
-    { title: "No.", width: 60, hozAlign: "right", headerHozAlign: "right", headerSort: false, formatter: "rownum" },
+   
     { title: "Code",   field: "code",   width: 110, editor: "input" },
     { title: "Name",   field: "name",   minWidth: 160, editor: "input", validator: "required" },
     { title: "Spec",   field: "spec",   widthGrow: 2, minWidth: 220, maxWidth: 600, editor: "input", cssClass: "wrap" },

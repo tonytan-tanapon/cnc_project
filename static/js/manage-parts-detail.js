@@ -538,9 +538,7 @@ function initTable(){
     index: "lot_no",
     pagination: false,
     columns: [
-      { title: "No.", field: "_no", width: 60, hozAlign: "right", headerHozAlign: "right", headerSort: false,
-        formatter: (cell) => cell.getRow().getPosition(true)
-      },
+      
       { title: "Lot Number", field: "lot_no", minWidth: 110, headerSort: true },
       { title: "PO Number",  field: "po_number", minWidth: 110, headerSort: true },
       { title: "Prod Qty",  field: "lot_qty", width: 110, hozAlign: "right", headerHozAlign: "right",

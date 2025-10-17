@@ -596,7 +596,7 @@ async function deleteRow(row) {
 /* ================== COLUMNS ================== */
 function makeColumns() {
   return [
-    { title: "No.", width: 60, headerSort: false, formatter: "rownum" },
+    
     { title: "Lot No", field: "lot_no", width: 160, editor: "input" },
     {
       title: "Part No",

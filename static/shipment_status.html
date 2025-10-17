@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Lot Shipment Status</title>
+
+  <!-- Tabulator CSS -->
+  <link href="https://unpkg.com/tabulator-tables@5.6.2/dist/css/tabulator.min.css" rel="stylesheet">
+
+  <style>
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
+      margin: 0;
+      padding: 20px;
+      background: #f8fafc;
+      color: #111;
+    }
+    h1 { margin: 0 0 16px; font-size: 24px; }
+    .filters {
+      margin-bottom: 16px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    input, select {
+      padding: 6px 10px;
+      font-size: 16px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Lot Shipment Status</h1>
+
+  <div class="filters">
+    <input type="text" id="filterCustomer" placeholder="Filter by Customer" />
+    <select id="filterStatus">
+      <option value="">All Status</option>
+      <option value="Not Shipped">Not Shipped</option>
+      <option value="Partially Shipped">Partially Shipped</option>
+      <option value="Fully Shipped">Fully Shipped</option>
+    </select>
+    <button id="btnReload">Reload</button>
+  </div>
+
+  <div id="lotTable"></div>
+
+  <!-- Tabulator JS -->
+  <script src="https://unpkg.com/tabulator-tables@5.6.2/dist/js/tabulator.min.js"></script>
+
+  <script>
+    const API_URL = "http://100.88.56.126:9000/api/v1/reports/shipment-status";
+
+    // --- Create table ---
+    const table = new Tabulator("#lotTable", {
+      layout: "fitDataStretch",
+      height: "80vh",
+      placeholder: "Loading data...",
+      groupBy: "customer_name",
+      columns: [
+        {title: "Lot No", field: "lot_no", width: 130, sorter: "string"},
+        {title: "Part No", field: "part_no", width: 120},
+        {title: "Part Name", field: "part_name"},
+        {title: "Rev", field: "revision", width: 80, hozAlign: "center"},
+        {title: "PO Number", field: "po_number", width: 120},
+        {title: "Customer", field: "customer_name"},
+        {title: "Due Date", field: "due_date", sorter: "date"},
+        {title: "Planned Qty", field: "planned_qty", hozAlign: "right"},
+        {title: "Shipped Qty", field: "qty_shipped", hozAlign: "right"},
+        {title: "Remaining", field: "qty_remaining", hozAlign: "right"},
+        {title: "Status", field: "shipment_status", width: 150, hozAlign: "center",
+          formatter: (cell) => {
+            const v = cell.getValue();
+            const color =
+              v === "Fully Shipped" ? "#10b981" :
+              v === "Partially Shipped" ? "#f59e0b" :
+              "#ef4444";
+            return `<span style="background:${color};color:#fff;padding:4px 8px;border-radius:8px;font-weight:600;">${v}</span>`;
+          }
+        },
+        {title: "Last Ship", field: "last_ship_date", sorter: "date"},
+      ],
+    });
+
+    // --- Fetch and load data ---
+    async function loadData() {
+      const customer = document.getElementById("filterCustomer").value.trim();
+      const status = document.getElementById("filterStatus").value;
+      const qs = new URLSearchParams();
+      if (customer) qs.append("customer", customer);
+      if (status) qs.append("status", status);
+
+      const url = `${API_URL}?${qs.toString()}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      table.setData(data);
+    }
+
+    document.getElementById("btnReload").addEventListener("click", loadData);
+    document.getElementById("filterCustomer").addEventListener("input", () => {
+      clearTimeout(window._filterTimer);
+      window._filterTimer = setTimeout(loadData, 400);
+    });
+    document.getElementById("filterStatus").addEventListener("change", loadData);
+
+    // Initial load
+    loadData();
+  </script>
+</body>
+</html>

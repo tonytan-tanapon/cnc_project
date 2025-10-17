@@ -164,3 +164,53 @@ def allocate_material(payload: AllocateIn, db: Session = Depends(get_db)):
         allocated_qty=allocated,
         items=created_items,
     )
+
+@router.get("/{lot_id}", response_model=List[AllocationItem])
+def list_uses(lot_id: int, db: Session = Depends(get_db)):
+    rows = (
+        db.query(LotMaterialUse)
+        .options(joinedload(LotMaterialUse.batch).joinedload(RawBatch.material))
+        .filter(LotMaterialUse.lot_id == lot_id)
+        .order_by(LotMaterialUse.id)
+        .all()
+    )
+    return [
+        AllocationItem(
+            lot_id=r.lot_id,
+            batch_id=r.batch_id,
+            material_code=r.batch.material.code if r.batch and r.batch.material else "",
+            batch_no=r.batch.batch_no or "",
+            qty=r.qty,
+            uom=r.uom,
+        )
+        for r in rows
+    ]
+
+
+@router.patch("/{id}", response_model=AllocationItem)
+def update_use(id: int, payload: dict, db: Session = Depends(get_db)):
+    use = db.get(LotMaterialUse, id)
+    if not use:
+        raise HTTPException(404, "Use record not found")
+    for key in ["qty", "note"]:
+        if key in payload:
+            setattr(use, key, payload[key])
+    db.commit()
+    db.refresh(use)
+    return AllocationItem(
+        lot_id=use.lot_id,
+        batch_id=use.batch_id,
+        material_code=use.batch.material.code if use.batch and use.batch.material else "",
+        batch_no=use.batch.batch_no or "",
+        qty=use.qty,
+        uom=use.uom,
+    )
+
+
+@router.delete("/{id}", status_code=204)
+def delete_use(id: int, db: Session = Depends(get_db)):
+    use = db.get(LotMaterialUse, id)
+    if not use:
+        raise HTTPException(404, "Use record not found")
+    db.delete(use)
+    db.commit()

@@ -156,15 +156,7 @@ function initRevTable() {
     placeholder: "No revisions",
     reactiveData: true,
     columns: [
-      {
-        title: "No.",
-        field: "_row",
-        width: 70,
-        hozAlign: "right",
-        headerHozAlign: "right",
-        headerSort: false,
-        formatter: (cell) => cell.getRow().getPosition(true),
-      },
+   
       {
         title: "Rev",
         field: "rev",

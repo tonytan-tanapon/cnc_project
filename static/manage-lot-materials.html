@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Lot Material Usage · Topnotch – MFG</title>
+
+    <link rel="stylesheet" href="/static/css/app.css" />
+    <link rel="stylesheet" href="/static/vendor/tabulator/tabulator_modern.min.css" />
+    <style>
+      .main--edge { height: 100vh; overflow: hidden; }
+      #listBody { flex: 1; overflow: auto; }
+      #_add { height: 36px; border-radius: 0; }
+      .lot-info { padding: 10px 16px; border-bottom: 1px solid #e5e7eb; font-size: 15px; }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <aside class="sidebar"><div id="navSlot" data-nav-slot></div></aside>
+      <main class="main main--edge">
+        <section class="panel panel--edge" id="listPanel">
+          <div class="lot-info" id="lotHeader">Lot —</div>
+          <div class="list-topbar">
+            <input id="_q" type="search" class="search-lg" placeholder="Search material…" />
+            <button id="_add" class="btn" type="button">+ Add Material</button>
+          </div>
+          <div id="listBody"></div>
+        </section>
+      </main>
+    </div>
+
+    <div class="toast" id="toast"><span id="toastText"></span></div>
+
+    <script type="module" src="/static/js/nav-loader.js"></script>
+    <script src="/static/vendor/tabulator/tabulator.min.js"></script>
+    <script type="module" src="/static/js/manage-lot-materials.js"></script>
+  </body>
+</html>

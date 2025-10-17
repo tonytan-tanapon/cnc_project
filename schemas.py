@@ -880,3 +880,73 @@ class DetailRow(BaseModel):
             return v.date()
         # strings -> try ISO
         return datetime.fromisoformat(str(v)).date()
+    
+from datetime import datetime
+from typing import Optional
+from pydantic import BaseModel, ConfigDict
+
+
+# # ============================================================
+# # 🧭 CustomerShipment
+# # ============================================================
+
+# class CustomerShipmentBase(BaseModel):
+#     po_id: Optional[int] = None
+#     ship_to: Optional[str] = None
+#     carrier: Optional[str] = None
+#     tracking_no: Optional[str] = None
+#     package_no: Optional[str] = None
+#     shipped_at: Optional[datetime] = None
+#     note: Optional[str] = None
+
+
+# class CustomerShipmentCreate(CustomerShipmentBase):
+#     pass
+
+
+# class CustomerShipmentUpdate(CustomerShipmentBase):
+#     pass
+
+
+# class CustomerShipmentOut(CustomerShipmentBase):
+#     id: int
+#     created_at: Optional[datetime] = None
+#     updated_at: Optional[datetime] = None
+
+#     po_number: Optional[str] = None
+#     customer_name: Optional[str] = None
+
+#     # 👇 This replaces orm_mode=True for Pydantic v2
+#     model_config = ConfigDict(from_attributes=True)
+
+
+# # ============================================================
+# # 📦 CustomerShipmentItem
+# # ============================================================
+
+# class CustomerShipmentItemBase(BaseModel):
+#     shipment_id: Optional[int] = None
+#     po_line_id: Optional[int] = None
+#     lot_id: Optional[int] = None
+#     qty: Optional[float] = 0
+#     note: Optional[str] = None
+
+
+# class CustomerShipmentItemCreate(CustomerShipmentItemBase):
+#     shipment_id: Optional[int] = None
+
+
+# class CustomerShipmentItemUpdate(CustomerShipmentItemBase):
+#     pass
+
+
+# class CustomerShipmentItemOut(CustomerShipmentItemBase):
+#     id: int
+#     created_at: Optional[datetime] = None
+#     updated_at: Optional[datetime] = None
+
+#     po_number: Optional[str] = None
+#     part_number: Optional[str] = None
+#     lot_code: Optional[str] = None
+
+#     model_config = ConfigDict(from_attributes=True)

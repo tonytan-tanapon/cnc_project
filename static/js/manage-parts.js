@@ -121,24 +121,7 @@ function initTable() {
     },
 
     columns: [
-      {
-        title: "No.",
-        field: "_rowno",
-        width: 60,
-        hozAlign: "center",
-        headerHozAlign: "right",
-        headerSort: false,
-        formatter: (cell) => {
-          const pos = cell.getRow().getPosition(true);
-          const cur = table.getPage() || 1;
-          const ps = table.getPageSize();
-          const eff =
-            ps === true
-              ? totalItems || cell.getTable().getDataCount()
-              : ps || DEFAULT_PAGE_SIZE;
-          return (cur - 1) * eff + pos;
-        },
-      },
+    
       {
         title: "Customer",
         field: "customer_code",

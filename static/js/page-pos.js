@@ -161,14 +161,7 @@ function customerEditor(cell, onRendered, success, cancel) {
 /* ===== Columns ===== */
 function makeColumns() {
   return [
-    {
-      title: "No.",
-      width: 70,
-      hozAlign: "right",
-      headerHozAlign: "right",
-      headerSort: false,
-      formatter: "rownum",
-    },
+    
     { title: "PO No.", field: "po_number", width: 150, editor: "input" },
     {
       title: "PO line",

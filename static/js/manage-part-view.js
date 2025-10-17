@@ -23,8 +23,7 @@ function initTable() {
     reactiveData: true,
     index: "lot_id",
     columns: [
-      { title: "No.", field: "_rowno", width: 70, hozAlign:"right",
-        headerHozAlign:"right", headerSort:false, formatter: (c)=> c.getRow().getPosition(true) },
+     
       {
         title: "Part No.", field: "part_no", width: 180, headerSort: true,
         formatter: (cell) => {

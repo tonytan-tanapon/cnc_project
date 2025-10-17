@@ -261,21 +261,7 @@ function dateEditor(cell, onRendered, success, cancel) {
 /* ========== COLUMNS ========== */
 function makeColumns() {
   return [
-    {
-      title: "No.",
-      field: "_rowno",
-      width: 70,
-      hozAlign: "right",
-      headerHozAlign: "right",
-      headerSort: false,
-      formatter: (cell) => {
-        const pos = cell.getRow().getPosition(true);
-        const curPage = table.getPage() || 1;
-        const ps = table.getPageSize();
-        const eff = ps === true ? totalItems || table.getDataCount() : ps || 1;
-        return (curPage - 1) * eff + pos;
-      },
-    },
+    
     {
       title: "Traveler No",
       field: "traveler_no",

@@ -130,14 +130,7 @@ async function deleteRow(row) {
 /* ===== Columns ===== */
 function makeColumns() {
   return [
-    {
-      title: "No.",
-      width: 70,
-      hozAlign: "right",
-      headerHozAlign: "right",
-      headerSort: false,
-      formatter: "rownum",
-    },
+   
     { title: "Code", field: "emp_code", width: 120, editor: "input" },
     {
       title: "Name",

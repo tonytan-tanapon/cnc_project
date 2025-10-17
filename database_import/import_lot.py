@@ -16,7 +16,7 @@ from typing import Optional, Iterable, Dict, Tuple
 from datetime import datetime, date, time, timedelta, timezone
 from sqlalchemy import create_engine, select, text
 from sqlalchemy.orm import Session, sessionmaker
-
+# from models import CustomerShipment, CustomerShipmentItem
 # ---------- Path setup ----------
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -29,11 +29,14 @@ from models import (
     POLine,
     ProductionLot,
     CustomerInvoice,
+    CustomerShipment,
+    CustomerShipmentItem
 )
 
 # ---------- CONFIG ----------
 DATABASE_URL = "postgresql+psycopg2://postgres:1234@localhost:5432/mydb"
 CSV_FILE = Path(r"C:\Users\TPSERVER\dev\cnc_project\database_import\import_lot.csv")
+# CSV_FILE = Path(r"C:\Users\TPSERVER\dev\cnc_project\database_import\import_lot_back.csv")
 CSV_ENCODING = "utf-8-sig"
 CSV_DELIMITER = ","
 
@@ -241,10 +244,11 @@ def main():
                 created_at = parse_date(pick(row, "Date"))
                 need_remark = pick(row, "Need/Remark", "Remark")
                 fair_no = pick(row, "FAIR#", "FAIR No")
-                invoice_no = pick(row, "Invoice#", "Invoice No")
+                invoice_no = pick(row, "Invoice#", "Invoice No.")
                 residual_inv = parse_int(pick(row, "Residual Inv", "Residual Invoice"))
                 ship_date = parse_date(pick(row, "Ship Date", "Shipped Date"))
-
+                
+                # print(invoice_no,ship_date)
                 # --- Auto-generate Lot No if missing ---
                 if not lot_no:
                     today = datetime.now().strftime("%Y%m%d")
@@ -314,6 +318,43 @@ def main():
                         invoice_date=ship_date or due_date,
                         residual_inv=residual_inv,
                     )
+
+                # --- Shipment ---
+                if ship_date and qty_po:
+                    # Find or create shipment header (per PO + ship_date)
+                    shipment = db.scalar(select(CustomerShipment).where(
+                        CustomerShipment.po_id == po.id,
+                        CustomerShipment.shipped_at == to_utc_midnight(ship_date),
+                    ))
+                    if not shipment:
+                        shipment = CustomerShipment(
+                            po_id=po.id,
+                            shipped_at=to_utc_midnight(ship_date),
+                            notes=None,
+                        )
+                        db.add(shipment)
+                        db.flush()
+
+                    # Find or create shipment item (detail row per lot)
+                    lot = db.scalar(select(ProductionLot).where(ProductionLot.lot_no == lot_no))
+                    item = db.scalar(select(CustomerShipmentItem).where(
+                        CustomerShipmentItem.shipment_id == shipment.id,
+                        CustomerShipmentItem.po_line_id == line.id,
+                        CustomerShipmentItem.lot_id == (lot.id if lot else None),
+                    ))
+                    if not item:
+                        item = CustomerShipmentItem(
+                            shipment_id=shipment.id,
+                            po_line_id=line.id,
+                            lot_id=(lot.id if lot else None),
+                            qty=Decimal(qty_po or 0),
+                        )
+                        db.add(item)
+                        db.flush()
+               
+
+
+
 
                 processed += 1
                 if processed % 200 == 0:

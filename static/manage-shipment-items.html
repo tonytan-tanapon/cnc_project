@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Shipment Items · Topnotch – MFG</title>
+
+    <link rel="stylesheet" href="/static/css/app.css" />
+    <link
+      rel="stylesheet"
+      href="/static/vendor/tabulator/tabulator_modern.min.css"
+    />
+
+    <style>
+      body {
+        margin: 0;
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      }
+
+      #panel {
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        height: 44px;
+        padding: 0 12px;
+        border-bottom: 1px solid #e5e7eb;
+        background: #f9fafb;
+      }
+
+      .topbar h2 {
+        font-size: 18px;
+        margin: 0;
+        font-weight: 600;
+      }
+
+      #_add {
+        height: 32px;
+        padding: 0 10px;
+        font-size: 14px;
+      }
+
+      #table {
+        flex: 1;
+        min-height: 0;
+      }
+
+      a.back-link {
+        color: #2563eb;
+        text-decoration: none;
+        font-weight: 600;
+      }
+
+      a.back-link:hover {
+        text-decoration: underline;
+      }
+
+      /* nicer scrollbars */
+      .tabulator-tableholder::-webkit-scrollbar {
+        width: 14px;
+        height: 14px;
+      }
+      .tabulator-tableholder::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 7px;
+        border: 3px solid #f1f5f9;
+      }
+      .tabulator-tableholder::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
+      }
+    </style>
+  </head>
+  <body>
+    <section id="panel">
+      <div class="topbar">
+        <h2>
+          <a href="/static/manage-shipments.html" class="back-link">← Shipments</a>
+          <span id="shipmentTitle">Shipment Items</span>
+        </h2>
+        <button id="_add" class="btn" type="button">+ Add Item</button>
+      </div>
+      <div id="table"></div>
+    </section>
+
+    <div class="toast" id="toast">
+      <span id="toastText"></span>
+    </div>
+
+    <script src="/static/vendor/tabulator/tabulator.min.js"></script>
+    <script type="module" src="/static/js/manage-shipment-items.js"></script>
+  </body>
+</html>

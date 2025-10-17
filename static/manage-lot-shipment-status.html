@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Lot Shipment Status · Topnotch – MFG</title>
+
+    <link rel="stylesheet" href="/static/css/app.css" />
+    <link rel="stylesheet" href="/static/vendor/tabulator/tabulator_modern.min.css" />
+
+    <style>
+      .main--edge {
+        padding: 0;
+        height: 100vh;
+        overflow: hidden;
+      }
+      .panel--edge {
+        margin: 0;
+        border-radius: 0;
+        border-left-width: 0;
+        border-right-width: 0;
+      }
+      #listPanel {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        min-height: 0;
+      }
+      .list-topbar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        height: 44px;
+        border-bottom: 1px solid #e5e7eb;
+        padding: 0;
+      }
+      .list-topbar .search-lg {
+        flex: 0 0 200px;
+        height: 36px;
+        padding: 0 12px;
+        border-radius: 0;
+      }
+      #listBody {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow: auto;
+      }
+      #listBody .tabulator {
+        height: 100% !important;
+        border: 0;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="app">
+      <aside class="sidebar"><div id="navSlot" data-nav-slot></div></aside>
+
+      <main class="main main--edge">
+        <section class="panel panel--edge" id="listPanel">
+          <div class="list-topbar">
+            <input id="_q" type="search" class="search-lg" placeholder="Search…" />
+
+            <select id="_status" class="search-lg">
+              <option value="">All Status</option>
+              <option value="Not Shipped">Not Shipped</option>
+              <option value="Partially Shipped">Partially Shipped</option>
+              <option value="Fully Shipped">Fully Shipped</option>
+            </select>
+
+            <!-- ✅ NEW DROPDOWN for Due Date -->
+            <select id="_duedays" class="search-lg">
+  <option value="">All Due Dates</option>
+  <option value="7">Due in ≤ 7 days</option>
+  <option value="30">Due in ≤ 30 days</option>
+  <option value="60">Due in ≤ 60 days</option>
+  <option value="90">Due in ≤ 90 days</option>
+  <option value="gt90">Due in > 90 days</option>
+</select>
+
+            <button id="_reload" class="btn" type="button">Reload</button>
+          </div>
+
+          <div id="listBody"></div>
+        </section>
+      </main>
+    </div>
+
+    <div class="toast" id="toast"><span id="toastText"></span></div>
+
+    <script src="/static/vendor/tabulator/tabulator.min.js"></script>
+    <script type="module" src="/static/js/nav-loader.js"></script>
+    <script type="module" src="/static/js/manage-lot-shipment-status.js"></script>
+  </body>
+</html>
