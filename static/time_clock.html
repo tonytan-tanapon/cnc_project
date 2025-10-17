@@ -208,17 +208,14 @@
       /* Table & badges */
       table {
         border-collapse: collapse;
-        width: 100%;
-        font-size: 18px;
+
+        table-layout: fixed; /* ✅ ทำให้คอลัมน์กว้างเท่ากัน */
+        font-size: 16px;
       }
+
       th,
       td {
-        padding: 10px;
-        border-bottom: 1px solid var(--line);
-        text-align: left;
-      }
-      th {
-        background: #f9fafb;
+        box-sizing: border-box;
       }
       .badge {
         display: inline-block;
@@ -317,6 +314,12 @@
         font-size: 18px;
         color: var(--muted);
       }
+
+      .week-divider td {
+        border-top: 3px solid #9ca3af;
+        background: #f3f4f6;
+        height: 2px;
+      }
     </style>
   </head>
   <body>
@@ -360,7 +363,7 @@
         </div>
 
         <div class="grid-actions" style="margin-top: 16px">
-          <button class="bigbtn btn-in" id="btn_in">
+          <button class="bigbtn btn-in" id="btn_in" aria-label="Clock In">
             <svg
               class="ico"
               viewBox="0 0 24 24"
@@ -377,7 +380,11 @@
           </button>
 
           <div class="row-2">
-            <button class="bigbtn btn-sbr" id="btn_sbr">
+            <button
+              class="bigbtn btn-sbr"
+              id="btn_sbr"
+              aria-label="Start Break"
+            >
               <svg
                 class="ico"
                 viewBox="0 0 24 24"
@@ -393,7 +400,7 @@
               ><span>Start Break</span>
             </button>
 
-            <button class="bigbtn btn-out" id="btn_out">
+            <button class="bigbtn btn-out" id="btn_out" aria-label="Clock Out">
               <svg
                 class="ico"
                 viewBox="0 0 24 24"
@@ -410,7 +417,7 @@
             </button>
           </div>
 
-          <button class="bigbtn btn-ebr" id="btn_ebr">
+          <button class="bigbtn btn-ebr" id="btn_ebr" aria-label="Stop Break">
             <svg
               class="ico"
               viewBox="0 0 24 24"
@@ -441,18 +448,24 @@
         <div style="font-size: 22px; font-weight: 700; margin-bottom: 8px">
           Work Summary (Past 30 Days)
         </div>
-        <table>
+        <table id="logTable" class="tbl">
           <thead>
             <tr>
-              <th style="width: 180px">Date</th>
-              <th style="width: 120px">Clock In</th>
-              <th style="width: 120px">Start Break</th>
-              <th style="width: 120px">Stop Break</th>
-              <th style="width: 120px">Clock Out</th>
-              <!-- <th style="width: 80px">Hrs</th> -->
+              <th>Date</th>
+              <th>Clock In</th>
+              <th>Start Break</th>
+              <th>Stop Break</th>
+              <th>Clock Out</th>
+              <th>hr</th>
             </tr>
           </thead>
-          <tbody id="log"></tbody>
+          <tbody id="logBody">
+            <tr>
+              <td colspan="6">Loading…</td>
+            </tr>
+          </tbody>
+          <!-- <tfoot id="log_foot"></tfoot> -->
+          <!-- ✅ ต้องมี -->
         </table>
       </div>
     </section>
@@ -461,12 +474,11 @@
     <div id="exitmask" class="exitmask" aria-live="polite">
       Saving…<span class="sub">Please wait</span>
     </div>
-
     <script type="module">
       import { $, jfetch, toast } from "/static/js/api.js?v=1";
 
       /* ----------------- API base ----------------- */
-      const API_BASE = ""; // same origin as your kiosk.html
+      const API_BASE = ""; // same origin
       const api = (p) => `${API_BASE}${p}`;
 
       /* ----------------- Los Angeles timezone helpers ----------------- */
@@ -521,18 +533,6 @@
         );
         return fromLA(laStart).toISOString();
       }
-      function fmtDateTimeLA(ts) {
-        if (!ts) return "";
-        const d = typeof ts === "string" ? new Date(ts) : ts;
-        const la = toLA(d);
-        const yyyy = la.getFullYear();
-        const mm = String(la.getMonth() + 1).padStart(2, "0");
-        const dd = String(la.getDate()).padStart(2, "0");
-        const hh = String(la.getHours()).padStart(2, "0");
-        const mi = String(la.getMinutes()).padStart(2, "0");
-        const ss = String(la.getSeconds()).padStart(2, "0");
-        return `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss}`;
-      }
       function fmtTimeLA_AMPM(ts) {
         if (!ts) return "";
         const d = typeof ts === "string" ? new Date(ts) : ts;
@@ -541,7 +541,7 @@
           hour: "numeric",
           minute: "2-digit",
           hour12: true,
-          timeZone: "America/Los_Angeles",
+          timeZone: LA_TZ,
         });
       }
       function fmtClockLA() {
@@ -569,8 +569,7 @@
         exiting: false,
       };
 
-      /* ----------------- small helpers ----------------- */
-      const pad = (n) => String(n).padStart(2, "0");
+      /* ----------------- misc helpers ----------------- */
       const startOfTodayISO = startOfTodayISO_LA;
       const startOfTomorrowISO = startOfTomorrowISO_LA;
 
@@ -578,7 +577,6 @@
         ["v_id", "v_act"].forEach((v) => $(v).classList.remove("active"));
         $(id).classList.add("active");
       };
-
       function hide(el) {
         if (!el) return;
         if (document.activeElement === el) el.blur();
@@ -603,7 +601,6 @@
         timeEl.textContent = fmtClockLA();
       }
 
-      // Clear PIN dots/title/name when leaving to PIN
       function resetLoginUI() {
         state.idDigits = "";
         renderIdDots();
@@ -614,7 +611,6 @@
         setChip("off");
       }
 
-      // Fast exit: go to PIN immediately and block input
       function beginSubmitAndLeaveView(msg = "Saving…") {
         state.exiting = true;
         const mask = $("exitmask");
@@ -640,7 +636,7 @@
         });
       }
 
-      /* ----------------- UI logic (hide/show buttons) ----------------- */
+      /* ----------------- UI buttons show/hide ----------------- */
       function updateButtons() {
         if (state.exiting) {
           ["btn_in", "btn_out", "btn_sbr", "btn_ebr"].forEach((id) =>
@@ -648,10 +644,10 @@
           );
           return;
         }
-        const inBtn = $("btn_in");
-        const outBtn = $("btn_out");
-        const sbrBtn = $("btn_sbr");
-        const ebrBtn = $("btn_ebr");
+        const inBtn = $("btn_in"),
+          outBtn = $("btn_out"),
+          sbrBtn = $("btn_sbr"),
+          ebrBtn = $("btn_ebr");
         [inBtn, outBtn, sbrBtn, ebrBtn].forEach(hide);
 
         const st = state.status; // 'off' | 'in' | 'break'
@@ -693,28 +689,39 @@
       }
 
       /* ----------------- log renderer ----------------- */
-      /* ----------------- render summarized daily log with weekly separators ----------------- */
       function renderLog(rows) {
         const tb = $("log");
         if (!rows || rows.length === 0) {
-          tb.innerHTML = `<tr><td colspan="6"><span class="muted">No records in the past 30 days</span></td></tr>`;
+          // คำนวณรวมชั่วโมงของช่วง period นั้น
+          const sumReg = rows.reduce(
+            (acc, r) => acc + Number(r.reg_hours || 0),
+            0
+          );
+          const sumOT = rows.reduce(
+            (acc, r) => acc + Number(r.ot_hours || 0),
+            0
+          );
+
+          // แล้วค่อยพิมพ์
+          tb.innerHTML += `
+<tr><td colspan="12" class="period">
+--- Period ${fmtDate(pp.start_at)} → ${fmtDate(pp.end_at)}  
+Regular hrs: ${sumReg.toFixed(2)} OT hrs: ${sumOT.toFixed(2)} ---
+</td></tr>`;
           return;
         }
 
-        let html = "";
-        let lastWeek = null;
-
+        let html = "",
+          lastWeek = null;
         for (const r of rows) {
           const d = new Date(r.date);
           const weekYear = `${d.getFullYear()}-${getWeekNumber(d)}`;
           const isNewWeek = weekYear !== lastWeek;
           lastWeek = weekYear;
-
           if (isNewWeek && html !== "") {
             html += `<tr><td colspan="6" style="border-top: 3px solid #000;"></td></tr>`;
           }
 
-          // Format total hours (HH:MM)
           let hrmin = "";
           if (typeof r.total_hours === "number") {
             const hrs = Math.floor(r.total_hours);
@@ -724,27 +731,270 @@
             typeof r.total_hours === "string" &&
             r.total_hours.includes(":")
           ) {
-            hrmin = r.total_hours; // already formatted
+            hrmin = r.total_hours;
           }
 
           html += `
-      <tr>
-        <td style="font-weight:600">${r.date} (${getWeekdayLetter(
+            <tr>
+              <td style="font-weight:600">${r.date} (${getWeekdayLetter(
             new Date(r.date)
           )})</td>
+              <td>${r.clock_in || ""}</td>
+              <td>${r.start_break || ""}</td>
+              <td>${r.stop_break || ""}</td>
+              <td>${r.clock_out || ""}</td>
+              <td>${hrmin}</td>
+            </tr>`;
+        }
+        tb.innerHTML = html;
+      }
+      // === helpers ===
+      function parseISO(dateStr) {
+        return new Date(dateStr + "T00:00:00");
+      }
+
+      function groupBy2Week(rows) {
+        if (!rows?.length) return [];
+        // ✅ sort new → old
+        const sorted = [...rows].sort(
+          (a, b) => new Date(b.date) - new Date(a.date)
+        );
+
+        const groups = [];
+        let start = new Date(sorted[0].date);
+        let end = new Date(start);
+        end.setDate(end.getDate() - 13); // 14-day window backward
+        let bucket = [];
+
+        for (const r of sorted) {
+          const d = new Date(r.date);
+          if (d < end) {
+            groups.push({ start: end, end: start, rows: bucket });
+            bucket = [];
+            start = new Date(d);
+            end = new Date(start);
+            end.setDate(end.getDate() - 13);
+          }
+          bucket.push(r);
+        }
+        if (bucket.length)
+          groups.push({ start: end, end: start, rows: bucket });
+
+        return groups; // ✅ newest period first
+      }
+
+      function applySixDayRule(rows) {
+        const norm = rows.map((r) => {
+          const total = Number(r.reg_hours || 0) + Number(r.ot_hours || 0);
+          let reg = Math.min(8, total);
+          let ot = Math.max(0, total - 8);
+          return { ...r, reg_hours: reg, ot_hours: ot };
+        });
+        // 6-day rule (simplified)
+        const byWeek = {};
+        for (const r of norm) {
+          const d = new Date(r.date);
+          const wk = new Date(d);
+          wk.setDate(d.getDate() - ((d.getDay() + 6) % 7)); // Monday
+          const key = wk.toISOString().slice(0, 10);
+          (byWeek[key] ??= []).push(r);
+        }
+        for (const wk in byWeek) {
+          const worked = byWeek[wk].filter((r) => r.reg_hours + r.ot_hours > 0);
+          if (worked.length >= 6) {
+            worked.sort(
+              (a, b) => a.reg_hours + b.ot_hours - (b.reg_hours + a.ot_hours)
+            );
+            const first = worked[0];
+            first.ot_hours += first.reg_hours;
+            first.reg_hours = 0;
+          }
+        }
+        return norm;
+      }
+      function parse(t) {
+        if (!t) return null;
+        // handle "7:51 AM" -> 24-hour
+        const m = t.match(/(\d+):(\d+)\s*(AM|PM)/i);
+        if (!m) return null;
+        let [_, hh, mm, ampm] = m;
+        hh = Number(hh);
+        mm = Number(mm);
+        if (ampm.toUpperCase() === "PM" && hh < 12) hh += 12;
+        if (ampm.toUpperCase() === "AM" && hh === 12) hh = 0;
+        return new Date(1970, 0, 1, hh, mm);
+      }
+      function calcHoursForRow(r) {
+        const cin = parse(r.clock_in);
+        const cout = parse(r.clock_out);
+        const sb = parse(r.start_break);
+        const eb = parse(r.stop_break);
+        if (!cin || !cout) return 0;
+        const total = (cout - cin) / 3600000;
+        const breakHrs = sb && eb ? (eb - sb) / 3600000 : 0;
+        const worked = total - breakHrs;
+        // split into regular / OT (8h rule)
+        const reg = Math.min(8, worked);
+        const ot = Math.max(0, worked - 8);
+        return { reg, ot };
+      }
+
+      // ========== PAY PERIOD FETCH ==========
+      // ✅ ปรับให้รองรับทั้ง Array และ Object response
+      async function fetchPayPeriods() {
+        const res = await jfetch("/pay-periods");
+
+        // ถ้า backend ส่งเป็น object เช่น { items: [...] } ให้ดึงออกมา
+        const list = Array.isArray(res)
+          ? res
+          : Array.isArray(res.items)
+          ? res.items
+          : [];
+
+        // เรียงจากใหม่ → เก่า
+        return list.sort((a, b) => new Date(b.start_at) - new Date(a.start_at));
+      }
+
+      // กลุ่ม logs ตาม pay-period
+      function groupLogsByPeriod(rows, payPeriods) {
+        const result = [];
+
+        // เรียง period จากใหม่ → เก่า เพื่อให้ดูง่าย
+        const sorted = [...payPeriods].sort(
+          (a, b) => new Date(b.start_at) - new Date(a.start_at)
+        );
+
+        for (let i = 0; i < sorted.length; i++) {
+          const pp = sorted[i];
+          const start = pp.start_at.split("T")[0];
+          const end = pp.end_at.split("T")[0];
+
+          const periodRows = rows.filter((r) => {
+            const d = r.date.split("T")[0];
+            // ✅ ถ้า period ถัดไปเริ่มวันเดียวกัน ไม่เอาวันนั้นซ้ำ
+            return d >= start && d < end;
+          });
+
+          if (periodRows.length > 0) {
+            result.push({ period: pp, rows: periodRows });
+          }
+        }
+
+        return result;
+      }
+      // ========== RENDER WITH PAY PERIOD SUMMARY ==========
+      async function renderLogWithPeriodSummary(rows) {
+        const tbody = document.getElementById("logBody");
+        tbody.innerHTML = "";
+
+        if (!rows?.length) {
+          tbody.innerHTML = `<tr><td colspan="6" class="empty">No data</td></tr>`;
+          return;
+        }
+
+        // ===== คำนวณ Regular/OT =====
+        function parseAMPM(t) {
+          if (!t) return null;
+          const m = t.match(/(\d+):(\d+)\s*(AM|PM)/i);
+          if (!m) return null;
+          let [_, hh, mm, ampm] = m;
+          hh = Number(hh);
+          mm = Number(mm);
+          if (ampm.toUpperCase() === "PM" && hh < 12) hh += 12;
+          if (ampm.toUpperCase() === "AM" && hh === 12) hh = 0;
+          return new Date(1970, 0, 1, hh, mm);
+        }
+        function calcHours(r) {
+          const cin = parseAMPM(r.clock_in);
+          const cout = parseAMPM(r.clock_out);
+          const sb = parseAMPM(r.start_break);
+          const eb = parseAMPM(r.stop_break);
+          if (!cin || !cout) return { reg: 0, ot: 0 };
+          const total = (cout - cin) / 3600000;
+          const breakHrs = sb && eb ? (eb - sb) / 3600000 : 0;
+          const worked = total - breakHrs;
+          return { reg: Math.min(8, worked), ot: Math.max(0, worked - 8) };
+        }
+
+        // ===== Apply 8h + 6-day rule =====
+        rows = rows.map((r) => ({
+          ...r,
+          reg_hours: r.reg_hours ?? r.reg ?? 0,
+          ot_hours: r.ot_hours ?? r.ot ?? 0,
+        }));
+        rows = applySixDayRule(rows);
+
+        // ===== Fetch Pay Periods =====
+        const payPeriods = await fetchPayPeriods();
+        const grouped = groupLogsByPeriod(rows, payPeriods);
+
+        // ===== Render Table =====
+        tbody.innerHTML = "";
+        for (const g of grouped) {
+          const s = g.period.start_at.slice(0, 10);
+          const e = g.period.end_at.slice(0, 10);
+          const sumReg = g.rows.reduce(
+            (a, b) => a + (+b.reg || +b.reg_hours || 0),
+            0
+          );
+          const sumOT = g.rows.reduce(
+            (a, b) => a + (+b.ot || +b.ot_hours || 0),
+            0
+          );
+
+          // --- Period Header ---
+          const periodTr = document.createElement("tr");
+          periodTr.style.background = "#f9fafb";
+          periodTr.style.fontWeight = "700";
+          periodTr.innerHTML = `
+      <td colspan="6" style="text-align:left;">
+        --- Period ${s} → ${e}
+        &nbsp;&nbsp; Regular hrs: ${sumReg.toFixed(2)}
+        &nbsp;&nbsp; OT hrs: ${sumOT.toFixed(2)} ---
+      </td>`;
+          tbody.appendChild(periodTr);
+
+          let lastWeekKey = null;
+
+          // --- Rows per day ---
+          for (const r of g.rows.sort(
+            (a, b) => new Date(b.date) - new Date(a.date)
+          )) {
+            // แปลงวันที่โดยไม่ให้ timezone เลื่อน
+            const [y, m, day] = r.date.split("-").map(Number);
+            const d = new Date(y, m - 1, day);
+            const dayLetter = ["Su", "M", "T", "W", "Th", "F", "Sa"][
+              d.getDay()
+            ];
+            const weekKey = weekKeyLocal(r.date, 1);
+
+            // เส้นแบ่งสัปดาห์
+            if (lastWeekKey && weekKey !== lastWeekKey) {
+              const sep = document.createElement("tr");
+              sep.className = "week-divider";
+              sep.innerHTML = `<td colspan="6"></td>`;
+              tbody.appendChild(sep);
+            }
+            lastWeekKey = weekKey;
+
+            const tr = document.createElement("tr");
+            tr.innerHTML = `
+        <td>${r.date} (${dayLetter})</td>
         <td>${r.clock_in || ""}</td>
         <td>${r.start_break || ""}</td>
         <td>${r.stop_break || ""}</td>
         <td>${r.clock_out || ""}</td>
-        <td>${hrmin}</td>
-      </tr>
-    `;
-        }
+        <td>${(r.reg_hours + r.ot_hours).toFixed(2)}</td>`;
+            tbody.appendChild(tr);
+          }
 
-        tb.innerHTML = html;
+          // --- Bottom separator per period ---
+          const divider = document.createElement("tr");
+          divider.innerHTML = `<td colspan="6" style="background:#e5e7eb;height:8px;border:0"></td>`;
+          tbody.appendChild(divider);
+        }
       }
 
-      /* ----------------- helper to get ISO week number ----------------- */
       function getWeekNumber(date) {
         const d = new Date(
           Date.UTC(date.getFullYear(), date.getMonth(), date.getDate())
@@ -758,10 +1008,58 @@
         const days = ["Su", "M", "T", "W", "Th", "F", "Sa"];
         return days[date.getDay()];
       }
+      /* ----------------- Summary helpers (2-week) ----------------- */
+      function weekKeyLocal(dateISO, weekStartsOn = 1) {
+        const d = new Date(dateISO + "T00:00:00");
+        const day = d.getDay();
+        const diff = (day - weekStartsOn + 7) % 7;
+        const weekStart = new Date(d);
+        weekStart.setDate(d.getDate() - diff);
+        const y = weekStart.getFullYear();
+        const m = String(weekStart.getMonth() + 1).padStart(2, "0");
+        const dd = String(weekStart.getDate()).padStart(2, "0");
+        return `${y}-${m}-${dd}`;
+      }
+
+      function renderPeriodSummary(rows) {
+        const foot = document.getElementById("log_foot");
+        if (!foot) return;
+        foot.innerHTML = "";
+
+        if (!rows.length) return;
+
+        const ruled = applySixDayRule(rows);
+        const periods = groupBy2Week(ruled);
+
+        // ✅ ใส่ summary ด้านบนสุด
+        for (const p of periods.reverse()) {
+          const sumReg = p.rows.reduce(
+            (a, b) => a + Number(b.reg_hours || 0),
+            0
+          );
+          const sumOT = p.rows.reduce((a, b) => a + Number(b.ot_hours || 0), 0);
+
+          const startStr = p.start.toISOString().slice(0, 10);
+          const endStr = p.end.toISOString().slice(0, 10);
+
+          const tr = document.createElement("tr");
+          tr.style.fontWeight = "700";
+          tr.style.background = "#f9fafb";
+          tr.innerHTML = `
+      <td colspan="6" style="text-align:right;padding:8px 12px;border-bottom:2px solid #000;">
+        Period ${startStr} → ${endStr}
+        &nbsp;&nbsp; Regular hrs: ${sumReg.toFixed(2)}
+        &nbsp;&nbsp; OT hrs: ${sumOT.toFixed(2)}
+      </td>`;
+          foot.prepend(tr);
+        }
+      }
+
       /* ----------------- fetch 30-day log and summarize ----------------- */
       async function fetchTodayLog() {
         if (!state.employeeId) {
           renderLog([]);
+          document.getElementById("log_foot").innerHTML = "";
           updateButtons();
           return;
         }
@@ -781,7 +1079,6 @@
           }
 
           const summaries = [];
-
           for (const te of rows) {
             const d = toLA(new Date(te.clock_in_at || te.clock_out_at));
             const dateStr = `${d.getFullYear()}-${String(
@@ -795,18 +1092,19 @@
               : "";
             let start_break = "",
               stop_break = "";
+
             if (Array.isArray(te.breaks) && te.breaks.length > 0) {
               const br = te.breaks[0];
               start_break = br.start_at ? fmtTimeLA_AMPM(br.start_at) : "";
               stop_break = br.end_at ? fmtTimeLA_AMPM(br.end_at) : "";
             }
 
-            // compute hours (exclude break)
+            // compute net hours (exclude break)
             let hrs = "";
             if (te.clock_in_at && te.clock_out_at) {
               const inT = new Date(te.clock_in_at);
               const outT = new Date(te.clock_out_at);
-              let diff = (outT - inT) / 3600000; // total hrs
+              let diff = (outT - inT) / 3600000;
               if (Array.isArray(te.breaks)) {
                 for (const br of te.breaks) {
                   if (br.start_at && br.end_at) {
@@ -815,25 +1113,36 @@
                   }
                 }
               }
-              hrs = diff.toFixed(2);
+              hrs = Number.isFinite(diff) ? Number(diff.toFixed(2)) : "";
             }
-
+            let reg_hours = 0,
+              ot_hours = 0;
+            if (hrs !== "" && !isNaN(hrs)) {
+              reg_hours = Math.min(8, hrs);
+              ot_hours = Math.max(0, hrs - 8);
+            }
             summaries.push({
               date: dateStr,
               clock_in,
               start_break,
               stop_break,
               clock_out,
-              total_hours: hrs,
+              total_hours: hrs === "" ? "" : Number(hrs),
+              reg_hours,
+              ot_hours,
             });
           }
 
-          // Sort by most recent date
+          // sort by most recent date
           summaries.sort((a, b) => new Date(b.date) - new Date(a.date));
-          renderLog(summaries);
+
+          renderLogWithPeriodSummary(summaries);
+
+          renderPeriodSummary(summaries); // ✅ แสดงสรุป Reg/OT ทุก 2 สัปดาห์
           updateButtons();
         } catch (e) {
           renderLog([]);
+          document.getElementById("log_foot").innerHTML = "";
           updateButtons();
           if (navigator.onLine) toast(e.message || "Load log failed", false);
         }
@@ -858,18 +1167,16 @@
         updateButtons();
         await fetchTodayLog();
       }
+
       async function refreshHasBreakUsed() {
-        // default
         state.hasBreakUsed = false;
         try {
-          // ถ้ามี timeEntryId (กรณียัง clock-in อยู่)
           if (state.timeEntryId) {
             const te = await jfetch(api(`/time-entries/${state.timeEntryId}`));
             state.hasBreakUsed =
               Array.isArray(te.breaks) && te.breaks.some((b) => b.start_at);
             return;
           }
-          // fallback: ลองโหลดช่วงวันนี้หา entry ล่าสุด
           if (state.employeeId) {
             const qs = new URLSearchParams({
               employee_id: String(state.employeeId),
@@ -885,10 +1192,9 @@
                 open.breaks.some((b) => b.start_at);
             }
           }
-        } catch {
-          // เงียบไปได้ ไม่ต้อง toast
-        }
+        } catch {}
       }
+
       /* ----------------- actions (online only) ----------------- */
       async function clockIn() {
         if (state.busy) return;
@@ -931,7 +1237,6 @@
           state.timeEntryId = null;
           state.breakId = null;
           state.hasBreakUsed = false;
-
           toast("Clocked out");
           state.code = "";
           state.idDigits = "";
@@ -988,14 +1293,12 @@
           });
 
           toast("Break stopped");
-
-          // ✅ ตั้งสถานะใหม่ (เพื่อให้บันทึกไว้ใน state)
+          // อัปเดตสถานะภายใน แล้วออกจากหน้าทันที
           state.status = "in";
           state.breakId = null;
           state.hasBreakUsed = true;
-
-          // ✅ Logout อัตโนมัติหลังจาก stop break
-          logout(); // กลับไปหน้า PIN และรีเซ็ตทุกอย่าง
+          logout(); // กลับไป PIN และรีเซ็ต
+          return; // ป้องกันโค้ดด้านล่างรันต่อ
         } catch (e) {
           leaveExitMode();
           setView("v_act");
@@ -1003,8 +1306,6 @@
           toast(e.message || "Stop break failed", false);
           return;
         }
-        state.busy = false;
-        leaveExitMode();
       }
 
       /* ----------------- keypad ----------------- */
@@ -1056,9 +1357,33 @@
         }
       }
 
+      function renderIdDots() {
+        const n = state.idDigits.length;
+        const dots = Array.from(
+          { length: 4 },
+          (_, i) => `<span class="passdot${i < n ? " filled" : ""}"></span>`
+        ).join("");
+        $("id_val").innerHTML = dots;
+      }
       function clearId() {
         state.idDigits = "";
         renderIdDots();
+      }
+
+      function startClock() {
+        const el = document.getElementById("clock");
+        const tick = () => {
+          el.textContent = fmtClockLA();
+        };
+        tick();
+        return setInterval(tick, 1000);
+      }
+      function startChipClock() {
+        const timeEl = document.getElementById("chip_time");
+        if (!timeEl) return;
+        setInterval(() => {
+          timeEl.textContent = fmtClockLA();
+        }, 1000);
       }
 
       /* ----------------- boot ----------------- */
@@ -1076,32 +1401,6 @@
         updateButtons();
         startChipClock();
       });
-
-      function renderIdDots() {
-        const n = state.idDigits.length;
-        const dots = Array.from(
-          { length: 4 },
-          (_, i) => `<span class="passdot${i < n ? " filled" : ""}"></span>`
-        ).join("");
-        $("id_val").innerHTML = dots;
-      }
-
-      function startClock() {
-        const el = document.getElementById("clock");
-        const tick = () => {
-          el.textContent = fmtClockLA();
-        };
-        tick();
-        return setInterval(tick, 1000);
-      }
-
-      function startChipClock() {
-        const timeEl = document.getElementById("chip_time");
-        if (!timeEl) return;
-        setInterval(() => {
-          timeEl.textContent = fmtClockLA();
-        }, 1000);
-      }
     </script>
   </body>
 </html>
