@@ -479,19 +479,68 @@ def kiosk_start(payload: KioskStartPayload, db: Session = Depends(get_db)):
         resp["auto_repair"] = auto_closed_info  # front end can toast this if desired
     return resp
 
+# @timeclock_router.post("/stop", summary="Kiosk: clock out (auto-closes open breaks)")
+# def kiosk_stop(payload: KioskStopPayload, db: Session = Depends(get_db)):
+#     emp = _emp_by_code(db, payload.code)
+#     te = _current_open_time_entry(db, emp.id)
+#     if te:
+#         in_local_date = to_local(te.clock_in_at).date()
+#         if in_local_date < to_local(now_utc()).date():
+#             _auto_close_open_entry(db, te)
+#             db.commit()
+#             te = None  # treat as no open entry now
+
+#     now = now_utc()
+
+#     open_breaks = (
+#         db.query(BreakEntry)
+#           .filter(BreakEntry.time_entry_id == te.id, BreakEntry.end_at.is_(None))
+#           .all()
+#     )
+#     for br in open_breaks:
+#         br.end_at = now
+
+#     te.clock_out_at = now
+#     te.clock_out_method = payload.method or "web"
+#     te.clock_out_location = payload.location
+#     if payload.notes:
+#         te.notes = (te.notes or "") + f"\n[OUT] {payload.notes}"
+#     te.status = "closed"
+
+#     db.commit(); db.refresh(te)
+#     return {
+#         "id": te.id,
+#         "employee_id": te.employee_id,
+#         "work_user_id": te.work_user_id,
+#         "clock_out_at": te.clock_out_at,
+#         "status": te.status,
+#         "auto_closed_breaks": [b.id for b in open_breaks],
+#     }
 @timeclock_router.post("/stop", summary="Kiosk: clock out (auto-closes open breaks)")
 def kiosk_stop(payload: KioskStopPayload, db: Session = Depends(get_db)):
     emp = _emp_by_code(db, payload.code)
     te = _current_open_time_entry(db, emp.id)
-    if te:
-        in_local_date = to_local(te.clock_in_at).date()
-        if in_local_date < to_local(now_utc()).date():
-            _auto_close_open_entry(db, te)
-            db.commit()
-            te = None  # treat as no open entry now
+
+    # ถ้าไม่มี TimeEntry ที่เปิดอยู่
+    if not te:
+        raise HTTPException(
+            status_code=400,
+            detail="You are not currently clocked in. Please Clock In first."
+        )
+
+    # ถ้า clock_in_at เป็นวันก่อนหน้า → auto close แล้วไม่ต้องใช้ te ต่อ
+    in_local_date = to_local(te.clock_in_at).date()
+    if in_local_date < to_local(now_utc()).date():
+        _auto_close_open_entry(db, te)
+        db.commit()
+        raise HTTPException(
+            status_code=400,
+            detail="Previous shift was auto-closed. Please Clock In again before Clock Out."
+        )
 
     now = now_utc()
 
+    # ปิด break ที่ยังไม่จบทั้งหมดก่อน clock out
     open_breaks = (
         db.query(BreakEntry)
           .filter(BreakEntry.time_entry_id == te.id, BreakEntry.end_at.is_(None))
@@ -516,6 +565,7 @@ def kiosk_stop(payload: KioskStopPayload, db: Session = Depends(get_db)):
         "status": te.status,
         "auto_closed_breaks": [b.id for b in open_breaks],
     }
+
 
 @breaks_router.post("/start", summary="Kiosk: start break by code")
 def kiosk_start_break(payload: KioskStartBreakPayload, db: Session = Depends(get_db)):
@@ -549,12 +599,20 @@ def kiosk_start_break(payload: KioskStartBreakPayload, db: Session = Depends(get
 def kiosk_stop_break(payload: KioskStopBreakPayload, db: Session = Depends(get_db)):
     emp = _emp_by_code(db, payload.code)
     te = _current_open_time_entry(db, emp.id)
+
+    # ✅ เพิ่ม check ถ้ายังไม่ Clock In
     if not te:
-        raise HTTPException(400, "You must be clocked in to stop a break")
+        raise HTTPException(
+            status_code=400,
+            detail="You must be clocked in to stop a break."
+        )
 
     br = _current_open_break(db, te.id)
     if not br:
-        raise HTTPException(400, "No break in progress")
+        raise HTTPException(
+            status_code=400,
+            detail="No active break found. Please Start Break first."
+        )
 
     br.end_at = now_utc()
     db.commit(); db.refresh(br)
