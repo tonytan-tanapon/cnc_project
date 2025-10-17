@@ -1293,18 +1293,26 @@ Regular hrs: ${sumReg.toFixed(2)} OT hrs: ${sumOT.toFixed(2)} ---
           });
 
           toast("Break stopped");
-          // อัปเดตสถานะภายใน แล้วออกจากหน้าทันที
-          state.status = "in";
+
+          // ✅ รีเซ็ตสถานะ
+          state.status = "off";
           state.breakId = null;
           state.hasBreakUsed = true;
-          logout(); // กลับไป PIN และรีเซ็ต
-          return; // ป้องกันโค้ดด้านล่างรันต่อ
+          state.busy = false;
+
+          // ✅ กลับไปหน้า PIN
+          setView("v_id");
+          resetLoginUI();
+          state.code = "";
+          state.idDigits = "";
+          leaveExitMode();
+
+          toast("Break stopped");
         } catch (e) {
+          state.busy = false;
           leaveExitMode();
           setView("v_act");
-          state.busy = false;
           toast(e.message || "Stop break failed", false);
-          return;
         }
       }
 
