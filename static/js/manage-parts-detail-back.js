@@ -3,13 +3,13 @@ import { $, jfetch, showToast as toast, initTopbar } from './api.js';
 import { attachAutocomplete } from './autocomplete.js';
 
 const fmtQty = (v) => (v == null ? '' : Number(v).toLocaleString(undefined, { maximumFractionDigits: 3 }));
-const debounce = (fn, ms = 300) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); } };
+const debounce = (fn, ms=300)=>{ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a),ms);} };
 const sortAlpha = (arr, key) => [...arr].sort((a, b) =>
   (key ? a[key] : a).localeCompare((key ? b[key] : b), undefined, { numeric: true, sensitivity: 'base' })
 );
 
 // ---- DOM refs
-const tableMount = $('p_table');
+const tableMount  = $('p_table');
 const inputSearch = $('p_q');
 
 let table = null;
@@ -22,23 +22,23 @@ let pendingSelectedMaterial = null;       // { id, code, name } from AC selectio
 const MAT_LOOKUP_URL = (q) => `/lookups/materials?q=${encodeURIComponent(q)}`;
 
 // Small helpers
-function safeText(s) { return String(s ?? '').replace(/[<>&]/g, m => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[m])); }
+function safeText(s){ return String(s ?? '').replace(/[<>&]/g, m => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[m])); }
 
 let lookups = { processes: [], finishes: [] };
 let idCutting = null;
-let idHeat = null;
+let idHeat    = null;
 
-const fmtDate = (s) => {
-  if (!s) return '';
-  // Accept 'YYYY-MM-DD' or ISO datetime. Prefer exact date parsing to avoid TZ shifts.
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
-    const [y, m, d] = s.split('-').map(Number);
-    const dt = new Date(y, m - 1, d);     // local date (no TZ shift)
-    return dt.toLocaleDateString();
-  }
-  const d = new Date(s);
-  return isNaN(d) ? '' : d.toLocaleDateString();
-};
+ const fmtDate = (s) => {
+   if (!s) return '';
+   // Accept 'YYYY-MM-DD' or ISO datetime. Prefer exact date parsing to avoid TZ shifts.
+   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+     const [y, m, d] = s.split('-').map(Number);
+     const dt = new Date(y, m - 1, d);     // local date (no TZ shift)
+     return dt.toLocaleDateString();
+   }
+   const d = new Date(s);
+   return isNaN(d) ? '' : d.toLocaleDateString();
+ };
 
 // ---- styles (once)
 (() => {
@@ -82,21 +82,21 @@ const fmtDate = (s) => {
 })();
 
 // ---- QS helpers
-function qsParams() {
+function qsParams(){
   const usp = new URLSearchParams(location.search);
-  const part_id = usp.get('part_id') ? Number(usp.get('part_id')) : null;
-  const customer_id = usp.get('customer_id') ? Number(usp.get('customer_id')) : null;
+  const part_id          = usp.get('part_id') ? Number(usp.get('part_id')) : null;
+  const customer_id      = usp.get('customer_id') ? Number(usp.get('customer_id')) : null;
   const part_revision_id = (usp.get('part_revision_id') ?? usp.get('revision_id'));
   return { part_id, customer_id, part_revision_id: part_revision_id ? Number(part_revision_id) : null };
 }
-function buildQS(params) {
+function buildQS(params){
   const usp = new URLSearchParams();
-  Object.entries(params).forEach(([k, v]) => { if (v !== undefined && v !== null && v !== '') usp.set(k, String(v)); });
+  Object.entries(params).forEach(([k,v])=>{ if (v !== undefined && v !== null && v !== '') usp.set(k, String(v)); });
   return usp.toString();
 }
 
 // ---- header & filters scaffold (Materials panel included)
-function ensureHeaderCard() {
+function ensureHeaderCard(){
   let wrap = document.getElementById('p_header');
   if (wrap) return wrap;
 
@@ -176,26 +176,26 @@ function ensureHeaderCard() {
 }
 
 // ===== Materials (ID-based) =====
-async function fetchMaterials() {
+async function fetchMaterials(){
   const { part_id } = qsParams();
   if (!part_id) return [];
-  try {
+  try{
     const res = await jfetch(`/parts/${part_id}/materials`);
     // Expect: { items:[{ id, material_id, code, name }] }
     materials = Array.isArray(res?.items) ? res.items : [];
-  } catch (e) {
+  }catch(e){
     materials = [];
     console.warn('Fetch materials failed', e);
   }
   renderMaterials();
 }
 
-function renderMaterials() {
+function renderMaterials(){
   const list = document.getElementById('mat_list');
   if (!list) return;
   list.innerHTML = '';
 
-  if (!materials.length) {
+  if (!materials.length){
     const span = document.createElement('span');
     span.style.color = '#64748b';
     span.textContent = 'No materials yet.';
@@ -204,12 +204,12 @@ function renderMaterials() {
   }
 
   // Sort by code then name
-  const rows = [...materials].sort((a, b) => {
-    const ac = (a.code || '').localeCompare(b.code || '', undefined, { numeric: true, sensitivity: 'base' });
-    return ac !== 0 ? ac : (a.name || '').localeCompare(b.name || '', undefined, { numeric: true, sensitivity: 'base' });
+  const rows = [...materials].sort((a,b)=>{
+    const ac = (a.code || '').localeCompare(b.code || '', undefined, {numeric:true,sensitivity:'base'});
+    return ac !== 0 ? ac : (a.name || '').localeCompare(b.name || '', undefined, {numeric:true,sensitivity:'base'});
   });
 
-  for (const m of rows) {
+  for (const m of rows){
     const chip = document.createElement('span');
     chip.className = 'chip--pill';
     chip.innerHTML = `
@@ -228,10 +228,10 @@ function renderMaterials() {
 }
 
 // Add by material_id (dedupe on same material_id)
-async function addMaterialById(material_id) {
+async function addMaterialById(material_id){
   console.log('[ADD] called with', material_id);
   const { part_id } = qsParams();
-  if (!part_id || !material_id) { console.warn('Missing ids', { part_id, material_id }); return; }
+  if (!part_id || !material_id) { console.warn('Missing ids', {part_id, material_id}); return; }
 
   // dedupe
   if (materials.some(m => m.material_id === material_id)) {
@@ -239,14 +239,14 @@ async function addMaterialById(material_id) {
     return;
   }
 
-  try {
+  try{
     const created = await jfetch(`/parts/${part_id}/materials`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {'Content-Type':'application/json'},
       body: JSON.stringify({ material_id }),
     });
     console.log('[ADD] success', created);
-    if (created?.id) {
+    if (created?.id){
       materials.push(created);
       renderMaterials();
       toast?.('Material added', true);
@@ -254,39 +254,39 @@ async function addMaterialById(material_id) {
       console.warn('[ADD] unexpected response', created);
       toast?.('Add succeeded but response shape unexpected', false);
     }
-  } catch (e) {
+  }catch(e){
     console.error('[ADD] exception', e);
     toast?.('Failed to add material: ' + (e?.message || ''), false);
   }
 }
 
-async function deletePartMaterial(partMaterialId) {
+async function deletePartMaterial(partMaterialId){
   const { part_id } = qsParams();
   if (!part_id || !partMaterialId) return;
-  try {
+  try{
     await jfetch(`/parts/${part_id}/materials/${partMaterialId}`, { method: 'DELETE' });
     materials = materials.filter(m => m.id !== partMaterialId);
     renderMaterials();
-  } catch (e) {
+  }catch(e){
     toast?.('Failed to remove material', false);
   }
 }
 
-function initMaterialAutocomplete() {
-  const ip = document.getElementById('mat_ac_input');
+function initMaterialAutocomplete(){
+  const ip  = document.getElementById('mat_ac_input');
   const btn = document.getElementById('mat_add_btn');
   if (!ip) return;
 
   let lastItems = []; // keep last fetched results
 
   const fetchItems = async (q) => {
-    try {
+    try{
       const res = await jfetch(MAT_LOOKUP_URL(q || ""));
       const items = Array.isArray(res?.items) ? res.items : [];
       // console.log(items)
       lastItems = items;
       return items;
-    } catch (e) {
+    }catch(e){
       console.warn('[AC] fetch ERROR', e);
       lastItems = [];
       return [];
@@ -313,8 +313,8 @@ function initMaterialAutocomplete() {
   // Open menu on focus even when empty
   ip.addEventListener('focus', () => {
     if (!ip.value) {
-      ip.dispatchEvent(new Event('input', { bubbles: true }));
-      ip.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
+      ip.dispatchEvent(new Event('input', { bubbles:true }));
+      ip.dispatchEvent(new KeyboardEvent('keyup', { bubbles:true }));
     }
   });
 
@@ -322,7 +322,7 @@ function initMaterialAutocomplete() {
   ip.addEventListener('input', () => { pendingSelectedMaterial = null; });
 
   // Robust Add handler (supports selection OR typed value)
-  btn?.addEventListener('click', async () => {
+  btn?.addEventListener('click', async ()=>{
     let m = pendingSelectedMaterial;
     if (!m) {
       const q = ip.value.trim();
@@ -348,39 +348,39 @@ function initMaterialAutocomplete() {
       if (!m) { toast?.('Pick a material from the list to add', false); return; }
     }
 
-    try {
+    try{
       await addMaterialById(m.id);
       ip.value = '';
       pendingSelectedMaterial = null;
-    } catch (e) {
+    }catch(e){
       toast?.('Failed to add material', false);
     }
   });
 }
 
 // ---- lookups (fetch IDs)
-async function fetchLookups() {
+async function fetchLookups(){
   const [procs, fins] = await Promise.all([
     jfetch('/lookups/processes'),
     jfetch('/lookups/finishes'),
   ]);
   lookups.processes = sortAlpha(procs?.items || [], 'name');
-  lookups.finishes = sortAlpha(fins?.items || [], 'name');
+  lookups.finishes  = sortAlpha(fins?.items || [], 'name');
 
   // find IDs for "Cutting" and "Heat Treating & Stress Relieve"
   idCutting = (lookups.processes.find(p => p.name === 'Cutting') || {}).id || null;
-  idHeat = (lookups.processes.find(p => p.name === 'Heat Treating & Stress Relieve') || {}).id || null;
+  idHeat    = (lookups.processes.find(p => p.name === 'Heat Treating & Stress Relieve') || {}).id || null;
 }
 
 // ---- render filters with data-id attributes (so we can save by ID)
-function renderFilters() {
+function renderFilters(){
   const elMproc = document.getElementById('g_mproc');
-  const elChem = document.getElementById('g_chem');
-  const cbCut = document.getElementById('g_cutting');
-  const cbHeat = document.getElementById('g_heat');
+  const elChem  = document.getElementById('g_chem');
+  const cbCut   = document.getElementById('g_cutting');
+  const cbHeat  = document.getElementById('g_heat');
 
   // set ids on basic checkboxes
-  if (cbCut) cbCut.dataset.id = idCutting ?? '';
+  if (cbCut)  cbCut.dataset.id  = idCutting ?? '';
   if (cbHeat) cbHeat.dataset.id = idHeat ?? '';
 
   // manufacturing: all processes except the two basics
@@ -411,11 +411,11 @@ function renderFilters() {
 }
 
 // ---- preload saved selections (GET /part-selections/{part_id})
-async function preloadSelectionsIntoUI() {
+async function preloadSelectionsIntoUI(){
   const { part_id } = qsParams();
   if (!part_id) return;
 
-  try {
+  try{
     const data = await jfetch(`/part-selections/${part_id}`); // { process_ids:[], finish_ids:[], others:[] }
 
     // basics
@@ -448,26 +448,26 @@ async function preloadSelectionsIntoUI() {
     if (otherTxt && Array.isArray(data.others) && data.others.length) {
       otherTxt.value = data.others[0];
     }
-  } catch (e) {
+  }catch(e){
     console.warn('Preload selections failed', e);
   }
 }
 
 // ---- persist selections (POST /part-selections/{part_id})
-async function saveSelectionsToDB() {
+async function saveSelectionsToDB(){
   const { part_id } = qsParams();
   if (!part_id) return;
 
   const elMproc = document.getElementById('g_mproc');
-  const elChem = document.getElementById('g_chem');
-  const cbCut = document.getElementById('g_cutting');
-  const cbHeat = document.getElementById('g_heat');
-  const otherTxt = document.getElementById('g_other_text');
+  const elChem  = document.getElementById('g_chem');
+  const cbCut   = document.getElementById('g_cutting');
+  const cbHeat  = document.getElementById('g_heat');
+  const otherTxt= document.getElementById('g_other_text');
 
   const procIds = new Set();
-  const finIds = new Set();
+  const finIds  = new Set();
 
-  if (cbCut?.checked && cbCut.dataset.id) procIds.add(Number(cbCut.dataset.id));
+  if (cbCut?.checked && cbCut.dataset.id)  procIds.add(Number(cbCut.dataset.id));
   if (cbHeat?.checked && cbHeat.dataset.id) procIds.add(Number(cbHeat.dataset.id));
 
   elMproc?.querySelectorAll('input[type=checkbox]:checked').forEach(cb => {
@@ -482,23 +482,23 @@ async function saveSelectionsToDB() {
 
   const payload = {
     process_ids: [...procIds],
-    finish_ids: [...finIds],
-    others: (otherTxt?.value || '').trim() ? [otherTxt.value.trim()] : [],
+    finish_ids:  [...finIds],
+    others:      (otherTxt?.value || '').trim() ? [otherTxt.value.trim()] : [],
   };
 
-  try {
+  try{
     await jfetch(`/part-selections/${part_id}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type':'application/json' },
       body: JSON.stringify(payload),
     });
-  } catch (e) {
+  }catch(e){
     toast?.('Failed to save selections: ' + (e?.message || ''), false);
   }
 }
 
 // ---- simple local filter (does not hit DB)
-function applyFiltersToTable() {
+function applyFiltersToTable(){
   if (!table) return;
   const search = (inputSearch?.value || '').trim().toLowerCase();
   let rows = allRows;
@@ -509,9 +509,9 @@ function applyFiltersToTable() {
 }
 
 // ---- fetch rows & meta
-async function fetchDetail() {
+async function fetchDetail(){
   const { part_id, customer_id, part_revision_id } = qsParams();
-  if (!part_id || !customer_id) {
+  if (!part_id || !customer_id){
     toast?.('Missing part_id or customer_id', false);
     return { items: [], meta: null };
   }
@@ -522,14 +522,13 @@ async function fetchDetail() {
     revision_id: part_revision_id ?? undefined,
   });
   const res = await jfetch(`/data_detail?${qs}`);
-  console.log(res)
   const items = Array.isArray(res?.items) ? res.items : [];
-  const meta = res?.meta ?? null;
+  const meta  = res?.meta ?? null;
   return { items, meta };
 }
 
 // ---- Tabulator
-function initTable() {
+function initTable(){
   if (!tableMount) return;
   /* global Tabulator */
   table = new Tabulator(tableMount, {
@@ -539,168 +538,54 @@ function initTable() {
     index: "lot_no",
     pagination: false,
     columns: [
-
+      
       { title: "Lot Number", field: "lot_no", minWidth: 110, headerSort: true },
-      {
-        title: "PO No",
-        width: 100,
-        formatter: (cell) => {
-          const row = cell.getRow().getData();
-          const poNumber = row.po_number || "—";
-          const poId = row.po_id;
-          if (!poId) return poNumber;
-
-          // clickable link
-          return `<a href="/static/manage-pos-detail.html?id=${encodeURIComponent(poId)}" 
-              class="link-po" 
-              style="color:#2563eb; text-decoration:underline; cursor:pointer;">
-              ${poNumber}
-            </a>`;
-        },
-        cellClick: (e, cell) => {
-          e.preventDefault(); // prevent default <a> navigation
-          const row = cell.getRow().getData();
-          const poId = row.po_id;
-          if (!poId) return toast("No PO ID found", false);
-          window.location.href = `/static/manage-pos-detail.html?id=${encodeURIComponent(poId)}`;
-        }
-      },
-      {
-        title: "Prod Qty", field: "lot_qty", width: 100, hozAlign: "right", headerHozAlign: "right",
+      { title: "PO Number",  field: "po_number", minWidth: 110, headerSort: true },
+      { title: "Prod Qty",  field: "lot_qty", width: 110, hozAlign: "right", headerHozAlign: "right",
         formatter: (cell) => fmtQty(cell.getValue())
       },
-      {
-        title: "Prod allocate", field: "lot_qty", width: 100, hozAlign: "right", headerHozAlign: "right",
+      { title: "Prod allocate",  field: "lot_qty", width: 110, hozAlign: "right", headerHozAlign: "right",
         formatter: (cell) => fmtQty(cell.getValue())
       },
-      {
-        title: "Prod Date", field: "lot_due_date", minWidth: 100, sorter: "date",
+      { title: "Prod Date",   field: "lot_due_date", minWidth: 130, sorter: "date",
         formatter: (cell) => fmtDate(cell.getValue())
       },
-      {
-        title: "PO Qty", field: "qty", width: 110, hozAlign: "right", headerHozAlign: "right",
+      { title: "PO Qty",   field: "qty", width: 110, hozAlign: "right", headerHozAlign: "right",
         formatter: (cell) => fmtQty(cell.getValue())
       },
-      {
-        title: "PO Date", field: "po_due_date", minWidth: 130, sorter: "date",
+      { title: "PO Date", field: "po_due_date", minWidth: 130, sorter: "date",
         formatter: (cell) => fmtDate(cell.getValue())
       },
-      {
-        title: "Ship Qty", field: "qty", width: 110, hozAlign: "right", headerHozAlign: "right",
+      { title: "Ship Qty", field: "qty", width: 110, hozAlign: "right", headerHozAlign: "right",
         formatter: (cell) => fmtQty(cell.getValue())
-      },
-      {
-        title: "Materials",
-        width: 110,
-        formatter: () => `<button class="btn-mini btn-primary">Materials</button>`,
-        cellClick: (e, cell) => {
-          const row = cell.getRow().getData();
-          const lotId = row.lot_id;   // ✅ available now
-          if (!lotId) return toast("No lot ID found", false);
-
-          window.location.href = `/static/manage-lot-materials.html?lot_id=${encodeURIComponent(lotId)}`;
-        }
-      },
-      // {
-      //   title: "Travelers",
-      //   field: "travelers",
-      //   width: 120,
-      //   hozAlign: "center",
-      //   headerSort: false,
-      //   formatter: () => `<button class="btn-mini btn-primary" data-act="travelers">travelers</button>`,
-      //   cellClick: (e, cell) => {
-      //     const row = cell.getRow().getData();
-      //     const lotId = row.lot_id;   // ✅ available now
-      //     if (!lotId) return toast("No lot ID found", false);
-
-      //      window.location.href = `/static/traveler-detail.html?lot_id=${encodeURIComponent(lotId)}`;
-      //   },
-      // },
-      {
-        title: "Travelers",
-        field: "travelers",
-        width: 120,
-        hozAlign: "center",
-        headerSort: false,
-        formatter: () => `<button class="btn-mini btn-primary" data-act="travelers">travelers</button>`,
-        cellClick: async (e, cell) => {
-
-
-          console.log("End");
-          const row = cell.getRow().getData();
-          const lotId = row.lot_id;
-          if (!lotId) return toast("No lot ID found", false);
-
-          try {
-            // ✅ call server to get material id
-            const res = await fetch(`/api/v1/lot-uses/lot/${encodeURIComponent(lotId)}/material-id`);
-            console.log("Response status:", res.status);
-
-            if (!res.ok) throw new Error("Server error");
-
-            // 🧠 Parse response body
-            const data = await res.json();
-            console.log("✅ Data from server:", data);
-
-            if (!data.traveler_id) {
-              toast("❌ Material ID not found", false);
-              return;
-            }
-
-            // Optional delay (for UX smoothness)
-            await new Promise(r => setTimeout(r, 300));
-
-            // Redirect using material ID
-            window.location.href = `/static/traveler-detail.html?id=${encodeURIComponent(data.traveler_id)}`;
-
-          } catch (err) {
-            toast("⚠️ Failed to fetch material id", false);
-            console.error(err);
-          }
-        },
-      },
-      {
-        title: "Shippments",
-        field: "shippments",
-        width: 120,
-        hozAlign: "center",
-        headerSort: false,
-        formatter: () => `<button class="btn-mini btn-primary" data-act="shippments">shippments</button>`,
-        cellClick: (e, cell) => {
-          const row = cell.getRow().getData();
-          const lotId = row.lot_id;   // ✅ available now
-          if (!lotId) return toast("No lot ID found", false);
-
-          window.location.href = `/static/manage-shipments.html?lot_id=${encodeURIComponent(lotId)}`;
-        },
       },
       // placeholders...
-      { title: "FAIR", field: "", minWidth: 50, headerSort: false, formatter: () => "" },
-      { title: "*Remark Product Control", field: "", minWidth: 100, headerSort: false, formatter: () => "" },
-      { title: "Tracking no.", field: "", minWidth: 100, headerSort: false, formatter: () => "" },
-      { title: "Real Shipped Date", field: "", minWidth: 100, headerSort: false, formatter: () => "" },
-      { title: "INCOMING STOCK", field: "", minWidth: 100, headerSort: false, formatter: () => "" },
+      { title: "First article No:", field: "", minWidth: 140, headerSort: false, formatter: ()=>"" },
+      { title: "*Remark Product Control", field: "", minWidth: 180, headerSort: false, formatter: ()=>"" },
+      { title: "Tracking no.", field: "", minWidth: 130, headerSort: false, formatter: ()=>"" },
+      { title: "Real Shipped Date", field: "", minWidth: 150, headerSort: false, formatter: ()=>"" },
+      { title: "INCOMING STOCK", field: "", minWidth: 140, headerSort: false, formatter: ()=>"" },
     ],
   });
 }
 
 // ---- load header meta (no side-effects)
-function fillHeaderMeta(meta) {
-  const elPartNo = document.getElementById('h_part_no');
+function fillHeaderMeta(meta){
+  const elPartNo   = document.getElementById('h_part_no');
   const elPartName = document.getElementById('h_part_name');
-  const elPartRev = document.getElementById('h_part_rev');
-  const elCust = document.getElementById('h_customer');
+  const elPartRev  = document.getElementById('h_part_rev');
+  const elCust     = document.getElementById('h_customer');
   const p = meta?.part || {};
   const r = meta?.revision || {};
   const c = meta?.customer || {};
-  elPartNo.textContent = p.part_no ?? '—';
+  elPartNo.textContent   = p.part_no ?? '—';
   elPartName.textContent = p.name ?? '—';
-  elPartRev.textContent = r.rev ?? '—';
-  elCust.textContent = c.code || c.name || '—';
+  elPartRev.textContent  = r.rev ?? '—';
+  elCust.textContent     = c.code || c.name || '—';
 }
 
 // ---- load
-async function loadData() {
+async function loadData(){
   const { items, meta } = await fetchDetail();
   allRows = items;
   fillHeaderMeta(meta);
@@ -709,7 +594,7 @@ async function loadData() {
 }
 
 // ---- search
-function onSearchChange() {
+function onSearchChange(){
   currentSearch = (inputSearch?.value || '').trim();
   applyFiltersToTable();
 }
@@ -721,7 +606,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   initTopbar?.();
   ensureHeaderCard();
   initTable();
-  try {
+  try{
     await fetchLookups();          // 1) get IDs for process/finish
     renderFilters();               // 2) checkboxes
     await loadData();              // 3) table + header
@@ -730,7 +615,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 5) Materials (autocomplete + initial list)
     initMaterialAutocomplete();
     await fetchMaterials();
-  } catch (e) {
+  }catch(e){
     toast?.(e?.message || 'Init failed', false);
   }
 });

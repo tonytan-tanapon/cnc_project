@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Lot Material Allocation · Topnotch Demo</title>
+<link rel="stylesheet" href="https://unpkg.com/tabulator-tables@5.5.2/dist/css/tabulator_modern.min.css" />
+<style>
+  body {
+    font-family: system-ui, sans-serif;
+    background: #f9fafb;
+    color: #111;
+    margin: 0;
+  }
+  header {
+    background: #1f2937;
+    color: #fff;
+    padding: 12px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .toolbar {
+    padding: 10px 20px;
+    background: #fff;
+    border-bottom: 1px solid #e5e7eb;
+    display: flex;
+    gap: 8px;
+  }
+  button {
+    border: none;
+    border-radius: 6px;
+    padding: 6px 12px;
+    cursor: pointer;
+    color: #fff;
+    font-size: 14px;
+  }
+  .primary { background: #2563eb; }
+  .secondary { background: #6b7280; }
+  .success { background: #16a34a; }
+  .warning { background: #f59e0b; color: #111; }
+
+  main {
+    padding: 16px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    height: calc(100vh - 120px);
+  }
+
+  .lot-detail {
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+    padding: 12px 20px;
+  }
+  .lot-detail h2 {
+    font-size: 18px;
+    margin-bottom: 6px;
+  }
+  .lot-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    font-size: 14px;
+  }
+
+  .tables-row {
+    display: flex;
+    flex: 1;
+    gap: 12px;
+  }
+  .panel {
+    flex: 1;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+  }
+  .panel h3 {
+    font-size: 16px;
+    margin: 6px 0 10px;
+  }
+  .table-wrap {
+    flex: 1;
+    border: 1px solid #e5e7eb;
+  }
+</style>
+</head>
+<body>
+  <header>
+    <h1>Lot Material Allocation</h1>
+    <span>Topnotch – MFG</span>
+  </header>
+
+  <div class="toolbar">
+    <button id="btnCreatePO" class="warning">➕ Create Material PO</button>
+    <button id="btnReceiveBatch" class="success">📦 Receive Batch</button>
+    <button id="btnReturn" class="secondary">↩️ Return to Inventory</button>
+  </div>
+
+  <main>
+    <!-- Lot Detail -->
+    <section class="lot-detail">
+      <h2>📄 Lot Detail</h2>
+      <div class="lot-grid">
+        <div><b>Lot No:</b> L2025-0101</div>
+        <div><b>Part No:</b> A123</div>
+        <div><b>Planned Qty:</b> 50</div>
+        <div><b>Due Date:</b> 2025-10-25</div>
+        <div><b>Status:</b> In Process</div>
+        <div><b>Customer:</b> Aero Fluid Products</div>
+        <div><b>PO No:</b> PO-2025-0456</div>
+        <div><b>Note:</b> Urgent order</div>
+      </div>
+    </section>
+
+    <!-- Two Tables Row -->
+    <section class="tables-row">
+      <!-- Part Inventory -->
+      <div class="panel">
+        <h3>📦 Part Inventory</h3>
+        <div id="partTable" class="table-wrap"></div>
+      </div>
+
+      <!-- Material Inventory -->
+      <div class="panel">
+        <h3>🧱 Material Inventory</h3>
+        <div id="materialTable" class="table-wrap"></div>
+      </div>
+    </section>
+  </main>
+
+  <script src="https://unpkg.com/tabulator-tables@5.5.2/dist/js/tabulator.min.js"></script>
+  <script>
+    // --- Demo Data ---
+    let partData = [
+      { id: 1, part_no: "A123", rev: "B", on_hand: 24, allocated: 8 },
+      { id: 2, part_no: "B455", rev: "A", on_hand: 10, allocated: 2 },
+    ];
+
+    let materialData = [
+      { id: 1, name: "AL6061-Round", batch: "B2025-001", qty: 50, status: "Available" },
+      { id: 2, name: "SS304-Bar", batch: "B2025-002", qty: 0, status: "Need Reorder" },
+    ];
+
+    function notify(msg){ alert(msg); }
+
+    // --- Part Table ---
+    const partTable = new Tabulator("#partTable", {
+      data: partData,
+      layout: "fitColumns",
+      reactiveData: true,
+      columns: [
+        { title: "Part No", field: "part_no" },
+        { title: "Rev", field: "rev", width: 80 },
+        { title: "On Hand", field: "on_hand", hozAlign: "right" },
+        { title: "Allocated", field: "allocated", hozAlign: "right" },
+        {
+          title: "Actions",
+          formatter: () => `<a href="#" class="link-alloc">Allocate</a>`,
+          cellClick: (e, cell) => {
+            const row = cell.getRow().getData();
+            if (row.on_hand > 0) {
+              row.on_hand -= 1;
+              row.allocated += 1;
+              partTable.updateData([row]);
+              notify(`✅ Allocated 1 unit of Part ${row.part_no} to Lot #L2025-0101`);
+            } else notify(`❌ No stock for Part ${row.part_no}`);
+          },
+        },
+      ],
+    });
+
+    // --- Material Table ---
+    const materialTable = new Tabulator("#materialTable", {
+      data: materialData,
+      layout: "fitColumns",
+      reactiveData: true,
+      columns: [
+        { title: "Material", field: "name" },
+        { title: "Batch", field: "batch" },
+        { title: "On Hand", field: "qty", hozAlign: "right" },
+        { title: "Status", field: "status" },
+        {
+          title: "Actions",
+          formatter: (cell) => {
+            const row = cell.getRow().getData();
+            return row.qty === 0
+              ? `<a href="#" class="link-create">Create PO</a>`
+              : `<a href="#" class="link-map">Map Batch</a>`;
+          },
+          cellClick: (e, cell) => {
+            const row = cell.getRow().getData();
+            if (row.qty === 0) {
+              row.status = "PO Created";
+              materialTable.updateData([row]);
+              notify(`🧾 Created PO for ${row.name}`);
+            } else {
+              row.status = "Mapped to Lot";
+              materialTable.updateData([row]);
+              notify(`🔗 Mapped Batch ${row.batch} to Lot #L2025-0101`);
+            }
+          },
+        },
+      ],
+    });
+
+    // --- Toolbar buttons ---
+    document.getElementById("btnCreatePO").onclick = () => {
+      materialData.push({
+        id: materialData.length + 1,
+        name: "Titanium Rod",
+        batch: "-",
+        qty: 0,
+        status: "PO Created",
+      });
+      materialTable.replaceData(materialData);
+      notify("🧾 New Material PO Created");
+    };
+
+    document.getElementById("btnReceiveBatch").onclick = () => {
+      const pending = materialData.find(m => m.status === "PO Created");
+      if (!pending) return notify("No pending PO");
+      pending.batch = "B2025-003";
+      pending.qty = 100;
+      pending.status = "Available";
+      materialTable.updateData([pending]);
+      notify(`📦 Received ${pending.name} Batch ${pending.batch}`);
+    };
+
+    document.getElementById("btnReturn").onclick = () => {
+      const alloc = partData.find(p => p.allocated > 0);
+      if (!alloc) return notify("No allocated parts to return");
+      alloc.allocated -= 1;
+      alloc.on_hand += 1;
+      partTable.updateData([alloc]);
+      notify(`↩️ Returned 1 ${alloc.part_no} to inventory`);
+    };
+  </script>
+</body>
+</html>

@@ -528,7 +528,19 @@ class LotMaterialUse(Base):
 
     def __repr__(self):
         return f"<LotMaterialUse(lot_id={self.lot_id}, batch_id={self.batch_id}, qty={self.qty})>"
+    
+    
+class LotMaterialUseHistory(Base):
+    __tablename__ = "lot_material_use_history"
 
+    id = Column(Integer, primary_key=True)
+    lot_id = Column(Integer, ForeignKey("production_lots.id"))
+    raw_material_id = Column(Integer, ForeignKey("raw_materials.id"))
+    batch_id = Column(Integer, ForeignKey("raw_batches.id"))
+    qty = Column(Numeric(12, 3))
+    uom = Column(String(10))
+    action = Column(String(20))  # "ALLOCATE" or "RETURN"
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 class ShopTraveler(Base):
     __tablename__ = "shop_travelers"
@@ -1427,8 +1439,8 @@ def _lmu_before_insert_guard(mapper, connection, target: LotMaterialUse):
     qty_received = connection.execute(
         select(func.coalesce(RawBatch.qty_received, 0)).where(RawBatch.id == target.batch_id)
     ).scalar_one()
-
-    total_after = (total_used_other or 0) + (target.qty or 0)
+    total_after = float(total_used_other or 0) + float(target.qty or 0)
+    
     if total_after < 0:
         raise ValueError(f"batch {target.batch_id}: total_used would be {total_after} < 0")
     if total_after > (qty_received or 0):
@@ -1436,7 +1448,7 @@ def _lmu_before_insert_guard(mapper, connection, target: LotMaterialUse):
             f"batch {target.batch_id}: total_used would be {total_after} > qty_received {qty_received}"
         )
 
-
+from decimal import Decimal   # ✅ เพิ่มตรงนี้
 @event.listens_for(LotMaterialUse, "before_update")
 def _lmu_before_update_guard(mapper, connection, target: LotMaterialUse):
     total_used_other = connection.execute(
@@ -1448,8 +1460,8 @@ def _lmu_before_update_guard(mapper, connection, target: LotMaterialUse):
     qty_received = connection.execute(
         select(func.coalesce(RawBatch.qty_received, 0)).where(RawBatch.id == target.batch_id)
     ).scalar_one()
-
-    total_after = (total_used_other or 0) + (target.qty or 0)
+    qty_value = getattr(target, "qty", 0)   # ✅ เพิ่มบรรทัดนี้
+    total_after = Decimal(total_used_other or 0) + Decimal(qty_value or 0)
     if total_after < 0:
         raise ValueError(f"batch {target.batch_id}: total_used would be {total_after} < 0")
     if total_after > (qty_received or 0):

@@ -106,6 +106,7 @@ def create_lot(payload: ProductionLotCreate, db: Session = Depends(get_db)):
                 raise HTTPException(409, "Lot number already exists")
     raise HTTPException(500, "Failed to generate unique lot number")
 
+
 @router.get("", response_model=LotPage)
 def list_lots(
     q: Optional[str] = Query(None, description="Search lot/part/po/status"),

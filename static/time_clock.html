@@ -525,7 +525,7 @@
         const laStart = new Date(
           laNow.getFullYear(),
           laNow.getMonth(),
-          laNow.getDate() - 30,
+          laNow.getDate() - 26,
           0,
           0,
           0,
@@ -757,7 +757,7 @@ Regular hrs: ${sumReg.toFixed(2)} OT hrs: ${sumOT.toFixed(2)} ---
         if (!rows?.length) return [];
         // ✅ sort new → old
         const sorted = [...rows].sort(
-          (a, b) => new Date(b.date) - new Date(a.date)
+          (a, b) => new Date(a.date) - new Date(b.date)
         );
 
         const groups = [];
@@ -852,7 +852,7 @@ Regular hrs: ${sumReg.toFixed(2)} OT hrs: ${sumOT.toFixed(2)} ---
           : [];
 
         // เรียงจากใหม่ → เก่า
-        return list.sort((a, b) => new Date(b.start_at) - new Date(a.start_at));
+        return list.sort((a, b) => new Date(a.start_at) - new Date(b.start_at));
       }
 
       // กลุ่ม logs ตาม pay-period
@@ -861,7 +861,7 @@ Regular hrs: ${sumReg.toFixed(2)} OT hrs: ${sumOT.toFixed(2)} ---
 
         // เรียง period จากใหม่ → เก่า เพื่อให้ดูง่าย
         const sorted = [...payPeriods].sort(
-          (a, b) => new Date(b.start_at) - new Date(a.start_at)
+          (a, b) => new Date(a.start_at) - new Date(b.start_at)
         );
 
         for (let i = 0; i < sorted.length; i++) {
@@ -932,7 +932,11 @@ Regular hrs: ${sumReg.toFixed(2)} OT hrs: ${sumOT.toFixed(2)} ---
         tbody.innerHTML = "";
         for (const g of grouped) {
           const s = g.period.start_at.slice(0, 10);
-          const e = g.period.end_at.slice(0, 10);
+
+// subtract 1 day from end_at
+const endDate = new Date(g.period.end_at);
+endDate.setDate(endDate.getDate() - 1);
+const e = endDate.toISOString().slice(0, 10);
           const sumReg = g.rows.reduce(
             (a, b) => a + (+b.reg || +b.reg_hours || 0),
             0
@@ -958,7 +962,7 @@ Regular hrs: ${sumReg.toFixed(2)} OT hrs: ${sumOT.toFixed(2)} ---
 
           // --- Rows per day ---
           for (const r of g.rows.sort(
-            (a, b) => new Date(b.date) - new Date(a.date)
+            (a, b) => new Date(a.date) - new Date(b.date)
           )) {
             // แปลงวันที่โดยไม่ให้ timezone เลื่อน
             const [y, m, day] = r.date.split("-").map(Number);
@@ -1134,7 +1138,7 @@ Regular hrs: ${sumReg.toFixed(2)} OT hrs: ${sumOT.toFixed(2)} ---
           }
 
           // sort by most recent date
-          summaries.sort((a, b) => new Date(b.date) - new Date(a.date));
+          summaries.sort((a, b) => new Date(a.date) - new Date(b.date));
 
           renderLogWithPeriodSummary(summaries);
 

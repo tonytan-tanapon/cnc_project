@@ -777,7 +777,7 @@ function initLinesTable() {
           return lots
             .map(
               (l) =>
-                `<a class="link" href="/static/manage-lot-materials.html?lot_id=${encodeURIComponent(
+                `<a class="link" href="/static/lot-detail.html?id=${encodeURIComponent(
                   l.id
                 )}">${safe(l.lot_no)}</a>`
             )
