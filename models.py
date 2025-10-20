@@ -1241,6 +1241,7 @@ class CustomerShipment(Base):
     tracking_no = Column(String, nullable=True)
     notes = Column(Text)
     package_no = Column(String, nullable=True, index=True)  # <-- add this
+    status = Column(String, nullable=True, default="pending")
 
     po = relationship("PO", back_populates="shipments")
     items = relationship("CustomerShipmentItem", back_populates="shipment", cascade="all, delete-orphan")
