@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Lot Shipments · Topnotch – MFG</title>
+
+    <link rel="stylesheet" href="/static/css/app.css" />
+    <link
+      rel="stylesheet"
+      href="/static/vendor/tabulator/tabulator_modern.min.css"
+    />
+
+    <style>
+      body {
+        background: #f9fafb;
+        margin: 0;
+        font-family: system-ui, sans-serif;
+      }
+
+      .main--edge {
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+
+      /* ===== HEADER ===== */
+      .lot-info {
+        padding: 14px 18px;
+        border-bottom: 1px solid #e5e7eb;
+        background: #fff;
+      }
+      .lot-info h2 {
+        margin: 0 0 8px 0;
+        font-size: 16px;
+      }
+      .lot-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        gap: 8px;
+        font-size: 14px;
+      }
+
+      /* ===== TOOLBAR ===== */
+      .toolbar {
+        padding: 10px 16px;
+        background: #fff;
+        border-bottom: 1px solid #e5e7eb;
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .btn {
+        border: none;
+        border-radius: 6px;
+        padding: 8px 12px;
+        font-size: 14px;
+        cursor: pointer;
+        color: #fff;
+      }
+      .btn.primary {
+        background: #16a34a;
+      }
+      .btn.secondary {
+        background: #6b7280;
+      }
+      .btn:hover {
+        opacity: 0.9;
+      }
+
+      /* ===== PANELS ===== */
+      .content {
+        flex: 1;
+        padding: 12px 16px;
+        overflow: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+
+      .panel {
+        background: #fff;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+      }
+      .panel h3 {
+        margin: 0;
+        padding: 10px 12px;
+        font-size: 15px;
+        background: #f3f4f6;
+        border-bottom: 1px solid #e5e7eb;
+      }
+      .table-wrap {
+        flex: 1;
+        min-height: 300px;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="app">
+      <aside class="sidebar">
+        <div id="navSlot" data-nav-slot></div>
+      </aside>
+
+      <main class="main main--edge">
+        <!-- ===== LOT HEADER ===== -->
+        <section class="lot-info">
+          <h2>🚚 Lot Shipments</h2>
+          <div id="lotHeader" class="lot-grid">Loading lot information...</div>
+        </section>
+
+        <!-- ===== TOOLBAR ===== -->
+        <div class="toolbar">
+          <button id="btnCreateShipment" class="btn primary">
+            ➕ Create Shipment
+          </button>
+          <button id="btnViewHistory" class="btn secondary">
+            📜 View History
+          </button>
+        </div>
+
+        <!-- ===== STACKED TABLES ===== -->
+        <div class="content">
+          <!-- PART INVENTORY -->
+          <section class="panel">
+            <h3>📦 Part Inventory</h3>
+            <div id="partTable" class="table-wrap"></div>
+          </section>
+
+          <!-- SHIPMENT RECORDS -->
+          <section class="panel">
+            <h3>🚚 Shipment Records</h3>
+            <div id="shipmentTable" class="table-wrap"></div>
+          </section>
+        </div>
+      </main>
+    </div>
+
+    <script type="module" src="/static/js/nav-loader.js"></script>
+    <script src="/static/vendor/tabulator/tabulator.min.js"></script>
+    <script type="module" src="/static/js/manage-lot-shippments.js"></script>
+  </body>
+</html>

@@ -34,8 +34,7 @@ async function loadLotHeader() {
     if (summary.length) {
       summaryHtml = summary
         .map(
-          (s) =>
-            `${s.material_name}: <b>${s.total_qty.toFixed(2)} ${s.uom}</b>`
+          (s) => `${s.material_name}: <b>${s.total_qty.toFixed(2)} ${s.uom}</b>`
         )
         .join(", ");
     } else {
@@ -83,24 +82,24 @@ function initMaterialTable() {
 /* ===== LOAD MATERIAL TABLE (toggle view) ===== */
 async function loadMaterialTable() {
   if (currentView === "inventory") {
-  // ---------- INVENTORY MODE ----------
-  tables.material.setColumns([
-    { title: "Code", field: "code", visible: false },
-    { title: "Batch No", field: "batch_no" },
-    { title: "Material", field: "name" },
-    { title: "UOM", field: "uom", width: 80, hozAlign: "center" }, // ✅ added
-    { title: "#Available", field: "qty_available", hozAlign: "right" },
-    {
-      title: "#Allocate / Return",
-      field: "allocate",
-      editor: "number",
-      editorParams: { step: "0.01" },
-    },
-    {
-      title: "Action",
-      formatter: () =>
-        `<a href="#" class="link link-green">Allocate</a> | <a href="#" class="link link-red">Return</a>`,
-      cellClick: async (e, cell) => {
+    // ---------- INVENTORY MODE ----------
+    tables.material.setColumns([
+      { title: "Code", field: "code", visible: false },
+      { title: "Batch No", field: "batch_no" },
+      { title: "Material", field: "name" },
+      { title: "UOM", field: "uom", width: 80, hozAlign: "center" }, // ✅ added
+      { title: "#Available", field: "qty_available", hozAlign: "right" },
+      {
+        title: "#Allocate / Return",
+        field: "allocate",
+        editor: "number",
+        editorParams: { step: "0.01" },
+      },
+      {
+        title: "Action",
+        formatter: () =>
+          `<a href="#" class="link link-green">Allocate</a> | <a href="#" class="link link-red">Return</a>`,
+        cellClick: async (e, cell) => {
           const row = cell.getRow().getData();
           const action = e.target.textContent.trim().toLowerCase();
           const qtyValue = Number(row.allocate) || 0;
@@ -140,6 +139,7 @@ async function loadMaterialTable() {
 
               toast(`✅ Allocated ${qtyValue} ${row.name}`);
               await loadMaterialTable(); // refresh
+              await loadLotHeader();
             } catch (err) {
               toast(err?.message || "Allocation failed", false);
             }
@@ -151,7 +151,8 @@ async function loadMaterialTable() {
               return;
             }
 
-            if (!confirm(`↩️ Return ${qtyValue} ${row.name} from this lot?`)) return;
+            if (!confirm(`↩️ Return ${qtyValue} ${row.name} from this lot?`))
+              return;
 
             try {
               await jfetch(`/api/v1/lot-uses/return-auto`, {
@@ -166,6 +167,7 @@ async function loadMaterialTable() {
 
               toast(`↩️ Returned ${qtyValue} ${row.name}`);
               await loadMaterialTable();
+              await loadLotHeader();
             } catch (err) {
               toast(err?.message || "Return failed", false);
             }
@@ -178,9 +180,7 @@ async function loadMaterialTable() {
     const res = await jfetch(ENDPOINTS.materialInventory);
     const filtered = res.filter((r) => (Number(r.qty_available) || 0) > 0);
     tables.material.setData(filtered);
-  }
-
-  else if (currentView === "allocation") {
+  } else if (currentView === "allocation") {
     // ---------- ALLOCATION MODE ----------
     tables.material.setColumns([
       { title: "ID", field: "id", visible: false },
@@ -194,9 +194,7 @@ async function loadMaterialTable() {
         cellClick: async (e, cell) => {
           const row = cell.getRow().getData();
           if (
-            !confirm(
-              `↩️ Return ${row.qty} ${row.uom} of ${row.material_name}?`
-            )
+            !confirm(`↩️ Return ${row.qty} ${row.uom} of ${row.material_name}?`)
           )
             return;
 
@@ -215,10 +213,7 @@ async function loadMaterialTable() {
 
     const res = await jfetch(ENDPOINTS.lotAllocations);
     tables.material.setData(res);
-  }
-
-
-  else if (currentView === "history") {
+  } else if (currentView === "history") {
     // ---------- HISTORY MODE ----------
     tables.material.setColumns([
       { title: "Action", field: "action", width: 110 },
@@ -246,8 +241,6 @@ async function loadMaterialTable() {
   }
 }
 
-
-
 /* ===== INIT PART TABLE ===== */
 function initPartTable() {
   tables.part = new Tabulator("#partTable", {
@@ -270,16 +263,22 @@ function initToolbar() {
   const btnViewInventory = document.getElementById("btnViewInventory");
   const btnViewAllocations = document.getElementById("btnViewAllocations");
   const btnViewHistory = document.getElementById("btnViewHistory");
-  if (!btnCreatePO || !btnReceiveBatch || !btnViewInventory || !btnViewAllocations || !btnViewHistory) {
-  console.warn("⚠️ Toolbar buttons not found in DOM");
-  return;
-}
+  if (
+    !btnCreatePO ||
+    !btnReceiveBatch ||
+    !btnViewInventory ||
+    !btnViewAllocations ||
+    !btnViewHistory
+  ) {
+    console.warn("⚠️ Toolbar buttons not found in DOM");
+    return;
+  }
 
-btnViewHistory.addEventListener("click", () => {
-  currentView = "history";
-  toast("📜 Viewing Material Allocation History");
-  loadMaterialTable();
-});
+  btnViewHistory.addEventListener("click", () => {
+    currentView = "history";
+    toast("📜 Viewing Material Allocation History");
+    loadMaterialTable();
+  });
 
   btnCreatePO.addEventListener("click", async () => {
     try {

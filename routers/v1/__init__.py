@@ -7,7 +7,7 @@ from . import (
     parts, users, pay_periods, payroll_extras, data, data_detail,part_selections,lookups, 
     part_materials,report_materials, po_lines,
     reports_due_date_monitor,lots_browse, shipment_status,customer_shipments,
-    lot_materials,inventory,
+    lot_materials,inventory,lot_shippments,
 
     ############ auto routers ######################
     suppliers_auto
@@ -64,7 +64,7 @@ api_v1.include_router(reports_due_date_monitor.router)
 api_v1.include_router(customer_shipments.shipment_router) 
 api_v1.include_router(lot_materials.router) 
 api_v1.include_router(inventory.router)
-
+api_v1.include_router(lot_shippments.router) 
 ############### auto routers ######################
 api_v1.include_router(shipment_status.router)
 
