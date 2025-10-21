@@ -1,169 +1,248 @@
-
-async function loadRevisionsForPart(partId, opts = {}) {
-  const sel = $('lot_rev'); // <select id="lot_rev">
-  if (!sel) return;
-
-  sel.disabled = true;
-  sel.innerHTML = `<option value="">Loading…</option>`;
-  selectedRevisionId = null;
-
-  try {
-    const rows = await jfetch(`/parts/${encodeURIComponent(partId)}/revisions`);
-    const revs = Array.isArray(rows) ? rows : [];
-
-    if (!revs.length) {
-      sel.innerHTML = `<option value="">— No revision —</option>`;
-      // โหลด lots ของ part โดยไม่กรอง revision
-      await loadLotsForPart(partId, null);
-      return;
-    }
-
-    sel.innerHTML = revs.map(r =>
-      `<option value="${r.id}" ${r.is_current ? 'selected' : ''}>
-         ${escapeHtml(r.rev)}${r.is_current ? ' (current)' : ''}
-       </option>`
-    ).join('');
-
-    // Default choice: preferId > preferText > current > first
-    let chosenId = null;
-    if (opts.preferId && revs.some(r => r.id === opts.preferId)) {
-      chosenId = String(opts.preferId);
-    } else if (opts.preferText) {
-      const f = revs.find(r => String(r.rev) === String(opts.preferText));
-      if (f) chosenId = String(f.id);
-    } else {
-      const cur = revs.find(r => r.is_current) || revs[0];
-      chosenId = cur ? String(cur.id) : '';
-    }
-
-    sel.value = chosenId ?? '';
-    selectedRevisionId = sel.value ? Number(sel.value) : null;
-
-    // ✅ หลังเลือก revision เสร็จ โหลดตาราง Lots
-    await loadLotsForPart(partId, selectedRevisionId);
-
-    // ✅ ผูก event เปลี่ยน revision แล้วรีโหลด Lots
-    sel.onchange = async () => {
-      selectedRevisionId = sel.value ? Number(sel.value) : null;
-      await loadLotsForPart(partId, selectedRevisionId);
-    };
-
-  } catch (e) {
-    console.error('loadRevisionsForPart error:', e);
-    sel.innerHTML = `<option value="">— No revision —</option>`;
-    toast('Load revisions failed', false);
-    // เผื่ออยากโชว์ lots แม้โหลด revision ไม่ได้
-    await loadLotsForPart(partId, null);
-  } finally {
-    sel.disabled = false;
+// --- tiny helpers ---
+async function jfetch(url, opts = {}) {
+  const res = await fetch(url, opts);
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(
+      `${res.status}: ${res.statusText}${text ? " — " + text : ""}`
+    );
   }
+  return res.json();
+}
+function toast(msg, ok = true) {
+  const el = document.getElementById("toast");
+  const txt = document.getElementById("toastText");
+  if (!el || !txt) {
+    alert(msg);
+    return;
+  }
+  txt.textContent = msg;
+  el.style.background = ok ? "rgba(17, 24, 39, .95)" : "rgba(153, 27, 27, .95)";
+  el.style.display = "block";
+  setTimeout(() => (el.style.display = "none"), 1600);
 }
 
+// ================================
+document.addEventListener("DOMContentLoaded", () => {
+  const lotId = new URLSearchParams(location.search).get("lot_id");
+  if (!lotId) return toast("Missing lot_id in URL", false);
 
-function lotDetailUrl(id){ return `/static/lot-detail.html?id=${encodeURIComponent(id)}`; }
-function partDetailUrl(id){ return `/static/part-detail.html?id=${encodeURIComponent(id)}`; }
-function poDetailUrl(id){ return `/static/pos-detail.html?id=${encodeURIComponent(id)}`; }
-function travelerDetailUrl(id){ return `/static/traveler-detail.html?id=${encodeURIComponent(id)}`; }
-const esc = (s) => String(s ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'","&#39;");
-const fmtDate = (v) => v ? new Date(v).toLocaleString() : '';
+  const elPlanned = document.getElementById("plannedQtyInput");
+  const elDueDate = document.getElementById("dueDateInput");
+  const btnSavePlanned = document.getElementById("btnSavePlanned");
+  const btnCancelPlanned = document.getElementById("btnCancelPlanned");
+  const elFinished = document.getElementById("finishedQty");
+  const elStatus = document.getElementById("lotStatus");
+  const elProg = document.getElementById("progressBar");
+  const elProgLabel = document.getElementById("progressLabel");
 
-async function buildLookups(rows){
-  // ถ้าคุณมี endpoint lookup อยู่แล้วใช้ของเดิมได้เลย
-  // ด้านล่างเป็นสเกลตัน (ป้องกัน undefined)
-  return { partMap: {}, poMap: {} };
-}
+  const btnMat = document.getElementById("btnViewMaterials");
+  const btnTrav = document.getElementById("btnViewTravelers");
+  const btnShip = document.getElementById("btnViewShipments");
+  const btnRefresh = document.getElementById("btnRefresh");
 
-async function loadLotsForPart(partId, partRevisionId = null){
-  const holder = $('lot_table'); // <div id="lot_table">
-  if (!holder) return;
+  let originalPlannedQty = null;
+  let originalDueDate = null;
 
-  holder.innerHTML = `<div class="hint">Loading lots…</div>`;
+  // ====== load header ======
+  async function loadHeader() {
+    try {
+      const lot = await jfetch(`/api/v1/lots/${encodeURIComponent(lotId)}`);
+      originalPlannedQty = lot.planned_qty ?? 0;
+      originalDueDate = lot.lot_due_date ?? null;
 
-  try {
-    // สร้าง query
-    const q = new URLSearchParams();
-    if (partId != null) q.set('part_id', String(partId));
-    if (partRevisionId != null) q.set('part_revision_id', String(partRevisionId));
-    // ใส่ per_page ถ้ารองรับ
-    q.set('per_page', '50');
+      elPlanned.value = originalPlannedQty;
+      elDueDate.value = originalDueDate ? lot.lot_due_date.split("T")[0] : "";
+      elFinished.textContent = lot.finished_qty ?? "-";
+      elStatus.textContent = lot.status ?? "-";
 
-    const resp = await jfetch(`/lots?${q.toString()}`);
-    const rows = Array.isArray(resp) ? resp : (resp?.items ?? []);
+      hideEditButtons();
 
-    // lookup (ถ้าต้องใช้)
-    const { partMap, poMap } = await buildLookups(rows);
+      const inv = await jfetch(
+        `/api/v1/lot-shippments/lot/${encodeURIComponent(lotId)}/part-inventory`
+      );
+      const p = Math.max(0, Math.min(100, inv?.progress_percent ?? 0));
+      elProg.style.width = `${p}%`;
+      elProgLabel.textContent = `Progress: ${p}% (Finished ${
+        inv.finished_qty ?? 0
+      } / Planned ${inv.planned_qty ?? 0})`;
+    } catch (err) {
+      console.error(err);
+      toast("Failed to load header", false);
+    }
+  }
 
-    // header
-    const thead = `
-      <thead><tr>
-        <th>Lot No</th>
-        <th>Part Number</th>
-        <th>PO Number</th>
-        <th>Travelers</th>
-        <th>Planned Qty</th>
-        <th>Started At</th>
-        <th>Finished At</th>
-        <th>Status</th>
-      </tr></thead>`;
+  function showEditButtons() {
+    btnSavePlanned.style.display = "inline-block";
+    btnCancelPlanned.style.display = "inline-block";
+  }
+  function hideEditButtons() {
+    btnSavePlanned.style.display = "none";
+    btnCancelPlanned.style.display = "none";
+  }
 
-    // body
-    const tbody = rows.length ? rows.map(r => {
-      const partNo = partMap[r.part_id]?.part_no || '';
-      const poNo   = poMap[r.po_id]?.po_number || '';
+  // ตรวจจับการเปลี่ยนค่าทั้งสองช่อง
+  function checkChanges() {
+    const qtyChanged =
+      parseFloat(elPlanned.value) !== parseFloat(originalPlannedQty);
+    const dateChanged =
+      elDueDate.value !==
+      (originalDueDate ? originalDueDate.split("T")[0] : "");
+    if (qtyChanged || dateChanged) showEditButtons();
+    else hideEditButtons();
+  }
 
-      const lotNoCell  = r.id   ? `<a href="${lotDetailUrl(r.id)}">${esc(r.lot_no || '')}</a>` : esc(r.lot_no || '');
-      const partCell   = r.part_id ? `<a href="${partDetailUrl(r.part_id)}">${esc(partNo)}</a>` : esc(partNo);
-      const poCell     = r.po_id   ? `<a href="${poDetailUrl(r.po_id)}">${esc(poNo)}</a>`       : esc(poNo);
+  elPlanned.addEventListener("input", checkChanges);
+  elDueDate.addEventListener("change", checkChanges);
 
-      const travelersHtml = (r.traveler_ids && r.traveler_ids.length)
-        ? r.traveler_ids.map(id => `<a href="${travelerDetailUrl(id)}">#${id}</a>`).join(', ')
-        : '<span class="muted">—</span>';
+  // SAVE
+  btnSavePlanned.addEventListener("click", async () => {
+    const qty = parseFloat(elPlanned.value);
+    const date = elDueDate.value || null;
+    if (isNaN(qty) || qty < 0) return toast("Invalid planned qty", false);
 
-      const createTravBtn = r.id
-        ? `<button class="btn-small" data-action="create-trav" data-lot="${r.id}">+ Traveler</button>`
-        : '';
+    try {
+      await jfetch(`/api/v1/lots/${encodeURIComponent(lotId)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          planned_qty: qty,
+          lot_due_date: date,
+        }),
+      });
+      toast("✅ Lot updated successfully");
+      originalPlannedQty = qty;
+      originalDueDate = date;
+      hideEditButtons();
+      await loadHeader();
+      await refreshAll();
+    } catch (err) {
+      console.error(err);
+      toast("Update failed", false);
+    }
+  });
 
-      return `
-        <tr data-id="${esc(r.id)}">
-          <td>${lotNoCell}</td>
-          <td>${partCell}</td>
-          <td>${poCell}</td>
-          <td>${travelersHtml} ${createTravBtn}</td>
-          <td>${r.planned_qty ?? 0}</td>
-          <td>${esc(fmtDate(r.started_at))}</td>
-          <td>${esc(fmtDate(r.finished_at))}</td>
-          <td>${esc(r.status || '')}</td>
-        </tr>`;
-    }).join('') : `<tr><td colspan="8" class="muted">No lots</td></tr>`;
+  // CANCEL
+  btnCancelPlanned.addEventListener("click", () => {
+    elPlanned.value = originalPlannedQty;
+    elDueDate.value = originalDueDate ? originalDueDate.split("T")[0] : "";
+    hideEditButtons();
+  });
 
-    holder.innerHTML = `
-      <table class="table">
-        ${thead}
-        <tbody>${tbody}</tbody>
-      </table>`;
+  // =================== TABLES ===================
+  let tblMat = null;
+  let tblTrav = null;
+  let tblShip = null;
 
-    // (ออปชัน) delegate ปุ่ม +Traveler
-    holder.addEventListener('click', async (ev) => {
-      const btn = ev.target.closest('button[data-action="create-trav"]');
-      if (!btn) return;
-      const lotId = Number(btn.dataset.lot);
-      try {
-        await jfetch(`/travelers`, {
-          method: 'POST',
-          body: JSON.stringify({ lot_id: lotId }),
-          headers: { 'Content-Type': 'application/json' }
-        });
-        toast('Traveler created');
-        // รีโหลดรายการให้เห็น traveler id ใหม่
-        await loadLotsForPart(partId, partRevisionId);
-      } catch (e) {
-        console.error(e);
-        toast('Create traveler failed', false);
-      }
+  function initTables() {
+    /* global Tabulator */
+    tblMat = new Tabulator("#materialTable", {
+      layout: "fitColumns",
+      placeholder: "No material usage",
+      columns: [
+        { title: "Batch", field: "batch_no", minWidth: 120 },
+        { title: "Material", field: "material_name", minWidth: 160 },
+        { title: "Qty", field: "qty", hozAlign: "right", width: 90 },
+        { title: "UOM", field: "uom", width: 80, hozAlign: "center" },
+        {
+          title: "Used At",
+          field: "used_at",
+          minWidth: 140,
+          formatter: (c) =>
+            c.getValue() ? new Date(c.getValue()).toLocaleString() : "",
+        },
+      ],
     });
 
-  } catch (e) {
-    console.error(e);
-    holder.innerHTML = `<div class="hint">โหลดรายการไม่ได้: ${esc(e.message || 'error')}</div>`;
+    tblTrav = new Tabulator("#travelerTable", {
+      layout: "fitColumns",
+      placeholder: "No travelers",
+      columns: [
+        { title: "Traveler No", field: "traveler_no", minWidth: 140 },
+        { title: "Status", field: "status", width: 110 },
+        {
+          title: "Prod Due",
+          field: "production_due_date",
+          minWidth: 130,
+          formatter: (c) =>
+            c.getValue() ? new Date(c.getValue()).toLocaleDateString() : "",
+        },
+        { title: "Notes", field: "notes", minWidth: 200 },
+      ],
+    });
+
+    tblShip = new Tabulator("#shipmentTable", {
+      layout: "fitColumns",
+      placeholder: "No shipments",
+      columns: [
+        { title: "Shipment No", field: "shipment_no", minWidth: 140 },
+        {
+          title: "Date",
+          field: "date",
+          minWidth: 120,
+          formatter: (c) =>
+            c.getValue() ? new Date(c.getValue()).toLocaleDateString() : "",
+        },
+        { title: "Customer", field: "customer_name", minWidth: 160 },
+        { title: "Qty", field: "qty", hozAlign: "right", width: 90 },
+        { title: "UOM", field: "uom", width: 80, hozAlign: "center" },
+        { title: "Status", field: "status", width: 110, hozAlign: "center" },
+      ],
+    });
   }
-}
+
+  async function loadMaterials() {
+    const rows = await jfetch(`/api/v1/lot-uses/${encodeURIComponent(lotId)}`);
+    tblMat?.setData(rows || []);
+  }
+
+  async function loadTravelers() {
+    let rows = [];
+    try {
+      rows = await jfetch(
+        `/api/v1/travelers?lot_id=${encodeURIComponent(lotId)}`
+      );
+    } catch {
+      rows = await jfetch(`/api/v1/travelers?q=${encodeURIComponent(lotId)}`);
+    }
+    tblTrav?.setData(rows || []);
+  }
+
+  async function loadShipments() {
+    const rows = await jfetch(
+      `/api/v1/lot-shippments/${encodeURIComponent(lotId)}`
+    );
+    tblShip?.setData(rows || []);
+  }
+
+  async function refreshAll() {
+    await Promise.all([
+      loadMaterials(),
+      loadTravelers(),
+      loadShipments(),
+      loadHeader(),
+    ]);
+  }
+
+  // scroll shortcuts
+  btnMat?.addEventListener("click", () =>
+    document
+      .querySelector("#materialTable")
+      ?.scrollIntoView({ behavior: "smooth" })
+  );
+  btnTrav?.addEventListener("click", () =>
+    document
+      .querySelector("#travelerTable")
+      ?.scrollIntoView({ behavior: "smooth" })
+  );
+  btnShip?.addEventListener("click", () =>
+    document
+      .querySelector("#shipmentTable")
+      ?.scrollIntoView({ behavior: "smooth" })
+  );
+  btnRefresh?.addEventListener("click", () => refreshAll());
+
+  // boot
+  initTables();
+  refreshAll();
+});

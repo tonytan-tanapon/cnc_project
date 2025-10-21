@@ -94,31 +94,22 @@ function ensureHeaderButtons() {
   const sub = $("t_sub");
   if (!sub) return;
   if (document.getElementById("hdr-actions")) return;
-
   const wrap = document.createElement("div");
   wrap.id = "hdr-actions";
   wrap.className = "hdr-actions";
-
   btnHdrSave = document.createElement("button");
   btnHdrSave.className = "btn-mini";
   btnHdrSave.textContent = "Save";
   btnHdrSave.style.display = "none";
   btnHdrSave.addEventListener("click", saveTraveler);
-
   btnHdrCancel = document.createElement("button");
   btnHdrCancel.className = "btn-mini";
   btnHdrCancel.textContent = "Cancel";
   btnHdrCancel.style.display = "none";
   btnHdrCancel.addEventListener("click", cancelTraveler);
-
-  // ✅ เพิ่มปุ่ม Get QR
-  const btnGetQR = document.createElement("button");
-  btnGetQR.className = "btn-mini";
-  btnGetQR.textContent = "Get QR";
-  btnGetQR.addEventListener("click", showTravelerQR);
-
   sub.insertAdjacentElement("afterend", wrap);
-  wrap.append(btnHdrSave, btnHdrCancel, btnGetQR);
+  wrap.appendChild(btnHdrSave);
+  wrap.appendChild(btnHdrCancel);
 }
 
 function markHeaderDirty(on) {
@@ -588,10 +579,10 @@ function initStepsTable() {
     index: "id",
     columns: [
       {
-        title: "#OP",
+        title: "Seq",
         field: "seq",
-        width: 80,
-        hozAlign: "center",
+        width: 50,
+        hozAlign: "right",
         editor: "number",
         editorParams: { step: 1 },
       },
@@ -777,54 +768,3 @@ document.addEventListener("DOMContentLoaded", async () => {
   await loadTraveler();
   await reloadSteps();
 });
-
-/* ---------- QR Code Popup ---------- */
-
-function showTravelerQR() {
-  if (!originalTraveler) {
-    toast("Traveler not loaded", false);
-    return;
-  }
-
-  const qrModal = document.getElementById("qrModal");
-  const qrBox = document.getElementById("qrCode");
-  qrBox.innerHTML = "";
-
-  const travelerNo = originalTraveler.traveler_no || `TRAV-${travelerId}`;
-  // ✅ ใช้ IP LAN ชั่วคราว
-  const baseUrl = "http://192.168.1.211:9000";
-  const qrLink = `${baseUrl}/static/ui-traveler.html?traveler_no=${encodeURIComponent(
-    travelerNo
-  )}`;
-
-  new QRCode(qrBox, {
-    text: qrLink,
-    width: 180,
-    height: 180,
-    correctLevel: QRCode.CorrectLevel.M,
-  });
-
-  document.getElementById("qrText").textContent = travelerNo;
-  qrModal.style.display = "flex";
-
-  document.getElementById("qrPrintBtn").onclick = () =>
-    printTravelerQR(travelerNo, qrLink);
-  document.getElementById("qrCloseBtn").onclick = () =>
-    (qrModal.style.display = "none");
-}
-
-function printTravelerQR(travelerNo, qrLink) {
-  const w = window.open("", "_blank");
-  w.document.write(`
-    <html><head><title>QR - ${travelerNo}</title></head>
-    <body style="text-align:center; font-family:sans-serif;">
-      <h2>Traveler ${travelerNo}</h2>
-      <img src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(
-        qrLink
-      )}" alt="QR">
-      <p style="margin-top:10px;font-size:14px;">${qrLink}</p>
-      <script>window.onload = () => { window.print(); }</script>
-    </body></html>
-  `);
-  w.document.close();
-}

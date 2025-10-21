@@ -1,6 +1,6 @@
 # models.py
 from datetime import date, datetime, timezone
-
+from sqlalchemy.orm import Session
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
@@ -554,6 +554,11 @@ class ShopTraveler(Base):
     notes = Column(Text, nullable=True)
     production_due_date = Column(Date, nullable=True, index=True)
 
+    # 👇 เพิ่มใหม่
+    current_step_seq = Column(Integer, nullable=True, index=True)  # step ที่ต้องทำต่อ
+    qr_code = Column(String, nullable=True, unique=True, index=True)  # ใช้ encode ใน QR
+
+
     lot = relationship("ProductionLot", back_populates="travelers")
     created_by = relationship("Employee", foreign_keys=[created_by_id])
     steps = relationship(
@@ -596,6 +601,7 @@ class ShopTravelerStep(Base):
 
     # 👇 ใหม่
     step_note = Column(Text, nullable=True)
+    uom = Column(String, nullable=True, default="pcs")  # 👈 หน่วยต่อ step เช่น 'pcs', 'foot'
 
     traveler = relationship("ShopTraveler", back_populates="steps")
     operator = relationship("Employee", foreign_keys=[operator_id])
@@ -611,6 +617,27 @@ class ShopTravelerStep(Base):
     def __repr__(self):
         return f"<ShopTravelerStep(traveler_id={self.traveler_id}, seq={self.seq}, status={self.status})>"
 
+    def mark_done(self, db: Session):
+        """บันทึกว่า step นี้เสร็จแล้ว"""
+        self.status = "done"
+        self.finished_at = func.now()
+
+        # หาขั้นตอนต่อไป
+        next_step = (
+            db.query(ShopTravelerStep)
+            .filter(ShopTravelerStep.traveler_id == self.traveler_id)
+            .filter(ShopTravelerStep.seq > self.seq)
+            .order_by(ShopTravelerStep.seq)
+            .first()
+        )
+
+        traveler = self.traveler
+        if next_step:
+            traveler.current_step_seq = next_step.seq
+        else:
+            traveler.status = "done"
+
+        db.commit()
 # =========================================
 # ============ Subcontracting =============
 # =========================================

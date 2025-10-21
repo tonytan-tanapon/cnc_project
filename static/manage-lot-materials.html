@@ -1,196 +1,200 @@
 <!DOCTYPE html>
 <html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Lot Material Allocation · Topnotch – MFG</title>
 
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Lot Material Allocation · Topnotch – MFG</title>
+    <link rel="stylesheet" href="/static/css/app.css" />
+    <link
+      rel="stylesheet"
+      href="/static/vendor/tabulator/tabulator_modern.min.css"
+    />
 
-  <link rel="stylesheet" href="/static/css/app.css" />
-  <link rel="stylesheet" href="/static/vendor/tabulator/tabulator_modern.min.css" />
+    <style>
+      body {
+        background: #f9fafb;
+        margin: 0;
+        font-family: system-ui, sans-serif;
+      }
 
-  <style>
-    body {
-      background: #f9fafb;
-      margin: 0;
-      font-family: system-ui, sans-serif;
-    }
+      .main--edge {
+        height: 100vh;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+      }
 
-    .main--edge {
-      height: 100vh;
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-    }
+      /* ===== LOT HEADER ===== */
+      .lot-info {
+        padding: 14px 18px;
+        border-bottom: 1px solid #e5e7eb;
+        font-size: 15px;
+        background: #fff;
+      }
 
-    /* ===== LOT HEADER ===== */
-    .lot-info {
-      padding: 14px 18px;
-      border-bottom: 1px solid #e5e7eb;
-      font-size: 15px;
-      background: #fff;
-    }
+      .lot-info h2 {
+        margin: 0 0 6px 0;
+        font-size: 16px;
+        color: #111827;
+      }
 
-    .lot-info h2 {
-      margin: 0 0 6px 0;
-      font-size: 16px;
-      color: #111827;
-    }
+      .lot-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        gap: 8px;
+        font-size: 14px;
+      }
 
-    .lot-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-      gap: 8px;
-      font-size: 14px;
-    }
+      /* ===== TOOLBAR ===== */
+      .toolbar {
+        padding: 10px 16px;
+        background: #fff;
+        border-bottom: 1px solid #e5e7eb;
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
 
-    /* ===== TOOLBAR ===== */
-    .toolbar {
-      padding: 10px 16px;
-      background: #fff;
-      border-bottom: 1px solid #e5e7eb;
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
+      button {
+        border: none;
+        border-radius: 6px;
+        padding: 6px 12px;
+        cursor: pointer;
+        font-size: 14px;
+        color: #fff;
+        transition: background 0.2s;
+      }
 
-    button {
-      border: none;
-      border-radius: 6px;
-      padding: 6px 12px;
-      cursor: pointer;
-      font-size: 14px;
-      color: #fff;
-      transition: background 0.2s;
-    }
+      button.warning {
+        background: #f59e0b;
+        color: #111;
+      }
 
-    button.warning {
-      background: #f59e0b;
-      color: #111;
-    }
+      button.success {
+        background: #16a34a;
+      }
 
-    button.success {
-      background: #16a34a;
-    }
+      button.secondary {
+        background: #6b7280;
+      }
 
-    button.secondary {
-      background: #6b7280;
-    }
+      button:hover {
+        opacity: 0.9;
+      }
 
-    button:hover {
-      opacity: 0.9;
-    }
+      /* ===== MAIN CONTENT ===== */
+      .tables-row {
+        display: flex;
+        flex: 1;
+        gap: 12px;
+        padding: 12px 16px;
+        overflow: hidden;
+      }
 
-    /* ===== MAIN CONTENT ===== */
-    .tables-row {
-      display: flex;
-      flex: 1;
-      gap: 12px;
-      padding: 12px 16px;
-      overflow: hidden;
-    }
+      .panel {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        background: #fff;
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+        overflow: hidden;
+      }
 
-    .panel {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      background: #fff;
-      border: 1px solid #e5e7eb;
-      border-radius: 6px;
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
-      overflow: hidden;
-    }
+      .panel h3 {
+        margin: 0;
+        padding: 8px 10px;
+        background: #f3f4f6;
+        border-bottom: 1px solid #e5e7eb;
+        font-size: 15px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
 
-    .panel h3 {
-      margin: 0;
-      padding: 8px 10px;
-      background: #f3f4f6;
-      border-bottom: 1px solid #e5e7eb;
-      font-size: 15px;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
+      .table-wrap {
+        flex: 1;
+        overflow: auto;
+      }
 
-    .table-wrap {
-      flex: 1;
-      overflow: auto;
-    }
+      /* ===== TOAST ===== */
+      .toast {
+        position: fixed;
+        bottom: 16px;
+        right: 16px;
+        background: rgba(17, 24, 39, 0.95);
+        color: #fff;
+        padding: 10px 14px;
+        border-radius: 6px;
+        font-size: 14px;
+        display: none;
+        z-index: 9999;
+      }
 
-    /* ===== TOAST ===== */
-    .toast {
-      position: fixed;
-      bottom: 16px;
-      right: 16px;
-      background: rgba(17, 24, 39, 0.95);
-      color: #fff;
-      padding: 10px 14px;
-      border-radius: 6px;
-      font-size: 14px;
-      display: none;
-      z-index: 9999;
-    }
+      .lot-summary {
+        margin-top: 6px;
+        padding: 6px 10px;
+        background: #f9fafb;
+        border-left: 3px solid #10b981;
+        font-size: 14px;
+        color: #111;
+      }
+    </style>
+  </head>
 
-    .lot-summary {
-  margin-top: 6px;
-  padding: 6px 10px;
-  background: #f9fafb;
-  border-left: 3px solid #10b981;
-  font-size: 14px;
-  color: #111;
-}
+  <body>
+    <div class="app">
+      <aside class="sidebar">
+        <div id="navSlot" data-nav-slot></div>
+      </aside>
 
-
-  </style>
-</head>
-
-<body>
-  <div class="app">
-    <aside class="sidebar">
-      <div id="navSlot" data-nav-slot></div>
-    </aside>
-
-    <main class="main main--edge">
-      <!-- ===== LOT HEADER ===== -->
-      <div class="lot-info">
-        <h2>📄 Lot Detail</h2>
-        <div id="lotHeader" class="lot-grid">
-          Loading lot information...
+      <main class="main main--edge">
+        <!-- ===== LOT HEADER ===== -->
+        <div class="lot-info">
+          <h2>📄 Lot Detail</h2>
+          <div id="lotHeader" class="lot-grid">Loading lot information...</div>
         </div>
-      </div>
 
-      <!-- ===== TOOLBAR ===== -->
-      <div class="toolbar">
-        <button id="btnViewInventory" class="success">📋 View Available</button>
-        <button id="btnViewAllocations" class="secondary">🔗 View Allocations</button>
-        <button id="btnCreatePO" class="warning">➕ Create Material PO</button>
-        <button id="btnReceiveBatch" class="success">📦 Receive Batch</button>
-        <!-- <button id="btnReturn" class="secondary">↩️ Return to Inventory</button> -->
-        <button id="btnViewHistory" class="success">View History</button> <!-- ✅ new -->
-      </div>
+        <!-- ===== TOOLBAR ===== -->
+        <div class="toolbar">
+          <button id="btnViewInventory" class="success">
+            📋 View Available
+          </button>
+          <button id="btnViewAllocations" class="secondary">
+            🔗 View Allocations
+          </button>
+          <button id="btnCreatePO" class="warning">
+            ➕ Create Material PO
+          </button>
+          <button id="btnReceiveBatch" class="success">📦 Receive Batch</button>
+          <!-- <button id="btnReturn" class="secondary">↩️ Return to Inventory</button> -->
+          <button id="btnViewHistory" class="success">View History</button>
+          <!-- ✅ new -->
+        </div>
 
-      <!-- ===== TWO TABLES ===== -->
-      <div class="tables-row">
-        <!-- PART INVENTORY -->
-        <section class="panel">
-          <h3>📦 Part Inventory</h3>
-          <div id="partTable" class="table-wrap"></div>
-        </section>
+        <!-- ===== TWO TABLES ===== -->
+        <div class="tables-row">
+          <!-- PART INVENTORY -->
+          <section class="panel">
+            <h3>📦 Part Inventory</h3>
+            <div id="partTable" class="table-wrap"></div>
+          </section>
 
-        <!-- MATERIAL INVENTORY -->
-        <section class="panel">
-          <h3>🧱 Material Inventory</h3>
-          <div id="materialTable" class="table-wrap"></div>
-        </section>
-      </div>
-    </main>
-  </div>
+          <!-- MATERIAL INVENTORY -->
+          <section class="panel">
+            <h3>🧱 Material Inventory</h3>
+            <div id="materialTable" class="table-wrap"></div>
+          </section>
+        </div>
+      </main>
+    </div>
 
-  <div class="toast" id="toast"><span id="toastText"></span></div>
+    <div class="toast" id="toast"><span id="toastText"></span></div>
 
-  <script type="module" src="/static/js/nav-loader.js"></script>
-  <script src="/static/vendor/tabulator/tabulator.min.js"></script>
-  <script type="module" src="/static/js/manage-lot-materials.js"></script>
-</body>
-
+    <script type="module" src="/static/js/nav-loader.js"></script>
+    <script src="/static/vendor/tabulator/tabulator.min.js"></script>
+    <script type="module" src="/static/js/manage-lot-materials.js"></script>
+  </body>
 </html>

@@ -1,168 +1,234 @@
 <!DOCTYPE html>
-<html lang="th">
+<html lang="en">
   <head>
-    <meta charset="UTF-8" />
+    <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Lot · Topnotch MFG</title>
+    <title>Lot Detail · Topnotch – MFG</title>
+
     <link rel="stylesheet" href="/static/css/app.css" />
+    <link
+      rel="stylesheet"
+      href="/static/vendor/tabulator/tabulator_modern.min.css"
+    />
+
+    <style>
+      body {
+        background: #f9fafb;
+        margin: 0;
+        font-family: system-ui, sans-serif;
+      }
+
+      .main--edge {
+        height: 100vh;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+      }
+
+      /* ===== LOT HEADER ===== */
+      .lot-info {
+        padding: 14px 18px;
+        border-bottom: 1px solid #e5e7eb;
+        font-size: 15px;
+        background: #fff;
+      }
+
+      .lot-info h2 {
+        margin: 0 0 6px 0;
+        font-size: 16px;
+        color: #111827;
+      }
+
+      .lot-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        gap: 8px;
+        font-size: 14px;
+      }
+
+      .progress {
+        margin-top: 10px;
+        height: 10px;
+        background: #e5e7eb;
+        border-radius: 6px;
+        overflow: hidden;
+      }
+
+      .progress-bar {
+        height: 100%;
+        background: #10b981;
+        width: 0%;
+        transition: width 0.4s ease;
+      }
+
+      .progress-label {
+        font-size: 13px;
+        color: #374151;
+        margin-top: 4px;
+      }
+
+      /* ===== TOOLBAR ===== */
+      .toolbar {
+        padding: 10px 16px;
+        background: #fff;
+        border-bottom: 1px solid #e5e7eb;
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      button {
+        border: none;
+        border-radius: 6px;
+        padding: 6px 12px;
+        cursor: pointer;
+        font-size: 14px;
+        color: #fff;
+        transition: background 0.2s;
+      }
+
+      button.warning {
+        background: #f59e0b;
+        color: #111;
+      }
+
+      button.success {
+        background: #16a34a;
+      }
+
+      button.secondary {
+        background: #6b7280;
+      }
+
+      button:hover {
+        opacity: 0.9;
+      }
+
+      /* ===== PANELS ===== */
+      .panel {
+        margin: 12px 16px;
+        display: flex;
+        flex-direction: column;
+        background: #fff;
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+        overflow: hidden;
+      }
+
+      .panel h3 {
+        margin: 0;
+        padding: 8px 10px;
+        background: #f3f4f6;
+        border-bottom: 1px solid #e5e7eb;
+        font-size: 15px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .table-wrap {
+        flex: 1;
+        overflow: auto;
+      }
+
+      .toast {
+        position: fixed;
+        bottom: 16px;
+        right: 16px;
+        background: rgba(17, 24, 39, 0.95);
+        color: #fff;
+        padding: 10px 14px;
+        border-radius: 6px;
+        font-size: 14px;
+        display: none;
+        z-index: 9999;
+      }
+    </style>
   </head>
+
   <body>
     <div class="app">
-      <!-- Sidebar (optional: load by partial) -->
       <aside class="sidebar">
         <div id="navSlot" data-nav-slot></div>
       </aside>
 
-      <main class="main">
-        <!-- Topbar -->
-        <div class="topbar">
-          <div class="search">
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="currentColor"
-              aria-hidden="true"
-            >
-              <path
-                d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zM9.5 14C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"
-              />
-            </svg>
-            <input id="globalSearch" type="search" placeholder="Search…" />
-          </div>
-          <input id="apiBase" placeholder="API Base (default /api/v1)" />
-          <button class="btn" id="btnPing" type="button">Ping</button>
-        </div>
+      <main class="main main--edge">
+        <!-- ===== LOT HEADER ===== -->
+        <div class="lot-info">
+          <h2>📄 Lot Detail</h2>
+          <div>
+            <b>Planned Qty:</b>
+            <input
+              id="plannedQtyInput"
+              type="number"
+              min="0"
+              step="1"
+              style="width: 80px"
+            />
 
-        <!-- Page header -->
-        <section class="page-head">
-          <h2 class="page-title">
-            🏷️ Lot Detail <small id="subTitle" class="muted"></small>
-          </h2>
-          <div class="actions">
-            <button class="btn" id="btnHeaderEdit" type="button">
-              Edit Lot
+            &nbsp;&nbsp;
+            <b>Finished Qty:</b> <span id="finishedQty"></span>
+            &nbsp;&nbsp;
+            <b>Status:</b> <span id="lotStatus"></span>
+            &nbsp;&nbsp;
+            <b>Due Date:</b>
+            <input id="dueDateInput" type="date" style="width: 150px" />
+            &nbsp;
+            <button
+              id="btnSavePlanned"
+              class="success"
+              style="margin-left: 4px; display: none"
+            >
+              💾 Save
+            </button>
+            <button
+              id="btnCancelPlanned"
+              class="secondary"
+              style="display: none"
+            >
+              ✖ Cancel
             </button>
           </div>
+
+          <div class="progress">
+            <div id="progressBar" class="progress-bar"></div>
+          </div>
+          <div id="progressLabel" class="progress-label"></div>
+        </div>
+
+        <!-- ===== TOOLBAR ===== -->
+        <div class="toolbar">
+          <button id="btnViewMaterials" class="warning">🧱 Materials</button>
+          <button id="btnViewTravelers" class="success">👷 Travelers</button>
+          <button id="btnViewShipments" class="secondary">🚚 Shipments</button>
+          <button id="btnRefresh" class="success">🔄 Refresh</button>
+        </div>
+
+        <!-- ===== MATERIALS ===== -->
+        <section class="panel">
+          <h3>🧱 Material Usage</h3>
+          <div id="materialTable" class="table-wrap"></div>
         </section>
 
-        <!-- Inline error -->
-        <div
-          id="errorBox"
-          class="card"
-          style="display: none; color: #b91c1c"
-        ></div>
-
-        <!-- Header editor -->
-        <section id="page-lot-detail" class="card" hidden>
-          <div class="grid">
-            <div class="col-3">
-              <label>Lot No.</label>
-              <input id="lot_no" placeholder="AUTO" />
-            </div>
-
-            <div class="col-4">
-              <label>Part</label>
-              <input
-                id="lot_part"
-                placeholder="Search part…"
-                autocomplete="off"
-              />
-              <small class="muted"
-                >Current:
-                <a id="link_part" class="link" href="#" target="_blank"></a>
-                <span id="partNameHint" class="muted"></span
-              ></small>
-            </div>
-
-            <div class="col-2">
-              <label>Revision</label>
-              <select id="lot_rev" disabled>
-                <option value="">— Select revision —</option>
-              </select>
-            </div>
-
-            <div class="col-3">
-              <label>PO</label>
-              <input
-                id="lot_poid"
-                placeholder="Search PO…"
-                autocomplete="off"
-              />
-              <small class="muted"
-                >Current:
-                <a id="link_po" class="link" href="#" target="_blank"></a
-              ></small>
-            </div>
-
-            <div class="col-2">
-              <label>Planned Qty</label>
-              <input id="lot_qty" type="number" value="0" />
-            </div>
-
-            <div class="col-2">
-              <label>Status</label>
-              <select id="lot_status">
-                <option value="in_process">in_process</option>
-                <option value="completed">completed</option>
-                <option value="hold">hold</option>
-              </select>
-            </div>
-
-            <div class="col-3">
-              <label>Started</label>
-              <input id="lot_started" type="datetime-local" />
-            </div>
-            <div class="col-3">
-              <label>Finished</label>
-              <input id="lot_finished" type="datetime-local" />
-            </div>
-
-            <div class="col-12">
-              <button class="btn" id="btnSave" type="button">Save</button>
-              <button class="btn ghost" id="btnReset" type="button">
-                Reset
-              </button>
-              <button class="btn danger" id="btnDelete" type="button">
-                Delete
-              </button>
-              <span id="hint" class="hint"></span>
-            </div>
-          </div>
+        <!-- ===== TRAVELERS ===== -->
+        <section class="panel">
+          <h3>👷 Travelers</h3>
+          <div id="travelerTable" class="table-wrap"></div>
         </section>
-        <!-- ใส่ไว้ตรงที่อยากให้แสดงตาราง -->
-        <div id="lot_table">Loading ...</div>
-        <!-- Travelers / Activity -->
-        <section class="card">
-          <div class="toolbar">
-            <h3 style="margin: 0">Travelers</h3>
-            <button id="btnCreateTrav" class="btn">Create Traveler</button>
-            <span id="travHint" class="muted"></span>
-          </div>
-          <table class="table">
-            <thead>
-              <tr>
-                <th style="width: 80px; text-align: right">#</th>
-                <th style="width: 160px">Traveler ID</th>
-                <th>Notes</th>
-                <th style="width: 200px">Created</th>
-              </tr>
-            </thead>
-            <tbody id="tblTravBody">
-              <tr>
-                <td colspan="4" class="empty">No travelers</td>
-              </tr>
-            </tbody>
-          </table>
+
+        <!-- ===== SHIPMENTS ===== -->
+        <section class="panel">
+          <h3>🚚 Shipments</h3>
+          <div id="shipmentTable" class="table-wrap"></div>
         </section>
       </main>
     </div>
 
-    <div class="toast" id="toast" role="status" aria-live="polite">
-      <span id="toastText"></span>
-    </div>
+    <div class="toast" id="toast"><span id="toastText"></span></div>
 
-    <script type="module" src="/static/js/nav-loader.js"></script>
-    <script type="module" src="/static/js/page-lot-detail.js?v=1"></script>
+    <script type="module" src="/static/js/nav-loader.js" defer></script>
+    <script src="/static/vendor/tabulator/tabulator.min.js" defer></script>
+    <script type="module" src="/static/js/page-lot-detail.js" defer></script>
   </body>
 </html>
