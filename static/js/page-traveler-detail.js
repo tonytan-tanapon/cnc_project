@@ -792,7 +792,7 @@ function showTravelerQR() {
 
   const travelerNo = originalTraveler.traveler_no || `TRAV-${travelerId}`;
   // ✅ ใช้ IP LAN ชั่วคราว
-  const baseUrl = "http://192.168.1.211:9000";
+  const baseUrl = `${window.location.protocol}//${window.location.host}`;
   const qrLink = `${baseUrl}/static/ui-traveler.html?traveler_no=${encodeURIComponent(
     travelerNo
   )}`;
