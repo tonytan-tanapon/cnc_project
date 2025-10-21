@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Register · Topnotch MFG</title>
+    <style>
+      :root {
+        --bg: #f3f4f6;
+        --panel: #fff;
+        --text: #111;
+        --muted: #6b7280;
+        --accent: #2563eb;
+        --radius: 8px;
+      }
+
+      body {
+        margin: 0;
+        height: 100vh;
+        font-family: system-ui, sans-serif;
+        background: var(--bg);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .register-box {
+        background: var(--panel);
+        padding: 28px 32px;
+        border-radius: var(--radius);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        width: 340px;
+      }
+
+      h1 {
+        text-align: center;
+        font-size: 20px;
+        margin-bottom: 18px;
+      }
+
+      label {
+        display: block;
+        font-size: 14px;
+        margin-bottom: 4px;
+        color: var(--muted);
+      }
+
+      input,
+      select {
+        width: 100%;
+        padding: 10px;
+        font-size: 15px;
+        border: 1px solid #d1d5db;
+        border-radius: var(--radius);
+        margin-bottom: 14px;
+      }
+
+      button {
+        width: 100%;
+        padding: 10px;
+        font-size: 15px;
+        background: var(--accent);
+        color: white;
+        border: none;
+        border-radius: var(--radius);
+        cursor: pointer;
+      }
+
+      button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+
+      .msg {
+        text-align: center;
+        font-size: 13px;
+        color: var(--muted);
+        margin-top: 12px;
+      }
+
+      .link {
+        text-align: center;
+        font-size: 13px;
+        margin-top: 10px;
+      }
+      .link a {
+        color: var(--accent);
+        text-decoration: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="register-box">
+      <h1>Register</h1>
+
+      <label for="username">Username</label>
+      <input id="username" type="text" placeholder="Choose a username" />
+
+      <label for="password">Password</label>
+      <input id="password" type="password" placeholder="Enter password" />
+
+      <label for="confirm">Confirm Password</label>
+      <input id="confirm" type="password" placeholder="Re-enter password" />
+
+      <label for="role">Role</label>
+      <select id="role">
+        <option value="operator">Operator</option>
+        <option value="admin">Admin</option>
+      </select>
+
+      <button id="btnRegister">Create Account</button>
+      <div class="msg" id="msg"></div>
+
+      <div class="link">
+        Already have an account?
+        <a href="/static/login.html">Sign in</a>
+      </div>
+    </div>
+
+    <script type="module">
+      import { jfetch } from "./js/api.js";
+
+      const btn = document.getElementById("btnRegister");
+      const msg = document.getElementById("msg");
+
+      btn.addEventListener("click", doRegister);
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") doRegister();
+      });
+
+      async function doRegister() {
+        const username = document.getElementById("username").value.trim();
+        const password = document.getElementById("password").value.trim();
+        const confirm = document.getElementById("confirm").value.trim();
+        const role = document.getElementById("role").value;
+
+        if (!username || !password || !confirm)
+          return (msg.textContent = "Please fill all fields");
+        if (password !== confirm)
+          return (msg.textContent = "Passwords do not match");
+
+        btn.disabled = true;
+        msg.textContent = "Creating account...";
+
+        try {
+          const res = await fetch("/api/register", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username, password, role }),
+          });
+
+          if (!res.ok) throw new Error(await res.text());
+          msg.textContent = "✅ Registration successful";
+          setTimeout(() => (window.location.href = "/static/login.html"), 1000);
+        } catch (err) {
+          console.error(err);
+          msg.textContent = "❌ Failed to register (username may exist)";
+        } finally {
+          btn.disabled = false;
+        }
+      }
+    </script>
+  </body>
+</html>

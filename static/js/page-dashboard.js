@@ -1,6 +1,5 @@
 // /static/js/page-dashboard.js
-import { jfetch, toast } from "/static/js/nav.js";
-
+import { jfetch, toast } from "./api.js";
 const $ = (id) => document.getElementById(id);
 
 async function loadLotsSummary() {
@@ -50,10 +49,10 @@ async function loadSubconSummary() {
 
 document.addEventListener("DOMContentLoaded", () => {
   const btnLots = $("btnDashLots");
-  const btnSub  = $("btnDashSubcon");
+  const btnSub = $("btnDashSubcon");
 
   if (btnLots) btnLots.addEventListener("click", loadLotsSummary);
-  if (btnSub)  btnSub.addEventListener("click", loadSubconSummary);
+  if (btnSub) btnSub.addEventListener("click", loadSubconSummary);
 
   // โหลดครั้งแรก
   loadLotsSummary();

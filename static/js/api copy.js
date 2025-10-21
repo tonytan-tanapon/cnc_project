@@ -24,11 +24,11 @@ export function withBase(path) {
   const base = (getAPIBase() || "").trim();
   if (/^https?:\/\//i.test(path)) return path;
 
-  const left = base ? (base.endsWith("/") ? base.slice(0, -1) : base) : "";
-  const right = path.startsWith("/") ? path : "/" + path;
+  const left  = base ? (base.endsWith('/') ? base.slice(0,-1) : base) : '';
+  const right = path.startsWith('/') ? path : '/' + path;
 
   // กันกรณี path ขึ้นต้นด้วย base อยู่แล้ว
-  if (left && (right === left || right.startsWith(left + "/"))) {
+  if (left && (right === left || right.startsWith(left + '/'))) {
     return right;
   }
   return left + right;
@@ -66,8 +66,7 @@ function isJSON(res) {
 /** jfetch: ใช้กับทุก API เพื่อให้ base ตรงกันหมด */
 function _hasBody(res) {
   // no-body statuses per spec
-  if (res.status === 204 || res.status === 205 || res.status === 304)
-    return false;
+  if (res.status === 204 || res.status === 205 || res.status === 304) return false;
   return true; // keep old behavior for 200/201 even if body is empty
 }
 function _isJSON(res) {
@@ -77,18 +76,9 @@ function _isJSON(res) {
 
 export async function jfetch(path, init = {}) {
   const url = withBase(path);
-
-  // ✅ แนบ token อัตโนมัติถ้ามีใน localStorage
-  const headers = {
-    "content-type": "application/json",
-    ...(init.headers || {}),
-  };
-  const token = localStorage.getItem("token");
-  if (token) headers["Authorization"] = `Bearer ${token}`;
-
   const res = await fetch(url, {
+    headers: { "content-type": "application/json", ...(init.headers || {}) },
     ...init,
-    headers,
   });
 
   if (!res.ok) {
@@ -111,8 +101,10 @@ export async function jfetch(path, init = {}) {
   // ✅ success: tolerate empty/no-content responses (e.g., DELETE 204)
   if (!_hasBody(res)) return null;
 
+  // keep old behavior for everything else
   return _isJSON(res) ? res.json() : res.text();
 }
+
 
 // /static/js/api.js
 export function showToast(msg, ok = true) {
@@ -128,18 +120,16 @@ export function showToast(msg, ok = true) {
   }
 
   const span = t.querySelector("#toastText") || t.firstChild;
-  const text =
-    msg === undefined || msg === null ? (ok ? "OK" : "Error") : String(msg);
-  span.textContent = text; // ✅ ไม่มี undefined แล้ว
+  const text = (msg === undefined || msg === null) ? (ok ? 'OK' : 'Error') : String(msg);
+  span.textContent = text;               // ✅ ไม่มี undefined แล้ว
   t.style.borderColor = ok ? "#27d17d" : "#ef4444";
   t.classList.add("show");
   setTimeout(() => t.classList.remove("show"), 2000);
 }
 export const toast = showToast;
 
-export function renderTable(el, rows) {
-  /* ...ของเดิม... */
-}
+
+export function renderTable(el, rows) { /* ...ของเดิม... */ }
 
 export function initTopbar() {
   const baseInput = document.getElementById("apiBase");

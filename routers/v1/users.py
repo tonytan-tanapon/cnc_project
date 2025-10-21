@@ -189,16 +189,18 @@ def unassign_role(user_id: int, role_code: str, db: Session = Depends(get_db)):
 # ---------------------------
 # Permissions
 # ---------------------------
-@router.get("/{user_id}/permissions", response_model=List[PermissionOut])
-def list_user_permissions(user_id: int, db: Session = Depends(get_db)):
-    _get_user_or_404(db, user_id)
+# @router.get("/{user_id}/permissions", response_model=List[PermissionOut])
+# def list_user_permissions(user_id: int, db: Session = Depends(get_db)):
+#     _get_user_or_404(db, user_id)
 
-    q = (
-        db.query(Permission)
-        .join(RolePermission, RolePermission.permission_id == Permission.id)
-        .join(UserRole, UserRole.role_id == RolePermission.role_id)
-        .filter(UserRole.user_id == user_id)
-        .distinct()
-        .order_by(Permission.code.asc())
-    )
-    return q.all()
+#     q = (
+#         db.query(Permission)
+#         .join(RolePermission, RolePermission.permission_id == Permission.id)
+#         .join(UserRole, UserRole.role_id == RolePermission.role_id)
+#         .filter(UserRole.user_id == user_id)
+#         .distinct()
+#         .order_by(Permission.code.asc())
+#     )
+#     return q.all()
+
+

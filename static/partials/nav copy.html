@@ -1,55 +1,25 @@
 <div class="logo">
   <span id="toggleNav" class="toggle-btn logo-badge">TN</span>
+  <!-- 👇 เพิ่มส่วนชื่อผู้ใช้และ logout -->
   <span id="userInfo" class="user-info"></span>
 </div>
-<nav class="nav" id="sidebar" aria-label="Primary">
-  <!-- ปุ่มย่อ/ขยาย -->
-  <!-- <button
-    id="toggleNav"
-    class="toggle-btn"
-    type="button"
-    aria-label="Toggle navigation"
-  >
-    ☰
-  </button> -->
 
-  <!-- ลิงก์เมนู (มี icon + label) -->
+<nav class="nav" id="sidebar" aria-label="Primary">
   <a href="/static/index.html"
     ><span class="icon">🏠</span><span class="label">Dashboard</span></a
   >
   Reports
-
   <a href="/static/manage-pos.html"
     ><span class="icon">🧩</span><span class="label">Manage POS</span></a
   >
   <a href="/static/manage-parts.html"
     ><span class="icon">🧩</span><span class="label">Manage Parts</span></a
   >
-  <!-- <a href="/static/manage-parts-thip.html"
-    ><span class="icon">🧩</span><span class="label">Manage Parts-thip</span></a
-  > -->
-  <!-- <a href="/static/manage-part-view.html"
-    ><span class="icon">🧩</span><span class="label">Manage Parts View</span></a
-  > -->
   <a href="/static/manage-lot-shipment-status.html"
-    ><span class="icon">🧩</span><span class="label">View Shippment</span></a
+    ><span class="icon">🧩</span><span class="label">View Shipment</span></a
   >
-  <!-- <a href="/static/view-due-date-monitor.html"
-    ><span class="icon">🧩</span><span class="label">View Due date</span></a
-  > -->
-  <!-- <a href="/static/material-onhand.html"
-    ><span class="icon">🧩</span><span class="label">View material</span></a
-  >
-  <a href="/static/material-batches.html"
-    ><span class="icon">🧩</span><span class="label">View Batch</span></a
-  > -->
-
-  <!-- <a href="/static/reports.html"
-    ><span class="icon">📊</span><span class="label">Reports</span></a
-  > -->
 
   Manage data
-
   <a href="/static/pos.html"
     ><span class="icon">📦</span><span class="label">Purchase Orders</span></a
   >
@@ -59,17 +29,16 @@
   <a href="/static/lots.html"
     ><span class="icon">🗂️</span><span class="label">Lots</span></a
   >
-
   <a href="/static/travelers.html"
     ><span class="icon">🧾</span><span class="label">Travelers</span></a
   >
-
   <a href="/static/batches.html"
     ><span class="icon">📚</span><span class="label">Batches</span></a
   >
   <a href="/static/manage-shipments.html"
-    ><span class="icon">🧾</span><span class="label">Shippment</span></a
+    ><span class="icon">🧾</span><span class="label">Shipment</span></a
   >
+
   Setting
   <a href="/static/customers.html"
     ><span class="icon">👥</span><span class="label">Customers</span></a
@@ -97,8 +66,64 @@
   <a href="/static/time_clock.html"
     ><span class="icon">⏱️</span><span class="label">Time clock</span></a
   >
+
   UI traveler
   <a href="/static/ui-traveler.html"
     ><span class="icon">💵</span><span class="label">UI Traveler</span></a
   >
 </nav>
+
+<style>
+  .logo {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #2563eb;
+    color: #fff;
+    padding: 10px 16px;
+    font-weight: 600;
+  }
+  .user-info {
+    font-size: 14px;
+    color: #fff;
+  }
+  .user-info a {
+    color: #fff;
+    text-decoration: underline;
+    margin-left: 8px;
+  }
+</style>
+
+<script type="module">
+  import { jfetch, toast } from "/static/js/api.js";
+
+  const userInfo = document.getElementById("userInfo");
+
+  async function loadUser() {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      userInfo.innerHTML = `<a href="/static/login.html">Login</a>`;
+      return;
+    }
+    try {
+      const user = await jfetch("/auth/me");
+      userInfo.innerHTML = `
+        👋 ${user.username}
+        <a href="#" id="logoutLink">Logout</a>
+      `;
+      document.getElementById("logoutLink").addEventListener("click", logout);
+    } catch {
+      // ถ้า token หมดอายุ
+      localStorage.removeItem("token");
+      userInfo.innerHTML = `<a href="/static/login.html">Login</a>`;
+    }
+  }
+
+  function logout() {
+    localStorage.removeItem("token");
+    toast("Logged out");
+    setTimeout(() => (window.location.href = "/static/login.html"), 800);
+  }
+
+  loadUser();
+</script>
