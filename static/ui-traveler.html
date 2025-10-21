@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Traveler Operation Panel · Topnotch</title>
+    <style>
+      :root {
+        --bg: #f9fafb;
+        --panel: #fff;
+        --muted: #6b7280;
+        --text: #111;
+        --radius: 6px;
+        --gap: 14px;
+        --primary: #2563eb;
+        --primary-hover: #1d4ed8;
+      }
+      body {
+        margin: 0;
+        font: 15px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Arial;
+        color: var(--text);
+        background: var(--bg);
+        padding: 18px;
+      }
+      .wrap {
+        max-width: 800px;
+        margin: auto;
+        display: flex;
+        flex-direction: column;
+        gap: var(--gap);
+      }
+      .note {
+        background: var(--panel);
+        border-radius: var(--radius);
+        padding: 16px;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+      }
+      .note-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .op {
+        font-weight: 600;
+        font-size: 16px;
+      }
+      .operator {
+        font-weight: 500;
+        font-size: 15px;
+        color: #374151;
+        background: #f3f4f6;
+        padding: 6px 10px;
+        border-radius: var(--radius);
+      }
+      .title {
+        font-weight: 700;
+        font-size: 18px;
+        margin-top: 6px;
+      }
+      .muted {
+        color: var(--muted);
+        font-size: 14px;
+      }
+      .action-inputs {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: var(--gap);
+      }
+      .action-box {
+        background: var(--panel);
+        border-radius: var(--radius);
+        padding: 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        align-items: stretch;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+        cursor: pointer;
+      }
+      .action-label {
+        font-weight: 600;
+        text-align: center;
+        padding-bottom: 6px;
+        border-bottom: 1px solid #e5e7eb;
+      }
+      .qty-display {
+        font-size: 22px;
+        text-align: center;
+        font-weight: 600;
+        padding: 12px;
+        background: #f3f4f6;
+        border-radius: var(--radius);
+      }
+      .remarks {
+        background: var(--panel);
+        padding: 14px;
+        border-radius: var(--radius);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+      }
+      .remarks label {
+        font-size: 13px;
+        color: var(--muted);
+      }
+      .remarks textarea {
+        border: 1px solid #d1d5db;
+        border-radius: var(--radius);
+        padding: 8px;
+        font-size: 15px;
+        width: 100%;
+        min-height: 80px;
+        resize: vertical;
+      }
+      .confirm-btn {
+        background: var(--primary);
+        color: white;
+        border: none;
+        border-radius: var(--radius);
+        height: 60px;
+        font-size: 18px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .keypad-overlay {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: #fff;
+        border-top: 2px solid #2563eb;
+        box-shadow: 0 -4px 15px rgba(0, 0, 0, 0.15);
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        padding: 14px;
+        z-index: 99;
+      }
+      #uomLabel {
+        font-size: 16px;
+        font-weight: 600;
+        margin-bottom: 10px;
+        color: #2563eb;
+      }
+      .pad {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: var(--gap);
+        width: 100%;
+        max-width: 500px;
+      }
+      button.key,
+      button.key-wide {
+        background: #e5e7eb;
+        border: none;
+        border-radius: var(--radius);
+        height: 70px;
+        font-weight: 700;
+        font-size: 20px;
+        cursor: pointer;
+      }
+      .pad-footer {
+        margin-top: var(--gap);
+        display: flex;
+        gap: var(--gap);
+        justify-content: center;
+      }
+      button.ok-btn,
+      button.close-btn {
+        background: #2563eb;
+        color: white;
+        border: none;
+        border-radius: var(--radius);
+        padding: 12px 26px;
+        font-size: 16px;
+        cursor: pointer;
+        font-weight: 600;
+      }
+      button.close-btn {
+        background: #9ca3af;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="note">
+        <div class="note-header">
+          <div class="op" id="opCode"></div>
+          <div class="operator" id="operatorName"></div>
+        </div>
+        <div class="title" id="opName"></div>
+        <div class="muted" id="opDesc"></div>
+      </div>
+
+      <div class="action-inputs">
+        <div class="action-box" data-type="receive">
+          <div class="action-label">Receive</div>
+          <div class="qty-display" id="receiveQty">0</div>
+        </div>
+        <div class="action-box" data-type="accept">
+          <div class="action-label">Accept</div>
+          <div class="qty-display" id="acceptQty">0</div>
+        </div>
+        <div class="action-box" data-type="reject">
+          <div class="action-label">Reject</div>
+          <div class="qty-display" id="rejectQty">0</div>
+        </div>
+      </div>
+
+      <div class="remarks">
+        <label for="remarkInput">Remarks</label>
+        <textarea id="remarkInput" placeholder="Add notes..."></textarea>
+      </div>
+
+      <button class="confirm-btn" id="btnConfirm">Confirm</button>
+    </div>
+
+    <!-- Keypad -->
+    <div class="keypad-overlay" id="keypad">
+      <div id="uomLabel">Unit: pcs</div>
+      <div class="pad">
+        <button class="key">7</button>
+        <button class="key">8</button>
+        <button class="key">9</button>
+        <button class="key">4</button>
+        <button class="key">5</button>
+        <button class="key">6</button>
+        <button class="key">1</button>
+        <button class="key">2</button>
+        <button class="key">3</button>
+        <button class="key">0</button>
+        <button class="key-wide">Clear</button>
+      </div>
+      <div class="pad-footer">
+        <button class="ok-btn">OK</button>
+        <button class="close-btn">Close</button>
+      </div>
+    </div>
+
+ 
+     <script type="module" src="/static/ui-traveler.js"></script>
+    </script>
+  </body>
+</html>

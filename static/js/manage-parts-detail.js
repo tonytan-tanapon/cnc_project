@@ -636,9 +636,37 @@ function initTable() {
     height: "auto",
     placeholder: "No rows",
     index: "lot_no",
+    groupBy: "po_number",
     pagination: false,
     columns: [
-      { title: "Lot Number", field: "lot_no", minWidth: 110, headerSort: true },
+      {
+        title: "Lot Number",
+        field: "lot_no",
+        minWidth: 120,
+        headerSort: true,
+        formatter: (cell) => {
+          const row = cell.getRow().getData();
+          const lotId = row.lot_id;
+          const lotNo = row.lot_no || "—";
+          if (!lotId) return lotNo;
+          return `
+      <a href="/static/lot-detail.html?lot_id=${encodeURIComponent(lotId)}"
+         class="link-lot"
+         style="color:#2563eb; text-decoration:underline; cursor:pointer;">
+         ${lotNo}
+      </a>
+    `;
+        },
+        cellClick: (e, cell) => {
+          e.preventDefault(); // ✅ ป้องกัน reload หน้า
+          const row = cell.getRow().getData();
+          const lotId = row.lot_id;
+          if (!lotId) return toast("No lot ID found", false);
+          window.location.href = `/static/lot-detail.html?lot_id=${encodeURIComponent(
+            lotId
+          )}`;
+        },
+      },
       {
         title: "PO No",
         width: 100,

@@ -9,7 +9,10 @@ from database import get_db
 from models import ShopTraveler, ProductionLot, Employee
 from pydantic import BaseModel, ConfigDict
 from utils.code_generator import next_code_yearly
-
+from sqlalchemy import (
+    Column, Integer, String, DateTime, ForeignKey, Boolean,
+    Numeric, Text, Index, UniqueConstraint, func
+)
 router = APIRouter(prefix="/travelers", tags=["travelers"])
 
 # ---------- Schemas ----------
@@ -92,19 +95,25 @@ def create_traveler(payload: ShopTravelerCreate, db: Session = Depends(get_db)):
 @router.get("", response_model=List[ShopTravelerRowOut])
 def list_travelers(
     q: Optional[str] = Query(None, description="ค้นหา lot_code / lot_no"),
+    lot_id: Optional[int] = Query(None, description="Filter by lot ID"),
     db: Session = Depends(get_db),
 ):
     query = db.query(ShopTraveler).options(selectinload(ShopTraveler.lot))
+
+    # 🔍 ถ้ามี q (ค้นหาด้วย lot_no หรือ lot_code)
     if q:
         ql = f"%{q}%"
-        # join เฉพาะเวลาค้นหา เพื่อให้ filter ที่ ProductionLot ได้
         query = (
             query.join(ShopTraveler.lot)
             .filter(or_(ProductionLot.lot_no.ilike(ql), ProductionLot.lot_code.ilike(ql)))
         )
+
+    # 🔍 ถ้ามี lot_id (กรองเฉพาะ lot_id นั้น)
+    if lot_id:
+        query = query.filter(ShopTraveler.lot_id == lot_id)
+
     rows = query.order_by(ShopTraveler.id.desc()).all()
     return [to_row_out(t) for t in rows]
-
 # ---------- GET ----------
 @router.get("/{traveler_id}", response_model=ShopTravelerRowOut)
 def get_traveler(traveler_id: int, db: Session = Depends(get_db)):
@@ -182,3 +191,296 @@ def delete_traveler(traveler_id: int, db: Session = Depends(get_db)):
     db.delete(t)
     db.commit()
     return {"message": "Traveler deleted"}
+
+
+### QR related endpoints can be added here later
+from models import ShopTravelerStep, ShopTraveler, Employee
+@router.post("/traveler/scan")
+def scan_traveler(payload: dict, db: Session = Depends(get_db)):
+    qr_code = payload.get("qr_code")
+    traveler = db.query(ShopTraveler).filter_by(qr_code=qr_code).first()
+    if not traveler:
+        raise HTTPException(status_code=404, detail="Traveler not found")
+
+    # หาขั้นตอนถัดไป (หรือ current)
+    step = (
+        db.query(ShopTravelerStep)
+        .filter(ShopTravelerStep.traveler_id == traveler.id)
+        .filter(ShopTravelerStep.seq == traveler.current_step_seq)
+        .first()
+    )
+
+    if not step:
+        raise HTTPException(status_code=404, detail="No pending step found")
+
+    return {
+        "traveler_id": traveler.id,
+        "traveler_no": traveler.traveler_no,
+        "step_seq": step.seq,
+        "step_code": step.step_code,
+        "step_name": step.step_name,
+    }
+
+@router.post("/traveler/{traveler_id}/record")
+def record_step(traveler_id: int, payload: dict, db: Session = Depends(get_db)):
+    step_code = payload.get("step_code")
+
+    step = (
+        db.query(ShopTravelerStep)
+        .filter(ShopTravelerStep.traveler_id == traveler_id)
+        .filter(ShopTravelerStep.step_code == step_code)
+        .first()
+    )
+    if not step:
+        raise HTTPException(status_code=404, detail="Step not found")
+
+    step.qty_receive = payload.get("receive_qty", 0)
+    step.qty_accept = payload.get("accept_qty", 0)
+    step.qty_reject = payload.get("reject_qty", 0)
+    step.step_note = payload.get("remark", "")
+    step.status = "passed"
+    step.finished_at = func.now()
+
+    # update traveler.current_step_seq → next step
+    next_step = (
+        db.query(ShopTravelerStep)
+        .filter(ShopTravelerStep.traveler_id == traveler_id)
+        .filter(ShopTravelerStep.seq > step.seq)
+        .order_by(ShopTravelerStep.seq)
+        .first()
+    )
+    traveler = db.get(ShopTraveler, traveler_id)
+    if next_step:
+        traveler.current_step_seq = next_step.seq
+    else:
+        traveler.status = "done"
+
+    db.commit()
+    return {"message": "✅ Step completed successfully"}
+
+from sqlalchemy.orm import Session, joinedload
+@router.get("/by_no/{traveler_no}")
+def get_traveler_by_no(traveler_no: str, db: Session = Depends(get_db)):
+    """
+    ดึงข้อมูล Traveler ตามหมายเลข traveler_no
+    พร้อม steps ทั้งหมด และ step ปัจจุบัน (active)
+    """
+    traveler = (
+        db.query(ShopTraveler)
+        .options(
+            joinedload(ShopTraveler.steps).joinedload(ShopTravelerStep.operator)
+        )
+        .filter(ShopTraveler.traveler_no == traveler_no)
+        .first()
+    )
+
+    if not traveler:
+        raise HTTPException(status_code=404, detail="Traveler not found")
+
+    # ✅ หา step ปัจจุบัน (ตัวแรกที่ยังไม่ผ่าน)
+    active_step = (
+        db.query(ShopTravelerStep)
+        .filter(ShopTravelerStep.traveler_id == traveler.id)
+        .filter(ShopTravelerStep.status.notin_(["passed", "failed", "skipped"]))
+        .order_by(ShopTravelerStep.seq)
+        .first()
+    )
+
+    return {
+        "id": traveler.id,
+        "traveler_no": traveler.traveler_no,
+        "lot_id": traveler.lot_id,
+        "status": traveler.status,
+        "notes": traveler.notes,
+        "active_step": {
+            "id": active_step.id if active_step else None,
+            "seq": active_step.seq if active_step else None,
+            "station": active_step.station if active_step else None,
+            "step_name": active_step.step_name if active_step else None,
+            "step_note": active_step.step_note if active_step else None,
+            "operator_name": (
+                active_step.operator.emp_code if active_step and active_step.operator else None
+            ),
+            "status": active_step.status if active_step else None,
+        } if active_step else None,
+        "steps": [
+            {
+                "id": s.id,
+                "seq": s.seq,
+                "station": s.station,
+                "step_name": s.step_name,
+                "status": s.status,
+                "uom": s.uom,  # 👈 เพิ่มตรงนี้
+                "qty_receive": s.qty_receive,
+                "qty_accept": s.qty_accept,
+                "qty_reject": s.qty_reject,
+                "operator": {
+                    "id": s.operator.id if s.operator else None,
+                    "emp_code": s.operator.emp_code if s.operator else None,
+                },
+            }
+            for s in sorted(traveler.steps, key=lambda x: x.seq or 0)
+        ],
+    }
+@router.get("/by_no/{traveler_no}")
+def get_traveler_by_no(traveler_no: str, db: Session = Depends(get_db)):
+    """
+    ดึงข้อมูล Traveler ตามหมายเลข traveler_no
+    พร้อม steps ทั้งหมด และ step ปัจจุบัน (active)
+    """
+    traveler = (
+        db.query(ShopTraveler)
+        .options(
+            joinedload(ShopTraveler.steps).joinedload(ShopTravelerStep.operator)
+        )
+        .filter(ShopTraveler.traveler_no == traveler_no)
+        .first()
+    )
+
+    if not traveler:
+        raise HTTPException(status_code=404, detail="Traveler not found")
+
+    # ✅ หา step ปัจจุบัน (ยังไม่ผ่าน)
+    active_step = (
+        db.query(ShopTravelerStep)
+        .filter(ShopTravelerStep.traveler_id == traveler.id)
+        .filter(ShopTravelerStep.status.notin_(["passed", "failed", "skipped"]))
+        .order_by(ShopTravelerStep.seq)
+        .first()
+    )
+
+    def fmt_station(s):
+        """สร้างชื่อ station เช่น OP#10 ถ้า station ว่าง"""
+        return s.station or f"OP#{s.seq}" if s else None
+
+    return {
+        "id": traveler.id,
+        "traveler_no": traveler.traveler_no,
+        "lot_id": traveler.lot_id,
+        "status": traveler.status,
+        "notes": traveler.notes,
+        "active_step": {
+            "id": active_step.id if active_step else None,
+            "seq": active_step.seq if active_step else None,
+            "station": fmt_station(active_step),
+            "step_name": active_step.step_name if active_step else None,
+            "step_note": active_step.step_note if active_step else None,
+            "operator_name": (
+                active_step.operator.emp_code if active_step and active_step.operator else None
+            ),
+            "status": active_step.status if active_step else None,
+        } if active_step else None,
+        "steps": [
+            {
+                "id": s.id,
+                "seq": s.seq,
+                "station": fmt_station(s),
+                "step_name": s.step_name,
+                "status": s.status,
+                "qty_receive": s.qty_receive,
+                "qty_accept": s.qty_accept,
+                "qty_reject": s.qty_reject,
+                "operator": {
+                    "id": s.operator.id if s.operator else None,
+                    "emp_code": s.operator.emp_code if s.operator else None,
+                },
+            }
+            for s in sorted(traveler.steps, key=lambda x: x.seq or 0)
+        ],
+    }
+
+
+@router.post("/by_no/{traveler_no}/record")
+def record_traveler_operation(
+    traveler_no: str,
+    payload: dict,
+    db: Session = Depends(get_db)
+):
+    traveler = (
+        db.query(ShopTraveler)
+        .filter(ShopTraveler.traveler_no == traveler_no)
+        .first()
+    )
+    if not traveler:
+        raise HTTPException(status_code=404, detail=f"Traveler {traveler_no} not found")
+
+    step = (
+        db.query(ShopTravelerStep)
+        .filter(ShopTravelerStep.traveler_id == traveler.id)
+        .filter(ShopTravelerStep.status.notin_(["passed", "failed", "skipped"]))
+        .order_by(ShopTravelerStep.seq)
+        .first()
+    )
+    if not step:
+        raise HTTPException(status_code=404, detail="No active step found")
+
+    # ✅ update ข้อมูลจาก operator
+    step.qty_receive = payload.get("qty_receive", step.qty_receive)
+    step.qty_accept = payload.get("qty_accept", step.qty_accept)
+    step.qty_reject = payload.get("qty_reject", step.qty_reject)
+    step.step_note = payload.get("remark", step.step_note)
+    step.status = "passed"
+    step.finished_at = func.now()
+
+    # ✅ หา next step แล้วเปิดให้เป็น in_progress
+    next_step = (
+        db.query(ShopTravelerStep)
+        .filter(ShopTravelerStep.traveler_id == traveler.id)
+        .filter(ShopTravelerStep.seq > step.seq)
+        .order_by(ShopTravelerStep.seq)
+        .first()
+    )
+    if next_step and next_step.status.lower() == "pending":
+        next_step.status = "in_progress"
+        next_step.started_at = func.now()
+
+    db.commit()
+    return {
+        "message": f"Traveler {traveler_no} step {step.seq} marked as PASSED",
+        "next_step": next_step.seq if next_step else None
+    }
+
+# ---------- UPDATE SINGLE TRAVELER STEP ----------
+from pydantic import BaseModel
+from typing import Optional
+
+class TravelerStepUpdate(BaseModel):
+    qty_receive: Optional[int] = None
+    qty_accept: Optional[int] = None
+    qty_reject: Optional[int] = None
+    step_note: Optional[str] = None
+    remark: Optional[str] = None  # ใช้ชื่อเดียวกับ frontend
+    status: Optional[str] = None
+
+@router.patch("/traveler_steps/{step_id}")
+def update_traveler_step(step_id: int, payload: TravelerStepUpdate, db: Session = Depends(get_db)):
+    step = db.get(ShopTravelerStep, step_id)
+    if not step:
+        raise HTTPException(status_code=404, detail="Step not found")
+
+    # ✅ map "remark" → "step_note" (จาก UI)
+    if payload.remark is not None and not payload.step_note:
+        step.step_note = payload.remark
+
+    if payload.qty_receive is not None:
+        step.qty_receive = payload.qty_receive
+    if payload.qty_accept is not None:
+        step.qty_accept = payload.qty_accept
+    if payload.qty_reject is not None:
+        step.qty_reject = payload.qty_reject
+    if payload.status is not None:
+        step.status = payload.status
+    if payload.step_note is not None:
+        step.step_note = payload.step_note
+
+    db.commit()
+    db.refresh(step)
+    return {
+        "id": step.id,
+        "seq": step.seq,
+        "qty_receive": step.qty_receive,
+        "qty_accept": step.qty_accept,
+        "qty_reject": step.qty_reject,
+        "status": step.status,
+        "step_note": step.step_note,
+    }

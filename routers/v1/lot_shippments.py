@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Body
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 from datetime import datetime
@@ -29,15 +29,45 @@ def get_part_inventory_data(db: Session, lot_id: int):
     if not part:
         raise HTTPException(status_code=404, detail="Part not found")
 
+    # ✅ ใช้ traveler steps เพื่อคำนวณ finished_qty
+    from models import ShopTraveler, ShopTravelerStep
+
+    sub_max_seq = (
+        db.query(
+            ShopTravelerStep.traveler_id,
+            func.max(ShopTravelerStep.seq).label("max_seq"),
+        )
+        .group_by(ShopTravelerStep.traveler_id)
+        .subquery()
+    )
+
+    finished_qty = (
+        db.query(func.coalesce(func.sum(ShopTravelerStep.qty_accept), 0))
+        .join(
+            sub_max_seq,
+            (ShopTravelerStep.traveler_id == sub_max_seq.c.traveler_id)
+            & (ShopTravelerStep.seq == sub_max_seq.c.max_seq),
+        )
+        .join(ShopTraveler, ShopTraveler.id == ShopTravelerStep.traveler_id)
+        .filter(ShopTraveler.lot_id == lot.id)
+        .filter(ShopTravelerStep.status.in_(["passed", "completed"]))  # ✅ fixed
+        .scalar()
+        or 0
+    )
+
     shipped_qty = (
         db.query(func.sum(CustomerShipmentItem.qty))
         .filter(CustomerShipmentItem.lot_id == lot_id)
         .scalar()
         or 0
     )
-    planned = float(lot.planned_qty or 0)
-    available = planned - float(shipped_qty)
-    return part, planned, shipped_qty, available
+
+    planned_qty = float(lot.planned_qty or 0)
+    finished_qty = float(finished_qty)
+    shipped_qty = float(shipped_qty)
+    available_qty = max(finished_qty - shipped_qty, 0)
+
+    return part, planned_qty, finished_qty, shipped_qty, available_qty
 
 
 # ============================================================
@@ -63,7 +93,7 @@ def list_lot_shipments(lot_id: int, db: Session = Depends(get_db)):
             "tracking_no": s.tracking_no,
             "qty": sum(float(i.qty or 0) for i in s.items if i.lot_id == lot_id),
             "uom": "pcs",
-            "status": s.status or "pending",  # ✅ ใช้ค่าจริงจาก DB
+            "status": s.status or "pending",
             "date": s.shipped_at,
         }
         for s in rows
@@ -71,7 +101,7 @@ def list_lot_shipments(lot_id: int, db: Session = Depends(get_db)):
 
 
 # ============================================================
-# 2️⃣  Allocate / Return part (real update)
+# 2️⃣  Allocate / Return part
 # ============================================================
 class PartQtyRequest(BaseModel):
     lot_id: int
@@ -79,7 +109,6 @@ class PartQtyRequest(BaseModel):
 
 
 def get_or_create_shipment(db: Session, lot: ProductionLot):
-    """Use existing latest shipment or create a new one."""
     shipment = (
         db.query(CustomerShipment)
         .filter(CustomerShipment.po_id == lot.po_id)
@@ -90,9 +119,6 @@ def get_or_create_shipment(db: Session, lot: ProductionLot):
         shipment = CustomerShipment(
             po_id=lot.po_id,
             shipped_at=datetime.now(),
-            ship_to=None,
-            carrier=None,
-            tracking_no=None,
             status="pending",
         )
         db.add(shipment)
@@ -102,7 +128,8 @@ def get_or_create_shipment(db: Session, lot: ProductionLot):
 
 @router.post("/allocate-part")
 def allocate_part(req: dict, db: Session = Depends(get_db)):
-    from models import ProductionLot, Part, CustomerShipmentItem, ShopTraveler, ShopTravelerStep
+    from models import ShopTraveler, ShopTravelerStep
+
     lot = db.get(ProductionLot, req["lot_id"])
     if not lot:
         raise HTTPException(status_code=404, detail="Lot not found")
@@ -111,11 +138,11 @@ def allocate_part(req: dict, db: Session = Depends(get_db)):
     if qty <= 0:
         raise HTTPException(status_code=400, detail="Quantity must be greater than zero")
 
-    # ✅ ดึง available qty ล่าสุด
+    # ✅ ใช้ logic เดียวกับ get_part_inventory_data
     sub_max_seq = (
         db.query(
             ShopTravelerStep.traveler_id,
-            func.max(ShopTravelerStep.seq).label("max_seq")
+            func.max(ShopTravelerStep.seq).label("max_seq"),
         )
         .group_by(ShopTravelerStep.traveler_id)
         .subquery()
@@ -123,15 +150,14 @@ def allocate_part(req: dict, db: Session = Depends(get_db)):
 
     finished_qty = (
         db.query(func.coalesce(func.sum(ShopTravelerStep.qty_accept), 0))
-        .join(ShopTraveler, ShopTraveler.id == ShopTravelerStep.traveler_id)
         .join(
             sub_max_seq,
-            (sub_max_seq.c.traveler_id == ShopTravelerStep.traveler_id)
-            & (sub_max_seq.c.max_seq == ShopTravelerStep.seq),
-            isouter=True
+            (ShopTravelerStep.traveler_id == sub_max_seq.c.traveler_id)
+            & (ShopTravelerStep.seq == sub_max_seq.c.max_seq),
         )
+        .join(ShopTraveler, ShopTraveler.id == ShopTravelerStep.traveler_id)
         .filter(ShopTraveler.lot_id == lot.id)
-        .filter(ShopTravelerStep.status == "completed")
+        .filter(ShopTravelerStep.status.in_(["passed", "completed"]))  # ✅ fixed
         .scalar()
         or 0
     )
@@ -145,18 +171,16 @@ def allocate_part(req: dict, db: Session = Depends(get_db)):
 
     available_qty = float(finished_qty) - float(shipped_qty)
 
-    # ✅ ตรวจสอบว่ามี stock พอไหม
     if qty > available_qty:
         raise HTTPException(
             status_code=400,
             detail=f"Cannot allocate {qty} pcs — only {available_qty} available",
         )
 
-    # ✅ ถ้าพอ → ทำงานต่อ
     shipment = get_or_create_shipment(db, lot)
     new_item = CustomerShipmentItem(
         shipment_id=shipment.id,
-        po_line_id=lot.po_line_id or 0,  # fallback
+        po_line_id=lot.po_line_id or 0,
         lot_id=lot.id,
         qty=qty,
     )
@@ -165,6 +189,7 @@ def allocate_part(req: dict, db: Session = Depends(get_db)):
     db.refresh(new_item)
 
     return {"status": "ok", "allocated_qty": qty, "available_after": available_qty - qty}
+
 
 @router.post("/return-part")
 def return_part(req: PartQtyRequest, db: Session = Depends(get_db)):
@@ -211,14 +236,13 @@ def delete_shipment(shipment_id: int, db: Session = Depends(get_db)):
     s = db.get(CustomerShipment, shipment_id)
     if not s:
         raise HTTPException(status_code=404, detail="Shipment not found")
-
     db.delete(s)
     db.commit()
     return {"status": "deleted", "shipment_id": shipment_id}
 
 
 # ============================================================
-# 4️⃣  Shipment history for a lot
+# 4️⃣  Shipment history
 # ============================================================
 @router.get("/history/{lot_id}")
 def shipment_history(lot_id: int, db: Session = Depends(get_db)):
@@ -243,7 +267,7 @@ def shipment_history(lot_id: int, db: Session = Depends(get_db)):
 
 
 # ============================================================
-# 5️⃣  Header info (reuse from lot)
+# 5️⃣  Header info
 # ============================================================
 @router.get("/lot/{lot_id}/header")
 def get_lot_header(lot_id: int, db: Session = Depends(get_db)):
@@ -256,13 +280,14 @@ def get_lot_header(lot_id: int, db: Session = Depends(get_db)):
     if not lot:
         raise HTTPException(status_code=404, detail="Lot not found")
 
-    part, planned, shipped, available = get_part_inventory_data(db, lot.id)
+    part, planned, finished, shipped, available = get_part_inventory_data(db, lot.id)
 
     return {
         "lot_id": lot.id,
         "lot_no": lot.lot_no,
         "part_no": part.part_no if part else None,
         "planned_qty": planned,
+        "finished_qty": finished,
         "shipped_qty": shipped,
         "available_qty": available,
         "status": lot.status,
@@ -271,141 +296,32 @@ def get_lot_header(lot_id: int, db: Session = Depends(get_db)):
 
 
 # ============================================================
-# 6️⃣  Get part inventory for a lot
+# 6️⃣  Part inventory + progress
 # ============================================================
 @router.get("/lot/{lot_id}/part-inventory")
 def get_part_inventory(lot_id: int, db: Session = Depends(get_db)):
-    from models import (
-        Part,
-        ProductionLot,
-        ShopTraveler,
-        ShopTravelerStep,
-        CustomerShipmentItem,
-    )
-
-    # 🔹 ตรวจสอบ lot และ part
-    lot = db.get(ProductionLot, lot_id)
-    if not lot:
-        raise HTTPException(status_code=404, detail="Lot not found")
-    part = db.get(Part, lot.part_id)
-    if not part:
-        raise HTTPException(status_code=404, detail="Part not found")
-
-    # 🔹 หา step ล่าสุดของแต่ละ traveler (โดย group traveler_id)
-    sub_max_seq = (
-        db.query(
-            ShopTravelerStep.traveler_id,
-            func.max(ShopTravelerStep.seq).label("max_seq")
-        )
-        .group_by(ShopTravelerStep.traveler_id)
-        .subquery()
-    )
-
-    # 🔹 รวม qty_accept จาก step สุดท้ายของทุก traveler (ที่ผ่าน)
-    finished_qty = (
-        db.query(func.coalesce(func.sum(ShopTravelerStep.qty_accept), 0))
-        .join(
-            sub_max_seq,
-            (ShopTravelerStep.traveler_id == sub_max_seq.c.traveler_id)
-            & (ShopTravelerStep.seq == sub_max_seq.c.max_seq)
-        )
-        .join(ShopTraveler, ShopTraveler.id == ShopTravelerStep.traveler_id)
-        .filter(ShopTraveler.lot_id == lot.id)
-        .filter(ShopTravelerStep.status.in_(["passed", "completed"]))
-        .scalar()
-        or 0
-    )
-
-    # 🔹 รวม shipment
-    shipped_qty = (
-        db.query(func.coalesce(func.sum(CustomerShipmentItem.qty), 0))
-        .filter(CustomerShipmentItem.lot_id == lot_id)
-        .scalar()
-        or 0
-    )
-
-    # 🔹 แปลงเป็น float ป้องกัน Decimal error
-    planned_qty = float(lot.planned_qty or 0)
-    finished_qty = float(finished_qty or 0)
-    shipped_qty = float(shipped_qty or 0)
-
-    available_qty = max(finished_qty - shipped_qty, 0)
-    progress_percent = round(finished_qty / planned_qty * 100, 2) if planned_qty > 0 else 0
-
+    part, planned, finished, shipped, available = get_part_inventory_data(db, lot_id)
+    progress_percent = round(finished / planned * 100, 2) if planned > 0 else 0
     return {
         "part_id": part.id,
         "part_no": part.part_no,
         "lot_id": lot_id,
-        "planned_qty": planned_qty,
-        "finished_qty": finished_qty,
-        "shipped_qty": shipped_qty,
-        "available_qty": available_qty,
+        "planned_qty": planned,
+        "finished_qty": finished,
+        "shipped_qty": shipped,
+        "available_qty": available,
         "progress_percent": progress_percent,
         "uom": getattr(part, "uom", "pcs"),
     }
 
-# @router.get("/lot/{lot_id}/part-inventory")
-# def get_part_inventory(lot_id: int, db: Session = Depends(get_db)):
-#     from models import Part, ProductionLot, ShopTraveler, ShopTravelerStep, CustomerShipmentItem
 
-#     lot = db.get(ProductionLot, lot_id)
-#     if not lot:
-#         raise HTTPException(status_code=404, detail="Lot not found")
-
-#     part = db.get(Part, lot.part_id)
-#     if not part:
-#         raise HTTPException(status_code=404, detail="Part not found")
-
-#     # ✅ หาค่า accept จาก step สุดท้ายของแต่ละ traveler
-#     sub_max_seq = (
-#         db.query(
-#             ShopTravelerStep.traveler_id,
-#             func.max(ShopTravelerStep.seq).label("max_seq")
-#         )
-#         .group_by(ShopTravelerStep.traveler_id)
-#         .subquery()
-#     )
-
-#     # ✅ รวม qty_accept ของ step สุดท้าย (เฉพาะ traveler ของ lot นี้)
-#     finished_qty = (
-#         db.query(func.coalesce(func.sum(ShopTravelerStep.qty_accept), 0))
-#         .join(sub_max_seq,
-#               (ShopTravelerStep.traveler_id == sub_max_seq.c.traveler_id) &
-#               (ShopTravelerStep.seq == sub_max_seq.c.max_seq))
-#         .join(ShopTraveler, ShopTraveler.id == ShopTravelerStep.traveler_id)
-#         .filter(ShopTraveler.lot_id == lot.id)
-#         .scalar()
-#         or 0
-#     )
-
-#     # ✅ รวม qty ที่ shipment ไปแล้ว
-#     shipped_qty = (
-#         db.query(func.coalesce(func.sum(CustomerShipmentItem.qty), 0))
-#         .filter(CustomerShipmentItem.lot_id == lot_id)
-#         .scalar()
-#         or 0
-#     )
-
-#     available_qty = float(finished_qty) - float(shipped_qty)
-#     if available_qty < 0:
-#         available_qty = 0
-
-#     return {
-#         "part_id": part.id,
-#         "part_no": part.part_no,
-#         "lot_id": lot_id,
-#         "planned_qty": float(lot.planned_qty or 0),
-#         "finished_qty": float(finished_qty),
-#         "shipped_qty": float(shipped_qty),
-#         "available_qty": float(available_qty),
-#         "uom": getattr(part, "uom", "pcs"),
-#     }
-
-
-from fastapi import Body
-
+# ============================================================
+# 7️⃣  Update status
+# ============================================================
 @router.patch("/{shipment_id}/status")
-def update_shipment_status(shipment_id: int, data: dict = Body(...), db: Session = Depends(get_db)):
+def update_shipment_status(
+    shipment_id: int, data: dict = Body(...), db: Session = Depends(get_db)
+):
     s = db.get(CustomerShipment, shipment_id)
     if not s:
         raise HTTPException(status_code=404, detail="Shipment not found")
