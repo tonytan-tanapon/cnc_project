@@ -13,6 +13,11 @@ function showKeypad(target, type) {
   activeType = type;
   document.querySelector("#keypad").style.display = "flex";
   document.querySelector("#uomLabel").textContent = `Unit: ${currentUOM}`;
+
+  const currentVal = activeTarget.textContent.trim() || "0";
+  document.querySelector("#keypadDisplay").textContent = currentVal;
+
+  isFirstKeyPress = true; // 🆕 reset when opening keypad
 }
 
 function hideKeypad() {
@@ -20,8 +25,14 @@ function hideKeypad() {
   activeTarget = null;
   activeType = null;
 }
+// helper
+function updateDisplay(val) {
+  document.querySelector("#keypadDisplay").textContent = val;
+}
 
 // ===== DOM READY =====
+let isFirstKeyPress = true; // 🆕 flag to know when to clear old value
+
 document.addEventListener("DOMContentLoaded", () => {
   // เปิด keypad เมื่อคลิกกล่อง qty
   document.querySelectorAll(".action-box").forEach((box) => {
@@ -34,18 +45,31 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // ปุ่มตัวเลข
-  document.querySelectorAll(".key").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      if (!activeTarget) return;
-      let val = activeTarget.textContent.trim();
-      if (val === "0") val = "";
-      activeTarget.textContent = val + btn.textContent.trim();
-    });
+  
+document.querySelectorAll(".key").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    if (!activeTarget) return;
+
+    let val = activeTarget.textContent.trim();
+
+    // 🧹 clear old value on first key press
+    if (isFirstKeyPress) {
+      val = "";
+      isFirstKeyPress = false;
+    }
+
+    val = val + btn.textContent.trim();
+    activeTarget.textContent = val;
+    updateDisplay(val);
   });
+});
 
   // ปุ่ม Clear
   document.querySelector(".key-wide").addEventListener("click", () => {
-    if (activeTarget) activeTarget.textContent = "0";
+    if (activeTarget) {
+      activeTarget.textContent = "0";
+      updateDisplay("0");
+    }
   });
 
   // ✅ ปุ่ม OK → PATCH DB
@@ -97,25 +121,34 @@ document.addEventListener("DOMContentLoaded", () => {
   document.querySelector(".close-btn").addEventListener("click", hideKeypad);
 
   // ===== CONFIRM BUTTON =====
+  // ===== CONFIRM BUTTON =====
   document.querySelector("#btnConfirm").addEventListener("click", async () => {
+    const qty_receive = +document.querySelector("#receiveQty").textContent || 0;
+    const qty_accept = +document.querySelector("#acceptQty").textContent || 0;
+    const qty_reject = +document.querySelector("#rejectQty").textContent || 0;
+    const remark = document.querySelector("#remarkInput").value.trim();
+
+    // ✅ Validation: accept must be <= receive
+    if (qty_accept > qty_receive) {
+      toast("⚠️ Accept quantity cannot be greater than Receive quantity!", false);
+      return;
+    }
+
     const payload = {
-      qty_receive: +document.querySelector("#receiveQty").textContent || 0,
-      qty_accept: +document.querySelector("#acceptQty").textContent || 0,
-      qty_reject: +document.querySelector("#rejectQty").textContent || 0,
-      remark: document.querySelector("#remarkInput").value.trim(),
+      qty_receive,
+      qty_accept,
+      qty_reject,
+      remark,
     };
 
     try {
       // ใช้ endpoint ที่มี logic: set passed + finished_at + advance next step
-      const resp = await jfetch(
-        `/api/v1/travelers/by_no/${travelerNo}/record`,
-        {
-          method: "POST",
-          body: JSON.stringify(payload),
-        }
-      );
-      console.log("✅ CONFIRM record:", resp);
+      const resp = await jfetch(`/api/v1/travelers/by_no/${travelerNo}/record`, {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
 
+      console.log("✅ CONFIRM record:", resp);
       toast("✅ Step marked as PASSED");
       await loadOperation(); // โหลด step ปัจจุบันใหม่ (จะเป็น step ถัดไปถ้ามี)
     } catch (err) {
@@ -124,8 +157,10 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
+
   loadOperation(); // โหลดครั้งแรก
 });
+
 // ===== AUTO-SAVE WHEN PRESS ENTER IN REMARKS =====
 document
   .querySelector("#remarkInput")

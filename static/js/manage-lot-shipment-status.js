@@ -10,8 +10,70 @@ let table = null;
 /* ===== Build columns ===== */
 function makeColumns() {
   return [
-    { title: "Lot No", field: "lot_no", width: 120 },
-    { title: "Part No", field: "part_no",  width: 120 },
+  {
+  title: "Lot No",
+  field: "lot_no",
+  width: 120,
+  sorter: (a, b) => {
+    if (!a) a = "";
+    if (!b) b = "";
+    const na = Number((a.match(/\d+/) || [0])[0]);
+    const nb = Number((b.match(/\d+/) || [0])[0]);
+    const isAutoA = a.startsWith("AUTO-");
+    const isAutoB = b.startsWith("AUTO-");
+    if (isAutoA && !isAutoB) return 1;
+    if (!isAutoA && isAutoB) return -1;
+    return na - nb;
+  },
+  formatter: (cell) => {
+    const d = cell.getData();
+    const lotId = d.lot_id;
+    if (!lotId) return cell.getValue() ?? "";
+    const href = `/static/lot-detail.html?lot_id=${encodeURIComponent(lotId)}`;
+    return `<a class="link" href="${href}">${cell.getValue() ?? ""}</a>`;
+  },
+  cellClick: (e, cell) => {
+    e.stopPropagation();
+    const d = cell.getData();
+    const lotId = d.lot_id;
+    if (!lotId) return;
+    location.href = `/static/lot-detail.html?lot_id=${encodeURIComponent(lotId)}`;
+  },
+},
+    // { title: "Part No", field: "part_no",  width: 120 },
+{
+  title: "Part No",
+  field: "part_no",
+  width: 120,
+  headerSort: true,
+  formatter: (cell) => {
+    const d = cell.getData();
+    if (!d?.part_id) return cell.getValue() ?? "";
+
+    const href = `/static/manage-part-detail.html?part_id=${encodeURIComponent(
+      d.part_id
+    )}&part_revision_id=${encodeURIComponent(
+      d.part_revision_id
+    )}&customer_id=${encodeURIComponent(d.customer_id)}`;
+
+    // ✅ no target="_blank" so it opens in the same tab
+    return `<a href="${href}" 
+              class="part-link"
+              style="color:#2563eb;text-decoration:underline;cursor:pointer;pointer-events:auto;">
+              ${cell.getValue() ?? ""}
+            </a>`;
+  },
+  cellClick: (e, cell) => {
+    const link = e.target.closest("a.part-link");
+    if (link) {
+      e.preventDefault(); // prevent Tabulator row click
+      window.location.href = link.href; // ✅ same-tab navigation
+    }
+  },
+},
+
+
+
     { title: "Part Name", field: "part_name", widthGrow: 2, cssClass: "wrap" },
     { title: "Rev", field: "revision", width: 80, hozAlign: "center" },
     { title: "PO No", field: "po_number", width: 120 },
@@ -27,7 +89,13 @@ function makeColumns() {
         const v = cell.getValue();
         if (!v) return "";
         const d = new Date(v);
-        return isNaN(d) ? v : d.toLocaleDateString();
+        return isNaN(d)
+  ? v
+  : d.toLocaleDateString(undefined, {
+      year: "2-digit",
+      month: "2-digit",
+      day: "2-digit",
+    });
       },
     },
 
@@ -81,13 +149,19 @@ function makeColumns() {
       },
     },
     {
-      title: "Last Ship",
+      title: "Shipped Date",
       field: "last_ship_date",
       width: 160,
       sorter: (a, b) => new Date(a) - new Date(b),
       formatter: (c) => {
         const v = c.getValue();
-        return v ? new Date(v).toLocaleDateString() : "";
+        return v
+  ? new Date(v).toLocaleDateString(undefined, {
+      year: "2-digit",
+      month: "2-digit",
+      day: "2-digit",
+    })
+  : "";
       },
     },
   ];
@@ -157,14 +231,18 @@ async function loadData() {
 }
 
 /* ===== Init Table ===== */
+/* ===== Init Table ===== */
 function initTable() {
   table = new Tabulator(`#${UI.table}`, {
     layout: "fitColumns",
     height: "100%",
     placeholder: "No data",
-    groupBy: "part_no",
-    groupHeader: (value, count) => `${value} (${count} orders)`,
     columns: makeColumns(),
+
+    // 🧭 Default sort order when loading the page (Lot No, descending)
+    initialSort: [
+      { column: "lot_no", dir: "desc" },
+    ],
   });
 }
 

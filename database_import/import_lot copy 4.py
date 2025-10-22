@@ -103,12 +103,11 @@ def parse_date(s: Optional[str]) -> Optional[date]:
         return datetime.fromisoformat(txt).date()
     except Exception:
         return None
-from zoneinfo import ZoneInfo
+
 def to_utc_midnight(d: Optional[date]) -> Optional[datetime]:
     if not d:
         return None
-    tz = ZoneInfo("America/Los_Angeles")
-    return datetime.combine(d, time.min, tzinfo=tz)
+    return datetime.combine(d, time.min, tzinfo=timezone.utc)
 
 def utc_now() -> datetime:
     return datetime.now(timezone.utc)
@@ -212,7 +211,7 @@ def get_or_upsert_invoice(
         if changed:
             db.flush()
     return inv
-from sqlalchemy import select, update
+
 # ---------- MAIN ----------
 def main():
     with SessionLocal() as db:
@@ -230,18 +229,13 @@ def main():
             reader = csv.DictReader(f, delimiter=CSV_DELIMITER)
             processed = 0
             for row in reader:
-                ## add customers
                 customer = get_or_upsert_customer(db, pick(row, "Customer", "Customer Name", "Name"))
-             
-                # add part NO, description and Rev
                 part_no = pick(row, "Part No.", "Part No")
                 if not part_no:
                     continue
 
                 part_desc = pick(row, "Description")
                 rev_code = pick(row, "Rev.", "Rev")
-
-
                 po_number = pick(row, "PO#", "PO Number")
                 lot_no = pick(row, "Lot#", "Lot #", "Lot No", "Lot Number", "LOT NO.")
                 qty_po = parse_int(pick(row, "Qty PO", "Qty", "Quantity"))
@@ -253,18 +247,8 @@ def main():
                 invoice_no = pick(row, "Invoice#", "Invoice No.")
                 residual_inv = parse_int(pick(row, "Residual Inv", "Residual Invoice"))
                 ship_date = parse_date(pick(row, "Ship Date", "Shipped Date"))
-
-                qty_ship = parse_int(parse_int(pick(row, "Qty Shipped")))
-
-                if qty_po == 0:
-                     qty_po = qty_ship
-                if qty_ship is None:
-                    qty_ship = 0
                 
-                ship_status = True if qty_ship > 0 else  False
-                
-              
-
+                # print(invoice_no,ship_date)
                 # --- Auto-generate Lot No if missing ---
                 if not lot_no:
                     today = datetime.now().strftime("%Y%m%d")
@@ -280,48 +264,13 @@ def main():
                 # --- Revision ---
                 rev = None
                 if rev_code:
-                    # 1️⃣ Find if this revision already exists
                     rev = db.scalar(select(PartRevision).where(
                         PartRevision.part_id == part.id, PartRevision.rev == rev_code
                     ))
-
                     if not rev:
-                        rev = PartRevision(
-                            part_id=part.id,
-                            rev=rev_code,
-                            is_current=False  # temporarily false; we'll decide below
-                        )
+                        rev = PartRevision(part_id=part.id, rev=rev_code, is_current=False)
                         db.add(rev)
                         db.flush()
-
-                    # 2️⃣ Determine the newest revision by comparing rev_code alphabetically / numerically
-                    # Example: A < B < C or 1 < 2 < 3
-                    all_revs = db.scalars(
-                        select(PartRevision).where(PartRevision.part_id == part.id)
-                    ).all()
-
-                    # Sort them — adjust key function for your format
-                    def rev_sort_key(r):
-                        code = (r.rev or "").strip().upper()
-                        # Pad numeric revisions so they compare correctly as strings
-                        if code.isdigit():
-                            return f"{int(code):04d}"  # 0001, 0002, etc.
-                        return code
-
-                    newest = max(all_revs, key=rev_sort_key)
-
-                    # 3️⃣ Reset all to False, then mark only the newest as current
-                    db.execute(
-                        update(PartRevision)
-                        .where(PartRevision.part_id == part.id)
-                        .values(is_current=False)
-                    )
-                    db.execute(
-                        update(PartRevision)
-                        .where(PartRevision.id == newest.id)
-                        .values(is_current=True)
-                    )
-                    db.flush()
 
                 # --- PO / POLine ---
                 if not po_number:
@@ -371,7 +320,7 @@ def main():
                     )
 
                 # --- Shipment ---
-                if qty_ship:
+                if ship_date and qty_po:
                     # Find or create shipment header (per PO + ship_date)
                     shipment = db.scalar(select(CustomerShipment).where(
                         CustomerShipment.po_id == po.id,
@@ -398,27 +347,11 @@ def main():
                             shipment_id=shipment.id,
                             po_line_id=line.id,
                             lot_id=(lot.id if lot else None),
-                            qty=Decimal(qty_ship or 0),
+                            qty=Decimal(qty_po or 0),
                         )
                         db.add(item)
                         db.flush()
-
-                    # ✅ Update customer_shipments.status
-                    if ship_date:
-                        db.execute(
-                            update(CustomerShipment)
-                            .where(CustomerShipment.id == shipment.id)
-                            .values(status="shipped")
-                        )
-                        db.flush()
-
-                    # ✅ Also mark the ProductionLot as completed if qty_ship > 0
-                    if qty_ship and lot:
-                        db.execute(
-                            update(ProductionLot)
-                            .where(ProductionLot.id == lot.id)
-                            .values(status="completed")
-                        )
+               
 
 
 
