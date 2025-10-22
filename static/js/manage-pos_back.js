@@ -161,11 +161,19 @@ function customerEditor(cell, onRendered, success, cancel) {
 /* ===== Columns ===== */
 function makeColumns() {
   return [
+    // {
+    //   title: "No.",
+    //   width: 70,
+    //   hozAlign: "right",
+    //   headerHozAlign: "right",
+    //   headerSort: false,
+    //   formatter: "rownum",
+    // },
     { title: "PO No.", field: "po_number", width: 150, editor: "input" },
     {
-      title: "View",
+      title: "PO line",
       field: "_po_line",
-      width: 80,
+      width: 110,
       headerSort: false,
       hozAlign: "center",
       formatter: (cell) => {
@@ -184,7 +192,7 @@ function makeColumns() {
     {
       title: "Customer",
       field: "customer_disp",
-      minWidth: 120,
+      minWidth: 260,
       editor: customerEditor,
       headerSort: true,
     },
@@ -595,95 +603,12 @@ function bindAdd() {
   });
 }
 
-function initCreateForm() {
-  const form = document.getElementById("poForm");
-  const inputPo = document.getElementById("po_number");
-  const inputCustomer = document.getElementById("customer_input");
-  const inputDesc = document.getElementById("po_desc");
-  const btnClear = document.getElementById("btnClear");
-
-  attachAutocomplete(inputCustomer, {
-    fetchItems: fetchCustomers,
-    getDisplayValue: (it) => (it ? `${it.code} — ${it.name}` : ""),
-    renderItem: (it) =>
-      `<div class="ac-row"><b>${safe(it.code)}</b> — ${safe(it.name)}</div>`,
-    openOnFocus: true,
-    minChars: 0,
-    debounceMs: 200,
-    maxHeight: 260,
-    onPick: (it) => {
-      inputCustomer.dataset.customerId = it.id;
-      inputCustomer.value = `${it.code} — ${it.name}`;
-    },
-  });
-
-  // ถ้าผู้ใช้ลบข้อความลูกค้า → เคลียร์ id ด้วย เพื่อกันส่งค่าเพี้ยน
-  inputCustomer.addEventListener("input", () => {
-    if (!trim(inputCustomer.value)) delete inputCustomer.dataset.customerId;
-  });
-
-  form.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const po_number = trim(inputPo.value);
-    const customer_id = inputCustomer.dataset.customerId
-      ? Number(inputCustomer.dataset.customerId)
-      : null;
-    const description = trim(inputDesc.value);
-
-    if (!customer_id) {
-      toast("Please select a customer", false);
-      return;
-    }
-
-    try {
-      const payload = { po_number, customer_id, description };
-      const created = await jfetch(ENDPOINTS.base, {
-        method: "POST",
-        headers: JSON_HEADERS,
-        body: JSON.stringify(payload),
-      });
-      const normalized = normalizeRow(created);
-
-      // เพิ่มเข้า table ทันที (อยู่บนสุด) — ข้อมูลไม่หาย
-      await table.addData([normalized], true);
-
-      toast(`✅ PO ${normalized.po_number} added`);
-      form.reset();
-      delete inputCustomer.dataset.customerId;
-
-      // ถ้ากำลังอยู่ในโหมดค้นหา (ksKeyword ไม่ว่าง) เราไม่รีเฟรช table เพื่อกันผลค้นหาหาย
-      // ผู้ใช้ยังเห็นรายการใหม่ที่เพิ่งเพิ่มเพราะเรา addData เข้ามาแล้ว
-    } catch (err) {
-      toast(err?.message || "Create failed", false);
-    }
-  });
-
-  btnClear.addEventListener("click", () => {
-    form.reset();
-    delete inputCustomer.dataset.customerId;
-  });
-}
-
-/* =========[ OPTIONAL: ปุ่ม +Add Row แค่เพิ่มแถวว่างในตาราง (ไม่บังคับใช้) ]========= */
-function bindAddRowButton() {
-  const btn = els[UI.add];
-  if (!btn) return;
-  btn.addEventListener("click", async () => {
-    // ใช้เพื่อเพิ่มแถวว่างให้ดูได้ แต่ไม่ได้ยิง backend
-    await table.addRow(
-      { po_number: "", customer_disp: "", description: "", created_at: null },
-      true
-    );
-  });
-}
 /* ===== BOOT ===== */
 document.addEventListener("DOMContentLoaded", async () => {
   Object.values(UI).forEach((id) => (els[id] = $(id)));
   initTable();
-
   bindAdd();
   bindSearchKeyset();
-  initCreateForm();
 
   await waitForTableBuilt();
   cursor = null;

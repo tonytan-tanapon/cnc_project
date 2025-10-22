@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>PO · Topnotch – MFG</title>
+
+    <!-- Global styles -->
+    <link rel="stylesheet" href="/static/css/app.css" />
+
+    <!-- Tabulator -->
+    <link
+      rel="stylesheet"
+      href="/static/vendor/tabulator/tabulator_modern.min.css"
+    />
+    <script src="/static/vendor/tabulator/tabulator.min.js"></script>
+
+    <style>
+      /* ===== Edge layout like customers ===== */
+      .main--edge {
+        padding: 0;
+        height: 100vh;
+        overflow: hidden;
+      }
+      .panel--edge {
+        margin: 0;
+        border-radius: 0;
+        border-left-width: 0;
+        border-right-width: 0;
+      }
+      #poPanel {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        min-height: 0;
+      }
+
+      .header {
+        display: grid;
+        grid-template-columns: repeat(12, 1fr);
+        gap: 8px;
+        padding: 8px 0;
+        border-bottom: 1px solid #e5e7eb;
+      }
+      .col-3 {
+        grid-column: span 3;
+      }
+      .col-4 {
+        grid-column: span 4;
+      }
+      .col-6 {
+        grid-column: span 6;
+      }
+      .col-12 {
+        grid-column: span 12;
+      }
+      .header .field {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .header input {
+        height: 36px;
+        padding: 0 12px;
+      }
+      .header .muted {
+        opacity: 0.65;
+      }
+
+      .list-topbar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        height: 44px;
+        padding: 0;
+        border-bottom: 1px solid #e5e7eb;
+      }
+      .list-topbar .title {
+        font-weight: 600;
+        padding: 0 8px;
+      }
+      #btnAddLine {
+        margin-left: auto;
+        height: 36px;
+        border-radius: 0;
+      }
+
+      #po_lines {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow: auto;
+      }
+      #po_lines .tabulator {
+        height: 100% !important;
+        border: 0;
+      }
+      #po_lines .tabulator .tabulator-row:hover {
+        background: #fafafa;
+      }
+      #po_lines .tabulator-cell.actions-cell {
+        overflow: visible;
+      }
+
+      .btn-small {
+        padding: 4px 8px;
+        font-size: 14px;
+        border: 1px solid var(--line, #e5e7eb);
+        border-radius: 6px;
+        background: #111;
+        color: #fff;
+        cursor: pointer;
+      }
+      .btn-small:hover {
+        opacity: 0.9;
+      }
+      .muted {
+        opacity: 0.65;
+      }
+
+      .is-dirty {
+        background: #fff7ed;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <aside class="sidebar"><div id="navSlot" data-nav-slot></div></aside>
+
+      <main class="main main--edge">
+        <section class="panel panel--edge" id="poPanel">
+          <!-- Header -->
+          <div
+            style="
+              display: flex;
+              align-items: center;
+              gap: 8px;
+              padding: 8px 0 6px 0;
+            "
+          >
+            <h2 class="page-title" style="margin: 0">🧾 Purchase Order</h2>
+            <span id="po_subTitle" class="muted">(loading…)</span>
+          </div>
+
+          <div class="header">
+            <div class="field col-3">
+              <label>PO Number</label>
+              <input id="po_po_number" placeholder="AUTO or input…" />
+            </div>
+            <div class="field col-6">
+              <label>Customer</label>
+              <input id="po_customer" placeholder="Search customer…" />
+            </div>
+            <div class="field col-3">
+              <label>Created</label>
+              <div
+                id="po_created"
+                class="muted"
+                style="height: 36px; display: flex; align-items: center"
+              >
+                —
+              </div>
+            </div>
+            <div class="field col-12">
+              <label>Description</label>
+              <input id="po_description" placeholder="Optional description" />
+            </div>
+            <div class="col-12">
+              <div id="po_hint" class="muted" aria-live="polite"></div>
+              <div id="po_error" class="err" style="display: none"></div>
+            </div>
+          </div>
+
+          <!-- Lines topbar -->
+          <div class="list-topbar">
+            <div class="title">Orders</div>
+            <button id="btnAddLine" class="btn" type="button">
+              + Add order
+            </button>
+          </div>
+
+          <!-- Lines table mount -->
+          <div id="po_lines">
+            <div id="po_lines_table"></div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast" role="status" aria-live="polite">
+      <span id="toastText"></span>
+    </div>
+
+    <!-- Navbar loader -->
+    <script type="module" src="/static/js/nav-loader.js"></script>
+
+    <!-- Page script -->
+    <script type="module" src="/static/js/manage-pos-detail.js?v=1"></script>
+  </body>
+</html>

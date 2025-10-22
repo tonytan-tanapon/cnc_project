@@ -19,8 +19,8 @@
       }
 
       .main--edge {
-        height: 100vh;
-        overflow: hidden;
+        min-height: 100vh; /* ✅ ใช้ min-height แทน height */
+        overflow-y: auto; /* ✅ เปิดเลื่อนแนวตั้งได้ */
         display: flex;
         flex-direction: column;
       }
@@ -83,22 +83,15 @@
         opacity: 0.9;
       }
 
-      /* ===== MAIN CONTENT ===== */
-      .tables-row {
-        display: flex;
-        flex: 1;
-        gap: 12px;
-        padding: 12px 16px;
-        overflow: hidden;
-      }
-
+      /* ===== PANEL LAYOUT ===== */
       .panel {
-        flex: 1;
+        flex: none;
         display: flex;
         flex-direction: column;
         background: #fff;
         border: 1px solid #e5e7eb;
         border-radius: 6px;
+        margin: 10px 16px;
         box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
         overflow: hidden;
       }
@@ -116,10 +109,10 @@
 
       .table-wrap {
         flex: 1;
+        height: 35vh;
         overflow: auto;
       }
 
-      /* ===== TOAST ===== */
       .toast {
         position: fixed;
         bottom: 16px;
@@ -151,12 +144,6 @@
       </aside>
 
       <main class="main main--edge">
-        <!-- ===== LOT HEADER ===== -->
-        <div class="lot-info">
-          <h2>📄 Lot Detail</h2>
-          <div id="lotHeader" class="lot-grid">Loading lot information...</div>
-        </div>
-
         <!-- ===== TOOLBAR ===== -->
         <div class="toolbar">
           <button id="btnViewInventory" class="success">
@@ -169,25 +156,37 @@
             ➕ Create Material PO
           </button>
           <button id="btnReceiveBatch" class="success">📦 Receive Batch</button>
-          <!-- <button id="btnReturn" class="secondary">↩️ Return to Inventory</button> -->
-          <button id="btnViewHistory" class="success">View History</button>
-          <!-- ✅ new -->
+          <button id="btnViewHistory" class="success">📜 View History</button>
+        </div>
+        <!-- ===== LOT HEADER ===== -->
+        <div class="lot-info">
+          <h2>📄 Lot Detail</h2>
+          <div id="lotHeader" class="lot-grid">Loading lot information...</div>
         </div>
 
-        <!-- ===== TWO TABLES ===== -->
-        <div class="tables-row">
-          <!-- PART INVENTORY -->
-          <section class="panel">
-            <h3>📦 Part Inventory</h3>
-            <div id="partTable" class="table-wrap"></div>
-          </section>
+        <!-- ===== ROW 1: PART INVENTORY ===== -->
+        <section class="panel">
+          <h3>📦 Part Inventory</h3>
+          <div id="partTable" class="table-wrap"></div>
+        </section>
 
-          <!-- MATERIAL INVENTORY -->
-          <section class="panel">
-            <h3>🧱 Material Inventory</h3>
-            <div id="materialTable" class="table-wrap"></div>
-          </section>
-        </div>
+        <!-- ===== ROW 2: MATERIAL INVENTORY ===== -->
+        <section class="panel">
+          <h3>🧱 Material Inventory</h3>
+          <div id="materialTable" class="table-wrap"></div>
+        </section>
+
+        <!-- ===== ROW 3: ALLOCATED MATERIALS ===== -->
+        <section class="panel">
+          <h3>🔗 Allocated Materials</h3>
+          <div id="allocationTable" class="table-wrap"></div>
+        </section>
+
+        <!-- ===== ROW 4: HISTORY ===== -->
+        <section class="panel">
+          <h3>📜 Material Allocation History</h3>
+          <div id="historyTable" class="table-wrap"></div>
+        </section>
       </main>
     </div>
 
@@ -195,6 +194,10 @@
 
     <script type="module" src="/static/js/nav-loader.js"></script>
     <script src="/static/vendor/tabulator/tabulator.min.js"></script>
-    <script type="module" src="/static/js/manage-lot-materials.js"></script>
+    <script
+      type="module"
+      src="/static/js/manage-lot-materials.js"
+      defer
+    ></script>
   </body>
 </html>

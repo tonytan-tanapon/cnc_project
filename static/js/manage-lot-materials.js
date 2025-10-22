@@ -16,35 +16,41 @@ const ENDPOINTS = {
   createMaterialPO: `/api/v1/material-pos`,
   lotAllocations: `/api/v1/lot-uses/${encodeURIComponent(lotId)}`,
   returnAllocation: `/api/v1/lot-uses/return`,
-  lotHistory: `/api/v1/lot-uses/history/${encodeURIComponent(lotId)}`, // ✅ added
+  lotHistory: `/api/v1/lot-uses/history/${encodeURIComponent(lotId)}`,
   lotSummary: `/api/v1/lot-uses/lot/${encodeURIComponent(lotId)}/summary`,
 };
 
-let tables = { part: null, material: null };
-let currentView = "inventory"; // 'inventory' or 'allocation'
+let tables = { part: null, material: null, allocation: null, history: null };
 
-/* ===== LOAD LOT HEADER ===== */
+/* ===== LOT HEADER ===== */
+/* ===== LOT HEADER ===== */
 async function loadLotHeader() {
   try {
     const lot = await jfetch(ENDPOINTS.lotHeader);
+    console.log("Lot Info:", lot);
     const summary = await jfetch(ENDPOINTS.lotSummary);
 
-    // Build summary string
-    let summaryHtml = "";
-    if (summary.length) {
-      summaryHtml = summary
-        .map(
-          (s) => `${s.material_name}: <b>${s.total_qty.toFixed(2)} ${s.uom}</b>`
-        )
-        .join(", ");
-    } else {
-      summaryHtml = "<i>No materials allocated</i>";
+    const el = document.querySelector("#lotHeader");
+    if (!el) {
+      console.warn("⚠️ lotHeader element not found in DOM");
+      return;
     }
 
-    const hdr = document.getElementById("lotHeader");
-    hdr.innerHTML = `
+    let summaryHtml =
+      Array.isArray(summary) && summary.length
+        ? summary
+            .map(
+              (s) =>
+                `${s.material_name}: <b>${(s.total_qty ?? 0).toFixed(2)} ${
+                  s.uom ?? ""
+                }</b>`
+            )
+            .join(", ")
+        : "<i>No materials allocated</i>";
+
+    el.innerHTML = `
       <div class="lot-grid">
-        <div><b>Lot No:</b> ${lot.lot_no}</div>
+        <div><b>Lot No:</b> ${lot.lot_no ?? "-"}</div>
         <div><b>Part No:</b> ${lot.part?.part_no ?? "-"}</div>
         <div><b>Revision:</b> ${lot.revision ?? "-"}</div>
         <div><b>Planned Qty:</b> ${lot.planned_qty ?? "?"}</div>
@@ -55,193 +61,16 @@ async function loadLotHeader() {
       </div>
       <div class="lot-summary">
         <b>Allocated:</b> ${summaryHtml}
-      </div>
-    `;
+      </div>`;
 
-    document.title = `Lot ${lot.lot_no} · Material Allocation`;
+    // ✅ บังคับ reflow หลังอัปเดต
+    el.offsetHeight;
   } catch (err) {
+    console.error("Lot header load error:", err);
     toast("Failed to load lot info", false);
   }
 }
-
-/* ===== INIT MATERIAL TABLE ===== */
-function initMaterialTable() {
-  tables.material = new Tabulator("#materialTable", {
-    layout: "fitColumns",
-    placeholder: "No material data",
-    columns: [],
-  });
-
-  // ✅ Wait until Tabulator fully initialized
-  tables.material.on("tableBuilt", () => {
-    loadMaterialTable();
-  });
-}
-
-/* ===== LOAD MATERIAL TABLE (toggle view) ===== */
-/* ===== LOAD MATERIAL TABLE (toggle view) ===== */
-async function loadMaterialTable() {
-  if (currentView === "inventory") {
-    // ---------- INVENTORY MODE ----------
-    tables.material.setColumns([
-      { title: "Code", field: "code", visible: false },
-      { title: "Batch No", field: "batch_no" },
-      { title: "Material", field: "name" },
-      { title: "UOM", field: "uom", width: 80, hozAlign: "center" }, // ✅ added
-      { title: "#Available", field: "qty_available", hozAlign: "right" },
-      {
-        title: "#Allocate / Return",
-        field: "allocate",
-        editor: "number",
-        editorParams: { step: "0.01" },
-      },
-      {
-        title: "Action",
-        formatter: () =>
-          `<a href="#" class="link link-green">Allocate</a> | <a href="#" class="link link-red">Return</a>`,
-        cellClick: async (e, cell) => {
-          const row = cell.getRow().getData();
-          const action = e.target.textContent.trim().toLowerCase();
-          const qtyValue = Number(row.allocate) || 0;
-          const available = Number(row.qty_available) || 0;
-
-          if (qtyValue <= 0) {
-            toast("⚠️ Please enter a valid quantity", false);
-            return;
-          }
-
-          if (!row.code) {
-            toast("⚠️ Missing material code", false);
-            return;
-          }
-
-          if (action === "allocate") {
-            // ✅ Allocate
-            if (qtyValue > available) {
-              toast(
-                `❌ Cannot allocate ${qtyValue}. Only ${available} available.`,
-                false
-              );
-              return;
-            }
-
-            try {
-              await jfetch(ENDPOINTS.allocateMaterial, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  lot_id: Number(lotId),
-                  material_code: row.code,
-                  qty: qtyValue,
-                  strategy: "fifo",
-                }),
-              });
-
-              toast(`✅ Allocated ${qtyValue} ${row.name}`);
-              await loadMaterialTable(); // refresh
-              await loadLotHeader();
-            } catch (err) {
-              toast(err?.message || "Allocation failed", false);
-            }
-          }
-
-          if (action === "return") {
-            if (qtyValue <= 0) {
-              toast("⚠️ Please enter a valid return quantity", false);
-              return;
-            }
-
-            if (!confirm(`↩️ Return ${qtyValue} ${row.name} from this lot?`))
-              return;
-
-            try {
-              await jfetch(`/api/v1/lot-uses/return-auto`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  lot_id: Number(lotId),
-                  material_code: row.code,
-                  qty: qtyValue,
-                }),
-              });
-
-              toast(`↩️ Returned ${qtyValue} ${row.name}`);
-              await loadMaterialTable();
-              await loadLotHeader();
-            } catch (err) {
-              toast(err?.message || "Return failed", false);
-            }
-          }
-        },
-      },
-    ]);
-
-    // ✅ Load and filter available materials
-    const res = await jfetch(ENDPOINTS.materialInventory);
-    const filtered = res.filter((r) => (Number(r.qty_available) || 0) > 0);
-    tables.material.setData(filtered);
-  } else if (currentView === "allocation") {
-    // ---------- ALLOCATION MODE ----------
-    tables.material.setColumns([
-      { title: "ID", field: "id", visible: false },
-      { title: "Batch", field: "batch_no" },
-      { title: "Material", field: "material_name" },
-      { title: "Qty", field: "qty", hozAlign: "right" },
-      { title: "UOM", field: "uom", width: 80 },
-      {
-        title: "Action",
-        formatter: () => `<a href="#" class="link link-red">Return</a>`,
-        cellClick: async (e, cell) => {
-          const row = cell.getRow().getData();
-          if (
-            !confirm(`↩️ Return ${row.qty} ${row.uom} of ${row.material_name}?`)
-          )
-            return;
-
-          try {
-            await jfetch(`${ENDPOINTS.returnAllocation}/${row.id}`, {
-              method: "POST",
-            });
-            toast(`↩️ Returned ${row.qty} ${row.uom}`);
-            await loadMaterialTable();
-          } catch (err) {
-            toast(err?.message || "Return failed", false);
-          }
-        },
-      },
-    ]);
-
-    const res = await jfetch(ENDPOINTS.lotAllocations);
-    tables.material.setData(res);
-  } else if (currentView === "history") {
-    // ---------- HISTORY MODE ----------
-    tables.material.setColumns([
-      { title: "Action", field: "action", width: 110 },
-      { title: "Material Code", field: "material_code", visible: false },
-      { title: "Batch", field: "batch_id" },
-      { title: "Qty", field: "qty", hozAlign: "right" },
-      { title: "UOM", field: "uom", width: 80 },
-      {
-        title: "Date",
-        field: "created_at",
-        formatter: (cell) => {
-          const d = new Date(cell.getValue());
-          return d.toLocaleString();
-        },
-      },
-    ]);
-
-    try {
-      const res = await jfetch(ENDPOINTS.lotHistory);
-      if (!res.length) toast("No history records found");
-      tables.material.setData(res);
-    } catch (err) {
-      toast(err?.message || "Failed to load history", false);
-    }
-  }
-}
-
-/* ===== INIT PART TABLE ===== */
+/* ===== PART TABLE ===== */
 function initPartTable() {
   tables.part = new Tabulator("#partTable", {
     ajaxURL: ENDPOINTS.partInventory,
@@ -256,72 +85,284 @@ function initPartTable() {
   });
 }
 
-/* ===== TOOLBAR ACTIONS ===== */
-function initToolbar() {
-  const btnCreatePO = document.getElementById("btnCreatePO");
-  const btnReceiveBatch = document.getElementById("btnReceiveBatch");
-  const btnViewInventory = document.getElementById("btnViewInventory");
-  const btnViewAllocations = document.getElementById("btnViewAllocations");
-  const btnViewHistory = document.getElementById("btnViewHistory");
-  if (
-    !btnCreatePO ||
-    !btnReceiveBatch ||
-    !btnViewInventory ||
-    !btnViewAllocations ||
-    !btnViewHistory
-  ) {
-    console.warn("⚠️ Toolbar buttons not found in DOM");
-    return;
+/* ===== MATERIAL INVENTORY ===== */
+function initMaterialTable() {
+  tables.material = new Tabulator("#materialTable", {
+    layout: "fitColumns",
+    placeholder: "No material data",
+    columns: [
+      { title: "Batch No", field: "batch_no" },
+      { title: "Material", field: "name" },
+
+      { title: "#Available", field: "qty_available", hozAlign: "right" },
+      {
+        title: "UOM",
+        field: "uom",
+        width: 80,
+        hozAlign: "center",
+        formatter: (cell) => cell.getValue() || "-",
+      },
+      {
+        title: "QTY Allocate",
+        field: "allocate",
+        editor: "number",
+        editorParams: { step: "1", min: 0 },
+      },
+
+      {
+        title: "Action",
+        formatter: () => `<a href="#" class="link link-green">Allocate</a>`,
+        cellClick: async (e, cell) => {
+          const row = cell.getRow().getData();
+          const qtyValue = Number(row.allocate) || 0;
+          const available = Number(row.qty_available) || 0;
+
+          if (qtyValue <= 0)
+            return toast("⚠️ Enter valid allocation quantity", false);
+          if (qtyValue > available)
+            return toast(
+              `❌ Cannot allocate ${qtyValue}. Only ${available} available.`,
+              false
+            );
+
+          try {
+            await jfetch(ENDPOINTS.allocateMaterial, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                lot_id: Number(lotId),
+                material_code: row.material_code || row.code,
+                qty: String(qtyValue),
+                strategy: "fifo",
+              }),
+            });
+
+            toast(`✅ Allocated ${qtyValue} ${row.name}`);
+            await loadMaterialTable();
+            await loadAllocationTable();
+            await loadLotHeader();
+            await loadHistoryTable?.();
+          } catch (err) {
+            toast(err?.message || "Allocation failed", false);
+          }
+        },
+      },
+    ],
+  });
+
+  loadMaterialTable();
+}
+
+async function loadMaterialTable() {
+  const res = await jfetch(ENDPOINTS.materialInventory);
+  const filtered = res.filter((r) => (Number(r.qty_available) || 0) > 0);
+  tables.material.setData(filtered);
+}
+
+/* ===== GROUP BY BATCH ===== */
+function groupAllocationsByBatch(data) {
+  const grouped = {};
+  for (const row of data) {
+    const key = row.batch_no || row.batch || "UNKNOWN";
+    if (!grouped[key]) {
+      grouped[key] = {
+        ...row,
+        qty_total: 0,
+        qty_return_total: 0,
+      };
+    }
+    grouped[key].qty_total += Number(row.qty || 0);
+    grouped[key].qty_return_total += Number(row.qty_return || 0);
   }
+  return Object.values(grouped);
+}
 
-  btnViewHistory.addEventListener("click", () => {
-    currentView = "history";
-    toast("📜 Viewing Material Allocation History");
-    loadMaterialTable();
+/* ===== ALLOCATION TABLE ===== */
+function initAllocationTable() {
+  tables.allocation = new Tabulator("#allocationTable", {
+    layout: "fitColumns",
+    placeholder: "No allocation records",
+    columns: [
+      { title: "Batch", field: "batch_no" },
+      { title: "Material", field: "material_name" },
+      {
+        title: "Qty (Allocated)",
+        field: "qty_total",
+        hozAlign: "right",
+        editor: false,
+      },
+      {
+        title: "UOM",
+        field: "uom",
+        width: 80,
+        hozAlign: "center",
+        formatter: (cell) => cell.getValue() || "-",
+      },
+      {
+        title: "Qty Return",
+        field: "qty_return_total",
+        hozAlign: "right",
+        editor: "number",
+        editorParams: { step: "1", min: 0 },
+      },
+
+      {
+        title: "Action",
+        formatter: () => `<a href="#" class="link link-red">↩️ Return</a>`,
+        cellClick: async (e, cell) => {
+          const row = cell.getRow().getData();
+          const returnQty = Number(row.qty_return_total) || 0;
+
+          if (returnQty <= 0)
+            return toast("⚠️ Enter a valid Qty Return first", false);
+          if (returnQty > Number(row.qty_total))
+            return toast(
+              `❌ Return qty cannot exceed allocated (${row.qty_total})`,
+              false
+            );
+          if (
+            !confirm(
+              `↩️ Return ${returnQty} ${row.uom} of ${row.material_name}?`
+            )
+          )
+            return;
+
+          try {
+            await jfetch(`/api/v1/lot-uses/return-auto`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                lot_id: Number(lotId),
+                material_code: row.material_code || row.code,
+                qty: String(returnQty),
+              }),
+            });
+
+            toast(`↩️ Returned ${returnQty} ${row.uom} (${row.material_name})`);
+            await loadAllocationTable();
+            await loadMaterialTable();
+            await loadLotHeader();
+            await loadHistoryTable?.();
+          } catch (err) {
+            toast(`❌ Return failed: ${err.message}`, false);
+          }
+        },
+      },
+    ],
   });
 
-  btnCreatePO.addEventListener("click", async () => {
-    try {
-      await jfetch(ENDPOINTS.createMaterialPO, { method: "POST" });
-      toast("🧾 New Material PO Created");
-      await loadMaterialTable();
-    } catch (err) {
-      toast(err?.message || "Create PO failed", false);
-    }
+  loadAllocationTable();
+}
+
+async function loadAllocationTable() {
+  try {
+    const res = await jfetch(ENDPOINTS.lotAllocations);
+    const grouped = groupAllocationsByBatch(res);
+    tables.allocation.setData(grouped);
+  } catch (err) {
+    toast(err?.message || "Failed to load allocation table", false);
+  }
+}
+
+/* ===== HISTORY TABLE ===== */
+function initHistoryTable() {
+  tables.history = new Tabulator("#historyTable", {
+    layout: "fitColumns",
+    placeholder: "No history records",
+    columns: [
+      { title: "Action", field: "action", width: 120 },
+      { title: "Material", field: "material_code" },
+      { title: "Batch", field: "batch_id" },
+      { title: "Qty", field: "qty", hozAlign: "right" },
+      { title: "UOM", field: "uom", width: 80 },
+      {
+        title: "Date",
+        field: "created_at",
+        formatter: (cell) => {
+          const d = new Date(cell.getValue());
+          return d.toLocaleString();
+        },
+      },
+    ],
   });
 
-  btnReceiveBatch.addEventListener("click", async () => {
-    try {
-      await jfetch(ENDPOINTS.receiveBatch, { method: "POST" });
-      toast("📦 Batch Received");
-      await loadMaterialTable();
-    } catch (err) {
-      toast(err?.message || "Receive batch failed", false);
-    }
+  loadHistoryTable();
+}
+
+async function loadHistoryTable() {
+  try {
+    const res = await jfetch(ENDPOINTS.lotHistory);
+    tables.history.setData(res);
+  } catch (err) {
+    toast(err?.message || "Failed to load history", false);
+  }
+}
+
+/* ===== TOOLBAR ===== */
+function initToolbar() {
+  const btnCreatePO = $("#btnCreatePO");
+  const btnReceiveBatch = $("#btnReceiveBatch");
+  const btnViewInventory = $("#btnViewInventory");
+  const btnViewAllocations = $("#btnViewAllocations");
+  const btnViewHistory = $("#btnViewHistory");
+
+  on(btnCreatePO, "click", async () => {
+    await jfetch(ENDPOINTS.createMaterialPO, { method: "POST" });
+    toast("🧾 New Material PO Created");
+    await loadMaterialTable();
   });
 
-  btnViewInventory.addEventListener("click", () => {
-    currentView = "inventory";
+  on(btnReceiveBatch, "click", async () => {
+    await jfetch(ENDPOINTS.receiveBatch, { method: "POST" });
+    toast("📦 Batch Received");
+    await loadMaterialTable();
+  });
+
+  on(btnViewInventory, "click", () => {
     toast("📋 Viewing Material Inventory");
     loadMaterialTable();
   });
 
-  btnViewAllocations.addEventListener("click", () => {
-    currentView = "allocation";
-    toast("🔗 Viewing Allocated Materials");
-    loadMaterialTable();
+  on(btnViewAllocations, "click", () => {
+    toast("🔗 Viewing Allocations");
+    loadAllocationTable();
   });
+
+  on(btnViewHistory, "click", async () => {
+    toast("📜 Viewing History");
+    await loadHistoryTable();
+  });
+}
+
+function on(el, event, handler) {
+  if (!el) return;
+  el.addEventListener(event, handler);
 }
 
 /* ===== BOOT ===== */
 document.addEventListener("DOMContentLoaded", async () => {
-  try {
-    await loadLotHeader();
-    initPartTable();
-    initMaterialTable();
-    initToolbar();
-  } catch (err) {
-    console.error("❌ Initialization failed:", err);
-    toast("Initialization error", false);
-  }
+  // ✅ รอให้ nav-loader โหลด sidebar เสร็จก่อน
+  const navReady = new Promise((resolve) => {
+    const slot = document.querySelector("[data-nav-slot]");
+    if (!slot) return resolve();
+    const obs = new MutationObserver(() => {
+      if (slot.innerHTML.trim() !== "") {
+        obs.disconnect();
+        resolve();
+      }
+    });
+    obs.observe(slot, { childList: true });
+  });
+
+  await navReady; // ✅ รอ sidebar โหลดครบจริง ๆ
+
+  // ✅ DOM พร้อมทั้งหมดแล้ว เริ่มโหลดข้อมูล
+  await loadLotHeader();
+  initPartTable();
+  initMaterialTable();
+  initAllocationTable();
+  initHistoryTable();
+  initToolbar();
+
+  console.log("✅ manage-lot-materials initialized successfully");
 });

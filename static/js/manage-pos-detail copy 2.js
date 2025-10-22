@@ -275,9 +275,8 @@ async function cancelHeaderManual() {
       code: initial.customer.code,
       name: initial.customer.name,
     };
-    elCustomer.value = `${initial.customer.code} — ${
-      initial.customer.name ?? ""
-    }`;
+    elCustomer.value = `${initial.customer.code} — ${initial.customer.name ?? ""
+      }`;
   } else {
     selectedCustomer = null;
     elCustomer.value = "";
@@ -324,9 +323,9 @@ function fmtMoney(n) {
   return n == null
     ? ""
     : Number(n).toLocaleString(undefined, {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      });
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
 }
 function fmtQty(n) {
   return Number(n ?? 0).toLocaleString(undefined, { maximumFractionDigits: 3 });
@@ -393,14 +392,14 @@ function normalizeServerLine(row) {
     lots: Array.isArray(row.lots)
       ? row.lots
       : row.lot_id && row.lot_no
-      ? [{ id: row.lot_id, lot_no: row.lot_no }]
-      : [],
+        ? [{ id: row.lot_id, lot_no: row.lot_no }]
+        : [],
 
     travelers: Array.isArray(row.travelers)
       ? row.travelers
       : row.traveler_id && row.traveler_no
-      ? [{ id: row.traveler_id, traveler_no: row.traveler_no }]
-      : [],
+        ? [{ id: row.traveler_id, traveler_no: row.traveler_no }]
+        : [],
   };
 }
 
@@ -422,7 +421,9 @@ function autosaveRow(row, { immediate = false } = {}) {
     d.due_date ||
     d.second_due_date ||
     d.note;
-  if (!d.id && !d.part_id) return;
+  if (!d.id && !d.part_id) {
+    return;
+  }
   if (hasAny && !d.part_id) {
     toast("Select Part first", false);
     return;
@@ -430,7 +431,7 @@ function autosaveRow(row, { immediate = false } = {}) {
 
   const payload = buildLinePayload(d);
 
-  // ✅ CREATE
+  // CREATE
   if (!d.id) {
     if (createInFlight.has(row)) return;
     createInFlight.add(row);
@@ -458,20 +459,16 @@ function autosaveRow(row, { immediate = false } = {}) {
         setTimeout(() => {
           try {
             linesTable.redraw(true);
-          } catch {}
+          } catch { }
         }, 0);
       });
     return;
   }
 
-  // ✅ PATCH (debounced)
+  // PATCH (debounced)
   if (patchTimers.has(row)) clearTimeout(patchTimers.get(row));
   const apply = () => {
     patchTimers.delete(row);
-
-    const keepRevId = d.revision_id;
-    const keepRevText = d.revision_text;
-
     jfetch(`/pos/${encodeURIComponent(poid)}/lines/${d.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -479,13 +476,6 @@ function autosaveRow(row, { immediate = false } = {}) {
     })
       .then((updated) => {
         const norm = normalizeServerLine(updated || d);
-
-        // 🧩 ป้องกันไม่ให้ server overwrite revision ที่เพิ่งตั้งเอง
-        if (!norm.revision_id && keepRevId) {
-          norm.revision_id = keepRevId;
-          norm.revision_text = keepRevText;
-        }
-
         const fields = [
           "part_id",
           "part_no",
@@ -502,7 +492,6 @@ function autosaveRow(row, { immediate = false } = {}) {
           const nxt = norm[f];
           if (cur !== nxt) row.getCell(f)?.setValue(nxt, true);
         }
-
         setDirtyClass(row, false);
         toast("Saved");
       })
@@ -525,7 +514,7 @@ function autosaveRow(row, { immediate = false } = {}) {
               `/pos/${encodeURIComponent(poid)}/lines/${d.id}`
             );
             row.update(normalizeServerLine(fresh));
-          } catch {}
+          } catch { }
           toast(e?.message || "Save failed", false);
         }
       })
@@ -533,11 +522,10 @@ function autosaveRow(row, { immediate = false } = {}) {
         setTimeout(() => {
           try {
             linesTable.redraw(true);
-          } catch {}
+          } catch { }
         }, 0);
       });
   };
-
   if (immediate) apply();
   else patchTimers.set(row, setTimeout(apply, PATCH_DEBOUNCE_MS));
 }
@@ -567,9 +555,7 @@ function partAutocompleteEditor(cell, onRendered, success, cancel) {
     onPick: (it) => {
       success(it.part_no);
       const row = cell.getRow();
-
-      (async () => {
-        // ✅ อัปเดต part ทันที
+      setTimeout(() => {
         row.update({
           part_id: it.id,
           part_no: it.part_no,
@@ -577,35 +563,8 @@ function partAutocompleteEditor(cell, onRendered, success, cancel) {
           revision_text: "",
         });
         setDirtyClass(row, true);
-        await autosaveRow(row, { immediate: true });
-
-        // ✅ ดึง revision ปัจจุบัน
-        try {
-          const revs = await jfetch(`/parts/${it.id}/revisions`);
-          console.log("Revs fetched:", revs); // debug log
-
-          const current = (revs || []).find(
-            (r) => r.is_current || r.isCurrent || r.current
-          );
-          if (current) {
-            row.update({
-              revision_id: current.id,
-              revision_text: current.rev || current.code || "",
-            });
-
-            console.log("Applying revision:", current);
-
-            // ✅ รอ 0.5 วิ แล้วบันทึก revision ไป backend
-            setTimeout(() => autosaveRow(row, { immediate: true }), 500);
-            toast(`Auto-selected current revision: ${current.rev}`);
-          } else {
-            toast("No current revision found", false);
-          }
-        } catch (e) {
-          console.error("Revision fetch failed:", e);
-          toast("Load revision failed", false);
-        }
-      })();
+        autosaveRow(row, { immediate: true });
+      }, 0);
     },
     minChars: 0,
     openOnFocus: true,
@@ -712,7 +671,7 @@ function initLinesTable() {
     if (!ready || !holder.offsetWidth) return;
     try {
       linesTable.redraw(true);
-    } catch {}
+    } catch { }
   };
 
   linesTable = new Tabulator(holder, {
@@ -754,23 +713,24 @@ function initLinesTable() {
 
           const href = `/static/manage-part-detail.html?part_id=${encodeURIComponent(
             pid
-          )}${revId ? `&part_revision_id=${encodeURIComponent(revId)}` : ""}${
-            custId ? `&customer_id=${encodeURIComponent(custId)}` : ""
-          }`;
+          )}${revId ? `&part_revision_id=${encodeURIComponent(revId)}` : ""}${custId ? `&customer_id=${encodeURIComponent(custId)}` : ""
+            }`;
 
-          return `<a class="link" href="${href}" >${safe(String(pno))}</a>`;
+          return `<a class="link" href="${href}" >${safe(
+            String(pno)
+          )}</a>`;
         },
       },
       {
         title: "Revision",
         field: "revision_text",
-        width: 80,
+        width: 120,
         editor: revisionAutocompleteEditor,
       },
       {
         title: "Qty",
         field: "qty",
-        width: 80,
+        width: 110,
         hozAlign: "right",
         headerHozAlign: "right",
         editor: "number",
@@ -778,9 +738,9 @@ function initLinesTable() {
         formatter: (c) => fmtQty(c.getValue()),
       },
       {
-        title: "Price",
+        title: "Unit Price",
         field: "unit_price",
-        width: 80,
+        width: 130,
         hozAlign: "right",
         headerHozAlign: "right",
         editor: "number",
@@ -803,7 +763,7 @@ function initLinesTable() {
         formatter: (c) =>
           c.getValue() ? new Date(c.getValue()).toLocaleDateString() : "",
       },
-      { title: "Notes", field: "note", editor: "input", width: 120 },
+      { title: "Notes", field: "note", editor: "input" },
 
       // --- Multi-Lot & Multi-Traveler renderers ---
       {
@@ -848,8 +808,7 @@ function initLinesTable() {
         width: 120,
         hozAlign: "center",
         headerSort: false,
-        formatter: () =>
-          `<button class="btn-mini btn-primary" data-act="materials">Materials</button>`,
+        formatter: () => `<button class="btn-mini btn-primary" data-act="materials">Materials</button>`,
         cellClick: (e, cell) => {
           const row = cell.getRow();
           const lots = row.getData().lots || [];
@@ -858,12 +817,9 @@ function initLinesTable() {
             return;
           }
           const lotId = lots[0].id; // or prompt user if multiple lots exist
-          window.open(
-            `/static/manage-lot-materials.html?lot_id=${encodeURIComponent(
-              lotId
-            )}`
-          );
+          window.open(`/static/manage-lot-materials.html?lot_id=${encodeURIComponent(lotId)}`);
         },
+
       },
 
       {
@@ -872,8 +828,7 @@ function initLinesTable() {
         width: 120,
         hozAlign: "center",
         headerSort: false,
-        formatter: () =>
-          `<button class="btn-mini btn-primary" data-act="shippments">shippments</button>`,
+        formatter: () => `<button class="btn-mini btn-primary" data-act="shippments">shippments</button>`,
         cellClick: (e, cell) => {
           const row = cell.getRow();
           const lots = row.getData().lots || [];
@@ -882,13 +837,12 @@ function initLinesTable() {
             return;
           }
           const lotId = lots[0].id; // or prompt user if multiple lots exist
-          window.open(
-            `/static/manage-lot-shippments.html?lot_id=${encodeURIComponent(
-              lotId
-            )}`
-          );
+          window.open(`/static/manage-shipments?lot_id=${encodeURIComponent(lotId)}`);
         },
+
+
       },
+
 
       {
         title: "Build",
@@ -927,9 +881,7 @@ function initLinesTable() {
             // Switch to edit mode for that row
             toggleRowEdit(row, true);
             setReadMode(false);
-            const firstEditable = row
-              .getCells()
-              .find((c) => c.getColumn().getDefinition().editor);
+            const firstEditable = row.getCells().find(c => c.getColumn().getDefinition().editor);
             if (firstEditable) firstEditable.edit(true);
             toast("Editing mode");
             return;
@@ -964,12 +916,11 @@ function initLinesTable() {
   linesTable.on("rowDblClick", (e, row) => {
     toggleRowEdit(row, true);
     setReadMode(false);
-    const firstEditable = row
-      .getCells()
-      .find((c) => c.getColumn().getDefinition().editor);
+    const firstEditable = row.getCells().find(c => c.getColumn().getDefinition().editor);
     if (firstEditable) firstEditable.edit(true);
     toast("Editing mode");
   });
+
 }
 
 function makeBlankLine() {

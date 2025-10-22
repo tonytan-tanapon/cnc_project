@@ -214,3 +214,26 @@ def delete_use(id: int, db: Session = Depends(get_db)):
         raise HTTPException(404, "Use record not found")
     db.delete(use)
     db.commit()
+
+
+@router.get("/lot/{lot_id}/header")
+def get_lot_header(lot_id: int, db: Session = Depends(get_db)):
+    lot = (
+        db.query(ProductionLot)
+        .filter(ProductionLot.id == lot_id)
+        .first()
+    )
+    if not lot:
+        raise HTTPException(404, "Lot not found")
+
+    return {
+        "lot_no": lot.lot_no,
+        "status": lot.status,
+        "due_date": str(lot.lot_due_date) if lot.lot_due_date else None,
+        "planned_qty": lot.planned_qty,
+        "note": lot.note,
+        "part": {
+            "part_no": lot.part.part_no if lot.part else None,
+        },
+        "po": lot.po_id,
+    }

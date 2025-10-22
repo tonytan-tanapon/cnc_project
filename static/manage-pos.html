@@ -12,100 +12,88 @@
     />
 
     <style>
+      body {
+        margin: 0;
+        font-family: system-ui, sans-serif;
+        background: #f9fafb;
+      }
       .main--edge {
-        padding: 0;
+        display: flex;
         height: 100vh;
         overflow: hidden;
       }
-      .panel--edge {
-        margin: 0;
-        border-radius: 0;
-        border-left-width: 0;
-        border-right-width: 0;
-      }
+
+      /* ซ้าย: ตาราง */
       #listPanel {
+        flex: 2;
         display: flex;
         flex-direction: column;
-        height: 100%;
-        min-height: 0;
+        min-width: 0;
+        border-right: 1px solid #e5e7eb;
+        background: #fff;
       }
-
       .list-topbar {
         display: flex;
         align-items: center;
-        justify-content: flex-start;
         gap: 8px;
         height: 44px;
-        padding: 0;
+        padding: 0 10px;
         border-bottom: 1px solid #e5e7eb;
       }
-      .list-topbar .search-lg {
+      .search-lg {
         flex: 0 0 260px;
-        min-width: 200px;
-        height: 36px;
-        padding: 0 12px;
-        border-radius: 0;
+        height: 32px;
+        padding: 0 10px;
       }
       #_add {
-        margin-left: 0 !important;
-        height: 36px;
-        border-radius: 0;
+        height: 32px;
       }
-
       #listBody {
-        flex: 1 1 auto;
-        min-height: 0;
+        flex: 1;
         overflow: auto;
       }
       #listBody .tabulator {
         height: 100% !important;
         border: 0;
       }
-      #listBody .tabulator-tableholder {
-        overflow: auto !important;
-      }
-      #listBody .tabulator-cell.wrap {
-        white-space: normal;
-        word-break: break-word;
-      }
-      /* ป้องกันปุ่ม actions โดนตัด */
-      #listBody .tabulator-cell.actions-cell {
-        overflow: visible;
-      }
 
-      /* สกอร์ลบาร์สวย ๆ (ไม่บังคับ) */
-      #listBody .tabulator-tableholder {
-        scrollbar-gutter: stable both-edges;
+      /* ขวา: ฟอร์มสร้าง PO */
+      #createPanel {
+        flex: 1;
+        min-width: 340px;
+        max-width: 420px;
+        background: #fff;
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        border-left: 1px solid #e5e7eb;
       }
-      #listBody .tabulator-tableholder::-webkit-scrollbar {
-        width: 16px;
-        height: 16px;
+      #createPanel h3 {
+        margin: 0 0 12px 0;
       }
-      #listBody .tabulator-tableholder::-webkit-scrollbar-track {
-        background: #f1f5f9;
-        border-radius: 8px;
+      #poForm {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
       }
-      #listBody .tabulator-tableholder::-webkit-scrollbar-thumb {
-        background: #cbd5e1;
-        border-radius: 8px;
-        border: 3px solid #f1f5f9;
-      }
-      #listBody .tabulator-tableholder::-webkit-scrollbar-thumb:hover {
-        background: #94a3b8;
-      }
-      #listBody .tabulator-tableholder {
-        scrollbar-width: auto;
-        scrollbar-color: #cbd5e1 #f1f5f9;
-      }
-
-      /* ลิงก์ View */
-      a.view-link {
-        color: #2563eb;
-        text-decoration: underline;
+      #poForm label {
         font-weight: 600;
       }
-      a.view-link:hover {
-        text-decoration: none;
+      #poForm input,
+      #poForm textarea {
+        padding: 6px 8px;
+        font-size: 14px;
+        border: 1px solid #d1d5db;
+        border-radius: 4px;
+      }
+      #poForm .form-actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 12px;
+      }
+      /* สวยขึ้นนิดเวลามีรายการยาว */
+      #createPanel {
+        overflow-y: auto;
       }
     </style>
   </head>
@@ -114,8 +102,8 @@
       <aside class="sidebar"><div id="navSlot" data-nav-slot></div></aside>
 
       <main class="main main--edge">
-        <section class="panel panel--edge" id="listPanel">
-          <div>POs</div>
+        <!-- ซ้าย: ตาราง -->
+        <section id="listPanel">
           <div class="list-topbar">
             <input
               id="_q"
@@ -123,10 +111,38 @@
               class="search-lg"
               placeholder="Search POs…"
             />
-            <button id="_add" class="btn" type="button">+ Add</button>
+            <!-- <button id="_add" class="btn" type="button">+ Add Row</button> -->
           </div>
           <div id="listBody"></div>
         </section>
+
+        <!-- ขวา: ฟอร์มสร้าง -->
+        <aside id="createPanel">
+          <h3>Create New PO</h3>
+          <form id="poForm" onsubmit="return false;">
+            <label>PO No.</label>
+            <input id="po_number" type="text" placeholder="Enter PO number" />
+
+            <label>Customer</label>
+            <input
+              id="customer_input"
+              type="text"
+              placeholder="Search customer…"
+            />
+
+            <label>Description</label>
+            <textarea
+              id="po_desc"
+              rows="3"
+              placeholder="Optional description"
+            ></textarea>
+
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary">Save</button>
+              <button id="btnClear" type="button" class="btn">Clear</button>
+            </div>
+          </form>
+        </aside>
       </main>
     </div>
 

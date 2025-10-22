@@ -77,9 +77,18 @@ function _isJSON(res) {
 
 export async function jfetch(path, init = {}) {
   const url = withBase(path);
+
+  // ✅ แนบ token อัตโนมัติถ้ามีใน localStorage
+  const headers = {
+    "content-type": "application/json",
+    ...(init.headers || {}),
+  };
+  const token = localStorage.getItem("token");
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
   const res = await fetch(url, {
-    headers: { "content-type": "application/json", ...(init.headers || {}) },
     ...init,
+    headers,
   });
 
   if (!res.ok) {
@@ -102,7 +111,6 @@ export async function jfetch(path, init = {}) {
   // ✅ success: tolerate empty/no-content responses (e.g., DELETE 204)
   if (!_hasBody(res)) return null;
 
-  // keep old behavior for everything else
   return _isJSON(res) ? res.json() : res.text();
 }
 
