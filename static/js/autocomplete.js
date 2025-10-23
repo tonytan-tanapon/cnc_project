@@ -80,15 +80,40 @@ export function attachAutocomplete(inputEl, opts) {
     return box;
   }
 
+  // function placeBox() {
+  //   if (!box) return;
+  //   const rect = inputEl.getBoundingClientRect();
+  //   const top = window.scrollY + rect.bottom + 4;
+  //   const left = window.scrollX + rect.left;
+  //   box.style.top = `${top}px`;
+  //   box.style.left = `${left}px`;
+  //   box.style.minWidth = `${rect.width}px`;
+  // }
+
+
   function placeBox() {
-    if (!box) return;
-    const rect = inputEl.getBoundingClientRect();
-    const top = window.scrollY + rect.bottom + 4;
-    const left = window.scrollX + rect.left;
-    box.style.top = `${top}px`;
-    box.style.left = `${left}px`;
-    box.style.minWidth = `${rect.width}px`;
+  if (!box) return;
+
+  const rect = inputEl.getBoundingClientRect();
+  const listHeight = box.offsetHeight || cfg.maxHeight;
+  const spaceBelow = window.innerHeight - rect.bottom;
+  const spaceAbove = rect.top;
+  let top;
+
+  // 🩹 พลิกขึ้นบนถ้าด้านล่างไม่พอแต่ด้านบนยังพอ
+  if (spaceBelow < listHeight && spaceAbove > spaceBelow) {
+    top = window.scrollY + rect.top - listHeight - 4;  // show above input
+  } else {
+    top = window.scrollY + rect.bottom + 4;            // show below input
   }
+
+  const left = window.scrollX + rect.left;
+  box.style.top = `${top}px`;
+  box.style.left = `${left}px`;
+  box.style.minWidth = `${rect.width}px`;
+  box.style.position = "absolute";
+  box.style.zIndex = cfg.zIndex;
+}
 
   function hide() {
     if (!box) return;

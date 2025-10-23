@@ -41,10 +41,7 @@ const safe = (s) =>
 const fmtDate = (s) => {
   if (!s) return "—";
   const d = new Date(s);
- return isNaN(d)
-  ? "—"
-  : d.toLocaleString("en-US", { timeZone: "America/Los_Angeles" });
-
+  return isNaN(d) ? "—" : d.toLocaleString();
 };
 const trim = (v) => (v == null ? "" : String(v).trim());
 
@@ -796,43 +793,16 @@ function initLinesTable() {
         field: "due_date",
         width: 120,
         editor: "date",
-
-
-        formatter: (c) => {
-  const val = c.getValue();
-  if (!val) return "";
-  const [y, m, d] = String(val).split("T")[0].split("-");
-  if (!y || !m || !d) return "";
-  // ✅ ตีความว่าเป็นวันที่ตามปฏิทิน (ไม่สน timezone)
-  return new Date(Number(y), Number(m) - 1, Number(d)).toLocaleDateString(
-    "en-US",
-    { timeZone: "America/Los_Angeles" }
-  );
-},
-
-
-
+        formatter: (c) =>
+          c.getValue() ? new Date(c.getValue()).toLocaleDateString() : "",
       },
       {
         title: "Due 2",
         field: "second_due_date",
         width: 120,
         editor: "date",
-
-        formatter: (c) => {
-  const val = c.getValue();
-  if (!val) return "";
-  const [y, m, d] = String(val).split("T")[0].split("-");
-  if (!y || !m || !d) return "";
-  // ✅ ตีความว่าเป็นวันที่ตามปฏิทิน (ไม่สน timezone)
-  return new Date(Number(y), Number(m) - 1, Number(d)).toLocaleDateString(
-    "en-US",
-    { timeZone: "America/Los_Angeles" }
-  );
-},
-
-
-
+        formatter: (c) =>
+          c.getValue() ? new Date(c.getValue()).toLocaleDateString() : "",
       },
       { title: "Notes", field: "note", editor: "input", width: 120 },
 
