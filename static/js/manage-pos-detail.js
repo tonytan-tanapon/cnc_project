@@ -1002,7 +1002,22 @@ document.addEventListener("DOMContentLoaded", () => {
     setDirtyClass(row, true);
   });
 });
-
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) {
+    // when window restored, force Tabulator to re-enable editors
+    setTimeout(() => {
+      try {
+        linesTable.redraw(true);
+        // refocus any active editor if present
+        const active = document.querySelector(".tabulator-editing");
+        if (active) {
+          active.focus();
+          active.select?.();
+        }
+      } catch {}
+    }, 100);
+  }
+});
 /* ---------- Delete line ---------- */
 async function deleteLine(row) {
   const d = row.getData();
