@@ -10,67 +10,67 @@ let table = null;
 /* ===== Build columns ===== */
 function makeColumns() {
   return [
-  {
-  title: "Lot No",
-  field: "lot_no",
-  width: 120,
-  sorter: (a, b) => {
-    if (!a) a = "";
-    if (!b) b = "";
-    const na = Number((a.match(/\d+/) || [0])[0]);
-    const nb = Number((b.match(/\d+/) || [0])[0]);
-    const isAutoA = a.startsWith("AUTO-");
-    const isAutoB = b.startsWith("AUTO-");
-    if (isAutoA && !isAutoB) return 1;
-    if (!isAutoA && isAutoB) return -1;
-    return na - nb;
-  },
-  formatter: (cell) => {
-    const d = cell.getData();
-    const lotId = d.lot_id;
-    if (!lotId) return cell.getValue() ?? "";
-    const href = `/static/lot-detail.html?lot_id=${encodeURIComponent(lotId)}`;
-    return `<a class="link" href="${href}">${cell.getValue() ?? ""}</a>`;
-  },
-  cellClick: (e, cell) => {
-    e.stopPropagation();
-    const d = cell.getData();
-    const lotId = d.lot_id;
-    if (!lotId) return;
-    location.href = `/static/lot-detail.html?lot_id=${encodeURIComponent(lotId)}`;
-  },
-},
+    {
+      title: "Lot No",
+      field: "lot_no",
+      width: 120,
+      sorter: (a, b) => {
+        if (!a) a = "";
+        if (!b) b = "";
+        const na = Number((a.match(/\d+/) || [0])[0]);
+        const nb = Number((b.match(/\d+/) || [0])[0]);
+        const isAutoA = a.startsWith("AUTO-");
+        const isAutoB = b.startsWith("AUTO-");
+        if (isAutoA && !isAutoB) return 1;
+        if (!isAutoA && isAutoB) return -1;
+        return na - nb;
+      },
+      formatter: (cell) => {
+        const d = cell.getData();
+        const lotId = d.lot_id;
+        if (!lotId) return cell.getValue() ?? "";
+        const href = `/static/lot-detail.html?lot_id=${encodeURIComponent(lotId)}`;
+        return `<a class="link" href="${href}">${cell.getValue() ?? ""}</a>`;
+      },
+      cellClick: (e, cell) => {
+        e.stopPropagation();
+        const d = cell.getData();
+        const lotId = d.lot_id;
+        if (!lotId) return;
+        location.href = `/static/lot-detail.html?lot_id=${encodeURIComponent(lotId)}`;
+      },
+    },
     // { title: "Part No", field: "part_no",  width: 120 },
-{
-  title: "Part No",
-  field: "part_no",
-  width: 120,
-  headerSort: true,
-  formatter: (cell) => {
-    const d = cell.getData();
-    if (!d?.part_id) return cell.getValue() ?? "";
+    {
+      title: "Part No",
+      field: "part_no",
+      width: 120,
+      headerSort: true,
+      formatter: (cell) => {
+        const d = cell.getData();
+        if (!d?.part_id) return cell.getValue() ?? "";
 
-    const href = `/static/manage-part-detail.html?part_id=${encodeURIComponent(
-      d.part_id
-    )}&part_revision_id=${encodeURIComponent(
-      d.part_revision_id
-    )}&customer_id=${encodeURIComponent(d.customer_id)}`;
+        const href = `/static/manage-part-detail.html?part_id=${encodeURIComponent(
+          d.part_id
+        )}&part_revision_id=${encodeURIComponent(
+          d.part_revision_id
+        )}&customer_id=${encodeURIComponent(d.customer_id)}`;
 
-    // ✅ no target="_blank" so it opens in the same tab
-    return `<a href="${href}" 
+        // ✅ no target="_blank" so it opens in the same tab
+        return `<a href="${href}" 
               class="part-link"
               style="color:#2563eb;text-decoration:underline;cursor:pointer;pointer-events:auto;">
               ${cell.getValue() ?? ""}
             </a>`;
-  },
-  cellClick: (e, cell) => {
-    const link = e.target.closest("a.part-link");
-    if (link) {
-      e.preventDefault(); // prevent Tabulator row click
-      window.location.href = link.href; // ✅ same-tab navigation
-    }
-  },
-},
+      },
+      cellClick: (e, cell) => {
+        const link = e.target.closest("a.part-link");
+        if (link) {
+          e.preventDefault(); // prevent Tabulator row click
+          window.location.href = link.href; // ✅ same-tab navigation
+        }
+      },
+    },
 
 
 
@@ -90,12 +90,12 @@ function makeColumns() {
         if (!v) return "";
         const d = new Date(v);
         return isNaN(d)
-  ? v
-  : d.toLocaleDateString(undefined, {
-      year: "2-digit",
-      month: "2-digit",
-      day: "2-digit",
-    });
+          ? v
+          : d.toLocaleDateString(undefined, {
+            year: "2-digit",
+            month: "2-digit",
+            day: "2-digit",
+          });
       },
     },
 
@@ -117,8 +117,14 @@ function makeColumns() {
         return Math.ceil((due - now) / (1000 * 60 * 60 * 24));
       },
       formatter: (cell) => {
+        const data = cell.getData();
+        // 🟡 Hide Days Left if status = Fully Shipped
+        if (String(data.shipment_status).toLowerCase() === "fully shipped")
+          return "";
+
         const daysLeft = cell.getValue();
         if (daysLeft == null) return "";
+
         const color =
           daysLeft < 0 ? "#ef4444" : daysLeft <= 3 ? "#f59e0b" : "#10b981";
         const label =
@@ -143,8 +149,8 @@ function makeColumns() {
           v === "Fully Shipped"
             ? "#10b981"
             : v === "Partially Shipped"
-            ? "#f59e0b"
-            : "#ef4444";
+              ? "#f59e0b"
+              : "#ef4444";
         return `<span style="background:${color};color:#fff;padding:4px 8px;border-radius:8px;font-weight:600;">${v}</span>`;
       },
     },
@@ -156,12 +162,12 @@ function makeColumns() {
       formatter: (c) => {
         const v = c.getValue();
         return v
-  ? new Date(v).toLocaleDateString(undefined, {
-      year: "2-digit",
-      month: "2-digit",
-      day: "2-digit",
-    })
-  : "";
+          ? new Date(v).toLocaleDateString(undefined, {
+            year: "2-digit",
+            month: "2-digit",
+            day: "2-digit",
+          })
+          : "";
       },
     },
   ];
@@ -241,7 +247,7 @@ function initTable() {
 
     // 🧭 Default sort order when loading the page (Lot No, descending)
     initialSort: [
-      { column: "lot_no", dir: "desc" },
+      { column: "lot_no", dir: "asc" }, //desc
     ],
   });
 }

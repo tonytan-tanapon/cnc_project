@@ -64,6 +64,7 @@ class PoCreate(BaseModel):
     po_number: Optional[str] = None
 
 class PoUpdate(BaseModel):
+    po_number: Optional[str] = None
     customer_id: Optional[int] = None
     description: Optional[str] = None
 
@@ -211,9 +212,25 @@ def create_po(payload: PoCreate, db: Session = Depends(get_db)):
 
 @pos_router.patch("/{po_id}", response_model=PoOut)
 def update_po(po_id: int, payload: PoUpdate, db: Session = Depends(get_db)):
+    # print(payload)
     po = db.query(PO).get(po_id)
     if not po:
         raise HTTPException(404, "PO not found")
+
+      # 🧱 ป้องกันซ้ำของ po_number
+    if payload.po_number is not None:
+        existing = (
+            db.query(PO)
+            .filter(PO.po_number == payload.po_number, PO.id != po_id)
+            .first()
+        )
+        if existing:
+            raise HTTPException(
+                status_code=400,
+                detail=f"PO number '{payload.po_number}' already exists",
+            )
+        po.po_number = payload.po_number
+
 
     if payload.customer_id is not None:
         cust = db.query(Customer).get(payload.customer_id)

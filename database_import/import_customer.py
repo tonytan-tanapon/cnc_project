@@ -2,56 +2,43 @@
 """
 CSV Customer Import / Upsert Script
 
-Reads a CSV and upserts Customer records:
-- Maps CSV 'Name' (or 'Customer', 'Customer Code') → Customer.code
-- If not found, creates a new Customer
+Reads a CSV and upserts Customer records with full fields:
+Code, Company, Address, City, State, Zipcode, Tel
 """
 
 import csv
 from pathlib import Path
-from typing import Optional, Dict
 from sqlalchemy import create_engine, select, text
 from sqlalchemy.orm import Session, sessionmaker
-from datetime import date
+from typing import Optional
+from datetime import datetime
+import sys, os
 
 # --- project import path ---
-import sys, os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
-# --- your models ---
-from models import Customer
-
+from models import  Customer
 # ------------------ CONFIG ------------------
 DATABASE_URL = "postgresql+psycopg2://postgres:1234@localhost:5432/mydb"
 CSV_FILE = Path(r"C:\Users\TPSERVER\dev\cnc_project\database_import\import_customer.csv")
 CSV_ENCODING = "utf-8-sig"
 CSV_DELIMITER = ","
-
-DEFAULT_CUSTOMER_CODE = "CSV-IMPORT"
-DEFAULT_CUSTOMER_NAME = "CSV Import (unknown customer)"
-
-CUSTOMER_CODE_MAP: Dict[str, str] = {
-    # "ABC": "CUSTOMER_ABC",
-}
 # -------------------------------------------
 
 engine = create_engine(DATABASE_URL, future=True)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
 
+
 # --- Helpers ---
 def pick(d: dict, *keys: str) -> Optional[str]:
     """Return first non-empty string among given keys."""
     for k in keys:
-        if k in d:
-            v = d.get(k)
-        else:
-            cand = next((kk for kk in d.keys() if kk.strip() == k.strip()), None)
-            v = d.get(cand) if cand else None
+        v = d.get(k) or d.get(k.strip()) or d.get(k.strip().title())
         if v is not None:
             s = str(v).strip()
             if s:
                 return s
     return None
+
 
 def fix_sequences(db: Session):
     """Repair customers.id sequence"""
@@ -64,30 +51,71 @@ def fix_sequences(db: Session):
     """))
     db.commit()
 
-def get_or_upsert_customer(db: Session, raw_name_or_code: Optional[str]) -> Customer:
-    raw = (raw_name_or_code or "").strip()
-    mapped = CUSTOMER_CODE_MAP.get(raw, raw)
-    code = mapped or DEFAULT_CUSTOMER_CODE
-    cust = db.execute(select(Customer).where(Customer.code == code)).scalar_one_or_none()
+
+def get_or_upsert_customer(db: Session, row: dict, processed: int):
+    # Normalize inputs
+    code = (row.get("Code") or "").strip().upper()
+    name = (row.get("Company") or "").strip() or "Unknown Company"
+
+    # Build address
+    address_parts = [
+        row.get("Address"),
+        row.get("City"),
+        row.get("State"),
+        row.get("Zipcode"),
+    ]
+    address = ", ".join([p.strip() for p in address_parts if p and str(p).strip()])
+    phone = row.get("Tel.") or row.get("Tel")
+
+    # 🔍 Search by code (preferred), else by name
+    if code:
+        cust = db.scalar(select(Customer).where(Customer.code == code))
+    else:
+        cust = db.scalar(select(Customer).where(Customer.name.ilike(name)))
+
+    # 🔄 If found, update existing record
     if cust:
+        updated = False
+        if cust.name != name:
+            cust.name = name
+            updated = True
+        if address and cust.address != address:
+            cust.address = address
+            updated = True
+        if phone and cust.phone != phone:
+            cust.phone = phone
+            updated = True
+
+        if updated:
+            print(f"🔁 Updated existing customer: {cust.code or cust.name}")
+            db.flush()
+
         return cust
-    cust = Customer(code=code, name=(DEFAULT_CUSTOMER_NAME if code == DEFAULT_CUSTOMER_CODE else code))
+
+    # ➕ Else create new one
+    if not code:
+        safe_name = (row.get("Company") or "UNKNOWN").replace(" ", "").replace(",", "")[:6].upper()
+        timestamp = datetime.now().strftime("%H%M%S%f")[-6:]
+        code = f"AUTO-{safe_name}-{timestamp}"
+
+    cust = Customer(code=code, name=name, address=address, phone=phone)
     db.add(cust)
+    print(f"➕ Inserted new customer: {code}")
     db.flush()
     return cust
+
+
 
 # --- Main ---
 def main():
     with SessionLocal() as db:
         fix_sequences(db)
+        processed = 0
 
         with CSV_FILE.open("r", encoding=CSV_ENCODING, newline="") as f:
             reader = csv.DictReader(f, delimiter=CSV_DELIMITER)
-            processed = 0
-
             for row in reader:
-                customer_code = pick(row, "Name", "Customer", "Customer Code")
-                get_or_upsert_customer(db, customer_code)
+                get_or_upsert_customer(db, row, processed)
                 processed += 1
 
                 if processed % 500 == 0:
@@ -95,7 +123,8 @@ def main():
 
             db.commit()
 
-    print(f"✅ Done. Processed {processed} rows (customers only) from {CSV_FILE.name}")
+        print(f"✅ Done. Imported/Updated {processed} customers from {CSV_FILE.name}")
+
 
 if __name__ == "__main__":
     main()

@@ -40,7 +40,13 @@ const fmtDate = (s) => {
   const d = new Date(s);
   return isNaN(d) ? "" : d.toLocaleString();
 };
-
+// 🆕 helper สำหรับเด้งไปหน้า detail
+const detailUrl = (id) => `/static/manage-pos-detail.html?id=${encodeURIComponent(id)}`;
+function goToDetail(id) {
+  if (!id) return;
+  // หน่วงนิดเดียวให้ Tabulator อัปเดตก่อน (กันกระตุก)
+  setTimeout(() => { location.href = detailUrl(id); }, 0);
+}
 function normalizeRow(po) {
   const id = po.id;
   const code = po.customer?.code ?? "";
@@ -161,7 +167,7 @@ function customerEditor(cell, onRendered, success, cancel) {
 /* ===== Columns ===== */
 function makeColumns() {
   return [
-    { title: "PO No.", field: "po_number", width: 150, editor: "input" },
+    { title: "PO No.", field: "po_number", width: 110, editor: "input" },
     {
       title: "View",
       field: "_po_line",
@@ -170,10 +176,9 @@ function makeColumns() {
       hozAlign: "center",
       formatter: (cell) => {
         const id = cell.getRow()?.getData()?.id;
-        if (!id) return `<span class="muted">—</span>`;
-        const href = `/static/manage-pos-detail.html?id=${encodeURIComponent(
-          id
-        )}`;
+        if (!id)
+          return `<span class="muted">—</span>`;
+        const href = `/static/manage-pos-detail.html?id=${encodeURIComponent(id)}`;
         return `<a class="view-link" href="${href}" title="View PO Lines">View</a>`;
       },
       cellClick: (e) => {
@@ -348,7 +353,7 @@ async function autosaveCell(cell, opts = {}) {
           const fresh = await jfetch(ENDPOINTS.byId(d.id));
           const norm = normalizeRow(fresh);
           row.update({ ...norm });
-        } catch {}
+        } catch { }
       }
       toast(e?.message || "Save failed", false);
     }
@@ -644,15 +649,18 @@ function initCreateForm() {
       });
       const normalized = normalizeRow(created);
 
-      // เพิ่มเข้า table ทันที (อยู่บนสุด) — ข้อมูลไม่หาย
-      await table.addData([normalized], true);
+      // จะ addData ก็ได้ แต่เราเด้งไปหน้า detail ต่อเลย
+      // await table.addData([normalized], true);
 
       toast(`✅ PO ${normalized.po_number} added`);
+
+      // 🆕 เด้งไปหน้า detail ของ PO ที่เพิ่งสร้าง
+      goToDetail(normalized.id);
+
+      // (โค้ดด้านล่างนี้จะไม่ค่อยได้ทำงานเพราะเราย้ายหน้าแล้ว
+      //  แต่เก็บไว้ไม่เสียหาย)
       form.reset();
       delete inputCustomer.dataset.customerId;
-
-      // ถ้ากำลังอยู่ในโหมดค้นหา (ksKeyword ไม่ว่าง) เราไม่รีเฟรช table เพื่อกันผลค้นหาหาย
-      // ผู้ใช้ยังเห็นรายการใหม่ที่เพิ่งเพิ่มเพราะเรา addData เข้ามาแล้ว
     } catch (err) {
       toast(err?.message || "Create failed", false);
     }
@@ -676,6 +684,11 @@ function bindAddRowButton() {
     );
   });
 }
+
+
+//const UI = { q: "_q", add: "_add", table: "listBody" };
+// id in HTML
+// _add, no use any more
 /* ===== BOOT ===== */
 document.addEventListener("DOMContentLoaded", async () => {
   Object.values(UI).forEach((id) => (els[id] = $(id)));

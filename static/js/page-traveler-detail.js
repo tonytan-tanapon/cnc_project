@@ -3,7 +3,8 @@ import { $, jfetch, toast, initTopbar } from "./api.js";
 import { attachAutocomplete } from "./autocomplete.js";
 
 const qs = new URLSearchParams(location.search);
-const travelerId = qs.get("id");
+let travelerId = qs.get("id");   // ✅ must be let so we can reassign later
+const lotId = qs.get("lot_id");  // ✅ add this line
 
 let originalTraveler = null;
 let isSubmitting = false;
@@ -226,13 +227,30 @@ function readTraveler() {
   };
 }
 async function loadTraveler() {
-  if (!travelerId) {
-    setError("Missing ?id= in URL");
+  if (!travelerId && !lotId) {
+    setError("Missing ?id= or ?lot_id= in URL");
     return;
   }
+
   try {
     setBusyT(true);
-    const t = await jfetch(`/travelers/${encodeURIComponent(travelerId)}`);
+    let t = null;
+
+    if (travelerId) {
+      // Normal case
+      t = await jfetch(`/travelers/${encodeURIComponent(travelerId)}`);
+    } else if (lotId) {
+      // Find by lot_id
+      const list = await jfetch(`/travelers?lot_id=${encodeURIComponent(lotId)}`);
+      if (Array.isArray(list) && list.length > 0) {
+        t = list[0];
+      } else {
+        setError("No traveler found for this lot");
+        return;
+      }
+    }
+
+    travelerId = t.id; // ✅ assign travelerId from response
     originalTraveler = t;
     await fillTraveler(t);
   } catch (e) {
@@ -241,6 +259,9 @@ async function loadTraveler() {
     setBusyT(false);
   }
 }
+
+
+
 async function saveTraveler() {
   if (!travelerId || isSubmitting) return;
   try {

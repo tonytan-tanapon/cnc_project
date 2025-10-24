@@ -41,9 +41,9 @@ const safe = (s) =>
 const fmtDate = (s) => {
   if (!s) return "—";
   const d = new Date(s);
- return isNaN(d)
-  ? "—"
-  : d.toLocaleString("en-US", { timeZone: "America/Los_Angeles" });
+  return isNaN(d)
+    ? "—"
+    : d.toLocaleString("en-US", { timeZone: "America/Los_Angeles" });
 
 };
 const trim = (v) => (v == null ? "" : String(v).trim());
@@ -130,7 +130,7 @@ function initCustomerAutocomplete() {
     renderItem: (it) =>
       `<div class="ac-row"><b>${safe(it.code)}</b> — ${safe(it.name)}</div>`,
     openOnFocus: true,
-    appendTo: document.body, 
+    appendTo: document.body,
     minChars: 0,
     debounceMs: 200,
     maxHeight: 260,
@@ -216,6 +216,7 @@ function markHeaderDirty(on) {
   if (btnHdrCancel) btnHdrCancel.style.display = on ? "" : "none";
 }
 async function saveHeaderManual() {
+
   if (isSubmitting) return;
   const draft = getHeaderDraft();
   if (!draft.customer_id) {
@@ -245,7 +246,9 @@ async function saveHeaderManual() {
       if (draft.description !== (initial.description ?? ""))
         patch.description = draft.description;
 
+
       if (Object.keys(patch).length) {
+        console.log(patch)
         await jfetch(`/pos/${encodeURIComponent(initial.id)}`, {
           method: "PATCH",
           body: JSON.stringify(patch),
@@ -279,9 +282,8 @@ async function cancelHeaderManual() {
       code: initial.customer.code,
       name: initial.customer.name,
     };
-    elCustomer.value = `${initial.customer.code} — ${
-      initial.customer.name ?? ""
-    }`;
+    elCustomer.value = `${initial.customer.code} — ${initial.customer.name ?? ""
+      }`;
   } else {
     selectedCustomer = null;
     elCustomer.value = "";
@@ -299,7 +301,7 @@ function wireHeaderDirtyOnly() {
 
 /* Create header Save/Cancel buttons near subtitle */
 function ensureHeaderButtons() {
-  if (!subTitle) return;
+  if (!subTitle) return; // check element id to show in html 
   if (document.getElementById("hdr-actions")) return;
 
   const wrap = document.createElement("div");
@@ -328,9 +330,9 @@ function fmtMoney(n) {
   return n == null
     ? ""
     : Number(n).toLocaleString(undefined, {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      });
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
 }
 function fmtQty(n) {
   return Number(n ?? 0).toLocaleString(undefined, { maximumFractionDigits: 3 });
@@ -397,14 +399,14 @@ function normalizeServerLine(row) {
     lots: Array.isArray(row.lots)
       ? row.lots
       : row.lot_id && row.lot_no
-      ? [{ id: row.lot_id, lot_no: row.lot_no }]
-      : [],
+        ? [{ id: row.lot_id, lot_no: row.lot_no }]
+        : [],
 
     travelers: Array.isArray(row.travelers)
       ? row.travelers
       : row.traveler_id && row.traveler_no
-      ? [{ id: row.traveler_id, traveler_no: row.traveler_no }]
-      : [],
+        ? [{ id: row.traveler_id, traveler_no: row.traveler_no }]
+        : [],
   };
 }
 
@@ -462,7 +464,7 @@ function autosaveRow(row, { immediate = false } = {}) {
         setTimeout(() => {
           try {
             linesTable.redraw(true);
-          } catch {}
+          } catch { }
         }, 0);
       });
     return;
@@ -529,7 +531,7 @@ function autosaveRow(row, { immediate = false } = {}) {
               `/pos/${encodeURIComponent(poid)}/lines/${d.id}`
             );
             row.update(normalizeServerLine(fresh));
-          } catch {}
+          } catch { }
           toast(e?.message || "Save failed", false);
         }
       })
@@ -537,7 +539,7 @@ function autosaveRow(row, { immediate = false } = {}) {
         setTimeout(() => {
           try {
             linesTable.redraw(true);
-          } catch {}
+          } catch { }
         }, 0);
       });
   };
@@ -716,7 +718,7 @@ function initLinesTable() {
     if (!ready || !holder.offsetWidth) return;
     try {
       linesTable.redraw(true);
-    } catch {}
+    } catch { }
   };
 
   linesTable = new Tabulator(holder, {
@@ -758,9 +760,8 @@ function initLinesTable() {
 
           const href = `/static/manage-part-detail.html?part_id=${encodeURIComponent(
             pid
-          )}${revId ? `&part_revision_id=${encodeURIComponent(revId)}` : ""}${
-            custId ? `&customer_id=${encodeURIComponent(custId)}` : ""
-          }`;
+          )}${revId ? `&part_revision_id=${encodeURIComponent(revId)}` : ""}${custId ? `&customer_id=${encodeURIComponent(custId)}` : ""
+            }`;
 
           return `<a class="link" href="${href}" >${safe(String(pno))}</a>`;
         },
@@ -799,16 +800,16 @@ function initLinesTable() {
 
 
         formatter: (c) => {
-  const val = c.getValue();
-  if (!val) return "";
-  const [y, m, d] = String(val).split("T")[0].split("-");
-  if (!y || !m || !d) return "";
-  // ✅ ตีความว่าเป็นวันที่ตามปฏิทิน (ไม่สน timezone)
-  return new Date(Number(y), Number(m) - 1, Number(d)).toLocaleDateString(
-    "en-US",
-    { timeZone: "America/Los_Angeles" }
-  );
-},
+          const val = c.getValue();
+          if (!val) return "";
+          const [y, m, d] = String(val).split("T")[0].split("-");
+          if (!y || !m || !d) return "";
+          // ✅ ตีความว่าเป็นวันที่ตามปฏิทิน (ไม่สน timezone)
+          return new Date(Number(y), Number(m) - 1, Number(d)).toLocaleDateString(
+            "en-US",
+            { timeZone: "America/Los_Angeles" }
+          );
+        },
 
 
 
@@ -820,16 +821,16 @@ function initLinesTable() {
         editor: "date",
 
         formatter: (c) => {
-  const val = c.getValue();
-  if (!val) return "";
-  const [y, m, d] = String(val).split("T")[0].split("-");
-  if (!y || !m || !d) return "";
-  // ✅ ตีความว่าเป็นวันที่ตามปฏิทิน (ไม่สน timezone)
-  return new Date(Number(y), Number(m) - 1, Number(d)).toLocaleDateString(
-    "en-US",
-    { timeZone: "America/Los_Angeles" }
-  );
-},
+          const val = c.getValue();
+          if (!val) return "";
+          const [y, m, d] = String(val).split("T")[0].split("-");
+          if (!y || !m || !d) return "";
+          // ✅ ตีความว่าเป็นวันที่ตามปฏิทิน (ไม่สน timezone)
+          return new Date(Number(y), Number(m) - 1, Number(d)).toLocaleDateString(
+            "en-US",
+            { timeZone: "America/Los_Angeles" }
+          );
+        },
 
 
 
@@ -855,24 +856,36 @@ function initLinesTable() {
             .join("<br>");
         },
       },
+
       {
         title: "Traveler",
         field: "travelers",
         width: 120,
         headerSort: false,
         formatter: (cell) => {
+          const rowData = cell.getData();
           const trs = cell.getValue() || [];
-          if (!trs.length) return "";
-          return trs
-            .map(
-              (t) =>
-                `<a class="link" href="/static/traveler-detail.html?id=${encodeURIComponent(
-                  t.id
-                )}">${safe(t.traveler_no)}</a>`
-            )
-            .join("<br>");
+          const lots = rowData.lots || [];
+
+          if (!trs.length && !lots.length) return "";
+
+          return trs.map((t, i) => {
+            // Prefer traveler_id if exists, else fall back to lot_id
+            const travelerId = t?.id;
+            const travelerNo = safe(t?.traveler_no || "");
+            const lotId = lots[i]?.id || lots[0]?.id; // fallback to first lot
+
+            // Build URL
+            const url = travelerId
+              ? `/static/traveler-detail.html?lot_id=${encodeURIComponent(lotId)}`
+              : "#";
+
+            return `<a class="link" href="${url}">${travelerNo}</a>`;
+          }).join("<br>");
         },
       },
+
+
       {
         title: "Materials",
         field: "materials",
@@ -1045,7 +1058,7 @@ document.addEventListener("visibilitychange", () => {
           active.focus();
           active.select?.();
         }
-      } catch {}
+      } catch { }
     }, 100);
   }
 });
