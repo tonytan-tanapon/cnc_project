@@ -41,11 +41,14 @@ const fmtDate = (s) => {
   return isNaN(d) ? "" : d.toLocaleString();
 };
 // 🆕 helper สำหรับเด้งไปหน้า detail
-const detailUrl = (id) => `/static/manage-pos-detail.html?id=${encodeURIComponent(id)}`;
+const detailUrl = (id) =>
+  `/static/manage-pos-detail.html?id=${encodeURIComponent(id)}`;
 function goToDetail(id) {
   if (!id) return;
   // หน่วงนิดเดียวให้ Tabulator อัปเดตก่อน (กันกระตุก)
-  setTimeout(() => { location.href = detailUrl(id); }, 0);
+  setTimeout(() => {
+    location.href = detailUrl(id);
+  }, 0);
 }
 function normalizeRow(po) {
   const id = po.id;
@@ -176,9 +179,10 @@ function makeColumns() {
       hozAlign: "center",
       formatter: (cell) => {
         const id = cell.getRow()?.getData()?.id;
-        if (!id)
-          return `<span class="muted">—</span>`;
-        const href = `/static/manage-pos-detail.html?id=${encodeURIComponent(id)}`;
+        if (!id) return `<span class="muted">—</span>`;
+        const href = `/static/manage-pos-detail.html?id=${encodeURIComponent(
+          id
+        )}`;
         return `<a class="view-link" href="${href}" title="View PO Lines">View</a>`;
       },
       cellClick: (e) => {
@@ -353,7 +357,7 @@ async function autosaveCell(cell, opts = {}) {
           const fresh = await jfetch(ENDPOINTS.byId(d.id));
           const norm = normalizeRow(fresh);
           row.update({ ...norm });
-        } catch { }
+        } catch {}
       }
       toast(e?.message || "Save failed", false);
     }
@@ -401,7 +405,7 @@ function initTable() {
   table.on("tableBuilt", () => {
     isBuilt = true;
     requestAnimationFrame(() => table.redraw(true));
-    bindIntersectionLoader(); // after table DOM exists
+    // bindIntersectionLoader(); // after table DOM exists
   });
 
   // Tab / Shift+Tab
@@ -684,7 +688,6 @@ function bindAddRowButton() {
     );
   });
 }
-
 
 //const UI = { q: "_q", add: "_add", table: "listBody" };
 // id in HTML
