@@ -1,0 +1,548 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Employee Timesheet</title>
+  <style>
+    :root{ --line:#e5e7eb; --muted:#6b7280 }
+    body{ font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Arial; margin:0; padding:20px }
+    h1{ margin:0 0 8px; font-size:22px }
+    .muted{ color:var(--muted); font-size:13px; margin-bottom:4px }
+    input[type="number"]{ width:110px; text-align:right; padding:6px 8px; border:1px solid var(--line); border-radius:8px }
+    button{ padding:8px 12px; border:1px solid var(--line); border-radius:8px; background:#111; color:#fff; cursor:pointer }
+    table{ border-collapse:collapse; width:100%; margin-top:12px }
+    th,td{ border:1px solid var(--line); padding:6px 8px; text-align:center; vertical-align:top }
+    th{ background:#f8fafc }
+    .num{ text-align:right }
+    .left{ text-align:left }
+    .nowrap{ white-space:nowrap }
+    .mono{ font-variant-numeric: tabular-nums }
+    .empty{ color:var(--muted); padding:10px }
+    .page-header{ display:flex; align-items:center; gap:12px; margin:0 0 8px; }
+    .back-link{ margin-left:auto; text-decoration:none; color:#2563eb; font-weight:600; }
+    .back-link:hover{ text-decoration:underline; }
+    .bar{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin:12px 0; justify-content:flex-end; }
+    .link{ color:#2563eb; text-decoration:none; font-weight:600 }
+    .link:hover{ text-decoration:underline }
+    .center { text-align: center }
+
+  </style>
+</head>
+<body>
+  <div class="page-header">
+    <h1 id="header">Payroll</h1>
+    <a class="back-link" href="payroll_period_employees.html">← Back</a>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>No</th>
+        <th>Date</th>
+        <th>Shifts</th>
+        <th>Breaks</th>
+        <th>Break (hrs)*</th>
+        <th>Reg (hrs)</th>
+        <th>OT (hrs)</th>
+        <th>Rate</th>
+        <th>OT Rate</th>
+        <th>Pay (Reg)</th>
+        <th>Pay (OT)</th>
+        <th>Total Pay</th>
+      </tr>
+    </thead>
+    <tbody id="tblBody"><tr><td colspan="12" class="empty">Loading…</td></tr></tbody>
+    <tfoot id="tblFoot"></tfoot>
+  </table>
+  <div class="muted" style="margin-top:4px">* Unpaid break hours</div>
+  <div class="bar">
+    <label>Rate:
+      <input id="rate" type="number" step="0.01" min="0" value="20.00" inputmode="decimal">
+    </label>
+    <label>OT Rate: <input id="ot_rate" type="number" step="0.01" placeholder="default 1.5×"></label>
+    <button id="recalc">calculate</button>
+    <button id="exportBtn">Export (Excel/CSV)</button>
+  </div>
+
+  <script type="module">
+  import { $ as _$$, jfetch, toast } from "/static/js/api.js?v=1";
+  const $ = (sel)=>document.querySelector(sel);
+
+  /* ========= SheetJS loader (tries CDNs, then local) ========= */
+  const SHEETJS_URLS = [
+    "https://cdn.jsdelivr.net/npm/xlsx@0.19.3/dist/xlsx.full.min.js",
+    "https://unpkg.com/xlsx@0.19.3/dist/xlsx.full.min.js",
+    "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.19.3/xlsx.full.min.js",
+  ];
+  const SHEETJS_LOCAL = "/static/vendor/xlsx/xlsx.full.min.js"; // <- host file here as fallback
+
+  function loadScript(src){
+    return new Promise((resolve, reject)=>{
+      const s = document.createElement("script");
+      s.src = src;
+      s.async = true;
+      s.onload = () => resolve(true);
+      s.onerror = () => reject(new Error("load failed: " + src));
+      document.head.appendChild(s);
+    });
+  }
+
+  async function ensureSheetJS(){
+    if (window.XLSX) return window.XLSX;
+    const candidates = [...SHEETJS_URLS, SHEETJS_LOCAL];
+    for (const url of candidates){
+      try{
+        await loadScript(url);
+        if (window.XLSX) return window.XLSX;
+      }catch(_e){ /* try next */ }
+    }
+    return null;
+  }
+
+  /* ========= Helpers / API ========= */
+  const API_BASE = '';
+  const api = (p) => `${API_BASE}${p}`;
+  async function apiGET(path){
+    try{ return await jfetch(api(path)); }
+    catch(e){ console.error(e); toast?.(e?.message||'API error'); throw e; }
+  }
+
+  const PP  = "/pay-periods";
+  const EMP = "/employees";
+  const DEFAULT_OT_MULTIPLIER = 1.5;
+
+  const pad = n=>String(n).padStart(2,'0');
+  const fmtDate = iso => iso ? new Date(iso).toISOString().slice(0,10) : '';
+  const fmtTime = iso => { if(!iso) return ''; const d=new Date(iso); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+  const currency = v =>
+    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      .format(Number(v ?? 0));
+  const getQS = k => new URL(location.href).searchParams.get(k);
+  const utcDateKey = iso => iso ? new Date(iso).toISOString().slice(0,10) : null;
+
+  const fmtMDY = (v) => {
+    if (!v) return '';
+    const s = String(v);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+      const [y, m, d] = s.split('-');
+      return `${m}/${d}/${y}`;
+    }
+    const dt = new Date(s);
+    if (isNaN(dt)) return '';
+    const mm = String(dt.getMonth() + 1).padStart(2, '0');
+    const dd = String(dt.getDate()).padStart(2, '0');
+    const yy = dt.getFullYear();
+    return `${mm}/${dd}/${yy}`;
+  };
+
+  // cache
+  let lastSummary = null, lastBreaksByDate = {}, lastShiftsByDate = {};
+  let currentEmployeeId = null, currentPpId = null;
+  let currentEmpName = '', currentPpStart = '', currentPpEnd = '';
+
+  async function safeGetPayPeriod(pp_id){
+    try{ const pp = await apiGET(`${PP}/${pp_id}`); if(pp) return pp; }catch{}
+    const all = await apiGET(PP);
+    const found = (all||[]).find(x=>String(x.id)===String(pp_id));
+    if(!found) throw new Error(`PayPeriod id=${pp_id} not found`); return found;
+  }
+
+  // ----- helpers: choose week start (Sun=0 or Mon=1) -----
+  function weekKeyLocal(dateISO, weekStartsOn = 1 /* 1=Mon start per your use */) {
+    const d = new Date(dateISO + "T00:00:00");
+    const day = d.getDay(); // 0..6 (Sun..Sat)
+    const diff = (day - weekStartsOn + 7) % 7;
+    const weekStart = new Date(d); weekStart.setDate(d.getDate() - diff);
+    const y = weekStart.getFullYear();
+    const m = String(weekStart.getMonth() + 1).padStart(2, "0");
+    const dd = String(weekStart.getDate()).padStart(2, "0");
+    return `${y}-${m}-${dd}`; // week bucket label (start date)
+  }
+
+  // ----- apply six-day rule on top of daily 8h rule -----
+  function applySixDayRule(rows, { weekStartsOn = 1 } = {}) {
+    // 1) Ensure daily >8 split is respected (if not already split upstream)
+    const normalized = rows.map(r => {
+      const total = Number(r.reg_hours || 0) + Number(r.ot_hours || 0);
+      let reg = Number(r.reg_hours || 0);
+      let ot  = Number(r.ot_hours || 0);
+      if (reg === 0 && ot === 0 && total > 0) {
+        reg = Math.min(8, total);
+        ot  = Math.max(0, total - 8);
+      }
+      return { ...r, reg_hours: reg, ot_hours: ot, _total_hours: reg + ot };
+    });
+
+    // 2) Group by week, and if worked on 6 days, reclassify the lowest-hour day to OT
+    const byWeek = new Map();
+    normalized.forEach((r, i) => {
+      const wk = weekKeyLocal(r.date, weekStartsOn);
+      if (!byWeek.has(wk)) byWeek.set(wk, []);
+      byWeek.get(wk).push(i);
+    });
+
+    for (const [, idxs] of byWeek) {
+      const worked = idxs.filter(i => normalized[i]._total_hours > 0);
+      if (worked.length >= 6) {
+        worked.sort((i1, i2) => {
+          const a = normalized[i1]._total_hours, b = normalized[i2]._total_hours;
+          if (a !== b) return a - b;
+          return new Date(normalized[i1].date) - new Date(normalized[i2].date);
+        });
+        const pick = worked[0];
+        const day = normalized[pick];
+        day.ot_hours = Number(day.ot_hours || 0) + Number(day.reg_hours || 0);
+        day.reg_hours = 0;
+      }
+    }
+
+    normalized.forEach(r => delete r._total_hours);
+    return normalized;
+  }
+
+  function effectiveRates(){
+    const r = Number($('#rate').value || 0);
+    const otField = $('#ot_rate').value;
+    const ot = (otField === '' ? r * DEFAULT_OT_MULTIPLIER : Number(otField || 0));
+    return { rate: r, otRate: ot };
+  }
+
+  function formatShiftsCell(list){
+    if(!list || !list.length) return '';
+    const sorted = [...list].sort((a,b)=>new Date(a.start_at||0) - new Date(b.start_at||0));
+    return sorted.map(s=>{
+      const si = fmtTime(s.start_at);
+      const so = s.end_at ? fmtTime(s.end_at) : '…';
+      return `${si}-${so}`;
+    }).join('<br>');
+  }
+
+  function formatBreaksCell(list){
+    if(!list || !list.length) return '';
+    const sorted = [...list].sort((a,b)=>new Date(a.start_at||0) - new Date(b.start_at||0));
+    return sorted.map(b=>{
+      const s = fmtTime(b.start_at);
+      const e = fmtTime(b.end_at);
+      return `${s}-${e}`;
+    }).join('<br>');
+  }
+
+  function render(summary, breaksByDate = {}, shiftsByDate = {}){
+    const tb = $('#tblBody'); tb.innerHTML = '';
+    const { rate, otRate } = effectiveRates();
+
+    let sumReg=0, sumOT=0, sumPayReg=0, sumPayOT=0, idx=0;
+    let lastWeekKey = null;
+
+    for(const row of (summary.rows || [])){
+      const weekKey = weekKeyLocal(row.date, 1); // Monday-start
+      if (lastWeekKey !== null && weekKey !== lastWeekKey) {
+        const sep = document.createElement('tr');
+        sep.innerHTML = `<td colspan="12" style="background:#f4f4f5;height:6px;border:0"></td>`;
+        tb.appendChild(sep);
+      }
+      lastWeekKey = weekKey;
+
+      idx += 1;
+      const reg = Number(row.reg_hours || 0);
+      const ot  = Number(row.ot_hours || 0);
+      const payReg = reg * rate;
+      const payOT  = ot  * otRate;
+
+      sumReg+=reg; sumOT+=ot; sumPayReg+=payReg; sumPayOT+=payOT;
+
+      const breaksTxt = formatBreaksCell(breaksByDate[row.date] || []);
+      const shiftsTxt = formatShiftsCell(shiftsByDate[row.date] || []);
+
+      const editUrl = `employee_timesheet_edit.html?pp_id=${encodeURIComponent(currentPpId)}&employee_id=${encodeURIComponent(currentEmployeeId)}&date=${row.date}&return=${encodeURIComponent(location.href)}`;
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="num mono"><a class="link" href="${editUrl}" title="Edit this day">${idx}</a></td>
+        <td class="nowrap mono">${fmtMDY(row.date)}</td>
+        <td class="left mono">${shiftsTxt}</td>
+        <td class="left mono">${breaksTxt}</td>
+        <td class="num mono">${Number(row.unpaid_break_hours||0).toFixed(2)}</td>
+        <td class="num mono">${reg.toFixed(2)}</td>
+        <td class="num mono">${ot.toFixed(2)}</td>
+        <td class="num mono">${rate?currency(rate):''}</td>
+        <td class="num mono">${otRate?currency(otRate):''}</td>
+        <td class="num mono">${currency(payReg)}</td>
+        <td class="num mono">${currency(payOT)}</td>
+        <td class="num mono">${currency(payReg+payOT)}</td>`;
+      tb.appendChild(tr);
+    }
+
+    $('#tblFoot').innerHTML = `
+      <tr>
+        <td colspan="5" class="num">Total</td>
+        <td class="num mono">${sumReg.toFixed(2)}</td>
+        <td class="num mono">${sumOT.toFixed(2)}</td>
+        <td></td><td></td>
+        <td class="num mono">${currency(sumPayReg)}</td>
+        <td class="num mono">${currency(sumPayOT)}</td>
+        <td class="num mono">${currency(sumPayReg+sumPayOT)}</td>
+      </tr>`;
+  }
+
+  const safeFilename = (s) =>
+    String(s ?? '')
+      .normalize('NFKC')
+      .replace(/[<>:"/\\|?*\x00-\x1F]/g, '')
+      .replace(/\s+/g, '_')
+      .slice(0, 120);
+
+  /* ========= CSV fallback ========= */
+  function exportCSV(){
+    const header = [
+      'no','date','shifts','breaks',
+      'break_unpaid_h','reg_h','ot_h','rate','ot_rate','pay_reg','pay_ot','pay_total'
+    ];
+    const rows = [];
+    let lastWeekKey = null;
+
+    // Add rows with week separators (blank line)
+    document.querySelectorAll('#tblBody tr').forEach(tr=>{
+      const t = tr.querySelectorAll('td');
+      const date = (t[1]?.innerText || '').trim();
+      if (date) {
+        const [mm,dd,yy] = date.split('/');
+        const iso = `${yy}-${mm}-${dd}`;
+        const wk = weekKeyLocal(iso, 1);
+        if (lastWeekKey !== null && wk !== lastWeekKey) rows.push([]); // separator
+        lastWeekKey = wk;
+      }
+      rows.push([
+        t[0]?.innerText.trim() ?? '',
+        date,
+        t[2]?.innerText.trim() ?? '',
+        t[3]?.innerText.trim() ?? '',
+        t[4]?.innerText.trim() ?? '',
+        t[5]?.innerText.trim() ?? '',
+        t[6]?.innerText.trim() ?? '',
+        t[7]?.innerText.trim() ?? '',
+        t[8]?.innerText.trim() ?? '',
+        t[9]?.innerText.trim() ?? '',
+        t[10]?.innerText.trim() ?? '',
+        t[11]?.innerText.trim() ?? '',
+      ]);
+    });
+
+    // Add TOTAL row as text (CSV)
+    rows.push([]);
+    rows.push(['','','','','Total',
+      document.querySelector('#tblFoot td:nth-child(2)')?.innerText ?? '',
+      document.querySelector('#tblFoot td:nth-child(3)')?.innerText ?? '',
+      '','',
+      document.querySelector('#tblFoot td:nth-child(5)')?.innerText ?? '',
+      document.querySelector('#tblFoot td:nth-child(6)')?.innerText ?? '',
+      document.querySelector('#tblFoot td:nth-child(7)')?.innerText ?? '',
+    ]);
+
+    const csv = [header, ...rows].map(r => r.map(v => `"${String(v||'').replace(/"/g,'""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const fname = `${safeFilename(currentEmpName)}_${currentPpStart}_${currentPpEnd}.csv`;
+    a.download = fname;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  /* ========= Excel export (with week separators, currency formats, totals) ========= */
+  async function exportExcelOrCsv(){
+    const XLSX = await ensureSheetJS();
+    if (!XLSX){
+      alert("Excel library not available. Exporting CSV instead.");
+      exportCSV();
+      return;
+    }
+
+    const header = ['no','date','shifts','breaks','break_unpaid_h','reg_h','ot_h','rate','ot_rate','pay_reg','pay_ot','pay_total'];
+    const rows = [header];
+
+    // Build rows with week separators (blank row)
+    let lastWeekKey = null;
+    const bodyTrs = Array.from(document.querySelectorAll('#tblBody tr'));
+    bodyTrs.forEach(tr=>{
+      const t = tr.querySelectorAll('td');
+      const date = (t[1]?.innerText || '').trim();
+      let wk = null;
+      if (date) {
+        const [mm,dd,yy] = date.split('/');
+        const iso = `${yy}-${mm}-${dd}`;
+        wk = weekKeyLocal(iso, 1);
+        if (lastWeekKey !== null && wk !== lastWeekKey) rows.push([]); // separator row
+        lastWeekKey = wk;
+      }
+
+      const numTxt = (s)=>Number(String(s||'').replace(/[^0-9.\-]/g,'')||0);
+
+      rows.push([
+        t[0]?.innerText.trim() || '',
+        date,
+        t[2]?.innerText.trim() || '',
+        t[3]?.innerText.trim() || '',
+        numTxt(t[4]?.innerText), // break_unpaid_h
+        numTxt(t[5]?.innerText), // reg_h
+        numTxt(t[6]?.innerText), // ot_h
+        numTxt(t[7]?.innerText), // rate
+        numTxt(t[8]?.innerText), // ot_rate
+        numTxt(t[9]?.innerText), // pay_reg
+        numTxt(t[10]?.innerText), // pay_ot
+        numTxt(t[11]?.innerText), // pay_total
+      ]);
+    });
+
+    // Add a blank row then TOTAL row with formulas (summing numeric columns)
+    rows.push([]);
+    const startDataRow = 2; // header is row 1; first data row is 2 in Excel terms
+    const lastExcelRow = rows.length; // TOTAL row will be last after we push it
+    // We will push total row then compute formulas using Excel indices
+    rows.push(['','','','','Total','','','','','','','']); // placeholder; we'll insert formulas after sheet created
+
+    // Create workbook & sheet
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+["E","F","G"].forEach(col=>{
+  const range = XLSX.utils.decode_range(ws["!ref"]);
+  for(let r = range.s.r+1; r <= range.e.r; ++r){ // skip header row
+    const cell = ws[`${col}${r+1}`]; // r+1 because row index starts at 0
+    if(cell) cell.s = { alignment: { horizontal: "center" } };
+  }
+});
+    // Set sheet name = "period"
+    let sheetName = `${currentPpStart}_to_${currentPpEnd}`;
+  sheetName = sheetName.replace(/[\\/:*?[\]]/g, "").slice(0, 31); // sanitize + length limit
+
+    // Column widths
+    ws['!cols'] = [
+      { wch: 4 },  // no
+      { wch: 10 }, // date
+      { wch: 18 }, // shifts
+      { wch: 18 }, // breaks
+      { wch: 12 }, // break_unpaid_h
+      { wch: 10 }, // reg_h
+      { wch: 10 }, // ot_h
+      { wch: 10 }, // rate
+      { wch: 10 }, // ot_rate
+      { wch: 12 }, // pay_reg
+      { wch: 12 }, // pay_ot
+      { wch: 12 }, // pay_total
+    ];
+
+    // Apply currency number format to monetary columns: rate(8), ot_rate(9), pay_reg(10), pay_ot(11), pay_total(12)
+    // 0-based col indexes -> 7,8,9,10,11
+    const monetaryCols = [7,8,9,10,11];
+    const ref = XLSX.utils.decode_range(ws['!ref']);
+    for (let R = 1; R <= ref.e.r; R++) { // skip header (R starts at 1)
+      for (const C of monetaryCols) {
+        const addr = XLSX.utils.encode_cell({r:R, c:C});
+        const cell = ws[addr];
+        if (!cell || typeof cell.v === 'undefined' || cell.v === '') continue;
+        if (typeof cell.v === 'number') {
+          cell.t = 'n';
+          cell.z = '$#,##0.00'; // two decimals money
+        }
+      }
+    }
+
+    // Insert SUM formulas on the TOTAL row (last row)
+    const totalRow = ref.e.r; // current last index (0-based)
+    // We want to sum only real data rows: from first data (row 2) to the row before the blanks at the end.
+    // Compute ranges for numeric columns, skipping blank separator rows (Excel SUM will ignore blanks automatically).
+    function excelCol(c){ return XLSX.utils.encode_col(c); }
+    const firstDataExcelRow = startDataRow; // 2
+    const lastDataExcelRow = totalRow; // totalRow will be overwritten with totals; safe to sum up to totalRow-1
+    // Set labels and formulas
+    ws[XLSX.utils.encode_cell({r: totalRow, c: 4})] = { t:'s', v:'Total' }; // column E (index 4)
+
+    // Hours totals (reg_h col 5, ot_h col 6 indexes 5,6) — show as numbers with 2 decimals
+    const sumColsPlain = [5,6];
+    for (const c of sumColsPlain){
+      const colL = excelCol(c);
+      ws[XLSX.utils.encode_cell({r: totalRow, c})] = { t:'n', f:`SUM(${colL}${firstDataExcelRow}:${colL}${lastDataExcelRow})`, z:'0.00' };
+    }
+
+    // Money totals (pay_reg col 9, pay_ot col 10, pay_total col 11)
+    const sumColsMoney = [9,10,11];
+    for (const c of sumColsMoney){
+      const colL = excelCol(c);
+      ws[XLSX.utils.encode_cell({r: totalRow, c})] = { t:'n', f:`SUM(${colL}${firstDataExcelRow}:${colL}${lastDataExcelRow})`, z:'$#,##0.00' };
+    }
+
+    // Recalculate ws['!ref'] if needed
+    ws['!ref'] = XLSX.utils.encode_range({s:{r:0,c:0}, e:{r: totalRow, c: 11}});
+
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+
+    // File name = "<employee name>_<period>.xlsx"
+    const fname = `${safeFilename(currentEmpName)}_${currentPpStart}_${currentPpEnd}.xlsx`;
+    XLSX.writeFile(wb, fname);
+  }
+
+  /* ========= Page load ========= */
+  async function loadPage(fetchFromApi = true){
+    const pp_id = getQS('pp_id');
+    const employee_id = getQS('employee_id');
+    currentPpId = pp_id; currentEmployeeId = employee_id;
+
+    if(!pp_id || !employee_id){
+      $('#tblBody').innerHTML = `<tr><td colspan="12" class="empty">pp_id and employee_id are required</td></tr>`;
+      return;
+    }
+
+    let pp;
+    try{ pp = await safeGetPayPeriod(pp_id); }
+    catch(e){ $('#tblBody').innerHTML = `<tr><td colspan="12" class="empty">${e.message}</td></tr>`; return; }
+
+    let emp=null; try{ emp = await apiGET(`${EMP}/${employee_id}`);}catch{}
+    document.getElementById('header').textContent =
+      `Payroll — ${emp?.name ?? ('Emp #'+employee_id)} (${fmtMDY(pp.start_at)} → ${fmtMDY(pp.end_at)})`;
+
+    currentEmpName = emp?.name ?? `Emp_${employee_id}`;
+    currentPpStart = fmtDate(pp.start_at);
+    currentPpEnd   = fmtDate(pp.end_at);
+
+    if (fetchFromApi){
+      const [summary, details] = await Promise.all([
+        apiGET(`/payroll/pay-periods/${pp_id}/employees/${employee_id}/daily-summary?closed_only=false&ot_daily_threshold=8`),
+        apiGET(`/payroll/time-entries/by-employee?employee_id=${employee_id}&pp_id=${pp_id}`)
+      ]);
+
+      // Apply OT rules (daily >8, + 6-day week lowest day → OT)
+      summary.rows = applySixDayRule(summary.rows || [], { weekStartsOn: 1 });
+
+      const breaksByDate = {};
+      const shiftsByDate = {};
+      for(const te of (details || [])){
+        const dayKey = utcDateKey(te.clock_in_at || te.clock_out_at);
+        if(!dayKey) continue;
+        (shiftsByDate[dayKey] ??= []).push({ start_at: te.clock_in_at, end_at: te.clock_out_at });
+        for(const b of (te.breaks || [])){ (breaksByDate[dayKey] ??= []).push(b); }
+      }
+      lastSummary = summary; lastBreaksByDate = breaksByDate; lastShiftsByDate = shiftsByDate;
+    }
+    render(lastSummary, lastBreaksByDate, lastShiftsByDate);
+  }
+
+  /* ========= Wire up ========= */
+  document.getElementById('rate').addEventListener('input', ()=>{
+    const r = Number(document.getElementById('rate').value || 0);
+    const ot = document.getElementById('ot_rate');
+    if (ot.value === '' || Number(ot.value) === 0){
+      ot.placeholder = r ? (r * 1.5).toFixed(2) : 'default 1.5×';
+    }
+  });
+
+  document.getElementById('recalc').addEventListener('click', ()=>{
+    render(lastSummary, lastBreaksByDate, lastShiftsByDate);
+  });
+
+  document.getElementById('exportBtn').addEventListener('click', exportExcelOrCsv);
+
+  document.addEventListener('DOMContentLoaded', ()=>loadPage(true));
+  </script>
+</body>
+</html>
