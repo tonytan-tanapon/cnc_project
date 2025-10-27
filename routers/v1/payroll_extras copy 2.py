@@ -28,35 +28,14 @@ def _get_pp_or_404(db: Session, pp_id: int) -> PayPeriod:
         raise HTTPException(status_code=404, detail="PayPeriod not found")
     return pp
 
-from datetime import timezone
-from zoneinfo import ZoneInfo
-
-LOCAL_TZ = ZoneInfo("America/Los_Angeles")
-
-def _to_local_date(dt) -> Optional[str]:
-    """
-    Convert any datetime (UTC or naive) to local America/Los_Angeles date.
-    This version auto-detects and prevents double conversion.
-    """
+def _to_utc_date(dt) -> Optional[str]:
+    """Match client behavior which grouped by UTC date (JS toISOString().slice(0,10))."""
     if not dt:
         return None
-
-    # ✅ Case 1: Datetime มี timezone อยู่แล้ว
-    if dt.tzinfo is not None:
-        # ถ้า timezone เป็น UTC → แปลงเป็น Local
-        if dt.tzinfo == timezone.utc:
-            local_dt = dt.astimezone(LOCAL_TZ)
-        else:
-            # ถ้า timezone ไม่ใช่ UTC (เช่น -07:00 อยู่แล้ว) ให้ใช้เลย
-            local_dt = dt
-    else:
-        # ✅ Case 2: Datetime ไม่มี timezone (naive)
-        # สมมติว่าเก็บเป็น UTC ใน database
-        local_dt = dt.replace(tzinfo=timezone.utc).astimezone(LOCAL_TZ)
-
-    return local_dt.date().isoformat()
-
-
+    if dt.tzinfo is None:
+        # assume already UTC-like
+        return dt.date().isoformat()
+    return dt.astimezone(timezone.utc).date().isoformat()
 # ============================================================
 # 1) รายชื่อพนักงานในช่วง Pay Period + ชั่วโมงสุทธิ & จำนวนรายการ
 #    GET /payroll/pay-periods/{pp_id}/employees
@@ -250,7 +229,6 @@ def daily_summary(
     ot_daily_threshold: float = Query(8.0),
     db: Session = Depends(get_db),
 ):
-    print(daily_summary)
     pp = _get_pp_or_404(db, pp_id)
 
     q = (
@@ -270,8 +248,7 @@ def daily_summary(
     # group by UTC date key (to match prior JS behavior)
     by_date: Dict[str, List[TimeEntry]] = defaultdict(list)
     for te in rows:
-        key = _to_local_date(te.clock_in_at or te.clock_out_at)
-        
+        key = _to_utc_date(te.clock_in_at or te.clock_out_at)
         if key:
             by_date[key].append(te)
 
