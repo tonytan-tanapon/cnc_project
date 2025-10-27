@@ -103,31 +103,6 @@
       .center {
         text-align: center;
       }
-      /* ==== Make Action column smaller ==== */
-      th:first-child,
-      td.actions {
-        width: 50px; /* ความกว้างคงที่ */
-        text-align: center;
-        white-space: nowrap;
-        padding: 4px 6px; /* ลดช่องว่างด้านใน */
-      }
-
-      .actions button {
-        border: none;
-        background: none;
-        cursor: pointer;
-        font-size: 1.1rem;
-        color: #111;
-        padding: 2px 4px;
-        transition: color 0.2s, transform 0.1s;
-      }
-      .actions button:hover {
-        color: #2563eb;
-        transform: scale(1.15);
-      }
-      .actions button i {
-        pointer-events: none;
-      }
     </style>
   </head>
   <body>
@@ -139,13 +114,10 @@
     <table>
       <thead>
         <tr>
-          <th></th>
           <th>No</th>
           <th>Date</th>
-          <th>Clock In</th>
-          <th>Start Break</th>
-          <th>Stop Break</th>
-          <th>Clock Out</th>
+          <th>Shifts</th>
+          <th>Breaks</th>
           <th>Break (hrs)*</th>
           <th>Reg (hrs)</th>
           <th>OT (hrs)</th>
@@ -199,8 +171,7 @@
         "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.19.3/xlsx.full.min.js",
       ];
       const SHEETJS_LOCAL = "/static/vendor/xlsx/xlsx.full.min.js"; // <- host file here as fallback
-      const TE_MANUAL = "/time-entries/manual"; // ใช้สำหรับ PATCH
-      const BR_MANUAL = "/breaks/manual";
+
       function loadScript(src) {
         return new Promise((resolve, reject) => {
           const s = document.createElement("script");
@@ -439,341 +410,6 @@
           })
           .join("<br>");
       }
-      async function apiPOST(path, body) {
-        try {
-          return await jfetch(api(path), {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body),
-          });
-        } catch (e) {
-          console.error(e);
-          toast?.(e?.message || "API POST error");
-          throw e;
-        }
-      }
-      async function apiPATCH(path, body) {
-        try {
-          return await jfetch(api(path), {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body),
-          });
-        } catch (e) {
-          console.error(e);
-          toast?.(e?.message || "API PATCH error");
-          throw e;
-        }
-      }
-
-      async function renderRawWithPay(details = []) {
-        const tb = $("#tblBody");
-        tb.innerHTML = "";
-        const { rate, otRate } = effectiveRates();
-
-        // ✅ Add "➕" button beside header Action (if not already added)
-        const theadAction = document.querySelector("thead tr th:first-child");
-        if (theadAction && !document.getElementById("addBtn")) {
-          const addBtn = document.createElement("button");
-          addBtn.id = "addBtn";
-          addBtn.textContent = "➕";
-          addBtn.title = "Add new time entry";
-          Object.assign(addBtn.style, {
-            marginLeft: "6px",
-            cursor: "pointer",
-            border: "none",
-            background: "none",
-            fontSize: "1.1rem",
-            color: "#2563eb",
-          });
-          theadAction.appendChild(addBtn);
-
-          addBtn.onclick = () => {
-            const newRow = document.createElement("tr");
-            newRow.classList.add("editing");
-            newRow.innerHTML = `
-    <td class="center actions">
-      <button class="saveBtn" title="Save">💾</button>
-      <button class="cancelBtn" title="Cancel">❌</button>
-    </td>
-    <td class="num mono">–</td>
-    <td><input type="date" style="width:120px" value="${fmtDate(
-      new Date()
-    )}"></td>
-    <td><input type="time" step="60" value="08:00"></td>
-    <td><input type="time" step="60"></td>
-    <td><input type="time" step="60"></td>
-    <td><input type="time" step="60" value="17:00"></td>
-    <td colspan="8" class="muted center">New entry</td>
-  `;
-            tb.prepend(newRow);
-
-            const btnSave = newRow.querySelector(".saveBtn");
-            const btnCancel = newRow.querySelector(".cancelBtn");
-
-            btnCancel.onclick = () => newRow.remove();
-
-            btnSave.onclick = async () => {
-              const newDate = newRow.querySelector('input[type="date"]').value;
-              const [inTime, startBreak, stopBreak, outTime] = Array.from(
-                newRow.querySelectorAll('input[type="time"]')
-              ).map((x) => x.value);
-
-              if (!newDate || !inTime || !outTime) {
-                toast?.("Please fill Date, Clock In and Clock Out");
-                return;
-              }
-
-              try {
-                // ✅ POST new TimeEntry
-                const te = await apiPOST(TE_MANUAL, {
-                  employee_id: currentEmployeeId,
-                  clock_in_at: new Date(
-                    `${newDate}T${inTime}:00`
-                  ).toISOString(),
-                  clock_out_at: new Date(
-                    `${newDate}T${outTime}:00`
-                  ).toISOString(),
-                });
-
-                // ✅ POST BreakEntry (if given)
-                if (startBreak || stopBreak) {
-                  await apiPOST(BR_MANUAL, {
-                    time_entry_id: te.id,
-                    start_at: startBreak
-                      ? new Date(`${newDate}T${startBreak}:00`).toISOString()
-                      : null,
-                    end_at: stopBreak
-                      ? new Date(`${newDate}T${stopBreak}:00`).toISOString()
-                      : null,
-                  });
-                }
-
-                toast?.("Added new time entry");
-                await loadPage(true);
-              } catch (e) {
-                console.error(e);
-                toast?.(e?.message || "Add failed");
-              }
-            };
-          };
-        }
-
-        if (!details.length) {
-          tb.innerHTML = `<tr><td colspan="15" class="empty">No time entries found</td></tr>`;
-          return;
-        }
-
-        // ===== Sort old → new =====
-        details.sort(
-          (a, b) => new Date(a.clock_in_at || 0) - new Date(b.clock_in_at || 0)
-        );
-
-        let sumBreak = 0,
-          sumReg = 0,
-          sumOT = 0,
-          sumPayReg = 0,
-          sumPayOT = 0;
-        let lastWeekKey = null;
-
-        for (const [i, te] of details.entries()) {
-          const dateKey = utcDateKey(te.clock_in_at || te.clock_out_at);
-          const weekKey = weekKeyLocal(dateKey, 1);
-
-          if (lastWeekKey !== null && weekKey !== lastWeekKey) {
-            const sep = document.createElement("tr");
-            sep.innerHTML = `<td colspan="15" style="background:#f4f4f5;height:6px;border:0"></td>`;
-            tb.appendChild(sep);
-          }
-          lastWeekKey = weekKey;
-
-          const idx = i + 1;
-          const clockIn = te.clock_in_at ? fmtTime(te.clock_in_at) : "";
-          const clockOut = te.clock_out_at ? fmtTime(te.clock_out_at) : "";
-          let startBreak = "",
-            stopBreak = "",
-            breakHrs = 0;
-
-          if (Array.isArray(te.breaks) && te.breaks.length > 0) {
-            const br = te.breaks[0];
-            startBreak = br.start_at ? fmtTime(br.start_at) : "";
-            stopBreak = br.end_at ? fmtTime(br.end_at) : "";
-            if (br.start_at && br.end_at) {
-              breakHrs =
-                (new Date(br.end_at) - new Date(br.start_at)) / 3600000 || 0;
-            }
-          }
-
-          let totalHrs = 0;
-          if (te.clock_in_at && te.clock_out_at) {
-            const inT = new Date(te.clock_in_at);
-            const outT = new Date(te.clock_out_at);
-            totalHrs = (outT - inT) / 3600000 - breakHrs;
-          }
-
-          const regHrs = Math.min(8, totalHrs);
-          const otHrs = Math.max(0, totalHrs - 8);
-          const payReg = regHrs * rate;
-          const payOT = otHrs * otRate;
-          const totalPay = payReg + payOT;
-
-          sumBreak += breakHrs;
-          sumReg += regHrs;
-          sumOT += otHrs;
-          sumPayReg += payReg;
-          sumPayOT += payOT;
-
-          const tr = document.createElement("tr");
-          tr.dataset.idx = i;
-          tr.innerHTML = `
-<td class="center actions">
-  <button class="editBtn" title="Edit">🖉</button>
-  <button class="delBtn" title="Delete">🗑️</button>
-</td>
-<td class="num mono">${idx}</td>
-<td class="mono nowrap">${fmtMDY(dateKey)}</td>
-<td class="mono">${clockIn}</td>
-<td class="mono">${startBreak}</td>
-<td class="mono">${stopBreak}</td>
-<td class="mono">${clockOut}</td>
-<td class="num mono">${breakHrs.toFixed(2)}</td>
-<td class="num mono">${regHrs.toFixed(2)}</td>
-<td class="num mono">${otHrs.toFixed(2)}</td>
-<td class="num mono">${currency(rate)}</td>
-<td class="num mono">${currency(otRate)}</td>
-<td class="num mono">${currency(payReg)}</td>
-<td class="num mono">${currency(payOT)}</td>
-<td class="num mono">${currency(totalPay)}</td>
-`;
-          tb.appendChild(tr);
-        }
-
-        // ===== footer totals =====
-        $("#tblFoot").innerHTML = `
-<tr>
-  <td colspan="7" class="num">Total</td>
-  <td class="num mono">${sumBreak.toFixed(2)}</td>
-  <td class="num mono">${sumReg.toFixed(2)}</td>
-  <td class="num mono">${sumOT.toFixed(2)}</td>
-  <td></td><td></td>
-  <td class="num mono">${currency(sumPayReg)}</td>
-  <td class="num mono">${currency(sumPayOT)}</td>
-  <td class="num mono">${currency(sumPayReg + sumPayOT)}</td>
-</tr>`;
-
-        // ===== Edit/Delete per row =====
-        tb.querySelectorAll("tr[data-idx]").forEach((tr) => {
-          const i = Number(tr.dataset.idx);
-          const te = details[i];
-          if (!te) return;
-          const cells = tr.children;
-          const btnEdit = tr.querySelector(".editBtn");
-          const btnDel = tr.querySelector(".delBtn");
-
-          btnDel.onclick = async () => {
-            if (!confirm("Delete this entry?")) return;
-            try {
-              await jfetch(`${TE_MANUAL}/${te.id}`, { method: "DELETE" });
-              toast?.("Deleted");
-              await loadPage(true);
-            } catch (e) {
-              toast?.(e?.message || "Delete failed");
-            }
-          };
-
-          btnEdit.onclick = () => {
-            if (tr.classList.contains("editing")) return;
-            tr.classList.add("editing");
-
-            const dateText = cells[2]?.textContent.trim();
-            const inText = cells[3]?.textContent.trim();
-            const startBreakText = cells[4]?.textContent.trim();
-            const stopBreakText = cells[5]?.textContent.trim();
-            const outText = cells[6]?.textContent.trim();
-
-            // replace text with inputs
-            cells[2].innerHTML = `<input type="date" value="${fmtDate(
-              dateText
-            )}" style="width:120px">`;
-            cells[3].innerHTML = `<input type="time" value="${inText}" step="60">`;
-            cells[4].innerHTML = `<input type="time" value="${startBreakText}" step="60">`;
-            cells[5].innerHTML = `<input type="time" value="${stopBreakText}" step="60">`;
-            cells[6].innerHTML = `<input type="time" value="${outText}" step="60">`;
-
-            btnEdit.textContent = "💾"; // Save
-            btnDel.textContent = "❌"; // Cancel
-
-            btnDel.onclick = () => loadPage(true);
-
-            btnEdit.onclick = async () => {
-              const newDate = cells[2].querySelector("input").value;
-              const newIn = cells[3].querySelector("input").value;
-              const newStartBr = cells[4].querySelector("input").value;
-              const newStopBr = cells[5].querySelector("input").value;
-              const newOut = cells[6].querySelector("input").value;
-
-              if (!newDate || (!newIn && !newOut)) {
-                toast?.("Please provide at least a Clock In or Clock Out time");
-                return;
-              }
-
-              try {
-                const patchTE = {};
-                if (newIn)
-                  patchTE.clock_in_at = new Date(
-                    `${newDate}T${newIn}:00`
-                  ).toISOString();
-                if (newOut)
-                  patchTE.clock_out_at = new Date(
-                    `${newDate}T${newOut}:00`
-                  ).toISOString();
-
-                if (Object.keys(patchTE).length > 0)
-                  await apiPATCH(`${TE_MANUAL}/${te.id}`, patchTE);
-
-                // ✅ Break PATCH / DELETE / CREATE
-                if (Array.isArray(te.breaks) && te.breaks.length > 0) {
-                  const br = te.breaks[0];
-                  if (!newStartBr && !newStopBr) {
-                    await jfetch(`${BR_MANUAL}/${br.id}`, { method: "DELETE" });
-                  } else {
-                    const brData = {};
-                    if (newStartBr)
-                      brData.start_at = new Date(
-                        `${newDate}T${newStartBr}:00`
-                      ).toISOString();
-                    if (newStopBr)
-                      brData.end_at = new Date(
-                        `${newDate}T${newStopBr}:00`
-                      ).toISOString();
-                    await apiPATCH(`${BR_MANUAL}/${br.id}`, brData);
-                  }
-                } else if (newStartBr || newStopBr) {
-                  const brData = {};
-                  if (newStartBr)
-                    brData.start_at = new Date(
-                      `${newDate}T${newStartBr}:00`
-                    ).toISOString();
-                  if (newStopBr)
-                    brData.end_at = new Date(
-                      `${newDate}T${newStopBr}:00`
-                    ).toISOString();
-                  await apiPOST(`${BR_MANUAL}`, {
-                    time_entry_id: te.id,
-                    ...brData,
-                  });
-                }
-
-                toast?.("Saved");
-                await loadPage(true);
-              } catch (e) {
-                console.error(e);
-                toast?.(e?.message || "Save failed");
-              }
-            };
-          };
-        });
-      }
 
       function render(summary, breaksByDate = {}, shiftsByDate = {}) {
         const tb = $("#tblBody");
@@ -791,12 +427,12 @@
           const weekKey = weekKeyLocal(row.date, 1); // Monday-start
           if (lastWeekKey !== null && weekKey !== lastWeekKey) {
             const sep = document.createElement("tr");
-            sep.innerHTML = `<td colspan="14" style="background:#f4f4f5;height:6px;border:0"></td>`;
+            sep.innerHTML = `<td colspan="12" style="background:#f4f4f5;height:6px;border:0"></td>`;
             tb.appendChild(sep);
           }
           lastWeekKey = weekKey;
-          idx += 1;
 
+          idx += 1;
           const reg = Number(row.reg_hours || 0);
           const ot = Number(row.ot_hours || 0);
           const payReg = reg * rate;
@@ -807,58 +443,43 @@
           sumPayReg += payReg;
           sumPayOT += payOT;
 
-          // ===== ดึงค่า clock-in / clock-out =====
-          const shifts = shiftsByDate[row.date] || [];
-          const breaks = breaksByDate[row.date] || [];
-
-          const clockIn = shifts.length ? fmtTime(shifts[0].start_at) : "";
-          const clockOut = shifts.length
-            ? fmtTime(shifts[shifts.length - 1].end_at)
-            : "";
-
-          const startBreak = breaks.length ? fmtTime(breaks[0].start_at) : "";
-          const stopBreak = breaks.length
-            ? fmtTime(breaks[breaks.length - 1].end_at)
-            : "";
+          const breaksTxt = formatBreaksCell(breaksByDate[row.date] || []);
+          const shiftsTxt = formatShiftsCell(shiftsByDate[row.date] || []);
 
           const editUrl = `employee_timesheet_edit.html?pp_id=${encodeURIComponent(
             currentPpId
           )}&employee_id=${encodeURIComponent(currentEmployeeId)}&date=${
             row.date
           }&return=${encodeURIComponent(location.href)}`;
-
           const tr = document.createElement("tr");
           tr.innerHTML = `
-      <td class="num mono"><a class="link" href="${editUrl}">${idx}</a></td>
-      <td class="nowrap mono">${fmtMDY(row.date)}</td>
-      <td class="mono">${clockIn}</td>
-      <td class="mono">${startBreak}</td>
-      <td class="mono">${stopBreak}</td>
-      <td class="mono">${clockOut}</td>
-      <td class="num mono">${Number(row.unpaid_break_hours || 0).toFixed(
-        2
-      )}</td>
-      <td class="num mono">${reg.toFixed(2)}</td>
-      <td class="num mono">${ot.toFixed(2)}</td>
-      <td class="num mono">${rate ? currency(rate) : ""}</td>
-      <td class="num mono">${otRate ? currency(otRate) : ""}</td>
-      <td class="num mono">${currency(payReg)}</td>
-      <td class="num mono">${currency(payOT)}</td>
-      <td class="num mono">${currency(payReg + payOT)}</td>
-    `;
+        <td class="num mono"><a class="link" href="${editUrl}" title="Edit this day">${idx}</a></td>
+        <td class="nowrap mono">${fmtMDY(row.date)}</td>
+        <td class="left mono">${shiftsTxt}</td>
+        <td class="left mono">${breaksTxt}</td>
+        <td class="num mono">${Number(row.unpaid_break_hours || 0).toFixed(
+          2
+        )}</td>
+        <td class="num mono">${reg.toFixed(2)}</td>
+        <td class="num mono">${ot.toFixed(2)}</td>
+        <td class="num mono">${rate ? currency(rate) : ""}</td>
+        <td class="num mono">${otRate ? currency(otRate) : ""}</td>
+        <td class="num mono">${currency(payReg)}</td>
+        <td class="num mono">${currency(payOT)}</td>
+        <td class="num mono">${currency(payReg + payOT)}</td>`;
           tb.appendChild(tr);
         }
 
         $("#tblFoot").innerHTML = `
-    <tr>
-      <td colspan="6" class="num">Total</td>
-      <td class="num mono">${sumReg.toFixed(2)}</td>
-      <td class="num mono">${sumOT.toFixed(2)}</td>
-      <td></td><td></td>
-      <td class="num mono">${currency(sumPayReg)}</td>
-      <td class="num mono">${currency(sumPayOT)}</td>
-      <td class="num mono">${currency(sumPayReg + sumPayOT)}</td>
-    </tr>`;
+      <tr>
+        <td colspan="5" class="num">Total</td>
+        <td class="num mono">${sumReg.toFixed(2)}</td>
+        <td class="num mono">${sumOT.toFixed(2)}</td>
+        <td></td><td></td>
+        <td class="num mono">${currency(sumPayReg)}</td>
+        <td class="num mono">${currency(sumPayOT)}</td>
+        <td class="num mono">${currency(sumPayReg + sumPayOT)}</td>
+      </tr>`;
       }
 
       const safeFilename = (s) =>
@@ -960,10 +581,8 @@
         const header = [
           "no",
           "date",
-          "clock_in",
-          "start_break",
-          "stop_break",
-          "clock_out",
+          "shifts",
+          "breaks",
           "break_unpaid_h",
           "reg_h",
           "ot_h",
@@ -975,69 +594,68 @@
         ];
         const rows = [header];
 
+        // Build rows with week separators (blank row)
         let lastWeekKey = null;
         const bodyTrs = Array.from(document.querySelectorAll("#tblBody tr"));
-
-        for (const tr of bodyTrs) {
-          const t = Array.from(tr.querySelectorAll("td"));
-          if (t.length < 15) continue;
-          const cols = t.slice(1).map((td) => td.innerText.trim()); // ✅ skip Action column
-          if (!cols[0]) continue;
-
-          const date = cols[1];
+        bodyTrs.forEach((tr) => {
+          const t = tr.querySelectorAll("td");
+          const date = (t[1]?.innerText || "").trim();
           let wk = null;
           if (date) {
             const [mm, dd, yy] = date.split("/");
             const iso = `${yy}-${mm}-${dd}`;
             wk = weekKeyLocal(iso, 1);
-            if (lastWeekKey !== null && wk !== lastWeekKey) rows.push([]);
+            if (lastWeekKey !== null && wk !== lastWeekKey) rows.push([]); // separator row
             lastWeekKey = wk;
           }
-          rows.push(cols);
-        }
 
-        // ➕ เพิ่มแถวว่าง + แถว Total (ใส่สูตรทีหลัง)
+          const numTxt = (s) =>
+            Number(String(s || "").replace(/[^0-9.\-]/g, "") || 0);
+
+          rows.push([
+            t[0]?.innerText.trim() || "",
+            date,
+            t[2]?.innerText.trim() || "",
+            t[3]?.innerText.trim() || "",
+            numTxt(t[4]?.innerText), // break_unpaid_h
+            numTxt(t[5]?.innerText), // reg_h
+            numTxt(t[6]?.innerText), // ot_h
+            numTxt(t[7]?.innerText), // rate
+            numTxt(t[8]?.innerText), // ot_rate
+            numTxt(t[9]?.innerText), // pay_reg
+            numTxt(t[10]?.innerText), // pay_ot
+            numTxt(t[11]?.innerText), // pay_total
+          ]);
+        });
+
+        // Add a blank row then TOTAL row with formulas (summing numeric columns)
         rows.push([]);
-        rows.push([
-          "",
-          "",
-          "",
-          "",
-          "",
-          "",
-          "Total",
-          "",
-          "",
-          "",
-          "",
-          "",
-          "",
-          "",
-        ]);
+        const startDataRow = 2; // header is row 1; first data row is 2 in Excel terms
+        const lastExcelRow = rows.length; // TOTAL row will be last after we push it
+        // We will push total row then compute formulas using Excel indices
+        rows.push(["", "", "", "", "Total", "", "", "", "", "", "", ""]); // placeholder; we'll insert formulas after sheet created
 
+        // Create workbook & sheet
         const wb = XLSX.utils.book_new();
         const ws = XLSX.utils.aoa_to_sheet(rows);
-        // ===== Center header row =====
-        const range = XLSX.utils.decode_range(ws["!ref"]);
-        for (let c = range.s.c; c <= range.e.c; c++) {
-          const cellAddr = XLSX.utils.encode_cell({ r: 0, c }); // r=0 คือ header row
-          const cell = ws[cellAddr];
-          if (cell) {
-            cell.s = {
-              alignment: { horizontal: "center", vertical: "center" },
-              font: { bold: true },
-              fill: { fgColor: { rgb: "F2F2F2" } }, // พื้นหลังเทาอ่อน
-            };
+        ["E", "F", "G"].forEach((col) => {
+          const range = XLSX.utils.decode_range(ws["!ref"]);
+          for (let r = range.s.r + 1; r <= range.e.r; ++r) {
+            // skip header row
+            const cell = ws[`${col}${r + 1}`]; // r+1 because row index starts at 0
+            if (cell) cell.s = { alignment: { horizontal: "center" } };
           }
-        }
-        // ปรับความกว้างคอลัมน์
+        });
+        // Set sheet name = "period"
+        let sheetName = `${currentPpStart}_to_${currentPpEnd}`;
+        sheetName = sheetName.replace(/[\\/:*?[\]]/g, "").slice(0, 31); // sanitize + length limit
+
+        // Column widths
         ws["!cols"] = [
           { wch: 4 }, // no
           { wch: 10 }, // date
-          { wch: 10 }, // clock_in
-          { wch: 10 }, // start_break
-          { wch: 10 }, // stop_break
-          { wch: 10 }, // clock_out
+          { wch: 18 }, // shifts
+          { wch: 18 }, // breaks
           { wch: 12 }, // break_unpaid_h
           { wch: 10 }, // reg_h
           { wch: 10 }, // ot_h
@@ -1048,47 +666,70 @@
           { wch: 12 }, // pay_total
         ];
 
-        // === ใส่สูตร SUM ให้แถว Total ===
+        // Apply currency number format to monetary columns: rate(8), ot_rate(9), pay_reg(10), pay_ot(11), pay_total(12)
+        // 0-based col indexes -> 7,8,9,10,11
+        const monetaryCols = [7, 8, 9, 10, 11];
         const ref = XLSX.utils.decode_range(ws["!ref"]);
-        const totalRow = ref.e.r; // index ของแถว Total (0-based)
-        const firstDataRow = 2; // Excel row เริ่มข้อมูล (หลัง header)
-        const lastDataRow = totalRow; // ก่อนแถว Total
+        for (let R = 1; R <= ref.e.r; R++) {
+          // skip header (R starts at 1)
+          for (const C of monetaryCols) {
+            const addr = XLSX.utils.encode_cell({ r: R, c: C });
+            const cell = ws[addr];
+            if (!cell || typeof cell.v === "undefined" || cell.v === "")
+              continue;
+            if (typeof cell.v === "number") {
+              cell.t = "n";
+              cell.z = "$#,##0.00"; // two decimals money
+            }
+          }
+        }
 
-        // ฟังก์ชันแปลงเลขเป็นชื่อคอลัมน์ Excel
-        const excelCol = (c) => XLSX.utils.encode_col(c);
-
-        // ใส่คำว่า Total
-        ws[XLSX.utils.encode_cell({ r: totalRow, c: 6 })] = {
+        // Insert SUM formulas on the TOTAL row (last row)
+        const totalRow = ref.e.r; // current last index (0-based)
+        // We want to sum only real data rows: from first data (row 2) to the row before the blanks at the end.
+        // Compute ranges for numeric columns, skipping blank separator rows (Excel SUM will ignore blanks automatically).
+        function excelCol(c) {
+          return XLSX.utils.encode_col(c);
+        }
+        const firstDataExcelRow = startDataRow; // 2
+        const lastDataExcelRow = totalRow; // totalRow will be overwritten with totals; safe to sum up to totalRow-1
+        // Set labels and formulas
+        ws[XLSX.utils.encode_cell({ r: totalRow, c: 4 })] = {
           t: "s",
           v: "Total",
-        };
+        }; // column E (index 4)
 
-        // 🕒 คอลัมน์ชั่วโมง: reg_h (7), ot_h (8)
-        for (const c of [7, 8]) {
+        // Hours totals (reg_h col 5, ot_h col 6 indexes 5,6) — show as numbers with 2 decimals
+        const sumColsPlain = [5, 6];
+        for (const c of sumColsPlain) {
           const colL = excelCol(c);
           ws[XLSX.utils.encode_cell({ r: totalRow, c })] = {
             t: "n",
-            f: `SUM(${colL}${firstDataRow}:${colL}${lastDataRow})`,
+            f: `SUM(${colL}${firstDataExcelRow}:${colL}${lastDataExcelRow})`,
             z: "0.00",
           };
         }
 
-        // 💵 คอลัมน์เงิน: pay_reg(11), pay_ot(12), pay_total(13)
-        for (const c of [11, 12, 13]) {
+        // Money totals (pay_reg col 9, pay_ot col 10, pay_total col 11)
+        const sumColsMoney = [9, 10, 11];
+        for (const c of sumColsMoney) {
           const colL = excelCol(c);
           ws[XLSX.utils.encode_cell({ r: totalRow, c })] = {
             t: "n",
-            f: `SUM(${colL}${firstDataRow}:${colL}${lastDataRow})`,
+            f: `SUM(${colL}${firstDataExcelRow}:${colL}${lastDataExcelRow})`,
             z: "$#,##0.00",
           };
         }
 
+        // Recalculate ws['!ref'] if needed
         ws["!ref"] = XLSX.utils.encode_range({
           s: { r: 0, c: 0 },
-          e: { r: totalRow, c: 13 },
+          e: { r: totalRow, c: 11 },
         });
 
-        XLSX.utils.book_append_sheet(wb, ws, "Timesheet");
+        XLSX.utils.book_append_sheet(wb, ws, sheetName);
+
+        // File name = "<employee name>_<period>.xlsx"
         const fname = `${safeFilename(
           currentEmpName
         )}_${currentPpStart}_${currentPpEnd}.xlsx`;
@@ -1131,16 +772,49 @@
         currentPpStart = fmtDate(pp.start_at); // จะคืน yyyy-mm-dd แบบ local/LA
         currentPpEnd = fmtDate(pp.end_at);
         if (fetchFromApi) {
-          // ✅ โหลดข้อมูลรายวันแบบยังไม่รวม
-          const [details] = await Promise.all([
+          const [summary, details] = await Promise.all([
+            apiGET(
+              `/payroll/pay-periods/${pp_id}/employees/${employee_id}/daily-summary?closed_only=false&ot_daily_threshold=8`
+            ),
             apiGET(
               `/payroll/time-entries/by-employee?employee_id=${employee_id}&pp_id=${pp_id}`
             ),
           ]);
+          // 🟢 จุดที่ 1: ดูข้อมูลดิบที่มาจาก server
+          console.log("SUMMARY from API:", summary);
+          console.log("DETAILS from API:", details);
+          // Apply OT rules (daily >8, + 6-day week lowest day → OT)
+          summary.rows = applySixDayRule(summary.rows || [], {
+            weekStartsOn: 1,
+          });
 
-          // ✅ แสดงผลแบบรายวันพร้อมคอลัมน์อื่น ๆ
-          renderRawWithPay(details);
+          const breaksByDate = {};
+          const shiftsByDate = {};
+          for (const te of details || []) {
+            const dayKey = utcDateKey(te.clock_in_at || te.clock_out_at); // จะได้ 2025-10-26 ชัวร์
+            if (!dayKey) continue;
+
+            // 🟢 จุดที่ 2: log ค่า clock_in, clock_out และ key ที่ใช้ grouping
+            console.log(
+              "→ ENTRY:",
+              te.clock_in_at,
+              te.clock_out_at,
+              "→ utcDateKey:",
+              dayKey
+            );
+            (shiftsByDate[dayKey] ??= []).push({
+              start_at: te.clock_in_at,
+              end_at: te.clock_out_at,
+            });
+            for (const b of te.breaks || []) {
+              (breaksByDate[dayKey] ??= []).push(b);
+            }
+          }
+          lastSummary = summary;
+          lastBreaksByDate = breaksByDate;
+          lastShiftsByDate = shiftsByDate;
         }
+        render(lastSummary, lastBreaksByDate, lastShiftsByDate);
       }
 
       /* ========= Wire up ========= */
