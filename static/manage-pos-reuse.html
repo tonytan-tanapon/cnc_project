@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>POs · Topnotch – MFG</title>
+
+    <link rel="stylesheet" href="/static/css/app.css" />
+    <link
+      rel="stylesheet"
+      href="/static/vendor/tabulator/tabulator_modern.min.css"
+    />
+
+    <style>
+      body {
+        margin: 0;
+        font-family: system-ui, sans-serif;
+        background: #f9fafb;
+      }
+      .main--edge {
+        display: flex;
+        height: 100vh;
+        overflow: hidden;
+      }
+
+      /* ซ้าย: ตาราง */
+      #listPanel {
+        flex: 2;
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        border-right: 1px solid #e5e7eb;
+        background: #fff;
+      }
+      .list-topbar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        height: 44px;
+        padding: 0 10px;
+        border-bottom: 1px solid #e5e7eb;
+      }
+      .search-lg {
+        flex: 0 0 260px;
+        height: 32px;
+        padding: 0 10px;
+      }
+      #_add {
+        height: 32px;
+      }
+      #listBody {
+        flex: 1;
+        overflow: auto;
+      }
+      #listBody .tabulator {
+        height: 100% !important;
+        border: 0;
+      }
+
+      /* ขวา: ฟอร์มสร้าง PO */
+      #createPanel {
+        flex: 1;
+        min-width: 340px;
+        max-width: 420px;
+        background: #fff;
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        border-left: 1px solid #e5e7eb;
+      }
+      #createPanel h3 {
+        margin: 0 0 12px 0;
+      }
+      #poForm {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      #poForm label {
+        font-weight: 600;
+      }
+      #poForm input,
+      #poForm textarea {
+        padding: 6px 8px;
+        font-size: 14px;
+        border: 1px solid #d1d5db;
+        border-radius: 4px;
+      }
+      #poForm .form-actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 12px;
+      }
+      /* สวยขึ้นนิดเวลามีรายการยาว */
+      #createPanel {
+        overflow-y: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <aside class="sidebar"><div id="navSlot" data-nav-slot></div></aside>
+
+      <main class="main main--edge">
+        <!-- ซ้าย: ตาราง -->
+        <section id="listPanel">
+          <div class="list-topbar">
+            <input
+              id="_q"
+              type="search"
+              class="search-lg"
+              placeholder="Search POs…"
+            />
+            <!-- <button id="_add" class="btn" type="button">+ Add Row</button> -->
+          </div>
+          <div id="listBody"></div>
+        </section>
+
+        <!-- ขวา: ฟอร์มสร้าง -->
+        <aside id="createPanel">
+          <h3>Create New PO</h3>
+          <form id="poForm" onsubmit="return false;">
+            <label>PO No.</label>
+            <input id="po_number" type="text" placeholder="Enter PO number" />
+
+            <label>Customer</label>
+            <input
+              id="customer_input"
+              type="text"
+              placeholder="Search customer…"
+            />
+
+            <label>Description</label>
+            <textarea
+              id="po_desc"
+              rows="3"
+              placeholder="Optional description"
+            ></textarea>
+
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary">Save</button>
+              <button id="btnClear" type="button" class="btn">Clear</button>
+            </div>
+          </form>
+        </aside>
+      </main>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite">
+      <span id="toastText"></span>
+    </div>
+
+    <script type="module" src="/static/js/nav-loader.js"></script>
+    <script src="/static/vendor/tabulator/tabulator.min.js"></script>
+    <script type="module" src="/static/js/pages/manage-pos.js"></script>
+  </body>
+</html>

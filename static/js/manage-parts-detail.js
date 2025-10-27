@@ -636,7 +636,7 @@ function initTable() {
     height: "auto",
     placeholder: "No rows",
     index: "lot_no",
-    groupBy: "po_number",
+    // groupBy: "po_number",
     pagination: false,
     columns: [
       {
