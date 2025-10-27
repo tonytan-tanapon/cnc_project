@@ -92,6 +92,8 @@ class EmployeeBase(APIBase):
     email: Optional[str] = None
     phone: Optional[str] = None
     status: Optional[str] = "active"
+    payroll_emp_id: Optional[int] = None   # ✅ เพิ่มฟิลด์นี้
+
 
 class EmployeeCreate(BaseModel):
     emp_code: Optional[str] = None   # ใส่ได้หรือไม่ใส่ก็ได้
@@ -101,6 +103,8 @@ class EmployeeCreate(BaseModel):
     email: Optional[str] = None
     phone: Optional[str] = None
     status: Optional[str] = "active"
+    payroll_emp_id: Optional[int] = None   # ✅ เพิ่มฟิลด์นี้
+
 
 class EmployeeUpdate(BaseModel):
     name: Optional[str] = None
@@ -109,9 +113,12 @@ class EmployeeUpdate(BaseModel):
     email: Optional[str] = None
     phone: Optional[str] = None
     status: Optional[str] = None
+    payroll_emp_id: Optional[int] = None   # ✅ เพิ่มฟิลด์นี้
+
 
 class EmployeeOut(EmployeeBase):
     id: int
+    
 
 # =========================================
 # ================= Suppliers =============

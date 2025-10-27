@@ -458,6 +458,7 @@ def kiosk_start(payload: KioskStartPayload, db: Session = Depends(get_db)):
 
     te = TimeEntry(
         employee_id=emp.id,
+        payroll_emp_id=emp.payroll_emp_id,  # ✅ ดึงจาก Employee
         created_by_user_id=None,
         work_user_id=pay_user.id if pay_user else None,
         clock_in_at=now,
