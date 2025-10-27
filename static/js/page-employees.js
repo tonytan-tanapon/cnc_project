@@ -9,7 +9,7 @@ const ENDPOINTS = {
 };
 const JSON_HEADERS = { "Content-Type": "application/json" };
 const UI = { q: "_q", add: "_add", table: "listBody" };
-
+let payrollOptions = [];
 /* ===== STATE ===== */
 let els = {};
 let table = null;
@@ -54,6 +54,7 @@ function buildPayload(row) {
     email: row.email ? trim(row.email) : null,
     phone: row.phone ? trim(row.phone) : null,
     status: row.status || "active",
+    payroll_emp_id: row.payroll_emp_id ?? null, // 👈 เพิ่มบรรทัดนี้
   };
 }
 
@@ -67,6 +68,7 @@ function normalizeRow(r) {
     email: r.email ?? "",
     phone: r.phone ?? "",
     status: r.status ?? "active",
+    payroll_emp_id: r.payroll_emp_id ?? null, // 👈 เพิ่มบรรทัดนี้
   };
 }
 
@@ -130,7 +132,6 @@ async function deleteRow(row) {
 /* ===== Columns ===== */
 function makeColumns() {
   return [
-   
     { title: "Code", field: "emp_code", width: 120, editor: "input" },
     {
       title: "Name",
@@ -143,6 +144,24 @@ function makeColumns() {
     { title: "Department", field: "department", width: 160, editor: "input" },
     { title: "Email", field: "email", width: 220, editor: "input" },
     { title: "Phone", field: "phone", width: 140, editor: "input" },
+
+    // 👇 เพิ่มคอลัมน์นี้
+    {
+      title: "Payroll Employee",
+      field: "payroll_emp_id",
+      width: 220,
+      editor: "list",
+      editorParams: {
+        values: () => payrollOptions,
+        autocomplete: true,
+      },
+      formatter: (cell) => {
+        const val = cell.getValue();
+        const opt = payrollOptions.find((o) => o.value === val);
+        return opt ? opt.label : "";
+      },
+    },
+
     {
       title: "Status",
       field: "status",
@@ -329,7 +348,18 @@ async function autosaveCell(cell, opts = {}) {
   }, PATCH_DEBOUNCE_MS);
   patchTimers.set(row, t);
 }
-
+async function loadPayrollOptions() {
+  try {
+    const employees = await jfetch("/employees?limit=1000");
+    payrollOptions = employees.map((e) => ({
+      label: `${e.emp_code} - ${e.name}`,
+      value: e.id,
+    }));
+    console.log("Payroll options loaded:", payrollOptions); // ✅ log หลัง assign
+  } catch (e) {
+    console.error("Failed to load payroll employees", e);
+  }
+}
 /* ===== TABLE ===== */
 function initTable() {
   table = new Tabulator(`#${UI.table}`, {
@@ -522,6 +552,7 @@ function bindAdd() {
 /* ===== BOOT ===== */
 document.addEventListener("DOMContentLoaded", async () => {
   Object.values(UI).forEach((id) => (els[id] = $(id)));
+  await loadPayrollOptions(); // 👈 โหลดก่อนสร้าง table
   initTable();
   bindAdd();
   bindSearchKeyset();

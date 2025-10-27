@@ -204,6 +204,7 @@ class PO(Base):
 
 class Employee(Base):
     __tablename__ = "employees"
+
     id = Column(Integer, primary_key=True, index=True)
     emp_code = Column(String, unique=True, index=True, nullable=False)
     name = Column(String, nullable=False)
@@ -213,12 +214,13 @@ class Employee(Base):
     phone = Column(String, nullable=True)
     status = Column(String, default="active", nullable=False)  # active / inactive
 
-    payroll_emp_id = Column(Integer, nullable=True, index=True)  # 👈 เพิ่มตรงนี้
+    payroll_emp_id = Column(Integer, ForeignKey("employees.id", ondelete="SET NULL"), nullable=True, index=True)
+    payroll_employee = relationship("Employee", remote_side=[id], backref="subordinates")
+
     user = relationship("User", back_populates="employee", uselist=False)
 
     def __repr__(self):
         return f"<Employee(emp_code={self.emp_code}, name={self.name})>"
-
 
 # =========================================
 # =========== Materials / Batches =========
