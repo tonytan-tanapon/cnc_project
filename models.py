@@ -213,6 +213,7 @@ class Employee(Base):
     phone = Column(String, nullable=True)
     status = Column(String, default="active", nullable=False)  # active / inactive
 
+    payroll_emp_id = Column(Integer, nullable=True, index=True)  # 👈 เพิ่มตรงนี้
     user = relationship("User", back_populates="employee", uselist=False)
 
     def __repr__(self):
