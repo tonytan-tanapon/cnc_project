@@ -84,6 +84,18 @@ class POOut(POBase):
 # =========================================
 # ================ Employees ==============
 # =========================================
+
+from pydantic import BaseModel
+from typing import Optional, List
+
+class EmployeeMiniOut(BaseModel):
+    id: int
+    emp_code: str
+    name: str
+
+    class Config:
+        orm_mode = True
+
 class EmployeeBase(APIBase):
     emp_code: str
     name: str
@@ -92,8 +104,7 @@ class EmployeeBase(APIBase):
     email: Optional[str] = None
     phone: Optional[str] = None
     status: Optional[str] = "active"
-    payroll_emp_id: Optional[int] = None   # ✅ เพิ่มฟิลด์นี้
-
+    payroll_emp_id: Optional[int] = None   # ✅ เพิ่มบรรทัดนี้
 
 class EmployeeCreate(BaseModel):
     emp_code: Optional[str] = None   # ใส่ได้หรือไม่ใส่ก็ได้
@@ -103,21 +114,25 @@ class EmployeeCreate(BaseModel):
     email: Optional[str] = None
     phone: Optional[str] = None
     status: Optional[str] = "active"
-    payroll_emp_id: Optional[int] = None   # ✅ เพิ่มฟิลด์นี้
-
+    payroll_emp_id: Optional[int] = None   # ✅ เพิ่มบรรทัดนี้
 
 class EmployeeUpdate(BaseModel):
+    emp_code: Optional[str] = None      # ✅ เพิ่มบรรทัดนี้
     name: Optional[str] = None
     position: Optional[str] = None
     department: Optional[str] = None
     email: Optional[str] = None
     phone: Optional[str] = None
     status: Optional[str] = None
-    payroll_emp_id: Optional[int] = None   # ✅ เพิ่มฟิลด์นี้
-
+    payroll_emp_id: Optional[int] = None   # ✅ เพิ่มบรรทัดนี้
 
 class EmployeeOut(EmployeeBase):
     id: int
+    name: str
+    ppayroll_emp_id: Optional[int] = None
+    payroll_emp: Optional[EmployeeMiniOut] = None  # ✅ หัวหน้า payroll
+    payroll_dependents: List[EmployeeMiniOut] = []  # ✅ ลูกทีม
+
     
 
 # =========================================
