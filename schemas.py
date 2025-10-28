@@ -84,19 +84,24 @@ class POOut(POBase):
 # =========================================
 # ================ Employees ==============
 # =========================================
-
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Optional, List
 
+# ==========================================
+# MINI MODEL (หัวหน้า / ลูกทีม)
+# ==========================================
 class EmployeeMiniOut(BaseModel):
     id: int
     emp_code: str
     name: str
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)  # ✅ ใช้ v2 style
 
-class EmployeeBase(APIBase):
+
+# ==========================================
+# BASE
+# ==========================================
+class EmployeeBase(BaseModel):  # ← เดิมคุณ inherit จาก APIBase (ไม่แน่ใจว่าจำเป็นไหม)
     emp_code: str
     name: str
     position: Optional[str] = None
@@ -104,36 +109,50 @@ class EmployeeBase(APIBase):
     email: Optional[str] = None
     phone: Optional[str] = None
     status: Optional[str] = "active"
-    payroll_emp_id: Optional[int] = None   # ✅ เพิ่มบรรทัดนี้
+    payroll_emp_id: Optional[int] = None
 
+    model_config = ConfigDict(from_attributes=True)
+
+
+# ==========================================
+# CREATE / UPDATE
+# ==========================================
 class EmployeeCreate(BaseModel):
-    emp_code: Optional[str] = None   # ใส่ได้หรือไม่ใส่ก็ได้
+    emp_code: Optional[str] = None
     name: str
     position: Optional[str] = None
     department: Optional[str] = None
     email: Optional[str] = None
     phone: Optional[str] = None
     status: Optional[str] = "active"
-    payroll_emp_id: Optional[int] = None   # ✅ เพิ่มบรรทัดนี้
+    payroll_emp_id: Optional[int] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
 
 class EmployeeUpdate(BaseModel):
-    emp_code: Optional[str] = None      # ✅ เพิ่มบรรทัดนี้
+    emp_code: Optional[str] = None
     name: Optional[str] = None
     position: Optional[str] = None
     department: Optional[str] = None
     email: Optional[str] = None
     phone: Optional[str] = None
     status: Optional[str] = None
-    payroll_emp_id: Optional[int] = None   # ✅ เพิ่มบรรทัดนี้
+    payroll_emp_id: Optional[int] = None
 
+    model_config = ConfigDict(from_attributes=True)
+
+
+# ==========================================
+# OUTPUT (มี nested relationships)
+# ==========================================
 class EmployeeOut(EmployeeBase):
     id: int
-    name: str
-    ppayroll_emp_id: Optional[int] = None
-    payroll_emp: Optional[EmployeeMiniOut] = None  # ✅ หัวหน้า payroll
-    payroll_dependents: List[EmployeeMiniOut] = []  # ✅ ลูกทีม
+    payroll_emp_id: Optional[int] = None
+    payroll_emp: Optional[EmployeeMiniOut] = None
+    payroll_dependents: List[EmployeeMiniOut] = []
 
-    
+    model_config = ConfigDict(from_attributes=True)
 
 # =========================================
 # ================= Suppliers =============

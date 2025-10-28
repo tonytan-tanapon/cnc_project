@@ -179,6 +179,61 @@ def employees_in_pay_period(
 # 2) รายการ TimeEntry ของพนักงานในช่วง Pay Period
 #    GET /payroll/time-entries/by-employee?employee_id=&pp_id=
 # ============================================================
+# @router.get("/time-entries/by-employee")
+# def time_entries_by_employee(
+#     employee_id: int = Query(...),
+#     pp_id: int = Query(...),
+#     db: Session = Depends(get_db),
+# ) -> List[Dict]:
+#     """
+#     คืน time entries ของพนักงานภายใน pay period ที่ระบุ
+#     รวม breaks และข้อมูลพนักงานที่จำเป็นสำหรับหัวตาราง
+#     """
+#     pp = _get_pp_or_404(db, pp_id)
+
+#     rows: List[TimeEntry] = (
+#         db.query(TimeEntry)
+#           .options(
+#               joinedload(TimeEntry.breaks),
+#               joinedload(TimeEntry.employee),
+#           )
+#           .filter(
+#               TimeEntry.employee_id == employee_id,
+#               TimeEntry.clock_in_at >= pp.start_at,
+#               TimeEntry.clock_in_at <  pp.end_at,
+#           )
+#           .order_by(TimeEntry.clock_in_at.asc())
+#           .all()
+#     )
+
+#     def ser_break(b: BreakEntry) -> Dict:
+#         return {
+#             "id": b.id,
+#             "break_type": b.break_type,
+#             "start_at": b.start_at,
+#             "end_at": b.end_at,
+#             "is_paid": b.is_paid,
+#         }
+
+#     out: List[Dict] = []
+#     for r in rows:
+#         emp = r.employee
+#         out.append({
+#             "id": r.id,
+#             "employee_id": r.employee_id,
+#             "employee": {
+#                 "id": getattr(emp, "id", None),
+#                 "emp_code": getattr(emp, "emp_code", None),
+#                 "name": getattr(emp, "name", None),
+#             },
+#             "clock_in_at": r.clock_in_at,
+#             "clock_out_at": r.clock_out_at,
+#             "status": r.status,
+#             "breaks": [ser_break(b) for b in (r.breaks or [])],
+#             "notes": r.notes,
+#         })
+#     return out
+
 @router.get("/time-entries/by-employee")
 def time_entries_by_employee(
     employee_id: int = Query(...),
@@ -187,10 +242,20 @@ def time_entries_by_employee(
 ) -> List[Dict]:
     """
     คืน time entries ของพนักงานภายใน pay period ที่ระบุ
-    รวม breaks และข้อมูลพนักงานที่จำเป็นสำหรับหัวตาราง
+    รวม dependents (ลูกทีม) ถ้ามี
     """
     pp = _get_pp_or_404(db, pp_id)
 
+    # ✅ ดึง dependents (ลูกทีมของ payroll_emp)
+    dep_ids = [
+        r[0]
+        for r in db.query(Employee.id)
+        .filter(Employee.payroll_emp_id == employee_id)
+        .all()
+    ]
+    all_ids = [employee_id] + dep_ids
+
+    # ✅ ดึง time entries ของทุกคนในกลุ่ม
     rows: List[TimeEntry] = (
         db.query(TimeEntry)
           .options(
@@ -198,7 +263,7 @@ def time_entries_by_employee(
               joinedload(TimeEntry.employee),
           )
           .filter(
-              TimeEntry.employee_id == employee_id,
+              TimeEntry.employee_id.in_(all_ids),
               TimeEntry.clock_in_at >= pp.start_at,
               TimeEntry.clock_in_at <  pp.end_at,
           )
@@ -233,6 +298,7 @@ def time_entries_by_employee(
             "notes": r.notes,
         })
     return out
+
 
 
 # ============================================================

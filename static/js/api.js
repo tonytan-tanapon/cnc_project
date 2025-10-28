@@ -122,7 +122,7 @@ export function showToast(msg, ok = true) {
   const span = t.querySelector("#toastText") || t.firstChild;
   const text =
     msg === undefined || msg === null ? (ok ? "OK" : "Error") : String(msg);
-  span.textContent = text; // ✅ ไม่มี undefined แล้ว
+  span.innerHTML = text; // ✅ ไม่มี undefined แล้ว
   t.style.borderColor = ok ? "#27d17d" : "#ef4444";
   t.classList.add("show");
   setTimeout(() => t.classList.remove("show"), 2000);
