@@ -133,22 +133,6 @@
   <body>
     <div class="page-header">
       <h1 id="header">Payroll</h1>
-      <button
-        id="btnPayee"
-        style="
-          margin-left: 8px;
-          background: #2563eb;
-          color: #fff;
-          border: none;
-          border-radius: 6px;
-          padding: 6px 10px;
-          font-size: 14px;
-          cursor: pointer;
-          display: none;
-        "
-      >
-        Payee
-      </button>
       <a class="back-link" href="payroll_period_employees.html">← Back</a>
     </div>
 
@@ -1112,10 +1096,6 @@
       }
 
       /* ========= Page load ========= */
-      // ✅ Global flags สำหรับ toggle payee
-      let showingPayee = false;
-      let baseEmployeeId = null;
-
       async function loadPage(fetchFromApi = true) {
         const pp_id = getQS("pp_id");
         const employee_id = getQS("employee_id");
@@ -1142,106 +1122,23 @@
         let emp = null;
         try {
           emp = await apiGET(`${EMP}/${employee_id}`);
-          console.log("SERVER EMPLOYEE RESPONSE:", emp);
         } catch {}
-
         document.getElementById("header").textContent = `Payroll — ${
           emp?.name ?? "Emp #" + employee_id
         } (${fmtMDY(pp.start_at)} → ${fmtMDY(pp.end_at)})`;
 
         currentEmpName = emp?.name ?? `Emp_${employee_id}`;
-        currentPpStart = fmtDate(pp.start_at);
+        currentPpStart = fmtDate(pp.start_at); // จะคืน yyyy-mm-dd แบบ local/LA
         currentPpEnd = fmtDate(pp.end_at);
-
-        /* ================== 🔘 PAYEE BUTTON ================== */
-        const btnPayee = document.getElementById("btnPayee");
-        if (emp?.payroll_emp || emp?.payroll_emp_id) {
-          btnPayee.style.display = "inline-block";
-
-          // ปรับชื่อปุ่มให้เหมาะสม
-          btnPayee.textContent = showingPayee ? "Return" : "Payee";
-
-          btnPayee.onclick = async () => {
-            try {
-              if (!showingPayee) {
-                baseEmployeeId = emp.id;
-                const payee = emp.payroll_emp
-                  ? emp.payroll_emp // ใช้ object ที่มาด้วยเลย
-                  : await apiGET(`${EMP}/${emp.payroll_emp_id}`); // fallback ถ้าไม่มี
-
-                if (!payee) {
-                  toast?.("Payee not found");
-                  return;
-                }
-
-                currentEmployeeId = payee.id;
-                showingPayee = true;
-                btnPayee.textContent = "Return";
-                document.getElementById("header").textContent = `Payroll — ${
-                  payee.name
-                } (${fmtMDY(pp.start_at)} → ${fmtMDY(pp.end_at)})`;
-                toast?.(`Switched to Payee: ${payee.name}`);
-
-                const [details] = await Promise.all([
-                  apiGET(
-                    `/payroll/time-entries/by-employee?employee_id=${payee.id}&pp_id=${pp_id}`
-                  ),
-                ]);
-                renderRawWithPay(details);
-              } else {
-                showingPayee = false;
-                btnPayee.textContent = "Payee";
-                currentEmployeeId = baseEmployeeId;
-                toast?.("Returned to employee");
-                await loadPage(true);
-              }
-            } catch (e) {
-              toast?.(e?.message || "Load payee failed");
-            }
-          };
-        } else {
-          btnPayee.style.display = "none";
-        }
-
-        /* ================== 🧭 Dependents Button (หัวหน้า payroll) ================== */
-        const headerDiv = document.querySelector(".page-header");
-        const oldDepsBtn = document.getElementById("btnDeps");
-        if (oldDepsBtn) oldDepsBtn.remove();
-
-        if (
-          Array.isArray(emp?.payroll_dependents) &&
-          emp.payroll_dependents.length > 0
-        ) {
-          const btnDeps = document.createElement("button");
-          btnDeps.id = "btnDeps";
-          btnDeps.textContent = "Dependents";
-          Object.assign(btnDeps.style, {
-            marginLeft: "6px",
-            background: "#10b981",
-            color: "#fff",
-            border: "none",
-            borderRadius: "6px",
-            padding: "6px 10px",
-            fontSize: "14px",
-            cursor: "pointer",
-          });
-          headerDiv.insertBefore(btnDeps, document.querySelector(".back-link"));
-
-          btnDeps.onclick = () => {
-            const list = emp.payroll_dependents
-              .map((d) => `• ${d.emp_code} — ${d.name}`)
-              .join("\n");
-            alert(`Dependents under ${emp.name}:\n\n${list}`);
-          };
-        }
-
-        /* ================== ✅ โหลดข้อมูล timesheet ================== */
         if (fetchFromApi) {
+          // ✅ โหลดข้อมูลรายวันแบบยังไม่รวม
           const [details] = await Promise.all([
             apiGET(
               `/payroll/time-entries/by-employee?employee_id=${employee_id}&pp_id=${pp_id}`
             ),
           ]);
+
+          // ✅ แสดงผลแบบรายวันพร้อมคอลัมน์อื่น ๆ
           renderRawWithPay(details);
         }
       }

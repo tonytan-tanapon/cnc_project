@@ -215,7 +215,24 @@ class Employee(Base):
     status = Column(String, default="active", nullable=False)  # active / inactive
 
     payroll_emp_id = Column(Integer, ForeignKey("employees.id", ondelete="SET NULL"), nullable=True, index=True)
-    payroll_employee = relationship("Employee", remote_side=[id], backref="subordinates")
+    # payroll_employee = relationship("Employee", remote_side=[id], backref="subordinates")
+
+    # # ✅ เพิ่ม foreign key แบบ ondelete
+    payroll_emp = relationship(
+        "Employee",
+        remote_side=[id],
+        back_populates="payroll_dependents",
+        foreign_keys=[payroll_emp_id],
+    )
+
+    payroll_dependents = relationship(
+        "Employee",
+        back_populates="payroll_emp",
+        foreign_keys=[payroll_emp_id],
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
 
     user = relationship("User", back_populates="employee", uselist=False)
 

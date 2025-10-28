@@ -31,12 +31,22 @@ def create_employee(payload: EmployeeCreate, db: Session = Depends(get_db)):
         email=payload.email,
         phone=payload.phone,
         status=payload.status or "active",
+        payroll_emp_id=payload.payroll_emp_id,  # ← ถ้ามีส่งมา ก็ใช้ค่านี้ก่อน
     )
 
     db.add(emp)
     db.commit()
     db.refresh(emp)
+
+
+    # ✅ ถ้ายังไม่มี payroll_emp_id → ตั้งให้เท่ากับ id ตัวเอง
+    if emp.payroll_emp_id is None:
+        emp.payroll_emp_id = emp.id
+        db.commit()
+        db.refresh(emp)
+
     return emp
+    
 
 # >>> ---------- schema สำหรับ keyset (cursor) ----------
 class EmployeeCursorPage(BaseModel):
@@ -128,9 +138,18 @@ def list_employees(
              .all()
     )
 
+from sqlalchemy.orm import joinedload
+
 @router.get("/{emp_id}", response_model=EmployeeOut)
 def get_employee(emp_id: int, db: Session = Depends(get_db)):
-    e = db.get(Employee, emp_id)
+    e = (
+        db.query(Employee)
+        .options(
+            joinedload(Employee.payroll_emp),
+            joinedload(Employee.payroll_dependents)
+        )
+        .get(emp_id)
+    )
     if not e:
         raise HTTPException(404, "Employee not found")
     return e
@@ -138,6 +157,7 @@ def get_employee(emp_id: int, db: Session = Depends(get_db)):
 
 @router.patch("/{emp_id}", response_model=EmployeeOut)
 def update_employee(emp_id: int, payload: EmployeeUpdate, db: Session = Depends(get_db)):
+    print(payload.dict())
     e = db.get(Employee, emp_id)
     if not e:
         raise HTTPException(404, "Employee not found")
@@ -148,11 +168,33 @@ def update_employee(emp_id: int, payload: EmployeeUpdate, db: Session = Depends(
     return e
 
 
+# @router.delete("/{emp_id}")
+# def delete_employee(emp_id: int, db: Session = Depends(get_db)):
+#     e = db.get(Employee, emp_id)
+#     if not e:
+#         raise HTTPException(404, "Employee not found")
+#     db.delete(e)
+#     db.commit()
+#     return {"message": "Employee deleted"}
+
 @router.delete("/{emp_id}")
 def delete_employee(emp_id: int, db: Session = Depends(get_db)):
     e = db.get(Employee, emp_id)
     if not e:
         raise HTTPException(404, "Employee not found")
+
+    # ✅ ล้าง payroll_emp_id ของทุกคนที่อ้างถึงพนักงานนี้ก่อน
+    db.query(Employee).filter(Employee.payroll_emp_id == emp_id).update(
+        {Employee.payroll_emp_id: None},
+        synchronize_session=False
+    )
+
+    # ✅ เคลียร์ reference ใน session ป้องกัน circular dependency
+    db.flush()
+    db.expire_all()
+
+    # ✅ จากนั้นค่อยลบพนักงานนี้
     db.delete(e)
     db.commit()
-    return {"message": "Employee deleted"}
+
+    return {"message": f"Employee {e.name} deleted successfully"}

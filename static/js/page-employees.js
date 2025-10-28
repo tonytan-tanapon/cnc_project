@@ -149,16 +149,29 @@ function makeColumns() {
     {
       title: "Payroll Employee",
       field: "payroll_emp_id",
-      width: 220,
+      width: 240,
       editor: "list",
+      // editorParams: {
+      //   values: payrollOptions.map((o) => ({ label: o.label, value: o.value })),
+      // },
+
       editorParams: {
-        values: () => payrollOptions,
-        autocomplete: true,
+        values: payrollOptions.map((o) => ({ label: o.label, value: o.value })),
+        autocomplete: true, // ✅ พิมพ์ค้นหาได้
+        allowEmpty: true, // ✅ เคลียร์ค่าได้
+        listOnEmpty: true, // ✅ แสดง list ทั้งหมดถ้ายังไม่ได้พิมพ์
       },
       formatter: (cell) => {
         const val = cell.getValue();
         const opt = payrollOptions.find((o) => o.value === val);
+        // console.log("🧩 [DEBUG] format cell payroll_emp_id:", {
+        //   id: val,
+        //   label: opt?.label || "(none)",
+        // });
         return opt ? opt.label : "";
+      },
+      cellEdited: (cell) => {
+        // console.log("✅ [DEBUG] cellEdited payroll_emp_id:", cell.getValue());
       },
     },
 
@@ -269,7 +282,7 @@ async function autosaveCell(cell, opts = {}) {
   }
 
   const payload = buildPayload(d);
-
+  console.log("💾 [DEBUG] autosaveCell payload:", payload);
   // CREATE
   if (!d.id) {
     if (!payload.name) return; // wait until name present
@@ -289,6 +302,21 @@ async function autosaveCell(cell, opts = {}) {
         setTimeout(() => suppressAutosaveRows.delete(row), 0);
       }
       toast(`Employee "${norm.name}" created`);
+
+      // ✅ โหลด payroll options ใหม่ (เพื่อให้ dropdown มีตัวใหม่)
+      await loadPayrollOptions();
+
+      // ✅ แล้วรีโหลดตาราง
+      ksCursor = null;
+      ksHasMore = true;
+      await loadKeyset(ksKeyword, null);
+
+      // ✅ scroll + highlight new row
+      const newRow = table.getRow(norm.id);
+      if (newRow) {
+        newRow.scrollTo();
+        newRow.select();
+      }
     } catch (e) {
       suppressAutosaveRows.add(row);
       try {
@@ -310,6 +338,7 @@ async function autosaveCell(cell, opts = {}) {
     patchTimers.delete(row);
     try {
       let updated;
+      console.log("🌐 [DEBUG] PATCH URL:", ENDPOINTS.byId(d.id), payload);
       try {
         updated = await jfetch(ENDPOINTS.byId(d.id), {
           method: "PATCH",
@@ -318,6 +347,7 @@ async function autosaveCell(cell, opts = {}) {
         });
       } catch (err) {
         if (isMethodNotAllowed(err)) {
+          console.log("🌐 [DEBUG] PUT URL:", ENDPOINTS.byId(d.id), payload);
           updated = await jfetch(ENDPOINTS.byId(d.id), {
             method: "PUT",
             headers: JSON_HEADERS,
@@ -330,11 +360,36 @@ async function autosaveCell(cell, opts = {}) {
       const norm = normalizeRow(updated || d);
       suppressAutosaveRows.add(row);
       try {
+        // ✅ อัปเดตข้อมูลในตารางให้ตรงกับ response ที่ server ส่งกลับ
         safeRowUpdate(row, { ...d, ...norm, id: norm.id ?? d.id });
+        row.update(norm); // ← บังคับอัปเดตข้อมูลใหม่เข้า row
+
+        // ✅ force redraw ให้ formatter รันใหม่ เช่น payroll_emp_id → label
+        row.reformat();
+        table.redraw(true);
       } finally {
         setTimeout(() => suppressAutosaveRows.delete(row), 0);
       }
       toast(`Saved changes to "${norm.name}"`);
+
+      // ✅ reload payroll list หลัง update สำเร็จ
+      await loadPayrollOptions();
+      const col = table.getColumn("payroll_emp_id");
+      if (col) {
+        const def = col.getDefinition();
+        def.editorParams = {
+          ...def.editorParams,
+          values: payrollOptions.map((o) => ({
+            label: o.label,
+            value: o.value,
+          })),
+          autocomplete: true,
+          allowEmpty: true,
+          listOnEmpty: true,
+        };
+        col.updateDefinition(def);
+      }
+      row.reformat(); // re-render label ใหม่หลัง reload options
     } catch (e) {
       suppressAutosaveRows.add(row);
       try {
@@ -355,7 +410,7 @@ async function loadPayrollOptions() {
       label: `${e.emp_code} - ${e.name}`,
       value: e.id,
     }));
-    console.log("Payroll options loaded:", payrollOptions); // ✅ log หลัง assign
+    // console.log("Payroll options loaded test:", payrollOptions); // ✅ log หลัง assign
   } catch (e) {
     console.error("Failed to load payroll employees", e);
   }
@@ -372,6 +427,7 @@ function initTable() {
     index: "id",
     history: true,
     selectableRows: 1,
+    editable: true, // 👈 เพิ่มตรงนี้!
   });
 
   table.on("tableBuilt", () => {
@@ -389,6 +445,7 @@ function initTable() {
 
   // Tab / Shift+Tab while editing
   table.on("cellEditing", (cell) => {
+    // console.log("🧠 [DEBUG] cellEditing:", cell.getField(), cell.getValue());
     setTimeout(() => {
       const el = cell.getElement();
       const input =
