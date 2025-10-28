@@ -1155,8 +1155,17 @@
 
         /* ================== 🔘 PAYEE BUTTON ================== */
         const btnPayee = document.getElementById("btnPayee");
-        if (emp?.payroll_emp || emp?.payroll_emp_id) {
+        const samePerson =
+          emp?.payroll_emp_id && Number(emp.payroll_emp_id) === Number(emp.id);
+        console.log(
+          "Same person check:",
+          emp?.payroll_emp_id,
+          emp?.id,
+          samePerson
+        );
+        if ((emp?.payroll_emp || emp?.payroll_emp_id) && !samePerson) {
           btnPayee.style.display = "inline-block";
+          console.log("Emp has payee:", emp.payroll_emp, emp.payroll_emp_id);
 
           // ปรับชื่อปุ่มให้เหมาะสม
           btnPayee.textContent = showingPayee ? "Return" : "Payee";
@@ -1188,11 +1197,48 @@
                   ),
                 ]);
                 renderRawWithPay(details);
+
+                // 🧭 ถ้า payee มีลูกทีม → สร้างปุ่ม Dependents
+                const headerDiv = document.querySelector(".page-header");
+                const oldDepsBtn = document.getElementById("btnDeps");
+                if (oldDepsBtn) oldDepsBtn.remove();
+
+                const payeeFull = await apiGET(`${EMP}/${payee.id}`);
+                console.log("PAYEE FULL:", payeeFull);
+                console.log("emp:", emp);
+
+                const isSamePerson =
+                  Number(payeeFull.id) === Number(emp.id) ||
+                  String(payeeFull.emp_code) === String(emp.emp_code) ||
+                  Number(emp.payroll_emp_id) === Number(emp.id);
+
+                if (
+                  Array.isArray(payeeFull?.payroll_dependents) &&
+                  payeeFull.payroll_dependents.length > 0 &&
+                  !isSamePerson
+                ) {
+                  // ✅ สร้างข้อความ HTML ที่ขึ้นบรรทัดได้
+                  const listText = payeeFull.payroll_dependents
+                    .map((d) => `• ${d.emp_code} — ${d.name}`)
+                    .join("<br>");
+
+                  // ✅ แสดงทั้งหมดใน toast เดียว พร้อมขึ้นบรรทัด
+                  toast?.(
+                    `<div style="font-size:15px;line-height:1.4em;">` +
+                      `Dependents under ${payeeFull.name}:<br>${listText}</div>`
+                  );
+                }
               } else {
+                // เมื่อกด Return กลับมาที่พนักงานเดิม
                 showingPayee = false;
                 btnPayee.textContent = "Payee";
                 currentEmployeeId = baseEmployeeId;
                 toast?.("Returned to employee");
+
+                // ✅ ลบ dependents section ถ้ามี
+                const oldSection = document.getElementById("dependentsList");
+                if (oldSection) oldSection.remove();
+
                 await loadPage(true);
               }
             } catch (e) {
@@ -1210,7 +1256,7 @@
 
         if (
           Array.isArray(emp?.payroll_dependents) &&
-          emp.payroll_dependents.length > 0
+          (emp.payroll_dependents.length > 0) & !samePerson
         ) {
           const btnDeps = document.createElement("button");
           btnDeps.id = "btnDeps";
