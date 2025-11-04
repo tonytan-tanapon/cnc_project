@@ -17,7 +17,7 @@ const ENDPOINTS = {
   )}`,
   partInventory: `/api/v1/lot-shippments/lot/${encodeURIComponent(
     lotId
-  )}/part-inventory`, // ✅ new
+  )}/part-inventory/all`, // ✅ new endpoint (ทุก lot ของ part เดียวกัน)
   allocatePart: `/api/v1/lot-shippments/allocate-part`, // ✅ new
   returnPart: `/api/v1/lot-shippments/return-part`, // ✅ new
 };
@@ -30,7 +30,7 @@ let tableShipment = null;
 async function loadPartInventory() {
   try {
     const data = await jfetch(ENDPOINTS.partInventory);
-    tablePart.setData([data]); // only 1 part per lot
+    tablePart.setData(data); // ✅ now an array of many lots
   } catch (err) {
     console.error("❌ loadPartInventory:", err);
     toast("Failed to load part inventory", false);
@@ -44,6 +44,7 @@ function initPartTable() {
     layout: "fitColumns",
     placeholder: "No part inventory data",
     columns: [
+      { title: "Lot No", field: "lot_no", width: 120 }, // ✅ added
       { title: "Part No", field: "part_no" },
       { title: "Planned Qty", field: "planned_qty", hozAlign: "right" },
       { title: "Shipped Qty", field: "shipped_qty", hozAlign: "right" },
@@ -96,7 +97,8 @@ function initPartTable() {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
-                lot_id: Number(lotId),
+                source_lot_id: row.lot_id,
+                target_lot_id: Number(lotId),
                 qty: qtyValue,
               }),
             });

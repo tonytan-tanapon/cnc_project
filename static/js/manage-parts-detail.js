@@ -742,33 +742,6 @@ function initTable() {
         formatter: (cell) => fmtQty(cell.getValue()),
       },
       {
-        title: "Materials",
-        width: 120,
-        formatter: (cell) => {
-          const row = cell.getRow().getData();
-          const lotId = row.lot_id;
-          if (!lotId) return "—";
-          return `
-      <a href="/static/manage-lot-materials.html?lot_id=${encodeURIComponent(
-        lotId
-      )}"
-         class="link-blue"
-         style="color:#2563eb; text-decoration:underline; cursor:pointer;">
-         Materials
-      </a>
-    `;
-        },
-        cellClick: (e, cell) => {
-          e.preventDefault();
-          const row = cell.getRow().getData();
-          const lotId = row.lot_id;
-          if (!lotId) return toast("No lot ID found", false);
-          window.location.href = `/static/manage-lot-materials.html?lot_id=${encodeURIComponent(
-            lotId
-          )}`;
-        },
-      },
-      {
         title: "Travelers",
         width: 120,
         formatter: (cell) => {
@@ -808,6 +781,34 @@ function initTable() {
           }
         },
       },
+      {
+        title: "Materials",
+        width: 120,
+        formatter: (cell) => {
+          const row = cell.getRow().getData();
+          const lotId = row.lot_id;
+          if (!lotId) return "—";
+          return `
+      <a href="/static/manage-lot-materials.html?lot_id=${encodeURIComponent(
+        lotId
+      )}"
+         class="link-blue"
+         style="color:#2563eb; text-decoration:underline; cursor:pointer;">
+         Materials
+      </a>
+    `;
+        },
+        cellClick: (e, cell) => {
+          e.preventDefault();
+          const row = cell.getRow().getData();
+          const lotId = row.lot_id;
+          if (!lotId) return toast("No lot ID found", false);
+          window.location.href = `/static/manage-lot-materials.html?lot_id=${encodeURIComponent(
+            lotId
+          )}`;
+        },
+      },
+
       {
         title: "Shippments",
         width: 120,
