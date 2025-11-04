@@ -424,11 +424,27 @@ def update_line(po_id: int, line_id: int, payload: PoLineUpdate, db: Session = D
         second_due_date=_as_date(line.second_due_date),   # <-- normalize
     )
 
+from models import ProductionLot, ShopTraveler  # ✅ import เพิ่ม
+
 @pos_router.delete("/{po_id}/lines/{line_id}", status_code=204)
 def delete_line(po_id: int, line_id: int, db: Session = Depends(get_db)):
     line = db.query(POLine).get(line_id)
     if not line or line.po_id != po_id:
         raise HTTPException(404, "Line not found")
+
+    # ✅ 1. หา lot ทั้งหมดที่อยู่ใน line นี้
+    lots = db.query(ProductionLot).filter(ProductionLot.po_line_id == line_id).all()
+
+    # ✅ 2. ลบ traveler ที่อยู่ในแต่ละ lot ก่อน
+    for lot in lots:
+        db.query(ShopTraveler).filter(ShopTraveler.lot_id == lot.id).delete()
+
+    # ✅ 3. ค่อยลบ lot
+    db.query(ProductionLot).filter(ProductionLot.po_line_id == line_id).delete()
+
+    # ✅ 4. แล้วค่อยลบ line
     db.delete(line)
     db.commit()
     return None
+
+

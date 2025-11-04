@@ -743,83 +743,99 @@ function initTable() {
       },
       {
         title: "Materials",
-        width: 110,
-        formatter: () =>
-          `<button class="btn-mini btn-primary">Materials</button>`,
-        cellClick: (e, cell) => {
+        width: 120,
+        formatter: (cell) => {
           const row = cell.getRow().getData();
-          const lotId = row.lot_id; // ✅ available now
+          const lotId = row.lot_id;
+          if (!lotId) return "—";
+          return `
+      <a href="/static/manage-lot-materials.html?lot_id=${encodeURIComponent(
+        lotId
+      )}"
+         class="link-blue"
+         style="color:#2563eb; text-decoration:underline; cursor:pointer;">
+         Materials
+      </a>
+    `;
+        },
+        cellClick: (e, cell) => {
+          e.preventDefault();
+          const row = cell.getRow().getData();
+          const lotId = row.lot_id;
           if (!lotId) return toast("No lot ID found", false);
-
           window.location.href = `/static/manage-lot-materials.html?lot_id=${encodeURIComponent(
             lotId
           )}`;
         },
       },
-
       {
         title: "Travelers",
-        field: "travelers",
         width: 120,
-        hozAlign: "center",
-        headerSort: false,
-        formatter: () =>
-          `<button class="btn-mini btn-primary" data-act="travelers">travelers</button>`,
+        formatter: (cell) => {
+          const row = cell.getRow().getData();
+          const lotId = row.lot_id;
+          if (!lotId) return "—";
+          return `
+      <a href="#" class="link-blue"
+         style="color:#2563eb; text-decoration:underline; cursor:pointer;">
+         Travelers
+      </a>
+    `;
+        },
         cellClick: async (e, cell) => {
-          console.log("End");
+          e.preventDefault();
           const row = cell.getRow().getData();
           const lotId = row.lot_id;
           if (!lotId) return toast("No lot ID found", false);
 
           try {
-            // ✅ call server to get material id
             const res = await fetch(
               `/api/v1/lot-uses/lot/${encodeURIComponent(lotId)}/material-id`
             );
-            console.log("Response status:", res.status);
-
             if (!res.ok) throw new Error("Server error");
-
-            // 🧠 Parse response body
             const data = await res.json();
-            console.log("✅ Data from server:", data);
 
             if (!data.traveler_id) {
-              toast("❌ Material ID not found", false);
+              toast("❌ Traveler not found", false);
               return;
             }
-
-            // Optional delay (for UX smoothness)
-            await new Promise((r) => setTimeout(r, 300));
-
-            // Redirect using material ID
             window.location.href = `/static/traveler-detail.html?id=${encodeURIComponent(
               data.traveler_id
             )}`;
           } catch (err) {
-            toast("⚠️ Failed to fetch material id", false);
+            toast("⚠️ Failed to fetch traveler id", false);
             console.error(err);
           }
         },
       },
       {
         title: "Shippments",
-        field: "shippments",
         width: 120,
-        hozAlign: "center",
-        headerSort: false,
-        formatter: () =>
-          `<button class="btn-mini btn-primary" data-act="shippments">shippments</button>`,
-        cellClick: (e, cell) => {
+        formatter: (cell) => {
           const row = cell.getRow().getData();
-          const lotId = row.lot_id; // ✅ available now
+          const lotId = row.lot_id;
+          if (!lotId) return "—";
+          return `
+      <a href="/static/manage-lot-shippments.html?lot_id=${encodeURIComponent(
+        lotId
+      )}"
+         class="link-blue"
+         style="color:#2563eb; text-decoration:underline; cursor:pointer;">
+         Shippments
+      </a>
+    `;
+        },
+        cellClick: (e, cell) => {
+          e.preventDefault();
+          const row = cell.getRow().getData();
+          const lotId = row.lot_id;
           if (!lotId) return toast("No lot ID found", false);
-
           window.location.href = `/static/manage-lot-shippments.html?lot_id=${encodeURIComponent(
             lotId
           )}`;
         },
       },
+
       // placeholders...
       {
         title: "FAIR",

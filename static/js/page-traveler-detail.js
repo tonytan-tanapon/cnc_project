@@ -3,8 +3,8 @@ import { $, jfetch, toast, initTopbar } from "./api.js";
 import { attachAutocomplete } from "./autocomplete.js";
 
 const qs = new URLSearchParams(location.search);
-let travelerId = qs.get("id");   // ✅ must be let so we can reassign later
-const lotId = qs.get("lot_id");  // ✅ add this line
+let travelerId = qs.get("id"); // ✅ must be let so we can reassign later
+const lotId = qs.get("lot_id"); // ✅ add this line
 
 let originalTraveler = null;
 let isSubmitting = false;
@@ -93,33 +93,41 @@ let btnHdrSave = null,
   btnHdrCancel = null;
 function ensureHeaderButtons() {
   const sub = $("t_sub");
-  if (!sub) return;
+  if (!sub) {
+    console.warn("⚠️ t_sub not found, cannot insert header buttons");
+    return;
+  }
   if (document.getElementById("hdr-actions")) return;
 
   const wrap = document.createElement("div");
   wrap.id = "hdr-actions";
   wrap.className = "hdr-actions";
+  wrap.style.marginLeft = "12px"; // ให้มีช่องว่างนิดนึง
 
   btnHdrSave = document.createElement("button");
   btnHdrSave.className = "btn-mini";
-  btnHdrSave.textContent = "Save";
+  btnHdrSave.textContent = "💾 Save";
   btnHdrSave.style.display = "none";
-  btnHdrSave.addEventListener("click", saveTraveler);
+  btnHdrSave.onclick = saveTraveler;
 
   btnHdrCancel = document.createElement("button");
   btnHdrCancel.className = "btn-mini";
-  btnHdrCancel.textContent = "Cancel";
+  btnHdrCancel.textContent = "✖ Cancel";
   btnHdrCancel.style.display = "none";
-  btnHdrCancel.addEventListener("click", cancelTraveler);
+  btnHdrCancel.onclick = cancelTraveler;
 
-  // ✅ เพิ่มปุ่ม Get QR
   const btnGetQR = document.createElement("button");
   btnGetQR.className = "btn-mini";
-  btnGetQR.textContent = "Get QR";
-  btnGetQR.addEventListener("click", showTravelerQR);
+  btnGetQR.textContent = "🔳 Get QR";
+  btnGetQR.onclick = showTravelerQR;
 
-  sub.insertAdjacentElement("afterend", wrap);
   wrap.append(btnHdrSave, btnHdrCancel, btnGetQR);
+
+  // ✅ ใช้วิธี append หลัง h2 โดยตรงแทน
+  const titleRow = sub.parentElement;
+  titleRow.appendChild(wrap);
+
+  console.log("✅ Header buttons added");
 }
 
 function markHeaderDirty(on) {
@@ -241,7 +249,9 @@ async function loadTraveler() {
       t = await jfetch(`/travelers/${encodeURIComponent(travelerId)}`);
     } else if (lotId) {
       // Find by lot_id
-      const list = await jfetch(`/travelers?lot_id=${encodeURIComponent(lotId)}`);
+      const list = await jfetch(
+        `/travelers?lot_id=${encodeURIComponent(lotId)}`
+      );
       if (Array.isArray(list) && list.length > 0) {
         t = list[0];
       } else {
@@ -259,8 +269,6 @@ async function loadTraveler() {
     setBusyT(false);
   }
 }
-
-
 
 async function saveTraveler() {
   if (!travelerId || isSubmitting) return;
@@ -603,7 +611,7 @@ function initStepsTable() {
 
   stepsTable = new Tabulator(holder, {
     layout: "fitColumns",
-    height: "calc(100vh - 420px)",
+    height: "calc(100vh - 480px)", // 👈 เพิ่มระยะเพื่อให้มีที่สำหรับปุ่มด้านล่าง
     placeholder: "No steps",
     reactiveData: true,
     index: "id",
@@ -697,6 +705,42 @@ function initStepsTable() {
     ],
   });
 
+  const btnAddStep = document.getElementById("btnAddStep");
+
+  btnAddStep.addEventListener("click", async () => {
+    if (!stepsTable) return;
+
+    // หาค่า seq ล่าสุด
+    const data = stepsTable.getData();
+    const lastSeq = data.length
+      ? Math.max(...data.map((r) => Number(r.seq || 0)))
+      : 0;
+    const nextSeq = lastSeq + 10;
+
+    // สร้างแถวใหม่ (ใช้ field name ให้ตรงกับ columns ด้านบน)
+    const newRow = {
+      seq: nextSeq,
+      step_name: "",
+      status: "Pending",
+      qty_receive: 0,
+      qty_accept: 0,
+      qty_reject: 0,
+      step_note: "",
+      step_code: "",
+      operator_id: "",
+      station: "",
+    };
+
+    // ✅ เพิ่มแถวใหม่ในตาราง (ต่อจากแถวสุดท้าย)
+    const row = await stepsTable.addRow(newRow, false, "bottom");
+
+    // เริ่มแก้ไขชื่อทันที
+    row.getCell("step_name").edit();
+
+    // เพิ่มคลาสเน้นสีพื้นหลัง (optional)
+    row.getElement().classList.add("is-dirty");
+  });
+
   stepsTable.on("cellEdited", (cell) => {
     const row = cell.getRow();
     setDirtyClass(row, true);
@@ -775,16 +819,20 @@ document.addEventListener("DOMContentLoaded", async () => {
   initHeaderAutocomplete();
 
   // Add Step (seq +10 เริ่ม 10)
-  $("btnAddStep")?.addEventListener("click", async () => {
-    if (!travelerId) {
-      toast("Missing traveler id", false);
-      return;
-    }
-    const nextSeq = getNextSeq();
-    const row = await stepsTable.addRow(makeBlankStep(nextSeq), true);
-    row.getCell("step_name")?.edit();
-    setDirtyClass(row, true);
-  });
+  // $("btnAddStep")?.addEventListener("click", async () => {
+  //   if (!travelerId) {
+  //     toast("Missing traveler id", false);
+  //     return;
+  //   }
+  //   const nextSeq = getNextSeq();
+  //   const row = await stepsTable.addRow(
+  //     makeBlankStep(nextSeq),
+  //     false,
+  //     "bottom"
+  //   );
+  //   row.getCell("step_name")?.edit();
+  //   setDirtyClass(row, true);
+  // });
 
   // Keyboard: Ctrl+Delete → (optional) delete traveler
   document.addEventListener("keydown", (e) => {

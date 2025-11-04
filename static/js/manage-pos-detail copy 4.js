@@ -44,6 +44,7 @@ const fmtDate = (s) => {
   return isNaN(d)
     ? "—"
     : d.toLocaleString("en-US", { timeZone: "America/Los_Angeles" });
+
 };
 const trim = (v) => (v == null ? "" : String(v).trim());
 
@@ -215,6 +216,7 @@ function markHeaderDirty(on) {
   if (btnHdrCancel) btnHdrCancel.style.display = on ? "" : "none";
 }
 async function saveHeaderManual() {
+
   if (isSubmitting) return;
   const draft = getHeaderDraft();
   if (!draft.customer_id) {
@@ -244,8 +246,9 @@ async function saveHeaderManual() {
       if (draft.description !== (initial.description ?? ""))
         patch.description = draft.description;
 
+
       if (Object.keys(patch).length) {
-        console.log(patch);
+        console.log(patch)
         await jfetch(`/pos/${encodeURIComponent(initial.id)}`, {
           method: "PATCH",
           body: JSON.stringify(patch),
@@ -279,9 +282,8 @@ async function cancelHeaderManual() {
       code: initial.customer.code,
       name: initial.customer.name,
     };
-    elCustomer.value = `${initial.customer.code} — ${
-      initial.customer.name ?? ""
-    }`;
+    elCustomer.value = `${initial.customer.code} — ${initial.customer.name ?? ""
+      }`;
   } else {
     selectedCustomer = null;
     elCustomer.value = "";
@@ -299,7 +301,7 @@ function wireHeaderDirtyOnly() {
 
 /* Create header Save/Cancel buttons near subtitle */
 function ensureHeaderButtons() {
-  if (!subTitle) return; // check element id to show in html
+  if (!subTitle) return; // check element id to show in html 
   if (document.getElementById("hdr-actions")) return;
 
   const wrap = document.createElement("div");
@@ -328,9 +330,9 @@ function fmtMoney(n) {
   return n == null
     ? ""
     : Number(n).toLocaleString(undefined, {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      });
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
 }
 function fmtQty(n) {
   return Number(n ?? 0).toLocaleString(undefined, { maximumFractionDigits: 3 });
@@ -397,20 +399,19 @@ function normalizeServerLine(row) {
     lots: Array.isArray(row.lots)
       ? row.lots
       : row.lot_id && row.lot_no
-      ? [{ id: row.lot_id, lot_no: row.lot_no }]
-      : [],
+        ? [{ id: row.lot_id, lot_no: row.lot_no }]
+        : [],
 
     travelers: Array.isArray(row.travelers)
       ? row.travelers
       : row.traveler_id && row.traveler_no
-      ? [{ id: row.traveler_id, traveler_no: row.traveler_no }]
-      : [],
+        ? [{ id: row.traveler_id, traveler_no: row.traveler_no }]
+        : [],
   };
 }
 
 /* ---------- AUTOSAVE for lines ---------- */
-
-async function autosaveRow(row, { immediate = false } = {}) {
+function autosaveRow(row, { immediate = false } = {}) {
   const d = row.getData();
   const poid = initial?.id ?? poIdQS;
   if (!poid) {
@@ -427,7 +428,6 @@ async function autosaveRow(row, { immediate = false } = {}) {
     d.due_date ||
     d.second_due_date ||
     d.note;
-
   if (!d.id && !d.part_id) return;
   if (hasAny && !d.part_id) {
     toast("Select Part first", false);
@@ -440,120 +440,111 @@ async function autosaveRow(row, { immediate = false } = {}) {
   if (!d.id) {
     if (createInFlight.has(row)) return;
     createInFlight.add(row);
-    try {
-      const created = await jfetch(`/pos/${encodeURIComponent(poid)}/lines`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+    jfetch(`/pos/${encodeURIComponent(poid)}/lines`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    })
+      .then((created) => {
+        const norm = normalizeServerLine(created);
+        row.update(norm);
+        setDirtyClass(row, false);
+        toast("Line added");
+      })
+      .catch((e) => {
+        const msg = String(e?.message || "").toLowerCase();
+        if (msg.includes("second_due_date") && msg.includes("earlier")) {
+          toast("Due 2 cannot be earlier than Due 1", false);
+        } else {
+          toast(e?.message || "Create failed", false);
+        }
+      })
+      .finally(() => {
+        createInFlight.delete(row);
+        setTimeout(() => {
+          try {
+            linesTable.redraw(true);
+          } catch { }
+        }, 0);
       });
-
-      const norm = normalizeServerLine(created);
-      row.update(norm);
-      setDirtyClass(row, false);
-      toast("Line added");
-
-      // ✅ Auto-create Lot & Traveler right after new line created
-      try {
-        await createLotAndTravelerForRow(row);
-        toast("Auto-created lot/traveler");
-      } catch (err) {
-        console.warn("Auto-create Lot/Traveler failed:", err);
-      }
-    } catch (e) {
-      const msg = String(e?.message || "").toLowerCase();
-      if (msg.includes("second_due_date") && msg.includes("earlier")) {
-        toast("Due 2 cannot be earlier than Due 1", false);
-      } else {
-        toast(e?.message || "Create failed", false);
-      }
-    } finally {
-      createInFlight.delete(row);
-      setTimeout(() => {
-        try {
-          linesTable.redraw(true);
-        } catch {}
-      }, 0);
-    }
     return;
   }
 
   // ✅ PATCH (debounced)
   if (patchTimers.has(row)) clearTimeout(patchTimers.get(row));
-  const apply = async () => {
+  const apply = () => {
     patchTimers.delete(row);
 
     const keepRevId = d.revision_id;
     const keepRevText = d.revision_text;
 
-    try {
-      const updated = await jfetch(
-        `/pos/${encodeURIComponent(poid)}/lines/${d.id}`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
+    jfetch(`/pos/${encodeURIComponent(poid)}/lines/${d.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    })
+      .then((updated) => {
+        const norm = normalizeServerLine(updated || d);
+
+        // 🧩 ป้องกันไม่ให้ server overwrite revision ที่เพิ่งตั้งเอง
+        if (!norm.revision_id && keepRevId) {
+          norm.revision_id = keepRevId;
+          norm.revision_text = keepRevText;
         }
-      );
 
-      const norm = normalizeServerLine(updated || d);
+        const fields = [
+          "part_id",
+          "part_no",
+          "revision_id",
+          "revision_text",
+          "qty",
+          "unit_price",
+          "due_date",
+          "second_due_date",
+          "note",
+        ];
+        for (const f of fields) {
+          const cur = row.getData()[f];
+          const nxt = norm[f];
+          if (cur !== nxt) row.getCell(f)?.setValue(nxt, true);
+        }
 
-      // 🧩 ป้องกันไม่ให้ server overwrite revision ที่เพิ่งตั้งเอง
-      if (!norm.revision_id && keepRevId) {
-        norm.revision_id = keepRevId;
-        norm.revision_text = keepRevText;
-      }
-
-      const fields = [
-        "part_id",
-        "part_no",
-        "revision_id",
-        "revision_text",
-        "qty",
-        "unit_price",
-        "due_date",
-        "second_due_date",
-        "note",
-      ];
-      for (const f of fields) {
-        const cur = row.getData()[f];
-        const nxt = norm[f];
-        if (cur !== nxt) row.getCell(f)?.setValue(nxt, true);
-      }
-
-      setDirtyClass(row, false);
-      toast("Saved");
-    } catch (e) {
-      const msg = String(e?.message || "").toLowerCase();
-      if (
-        msg.includes("revision_id does not belong") ||
-        msg.includes("belongs to part")
-      ) {
-        row.update({ revision_id: null, revision_text: "" });
-        toast(
-          "Selected revision doesn’t belong to this part. Cleared revision.",
-          false
-        );
-      } else if (msg.includes("second_due_date") && msg.includes("earlier")) {
-        toast("Due 2 cannot be earlier than Due 1", false);
-      } else {
-        try {
-          const fresh = await jfetch(
-            `/pos/${encodeURIComponent(poid)}/lines/${d.id}`
+        setDirtyClass(row, false);
+        toast("Saved");
+      })
+      .catch(async (e) => {
+        const msg = String(e?.message || "").toLowerCase();
+        if (
+          msg.includes("revision_id does not belong") ||
+          msg.includes("belongs to part")
+        ) {
+          row.update({ revision_id: null, revision_text: "" });
+          toast(
+            "Selected revision doesn’t belong to this part. Cleared revision.",
+            false
           );
-          row.update(normalizeServerLine(fresh));
-        } catch {}
-        toast(e?.message || "Save failed", false);
-      }
-    } finally {
-      setTimeout(() => {
-        try {
-          linesTable.redraw(true);
-        } catch {}
-      }, 0);
-    }
+        } else if (msg.includes("second_due_date") && msg.includes("earlier")) {
+          toast("Due 2 cannot be earlier than Due 1", false);
+        } else {
+          try {
+            const fresh = await jfetch(
+              `/pos/${encodeURIComponent(poid)}/lines/${d.id}`
+            );
+            row.update(normalizeServerLine(fresh));
+          } catch { }
+          toast(e?.message || "Save failed", false);
+        }
+      })
+      .finally(() => {
+        setTimeout(() => {
+          try {
+            linesTable.redraw(true);
+          } catch { }
+        }, 0);
+      });
   };
 
-  if (immediate) await apply();
+  if (immediate) apply();
   else patchTimers.set(row, setTimeout(apply, PATCH_DEBOUNCE_MS));
 }
 
@@ -710,16 +701,8 @@ async function createLotAndTravelerForRow(row) {
     const travelers = Array.isArray(d.travelers) ? d.travelers.slice() : [];
     travelers.unshift({ id: res.traveler_id, traveler_no: res.traveler_no });
 
-    // ✅ อัปเดตข้อมูลใน row
     row.update({ lots, travelers });
-
     toast("Lot & Traveler created");
-
-    // ✅ Force refresh render (สำคัญมาก)
-    row.reformat(); // ให้ formatter ทั้ง Materials / Shipments ทำงานใหม่
-    setTimeout(() => {
-      linesTable.redraw(true); // เผื่อ tabulator ยัง hold layout
-    }, 100);
   } catch (e) {
     toast(e?.message || "Create lot/traveler failed", false);
   }
@@ -735,7 +718,7 @@ function initLinesTable() {
     if (!ready || !holder.offsetWidth) return;
     try {
       linesTable.redraw(true);
-    } catch {}
+    } catch { }
   };
 
   linesTable = new Tabulator(holder, {
@@ -777,9 +760,8 @@ function initLinesTable() {
 
           const href = `/static/manage-part-detail.html?part_id=${encodeURIComponent(
             pid
-          )}
-          
-          ${custId ? `&customer_id=${encodeURIComponent(custId)}` : ""}`;
+          )}${revId ? `&part_revision_id=${encodeURIComponent(revId)}` : ""}${custId ? `&customer_id=${encodeURIComponent(custId)}` : ""
+            }`;
 
           return `<a class="link" href="${href}" >${safe(String(pno))}</a>`;
         },
@@ -816,18 +798,21 @@ function initLinesTable() {
         width: 120,
         editor: "date",
 
+
         formatter: (c) => {
           const val = c.getValue();
           if (!val) return "";
           const [y, m, d] = String(val).split("T")[0].split("-");
           if (!y || !m || !d) return "";
           // ✅ ตีความว่าเป็นวันที่ตามปฏิทิน (ไม่สน timezone)
-          return new Date(
-            Number(y),
-            Number(m) - 1,
-            Number(d)
-          ).toLocaleDateString("en-US", { timeZone: "America/Los_Angeles" });
+          return new Date(Number(y), Number(m) - 1, Number(d)).toLocaleDateString(
+            "en-US",
+            { timeZone: "America/Los_Angeles" }
+          );
         },
+
+
+
       },
       {
         title: "Due 2",
@@ -841,79 +826,34 @@ function initLinesTable() {
           const [y, m, d] = String(val).split("T")[0].split("-");
           if (!y || !m || !d) return "";
           // ✅ ตีความว่าเป็นวันที่ตามปฏิทิน (ไม่สน timezone)
-          return new Date(
-            Number(y),
-            Number(m) - 1,
-            Number(d)
-          ).toLocaleDateString("en-US", { timeZone: "America/Los_Angeles" });
+          return new Date(Number(y), Number(m) - 1, Number(d)).toLocaleDateString(
+            "en-US",
+            { timeZone: "America/Los_Angeles" }
+          );
         },
+
+
+
       },
       { title: "Notes", field: "note", editor: "input", width: 120 },
 
       // --- Multi-Lot & Multi-Traveler renderers ---
       {
-        title: `Lot`,
+        title: "Lot",
         field: "lots",
-        width: 180,
+        width: 120,
         headerSort: false,
         formatter: (cell) => {
           const lots = cell.getValue() || [];
           if (!lots.length) return "";
-
           return lots
             .map(
-              (l) => `
-          <span style="white-space: nowrap;">
-            <a class="link" href="/static/manage-lot-materials.html?lot_id=${encodeURIComponent(
-              l.id
-            )}" title="Open materials for ${safe(l.lot_no)}">
-              ${safe(l.lot_no)}
-            </a>
-            <a href="#" class="link text-red-500" data-lotid="${
-              l.id
-            }" title="Delete ${safe(l.lot_no)}">❌</a>
-          </span>`
+              (l) =>
+                `<a class="link" href="/static/manage-lot-materials.html?lot_id=${encodeURIComponent(
+                  l.id
+                )}">${safe(l.lot_no)}</a>`
             )
             .join("<br>");
-        },
-        cellClick: async (e, cell) => {
-          const delLink = e.target.closest("a[data-lotid]");
-          if (!delLink) return;
-          e.preventDefault();
-
-          const lotId = delLink.dataset.lotid;
-          if (!confirm(`Delete lot ${lotId}? This action cannot be undone.`))
-            return;
-
-          try {
-            // ✅ เรียก API ลบ lot
-            await jfetch(`/lots/${encodeURIComponent(lotId)}`, {
-              method: "DELETE",
-            });
-            toast(`Deleted lot ${lotId}`);
-
-            // ✅ เอา lot ออกจากข้อมูล row
-            const row = cell.getRow();
-            const d = row.getData();
-
-            const newLots = (d.lots || []).filter(
-              (l) => String(l.id) !== lotId
-            );
-
-            // ✅ เอา traveler ที่ match กับ lot นั้นออกด้วย
-            const newTravelers = (d.travelers || []).filter((t, i) => {
-              const lot = d.lots?.[i];
-              return lot && String(lot.id) !== lotId;
-            });
-
-            row.update({ lots: newLots, travelers: newTravelers });
-
-            // ✅ Refresh render เฉพาะแถว
-            row.reformat();
-            setTimeout(() => linesTable.redraw(true), 100);
-          } catch (err) {
-            toast(err?.message || "Delete failed", false);
-          }
         },
       },
 
@@ -929,73 +869,73 @@ function initLinesTable() {
 
           if (!trs.length && !lots.length) return "";
 
-          return trs
-            .map((t, i) => {
-              // Prefer traveler_id if exists, else fall back to lot_id
-              const travelerId = t?.id;
-              const travelerNo = safe(t?.traveler_no || "");
-              const lotId = lots[i]?.id || lots[0]?.id; // fallback to first lot
+          return trs.map((t, i) => {
+            // Prefer traveler_id if exists, else fall back to lot_id
+            const travelerId = t?.id;
+            const travelerNo = safe(t?.traveler_no || "");
+            const lotId = lots[i]?.id || lots[0]?.id; // fallback to first lot
 
-              // Build URL
-              const url = travelerId
-                ? `/static/traveler-detail.html?lot_id=${encodeURIComponent(
-                    lotId
-                  )}`
-                : "#";
+            // Build URL
+            const url = travelerId
+              ? `/static/traveler-detail.html?lot_id=${encodeURIComponent(lotId)}`
+              : "#";
 
-              return `<a class="link" href="${url}">${travelerNo}</a>`;
-            })
-            .join("<br>");
+            return `<a class="link" href="${url}">${travelerNo}</a>`;
+          }).join("<br>");
         },
       },
+
 
       {
         title: "Materials",
         field: "materials",
-        width: 140,
+        width: 120,
+        hozAlign: "center",
         headerSort: false,
-        formatter: (cell) => {
-          const lots = cell.getRow().getData().lots || [];
-          if (!lots.length) return "";
-          return lots
-            .map(
-              (l) =>
-                `<a class="link" href="/static/manage-lot-materials.html?lot_id=${encodeURIComponent(
-                  l.id
-                )}" target="_blank" title="Open materials for ${safe(
-                  l.lot_no
-                )}">
-            ${safe(l.lot_no)} 🔧
-          </a>`
-            )
-            .join("<br>");
-        },
-      },
-      {
-        title: "Shipments",
-        field: "shipments",
-        width: 140,
-        headerSort: false,
-        formatter: (cell) => {
-          const lots = cell.getRow().getData().lots || [];
-          if (!lots.length) return "";
-          return lots
-            .map(
-              (l) =>
-                `<a class="link" href="/static/manage-lot-shippments.html?lot_id=${encodeURIComponent(
-                  l.id
-                )}" target="_blank" title="Open shipments for ${safe(
-                  l.lot_no
-                )}">
-            ${safe(l.lot_no)} 📦
-          </a>`
-            )
-            .join("<br>");
+        formatter: () =>
+          `<button class="btn-mini btn-primary" data-act="materials">Materials</button>`,
+        cellClick: (e, cell) => {
+          const row = cell.getRow();
+          const lots = row.getData().lots || [];
+          if (!lots.length) {
+            toast("No lot found for this line", false);
+            return;
+          }
+          const lotId = lots[0].id; // or prompt user if multiple lots exist
+          window.open(
+            `/static/manage-lot-materials.html?lot_id=${encodeURIComponent(
+              lotId
+            )}`
+          );
         },
       },
 
       {
-        title: "Lot/Traveler",
+        title: "Shippments",
+        field: "shippments",
+        width: 120,
+        hozAlign: "center",
+        headerSort: false,
+        formatter: () =>
+          `<button class="btn-mini btn-primary" data-act="shippments">shippments</button>`,
+        cellClick: (e, cell) => {
+          const row = cell.getRow();
+          const lots = row.getData().lots || [];
+          if (!lots.length) {
+            toast("No lot found for this line", false);
+            return;
+          }
+          const lotId = lots[0].id; // or prompt user if multiple lots exist
+          window.open(
+            `/static/manage-lot-shippments.html?lot_id=${encodeURIComponent(
+              lotId
+            )}`
+          );
+        },
+      },
+
+      {
+        title: "Build",
         field: "_build",
         width: 140,
         hozAlign: "center",
@@ -1118,7 +1058,7 @@ document.addEventListener("visibilitychange", () => {
           active.focus();
           active.select?.();
         }
-      } catch {}
+      } catch { }
     }, 100);
   }
 });
@@ -1176,20 +1116,9 @@ async function reloadLines() {
     const rows = await jfetch(`/pos/${encodeURIComponent(id)}/lines`);
     const mapped = (rows || []).map(normalizeServerLine);
     linesTable?.setData(mapped);
-
-    // ✅ enrich links
+    // Pull lots/travelers arrays per line so links persist after refresh
     await enrichLinesWithLinks();
-
-    // ✅ บังคับ redraw ทั้งตาราง + defer ให้ layout ready ก่อน
-    requestAnimationFrame(() => {
-      try {
-        linesTable.redraw(true);
-      } catch (err) {
-        console.warn("redraw failed", err);
-      }
-    });
-  } catch (err) {
-    console.warn("reloadLines failed", err);
+  } catch {
     linesTable?.setData([]);
   }
 }

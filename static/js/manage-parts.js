@@ -9,7 +9,7 @@ const managePartDetailUrl = (partId, revId, custId) =>
   `/static/manage-part-detail.html?part_id=${encodeURIComponent(
     partId ?? ""
   )}` +
-  `&part_revision_id=${encodeURIComponent(revId ?? "")}` +
+  // `&part_revision_id=${encodeURIComponent(revId ?? "")}` +
   `&customer_id=${encodeURIComponent(custId ?? "")}`;
 
 const safe = (s) =>
@@ -121,7 +121,6 @@ function initTable() {
     },
 
     columns: [
-    
       {
         title: "Customer",
         field: "customer_code",

@@ -92,11 +92,11 @@
         border-radius: 0;
       }
 
-      /* table mount */
       #steps_wrap {
         flex: 1 1 auto;
         min-height: 0;
         overflow: auto;
+        margin-bottom: 50px; /* 👈 เพิ่มพื้นที่ให้เห็นปุ่ม */
       }
       #steps_wrap .tabulator {
         height: 100% !important;
@@ -151,6 +151,29 @@
       .badge.gray {
         background: #6b7280;
       }
+
+      #steps_wrap {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow: auto;
+        border-bottom: 1px solid #e5e7eb;
+      }
+
+      #steps_footer {
+        text-align: left; /* 👈 ปรับจาก right เป็น left */
+        padding: 8px 0 12px;
+        background: #fff;
+        border-top: 1px solid #e5e7eb;
+        position: sticky;
+        bottom: 0;
+        z-index: 10;
+      }
+
+      #btnAddStep {
+        margin-left: 4px; /* 👈 เพิ่มระยะห่างจากขอบนิดหน่อย */
+        height: 34px;
+        font-weight: 500;
+      }
     </style>
   </head>
   <body>
@@ -199,15 +222,17 @@
           <!-- Steps topbar -->
           <div class="list-topbar">
             <div class="title">Steps</div>
-            <button id="btnAddStep" class="btn" type="button">
-              + Add Step
-            </button>
           </div>
 
           <!-- Steps table mount -->
           <div id="steps_wrap">
             <div id="steps_table"></div>
           </div>
+          <!-- Add Step button just below table -->
+          <div id="steps_footer">
+            <button id="btnAddStep" class="btn-mini">＋ Add Step</button>
+          </div>
+          <!-- Add Step button below table -->
         </section>
       </main>
     </div>
