@@ -56,3 +56,13 @@ python -m venv venv
 venv\Scripts\activate
 pip install -r requirements.txt
 rundev.bat 
+
+Task
+เอา material ไปใสใน link material จะได้รู้ว่าต้องใช้ตัวไหน 
+Material Inventory ถ้ากด แล้วเป็นการ create batch ในตารางจะได้ใส่ batch ที่เข้ามาได้
+เอา process cuting ไปใส่ใน traveler จะได้รู้ว่าต้องมี process อะไรบ้าง 
+แล้วก็ตอน create traverler ถ้ามี part ที่เคย create แล้วให้ copy มาใส่
+
+Part management
+มีสรุป part ที่เหลือทั้งหมด
+แต่ละแถวโชร์ว่าเหลือเท่าไร

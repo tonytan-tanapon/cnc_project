@@ -18,7 +18,6 @@ class AllocatePartRequest(BaseModel):
     source_lot_id: int
     target_lot_id: int
     qty: float
-    shipment_id: int | None = None  # ✅ ใหม่
 # ---------- Helper ----------
 def get_lot_or_404(db: Session, lot_id: int) -> ProductionLot:
     lot = db.get(ProductionLot, lot_id)
@@ -77,17 +76,11 @@ def get_part_inventory_data(db: Session, lot_id: int):
 # ============================================================
 # 1️⃣  List shipments for a lot
 # ============================================================
-from models import PO, Customer
 @router.get("/{lot_id}")
 def list_lot_shipments(lot_id: int, db: Session = Depends(get_db)):
-    
-
     shipments = (
         db.query(CustomerShipment)
-        .options(
-            joinedload(CustomerShipment.items),
-            joinedload(CustomerShipment.po).joinedload(PO.customer),  # ✅ load customer name
-        )
+        .options(joinedload(CustomerShipment.items))   # ✅ โหลด items มาด้วย
         .filter(CustomerShipment.lot_id == lot_id)
         .order_by(CustomerShipment.shipped_at.desc())
         .all()
@@ -97,31 +90,18 @@ def list_lot_shipments(lot_id: int, db: Session = Depends(get_db)):
     for s in shipments:
         items = s.items or []
         qty_sum = sum(float(i.qty or 0) for i in items)
-
-        # ✅ ดึงรายการ lot_id ทั้งหมดจาก shipment items
-        source_lot_ids = list({i.lot_id for i in items if i.lot_id})
-
-        # ✅ ดึง lot_no ที่ตรงกับ id เหล่านั้น
-        lot_nos = (
-            db.query(ProductionLot.lot_no)
-            .filter(ProductionLot.id.in_(source_lot_ids))
-            .all()
-        )
-        source_lot_nos = [r[0] for r in lot_nos]
+        source_lot_ids = [i.lot_id for i in items]  # ✅ รายการ lot ต้นทางทั้งหมด
 
         result.append({
             "id": s.id,
-            "shipment_no": s.package_no or f"SHP-{s.id:05d}",
+            "shipment_no": s.package_no or f"SHP-{s.id}",
             "qty": qty_sum,
             "uom": "pcs",
             "status": s.status or "pending",
             "date": s.shipped_at,
-            "shipped_date": s.shipped_at,
-            "tracking_number": s.tracking_no,
-            "customer_name": s.po.customer.name if s.po and s.po.customer else None,  # ✅ new
-            "source_lot_ids": source_lot_ids,
-            "source_lot_nos": source_lot_nos,
+            "source_lot_ids": source_lot_ids,  # ✅ เพิ่มตรงนี้
         })
+
     return result
 
 # ============================================================
@@ -207,31 +187,26 @@ def allocate_part(req: AllocatePartRequest, db: Session = Depends(get_db)):
             detail=f"Cannot allocate {qty} pcs — only {available_qty} available in {source_lot.lot_no}",
         )
 
-    # ✅ ถ้ามี shipment_id ให้ใช้เลย ไม่ต้องสร้างใหม่
-    shipment = None
-    if req.shipment_id:
-        shipment = db.get(CustomerShipment, req.shipment_id)
-        if not shipment:
-            raise HTTPException(status_code=404, detail="Shipment not found")
-    else:
-        shipment = get_or_create_shipment(db, target_lot)
-
+    # --- ผูก shipment ของ target lot ---
+    shipment = get_or_create_shipment(db, target_lot)
     new_item = CustomerShipmentItem(
         shipment_id=shipment.id,
         po_line_id=target_lot.po_line_id or 0,
+        
         lot_id=source_lot.id,  # ✅ ของมาจาก lot ต้นทาง
         qty=qty,
     )
 
     db.add(new_item)
+    db.flush()   # ✅ บังคับให้ insert item เข้า DB ก่อน commit
     db.commit()
     db.refresh(new_item)
+    print("✅ Created shipment item:", shipment.id, source_lot.id, qty)
 
     return {
         "status": "ok",
         "from": source_lot.lot_no,
         "to": target_lot.lot_no,
-        "shipment_id": shipment.id,
         "allocated_qty": qty,
         "available_after": available_qty - qty,
     }
@@ -241,25 +216,13 @@ def allocate_part(req: AllocatePartRequest, db: Session = Depends(get_db)):
 def return_part(req: dict = Body(...), db: Session = Depends(get_db)):
     source_lot_id = req.get("source_lot_id")
     target_lot_id = req.get("target_lot_id")
-    shipment_id = req.get("shipment_id")  # ✅ optional
     qty = float(req.get("qty", 0))
 
     if not source_lot_id or not target_lot_id:
         raise HTTPException(status_code=400, detail="Missing source_lot_id or target_lot_id")
     if qty <= 0:
         raise HTTPException(status_code=400, detail="Quantity must be > 0")
-    if shipment_id:
-        shipments = [db.get(CustomerShipment, shipment_id)]
-    else:
-        shipments = (
-            db.query(CustomerShipment)
-            .filter(CustomerShipment.lot_id == target_lot_id)
-            .order_by(CustomerShipment.id.desc())
-            .all()
-        )
 
-    if not shipments:
-        raise HTTPException(status_code=400, detail="No shipment found for target lot")
     # ✅ target lot ต้องมี shipment ของตัวเอง
     shipments = (
         db.query(CustomerShipment)
@@ -445,74 +408,3 @@ def get_part_inventory_all_for_same_part(lot_id: int, db: Session = Depends(get_
         })
 
     return results
-
-# ============================================================
-# 🆕 Create a new shipment for a lot
-# ============================================================
-@router.post("")
-def create_shipment(req: dict = Body(...), db: Session = Depends(get_db)):
-    lot_id = req.get("lot_id")
-    if not lot_id:
-        raise HTTPException(status_code=400, detail="Missing lot_id")
-
-    lot = db.get(ProductionLot, lot_id)
-    if not lot:
-        raise HTTPException(status_code=404, detail="Lot not found")
-
-    shipment = CustomerShipment(
-        po_id=lot.po_id,
-        lot_id=lot.id,
-        shipped_at=datetime.now(),
-        status="pending",
-    )
-    db.add(shipment)
-    db.commit()
-    db.refresh(shipment)
-
-    return {
-        "status": "created",
-        "shipment_id": shipment.id,
-        "shipment_no": shipment.package_no or f"SHP-{shipment.id}",
-        "lot_no": lot.lot_no,
-        "message": f"Shipment created for lot {lot.lot_no}",
-    }
-
-
-@router.patch("/{shipment_id}/update-fields")
-def update_shipment_fields(
-    shipment_id: int,
-    payload: dict = Body(...),
-    db: Session = Depends(get_db),
-):
-    shipment = db.get(CustomerShipment, shipment_id)
-    if not shipment:
-        raise HTTPException(status_code=404, detail="Shipment not found")
-
-    updated_fields = []
-
-    if "tracking_number" in payload:
-        shipment.tracking_no = payload["tracking_number"]
-        updated_fields.append("tracking_number")
-
-    if "shipped_date" in payload:
-        try:
-            shipment.shipped_at = datetime.fromisoformat(payload["shipped_date"])
-        except Exception:
-            shipment.shipped_at = datetime.utcnow()
-        updated_fields.append("shipped_date")
-
-    # ✅ ถ้ามีการใส่ tracking หรือ shipped_date ให้เปลี่ยนสถานะเป็น shipped
-    if any(f in ["tracking_number", "shipped_date"] for f in updated_fields):
-        shipment.status = "shipped"
-
-    db.commit()
-    db.refresh(shipment)
-
-    print(f"✅ Updated shipment {shipment.id}: {updated_fields} -> status={shipment.status}")
-
-    return {
-        "id": shipment.id,
-        "tracking_no": shipment.tracking_no,
-        "shipped_at": shipment.shipped_at,
-        "status": shipment.status,
-    }

@@ -962,9 +962,7 @@ function initLinesTable() {
               (l) =>
                 `<a class="link" href="/static/manage-lot-materials.html?lot_id=${encodeURIComponent(
                   l.id
-                )}" target="_blank" title="Open materials for ${safe(
-                  l.lot_no
-                )}">
+                )}" title="Open materials for ${safe(l.lot_no)}">
             ${safe(l.lot_no)} 🔧
           </a>`
             )
@@ -984,9 +982,7 @@ function initLinesTable() {
               (l) =>
                 `<a class="link" href="/static/manage-lot-shippments.html?lot_id=${encodeURIComponent(
                   l.id
-                )}" target="_blank" title="Open shipments for ${safe(
-                  l.lot_no
-                )}">
+                )}" title="Open shipments for ${safe(l.lot_no)}">
             ${safe(l.lot_no)} 📦
           </a>`
             )
