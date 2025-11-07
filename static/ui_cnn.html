@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QR Redirect</title>
+  <script>
+    let typingTimer;
+    const doneTypingInterval = 300; // milliseconds to wait after scanner stops typing
+
+    function handleInput() {
+      clearTimeout(typingTimer);
+      typingTimer = setTimeout(() => {
+        const url = document.getElementById("scannerInput").value.trim();
+        if (url) {
+          // ✅ Ensure it has http or https
+          const finalUrl = url.match(/^https?:\/\//i) ? url : "http://" + url;
+          window.location.href = finalUrl;
+        }
+      }, doneTypingInterval);
+    }
+  </script>
+</head>
+<body>
+  <h2>Scan QR Code to Redirect</h2>
+  <input
+    type="text"
+    id="scannerInput"
+    placeholder="Scan your QR code here"
+    autofocus
+    oninput="handleInput()"
+    style="width: 90%; padding: 10px; font-size: 18px;"
+  />
+</body>
+</html>

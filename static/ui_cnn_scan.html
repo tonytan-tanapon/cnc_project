@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Code Scanner Display</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 30px;
+        }
+
+        #output {
+            margin-top: 20px;
+            font-size: 20px;
+        }
+
+        .item {
+            background: #f2f2f2;
+            padding: 8px 12px;
+            margin-bottom: 6px;
+            border-radius: 6px;
+        }
+
+        /* Hidden input field */
+        #scannerInput {
+            position: absolute;
+            opacity: 0;
+            pointer-events: none;
+        }
+    </style>
+   <script>
+let typingTimer;
+const doneTypingInterval = 200; // ms after scanner stops typing
+
+function handleInput() {
+  clearTimeout(typingTimer);
+  typingTimer = setTimeout(() => {
+    const input = document.getElementById("scannerInput");
+    const value = input.value.trim();
+    if (value) {
+      const div = document.createElement("div");
+      div.className = "item";
+      div.textContent = value.includes("http") ? "WEB: " + value : value;
+      document.getElementById("output").prepend(div);
+      input.value = "";
+
+      // ✅ ensure scanner input keeps focus after each scan
+      input.focus();
+    }
+  }, doneTypingInterval);
+}
+
+window.onload = () => {
+  const scannerInput = document.getElementById("scannerInput");
+
+  function ensureFocus() {
+    const active = document.activeElement;
+    if (
+      active.tagName !== "INPUT" &&
+      active.tagName !== "TEXTAREA" &&
+      active !== scannerInput
+    ) {
+      scannerInput.focus();
+    }
+  }
+
+  scannerInput.focus();
+
+  document.body.addEventListener("click", (e) => {
+    if (!e.target.closest("input, textarea")) {
+      scannerInput.focus();
+    }
+  });
+
+  // optional safety check
+  setInterval(ensureFocus, 2000);
+};
+</script>
+
+</head>
+
+<body>
+    <h2>Scan QR Codes</h2>
+    <input type="text" id="scannerInput" oninput="handleInput()" autofocus />
+    <div id="output"></div>
+     <input type="text" id="aa" />
+</body>
+
+</html>

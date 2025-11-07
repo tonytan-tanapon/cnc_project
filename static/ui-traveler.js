@@ -25,13 +25,14 @@ function hideKeypad() {
   activeTarget = null;
   activeType = null;
 }
+
 // helper
 function updateDisplay(val) {
   document.querySelector("#keypadDisplay").textContent = val;
 }
 
 // ===== DOM READY =====
-let isFirstKeyPress = true; // 🆕 flag to know when to clear old value
+let isFirstKeyPress = true;
 
 document.addEventListener("DOMContentLoaded", () => {
   // เปิด keypad เมื่อคลิกกล่อง qty
@@ -39,30 +40,26 @@ document.addEventListener("DOMContentLoaded", () => {
     box.addEventListener("click", () => {
       const target = box.querySelector(".qty-display");
       const type = box.dataset.type;
-
       showKeypad(target, type);
     });
   });
 
   // ปุ่มตัวเลข
-  
-document.querySelectorAll(".key").forEach((btn) => {
-  btn.addEventListener("click", () => {
-    if (!activeTarget) return;
+  document.querySelectorAll(".key").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (!activeTarget) return;
 
-    let val = activeTarget.textContent.trim();
+      let val = activeTarget.textContent.trim();
+      if (isFirstKeyPress) {
+        val = "";
+        isFirstKeyPress = false;
+      }
 
-    // 🧹 clear old value on first key press
-    if (isFirstKeyPress) {
-      val = "";
-      isFirstKeyPress = false;
-    }
-
-    val = val + btn.textContent.trim();
-    activeTarget.textContent = val;
-    updateDisplay(val);
+      val = val + btn.textContent.trim();
+      activeTarget.textContent = val;
+      updateDisplay(val);
+    });
   });
-});
 
   // ปุ่ม Clear
   document.querySelector(".key-wide").addEventListener("click", () => {
@@ -79,7 +76,6 @@ document.querySelectorAll(".key").forEach((btn) => {
       return;
     }
 
-    // ✅ อ่านค่าก่อนปิด keypad (ป้องกัน null)
     const val = +activeTarget.textContent.trim() || 0;
     hideKeypad();
 
@@ -95,22 +91,20 @@ document.querySelectorAll(".key").forEach((btn) => {
     if (activeType === "reject") payload.qty_reject = val;
 
     try {
-      const travelerData = await jfetch(
-        `/api/v1/travelers/by_no/${travelerNo}`
-      );
+      const travelerData = await jfetch(`/api/v1/travelers/by_no/${travelerNo}`);
       const stepId = travelerData?.active_step?.id;
       if (!stepId) {
         toast("No active step found", false);
         return;
       }
 
-      const resp = await jfetch(`/api/v1/travelers/traveler_steps/${stepId}`, {
+      await jfetch(`/api/v1/travelers/traveler_steps/${stepId}`, {
         method: "PATCH",
         body: JSON.stringify(payload),
       });
 
       toast(`💾 Updated ${activeType} = ${val} ${currentUOM}`);
-      await loadOperation(); // โหลดข้อมูลใหม่หลังบันทึก
+      await loadOperation();
     } catch (err) {
       console.error("❌ PATCH error", err);
       toast(err.message || "Auto-update failed", false);
@@ -121,28 +115,20 @@ document.querySelectorAll(".key").forEach((btn) => {
   document.querySelector(".close-btn").addEventListener("click", hideKeypad);
 
   // ===== CONFIRM BUTTON =====
-  // ===== CONFIRM BUTTON =====
   document.querySelector("#btnConfirm").addEventListener("click", async () => {
     const qty_receive = +document.querySelector("#receiveQty").textContent || 0;
     const qty_accept = +document.querySelector("#acceptQty").textContent || 0;
     const qty_reject = +document.querySelector("#rejectQty").textContent || 0;
     const remark = document.querySelector("#remarkInput").value.trim();
 
-    // ✅ Validation: accept must be <= receive
     if (qty_accept > qty_receive) {
       toast("⚠️ Accept quantity cannot be greater than Receive quantity!", false);
       return;
     }
 
-    const payload = {
-      qty_receive,
-      qty_accept,
-      qty_reject,
-      remark,
-    };
+    const payload = { qty_receive, qty_accept, qty_reject, remark };
 
     try {
-      // ใช้ endpoint ที่มี logic: set passed + finished_at + advance next step
       const resp = await jfetch(`/api/v1/travelers/by_no/${travelerNo}/record`, {
         method: "POST",
         body: JSON.stringify(payload),
@@ -150,61 +136,53 @@ document.querySelectorAll(".key").forEach((btn) => {
 
       console.log("✅ CONFIRM record:", resp);
       toast("✅ Step marked as PASSED");
-      await loadOperation(); // โหลด step ปัจจุบันใหม่ (จะเป็น step ถัดไปถ้ามี)
+      await loadOperation();
     } catch (err) {
       console.error("❌ CONFIRM error", err);
       toast(err.message || "Save failed", false);
     }
   });
 
-
-  loadOperation(); // โหลดครั้งแรก
+  // โหลดข้อมูลครั้งแรก
+  loadOperation();
 });
 
-// ===== AUTO-SAVE WHEN PRESS ENTER IN REMARKS =====
-document
-  .querySelector("#remarkInput")
-  .addEventListener("keydown", async (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault(); // ป้องกันขึ้นบรรทัดใหม่
-      const remark = e.target.value.trim();
+// ===== AUTO-SAVE REMARK =====
+document.querySelector("#remarkInput").addEventListener("keydown", async (e) => {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    const remark = e.target.value.trim();
 
-      try {
-        const travelerData = await jfetch(
-          `/api/v1/travelers/by_no/${travelerNo}`
-        );
-        const stepId = travelerData?.active_step?.id;
-        if (!stepId) {
-          toast("No active step found", false);
-          return;
-        }
-
-        const payload = { remark };
-
-        const resp = await jfetch(
-          `/api/v1/travelers/traveler_steps/${stepId}`,
-          {
-            method: "PATCH",
-            body: JSON.stringify(payload),
-          }
-        );
-        console.log("💬 Remark auto-saved:", resp);
-        toast("📝 Remark saved");
-      } catch (err) {
-        console.error("❌ Remark save error", err);
-        toast("Failed to save remark", false);
+    try {
+      const travelerData = await jfetch(`/api/v1/travelers/by_no/${travelerNo}`);
+      const stepId = travelerData?.active_step?.id;
+      if (!stepId) {
+        toast("No active step found", false);
+        return;
       }
+
+      const payload = { remark };
+
+      const resp = await jfetch(`/api/v1/travelers/traveler_steps/${stepId}`, {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+      });
+      console.log("💬 Remark auto-saved:", resp);
+      toast("📝 Remark saved");
+    } catch (err) {
+      console.error("❌ Remark save error", err);
+      toast("Failed to save remark", false);
     }
-  });
+  }
+});
+
 // ===== LOAD CURRENT STEP =====
 async function loadOperation() {
   try {
     const data = await jfetch(`/api/v1/travelers/by_no/${travelerNo}`);
-
     if (!data) return;
 
     let step = data.active_step || {};
-    // รวมข้อมูลจาก steps array เพื่อให้ qty_* ถูกต้อง
     if (data.steps && step.id) {
       const full = data.steps.find((s) => s.id === step.id);
       if (full) step = { ...step, ...full };
@@ -219,7 +197,6 @@ async function loadOperation() {
     document.querySelector("#opDesc").textContent = step.step_note || "";
     document.querySelector("#operatorName").textContent = "Operator: " + opText;
 
-    // ✅ แสดงค่าที่บันทึกไว้จริงจาก DB
     document.querySelector("#receiveQty").textContent = step.qty_receive ?? 0;
     document.querySelector("#acceptQty").textContent = step.qty_accept ?? 0;
     document.querySelector("#rejectQty").textContent = step.qty_reject ?? 0;
@@ -227,33 +204,72 @@ async function loadOperation() {
       step.remark || step.step_note || "";
 
     if (!data.active_step) {
-      // 🎉 Traveler เสร็จหมดแล้ว
       const wrap = document.querySelector(".wrap");
-
-      // ล้างเนื้อหาในหน้า
       wrap.innerHTML = `
-    <div style="
-      display:flex;
-      flex-direction:column;
-      align-items:center;
-      justify-content:center;
-      height:70vh;
-      background:#f9fafb;
-      border-radius:8px;
-      text-align:center;
-    ">
-      <div style="font-size:72px;">🎉</div>
-      <div style="font-size:26px; font-weight:700; margin-top:10px; color:#111;">
-        Traveler <span style="color:#2563eb;">${travelerNo}</span> Completed !!
-      </div>
-    </div>
-  `;
-
+        <div style="
+          display:flex;
+          flex-direction:column;
+          align-items:center;
+          justify-content:center;
+          height:70vh;
+          background:#f9fafb;
+          border-radius:8px;
+          text-align:center;
+        ">
+          <div style="font-size:72px;">🎉</div>
+          <div style="font-size:26px; font-weight:700; margin-top:10px; color:#111;">
+            Traveler <span style="color:#2563eb;">${travelerNo}</span> Completed !!
+          </div>
+        </div>`;
       toast("🎉 Traveler is fully completed!", true);
-      return; // จบ function
+      return;
     }
   } catch (err) {
     console.error("❌ loadOperation failed", err);
     toast(err.message || "Load failed", false);
   }
 }
+
+// ===== QR SCANNER DETECTION =====
+let scanBuffer = "";
+let scanTimer;
+const SCAN_DELAY = 150; // ms after scanner stops typing
+
+function handleScanInput(char) {
+  scanBuffer += char;
+  clearTimeout(scanTimer);
+
+  scanTimer = setTimeout(async () => {
+    const value = scanBuffer.trim();
+    scanBuffer = "";
+    if (!value) return;
+
+    console.log("📥 Scanned:", value);
+
+    const opDisplay = document.querySelector("#operatorName");
+    opDisplay.textContent = "Operator: " + value;
+
+    try {
+      await jfetch(`/api/v1/travelers/by_no/${travelerNo}`, {
+        method: "PATCH",
+        body: JSON.stringify({ operator_emp_code: value }),
+      });
+      toast("👷 Operator scanned: " + value);
+      await loadOperation();
+    } catch (err) {
+      console.error("❌ Operator scan update failed:", err);
+      toast("Failed to update operator", false);
+    }
+  }, SCAN_DELAY);
+}
+
+// Listen for keyboard scanner input
+window.addEventListener("keydown", (e) => {
+  if (e.key.length === 1) {
+    handleScanInput(e.key);
+  }
+  if (e.key === "Enter") {
+    e.preventDefault();
+    handleScanInput("\n");
+  }
+});
