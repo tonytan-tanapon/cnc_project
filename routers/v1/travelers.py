@@ -223,6 +223,7 @@ def scan_traveler(payload: dict, db: Session = Depends(get_db)):
 
 @router.post("/traveler/{traveler_id}/record")
 def record_step(traveler_id: int, payload: dict, db: Session = Depends(get_db)):
+    print("Payload:", payload)
     step_code = payload.get("step_code")
 
     step = (
@@ -265,6 +266,7 @@ def get_traveler_by_no(traveler_no: str, db: Session = Depends(get_db)):
     ดึงข้อมูล Traveler ตามหมายเลข traveler_no
     พร้อม steps ทั้งหมด และ step ปัจจุบัน (active)
     """
+    print("str",traveler_no)
     traveler = (
         db.query(ShopTraveler)
         .options(
@@ -451,6 +453,7 @@ class TravelerStepUpdate(BaseModel):
     step_note: Optional[str] = None
     remark: Optional[str] = None  # ใช้ชื่อเดียวกับ frontend
     status: Optional[str] = None
+    operator_code: Optional[str] = None  # 👈 change name
 
 @router.patch("/traveler_steps/{step_id}")
 def update_traveler_step(step_id: int, payload: TravelerStepUpdate, db: Session = Depends(get_db)):
@@ -458,10 +461,11 @@ def update_traveler_step(step_id: int, payload: TravelerStepUpdate, db: Session 
     if not step:
         raise HTTPException(status_code=404, detail="Step not found")
 
-    # ✅ map "remark" → "step_note" (จาก UI)
-    if payload.remark is not None and not payload.step_note:
+    # ✅ remark updates only note
+    if payload.remark is not None:
         step.step_note = payload.remark
 
+    # ✅ numeric fields
     if payload.qty_receive is not None:
         step.qty_receive = payload.qty_receive
     if payload.qty_accept is not None:
@@ -473,6 +477,13 @@ def update_traveler_step(step_id: int, payload: TravelerStepUpdate, db: Session 
     if payload.step_note is not None:
         step.step_note = payload.step_note
 
+    # ✅ operator_code handled separately and only if not empty
+    if payload.operator_code is not None and str(payload.operator_code).strip() != "":
+        emp = db.query(Employee).filter(Employee.emp_code == payload.operator_code).first()
+        if not emp:
+            raise HTTPException(status_code=404, detail=f"Employee code {payload.operator_code} not found")
+        step.operator_id = emp.id
+
     db.commit()
     db.refresh(step)
     return {
@@ -483,4 +494,5 @@ def update_traveler_step(step_id: int, payload: TravelerStepUpdate, db: Session 
         "qty_reject": step.qty_reject,
         "status": step.status,
         "step_note": step.step_note,
+        "operator_id": step.operator_id,
     }

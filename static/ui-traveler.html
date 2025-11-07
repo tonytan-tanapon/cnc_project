@@ -201,6 +201,11 @@
     button.close-btn {
       background: #9ca3af;
     }
+    #scannerInput {
+      position: absolute;
+      opacity: 0;
+      pointer-events: none;
+    }
   </style>
 </head>
 
@@ -209,6 +214,7 @@
     <div class="note">
       <div class="note-header">
         <div class="op" id="opCode"></div>
+        <div class="manchine" id="machinename"></div>
         <div class="operator" id="operatorName"></div>
       </div>
       <div class="title" id="opName"></div>
@@ -219,15 +225,19 @@
       <div class="action-box" data-type="receive">
         <div class="action-label">Receive</div>
         <div class="qty-display" id="receiveQty">0</div>
+        <div class="action-label" id="uom">Pcs</div>
       </div>
       <div class="action-box" data-type="accept">
         <div class="action-label">Accept</div>
         <div class="qty-display" id="acceptQty">0</div>
+        <div class="action-label" id="uom">Pcs</div>
       </div>
       <div class="action-box" data-type="reject">
         <div class="action-label">Reject</div>
         <div class="qty-display" id="rejectQty">0</div>
+        <div class="action-label" id="uom">Pcs</div>
       </div>
+      
     </div>
 
     <div class="remarks">
@@ -241,14 +251,8 @@
   <!-- Keypad -->
   <div class="keypad-overlay" id="keypad">
     
-    <div id="keypadDisplay">
-      Unit: pcs
-
-    </div>
-    <div id="uomLabel">
-      Unit: pcs
-
-    </div>
+    <div id="keypadDisplay">0</div>
+<div id="uomLabel">Unit: pcs</div>
     <div class="pad">
       <button class="key">7</button>
       <button class="key">8</button>
@@ -268,9 +272,7 @@
     </div>
   </div>
 
- <input id="scannerInput" type="text"
-  style="position: absolute; top: 0; left: 0; width: 1px; height: 1px;
-         opacity: 0.01; z-index: -1;" autofocus />
+  <input type="text" id="scannerInput" oninput="handleInput()" autofocus />
   <script type="module" src="/static/ui-traveler.js"></script>
   </script>
 
