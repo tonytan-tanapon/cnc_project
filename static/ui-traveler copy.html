@@ -201,6 +201,93 @@
     button.close-btn {
       background: #9ca3af;
     }
+
+    .keypad-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+      max-width: 500px;
+      margin-bottom: 10px;
+      padding: 8px 16px;
+      background: #f3f4f6;
+      border-radius: var(--radius);
+    }
+
+    #keypadDisplay {
+      font-size: 36px;
+      /* 🔹 make numbers big */
+      font-weight: 700;
+      color: #111;
+    }
+
+    #uomLabel {
+      font-size: 24px;
+      /* 🔹 slightly smaller than number */
+      font-weight: 600;
+      color: #2563eb;
+      white-space: nowrap;
+    }
+
+    #keypadTypeLabel {
+      font-size: 26px;
+      font-weight: 700;
+      color: #111;
+      margin-bottom: 6px;
+      text-transform: capitalize;
+    }
+
+
+.pad-container {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: var(--gap);
+  width: 100%;
+  max-width: 600px;
+}
+
+.pad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--gap);
+  flex-shrink: 0;
+}
+
+.unit-select {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 10px;
+}
+
+.unit-btn {
+  background: #e5e7eb;
+  border: 2px solid transparent;
+  border-radius: var(--radius);
+  height: 60px;
+  width: 100px;
+  font-weight: 700;
+  font-size: 16px;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.unit-btn.active {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary-hover);
+}
+
+    #scannerInput {
+      position: fixed;
+      top: 0;
+      left: 0;
+      opacity: 0;
+      height: 1px;
+      width: 1px;
+      z-index: -1;
+    }
   </style>
 </head>
 
@@ -209,6 +296,7 @@
     <div class="note">
       <div class="note-header">
         <div class="op" id="opCode"></div>
+        <div class="manchine" id="machinename"></div>
         <div class="operator" id="operatorName"></div>
       </div>
       <div class="title" id="opName"></div>
@@ -219,15 +307,19 @@
       <div class="action-box" data-type="receive">
         <div class="action-label">Receive</div>
         <div class="qty-display" id="receiveQty">0</div>
+        <div class="action-label" id="uom">Pcs</div>
       </div>
       <div class="action-box" data-type="accept">
         <div class="action-label">Accept</div>
         <div class="qty-display" id="acceptQty">0</div>
+        <div class="action-label" id="uom">Pcs</div>
       </div>
       <div class="action-box" data-type="reject">
         <div class="action-label">Reject</div>
         <div class="qty-display" id="rejectQty">0</div>
+        <div class="action-label" id="uom">Pcs</div>
       </div>
+
     </div>
 
     <div class="remarks">
@@ -240,37 +332,53 @@
 
   <!-- Keypad -->
   <div class="keypad-overlay" id="keypad">
-    
-    <div id="keypadDisplay">
-      Unit: pcs
 
-    </div>
-    <div id="uomLabel">
-      Unit: pcs
+    <!-- ✅ Add this label -->
 
+
+    <!-- existing display + unit row -->
+    <div class="keypad-header">
+      <div id="keypadTypeLabel">—</div>
+      <div id="keypadDisplay">0</div>
+      <div id="uomLabel">Unit: pcs</div>
     </div>
-    <div class="pad">
-      <button class="key">7</button>
-      <button class="key">8</button>
-      <button class="key">9</button>
-      <button class="key">4</button>
-      <button class="key">5</button>
-      <button class="key">6</button>
-      <button class="key">1</button>
-      <button class="key">2</button>
-      <button class="key">3</button>
-      <button class="key">0</button>
-      <button class="key-wide">Clear</button>
-    </div>
-    <div class="pad-footer">
-      <button class="ok-btn">OK</button>
-      <button class="close-btn">Close</button>
-    </div>
+
+    <div class="pad-container">
+  <!-- ✅ Number pad on LEFT -->
+  <div class="pad">
+    <button class="key">7</button>
+    <button class="key">8</button>
+    <button class="key">9</button>
+    <button class="key">4</button>
+    <button class="key">5</button>
+    <button class="key">6</button>
+    <button class="key">1</button>
+    <button class="key">2</button>
+    <button class="key">3</button>
+    <button class="key">0</button>
+    <button class="key-wide">Clear</button>
   </div>
 
+  <!-- ✅ Unit selector on RIGHT -->
+  <div class="unit-select">
+    <button class="unit-btn" data-uom="pcs">PCS</button>
+    <button class="unit-btn" data-uom="inch">INCH</button>
+    <button class="unit-btn" data-uom="mm">MM</button>
+  </div>
+</div>
 
+<div class="pad-footer">
+  <button class="ok-btn">OK</button>
+  <button class="close-btn">Close</button>
+</div>
+  </div>
+
+  <input type="text" id="scannerInput" oninput="handleInput()" autofocus />
   <script type="module" src="/static/ui-traveler.js"></script>
   </script>
+
+
+
 </body>
 
 </html>

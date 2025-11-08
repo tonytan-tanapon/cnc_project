@@ -1037,7 +1037,7 @@
         "",
         "",
         "",
-        "Total",
+        "", // "Total" จะใส่ทีหลัง
         "",
         "",
         "",
@@ -1081,39 +1081,53 @@
       ];
 
       // === ใส่สูตร SUM ให้แถว Total ===
-      const ref = XLSX.utils.decode_range(ws["!ref"]);
-      const totalRow = ref.e.r; // index ของแถว Total (0-based)
-      const firstDataRow = 2; // Excel row เริ่มข้อมูล (หลัง header)
-      const lastDataRow = totalRow; // ก่อนแถว Total
+      // === ใส่ค่า Total แบบคำนวณล่วงหน้า (ไม่ใช้สูตร) ===
+// === ใส่ค่า Total แบบคำนวณล่วงหน้า (ไม่ใช้สูตร) ===
+// === ใส่ค่า Total แบบคำนวณล่วงหน้า (ไม่ใช้สูตร) ===
+const ref = XLSX.utils.decode_range(ws["!ref"]);
+const totalRow = ref.e.r;
+const firstDataRow = 2;
+const lastDataRow = totalRow - 1; // exclude Total row itself
 
-      // ฟังก์ชันแปลงเลขเป็นชื่อคอลัมน์ Excel
-      const excelCol = (c) => XLSX.utils.encode_col(c);
+// helper
+const excelCol = (c) => XLSX.utils.encode_col(c);
+const getCellValue = (r, c) => {
+  const cell = ws[XLSX.utils.encode_cell({ r, c })];
+  if (!cell || cell.v === undefined || cell.v === null) return 0;
+  let val = String(cell.v).replace(/[^0-9.\-]/g, ""); // remove $, commas
+  const num = parseFloat(val);
+  return isNaN(num) ? 0 : num;
+};
 
-      // ใส่คำว่า Total
-      ws[XLSX.utils.encode_cell({ r: totalRow, c: 6 })] = {
-        t: "s",
-        v: "Total",
-      };
+// mark Total label
+ws[XLSX.utils.encode_cell({ r: totalRow, c: 6 })] = { t: "s", v: "Total" };
 
-      // 🕒 คอลัมน์ชั่วโมง: reg_h (7), ot_h (8)
-      for (const c of [7, 8]) {
-        const colL = excelCol(c);
-        ws[XLSX.utils.encode_cell({ r: totalRow, c })] = {
-          t: "n",
-          f: `SUM(${colL}${firstDataRow}:${colL}${lastDataRow})`,
-          z: "0.00",
-        };
-      }
+// sum helper
+function sumColumn(c) {
+  let sum = 0;
+  for (let r = firstDataRow - 1; r < lastDataRow; r++) {
+    sum += getCellValue(r, c);
+  }
+  return sum;
+}
 
-      // 💵 คอลัมน์เงิน: pay_reg(11), pay_ot(12), pay_total(13)
-      for (const c of [11, 12, 13]) {
-        const colL = excelCol(c);
-        ws[XLSX.utils.encode_cell({ r: totalRow, c })] = {
-          t: "n",
-          f: `SUM(${colL}${firstDataRow}:${colL}${lastDataRow})`,
-          z: "$#,##0.00",
-        };
-      }
+// 🕒 sum reg + OT hours
+for (const c of [7, 8]) {
+  ws[XLSX.utils.encode_cell({ r: totalRow, c })] = {
+    t: "n",
+    v: sumColumn(c),
+    z: "0.00",
+  };
+}
+
+// 💵 sum pay columns (pay_reg L=11, pay_ot M=12, pay_total N=13)
+for (const c of [11, 12, 13]) {
+  ws[XLSX.utils.encode_cell({ r: totalRow, c })] = {
+    t: "n",
+    v: sumColumn(c),
+    z: "$#,##0.00",
+  };
+}
 
       ws["!ref"] = XLSX.utils.encode_range({
         s: { r: 0, c: 0 },
@@ -1376,8 +1390,8 @@
 
     document
       .getElementById("exportBtn")
-      .addEventListener("click", exportExcelOrCsv);
-
+      // .addEventListener("click", exportExcelOrCsv);
+.addEventListener("click", exportExcelOrCsv);
     document.addEventListener("DOMContentLoaded", () => loadPage(true));
   </script>
 </body>
