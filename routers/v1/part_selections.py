@@ -28,6 +28,7 @@ def get_sel(part_id: int, db: Session = Depends(get_db)):
 
 @sel_router.post("/{part_id}", response_model=SelectionIn)
 def save_sel(part_id: int, payload: SelectionIn, db: Session = Depends(get_db)):
+  print("Payload:", payload)
   part = db.get(Part, part_id)
   if not part: raise HTTPException(404, "Part not found")
 

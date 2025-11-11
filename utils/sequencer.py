@@ -6,7 +6,7 @@ from models import DocCounter
 
 def next_code_yearly(db: Session, prefix: str) -> str:
     """ออกเลขแบบ atomic ต่อปี: <PREFIX>-<YYYY><seq:04d>"""
-    year = date.today().year
+    year = (date.today().year)%100
     dialect = db.bind.dialect.name
 
     if dialect == "postgresql":
@@ -39,4 +39,4 @@ def next_code_yearly(db: Session, prefix: str) -> str:
             db.flush()
         seq = row.seq
 
-    return f"{prefix}-{year}{seq:04d}"
+    return f"{prefix}{year}{seq:04d}"

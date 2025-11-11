@@ -141,7 +141,7 @@ class ReturnRequest(BaseModel):
     qty: float  # amount to return
 
 
-@router.post("/return-auto")
+@router.post("/return")
 def return_auto(req: ReturnRequest, db: Session = Depends(get_db)):
     lot = get_lot_or_404(db, req.lot_id)
     if req.qty <= 0:
@@ -264,6 +264,7 @@ def get_lot_header(lot_id: int, db: Session = Depends(get_db)):
         "part": {
             "part_no": lot.part.part_no if lot.part else None,
             "name": lot.part.name if lot.part else None,
+            "part_id": lot.part_id if lot.part else None,
         },
         "revision": lot.part_revision.rev if lot.part_revision else None,
         "po": lot.po.po_number if lot.po else None,

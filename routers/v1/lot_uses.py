@@ -1,30 +1,28 @@
-# routers/lot_uses.py
 from decimal import Decimal
 from typing import List, Optional, Literal
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, field_validator
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import select, func
+from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 
 from database import get_db
-from models import (
-    ProductionLot, LotMaterialUse, RawBatch, RawMaterial,
-)
+from models import ProductionLot, LotMaterialUse, RawBatch, RawMaterial
 
 router = APIRouter(prefix="/lot-uses", tags=["lot-uses"])
 
 
+# ===============================
+# 📦 MODEL SCHEMAS
+# ===============================
 class AllocateIn(BaseModel):
     lot_id: int
     qty: Decimal
-    # เลือกอย่างใดอย่างหนึ่ง: batch_id | material_id | material_code
     batch_id: Optional[int] = None
     material_id: Optional[int] = None
     material_code: Optional[str] = None
-
-    # ถ้าไม่ได้ระบุ batch_id ให้เลือก batch ตามกลยุทธ์นี้
     strategy: Literal["fifo", "lifo"] = "fifo"
     note: Optional[str] = None
 
@@ -51,9 +49,11 @@ class AllocateOut(BaseModel):
     items: List[AllocationItem]
 
 
+# ===============================
+# 🔹 ALLOCATE MATERIAL
+# ===============================
 @router.post("/allocate", response_model=AllocateOut)
 def allocate_material(payload: AllocateIn, db: Session = Depends(get_db)):
-    # 1) ตรวจ lot
     lot = db.get(ProductionLot, payload.lot_id)
     if not lot:
         raise HTTPException(404, "Lot not found")
@@ -71,7 +71,9 @@ def allocate_material(payload: AllocateIn, db: Session = Depends(get_db)):
             note=payload.note,
         )
         db.add(lmu)
-        # commit ทีเดียวด้านล่าง; ให้ listener เช็ค stock และเติม raw_material_id
+
+        # หักสต็อกจาก batch
+        batch.qty_used = (batch.qty_used or 0) + take
 
         created_items.append(
             AllocationItem(
@@ -80,11 +82,11 @@ def allocate_material(payload: AllocateIn, db: Session = Depends(get_db)):
                 material_code=batch.material.code if batch.material else "",
                 batch_no=batch.batch_no or "",
                 qty=take,
-                uom=(batch.material.uom if batch.material else None),
+                uom=batch.material.uom if batch.material else None,
             )
         )
 
-    # 2) ถ้าระบุ batch_id → ตัดจาก batch นั้นก้อนเดียว
+    # ถ้ามี batch_id → ตัด batch เดียว
     if payload.batch_id:
         batch = (
             db.query(RawBatch)
@@ -95,8 +97,6 @@ def allocate_material(payload: AllocateIn, db: Session = Depends(get_db)):
         if not batch:
             raise HTTPException(404, "Batch not found")
 
-        # เช็คยอดคงเหลือ batch: qty_available_calc = qty_received - used
-        # ใช้ฟิลด์คำนวณที่คุณประกาศไว้แล้ว
         avail = Decimal(batch.qty_available_calc or 0)
         if avail <= 0:
             raise HTTPException(400, "Batch has no available quantity")
@@ -105,7 +105,6 @@ def allocate_material(payload: AllocateIn, db: Session = Depends(get_db)):
         _create_use(batch, take)
         remaining -= take
 
-    # 3) ไม่ได้ระบุ batch_id แต่ระบุมากว้างเป็น material → เดินตัด FIFO/LIFO หลาย batch
     else:
         # หา material_id
         mat_id = None
@@ -123,11 +122,10 @@ def allocate_material(payload: AllocateIn, db: Session = Depends(get_db)):
         else:
             raise HTTPException(400, "Provide batch_id or material_id/material_code")
 
-        # query batches ของวัสดุนั้นที่ยังมีของเหลือ
+        # หา batch ของวัสดุนั้น
         order_clause = (
             RawBatch.received_at.asc() if payload.strategy == "fifo" else RawBatch.received_at.desc()
         )
-
         batches = (
             db.query(RawBatch)
             .options(joinedload(RawBatch.material))
@@ -146,14 +144,11 @@ def allocate_material(payload: AllocateIn, db: Session = Depends(get_db)):
             _create_use(b, take)
             remaining -= take
 
-    # 4) commit & ให้ listener ตรวจ limit ไม่เกินรับเข้า
     try:
         db.commit()
     except IntegrityError as e:
         db.rollback()
-        # listener ก่อน insert/update ของคุณจะ raise ถ้าเกิน stock
-        # ส่ง error กลับให้อ่านง่าย
-        raise HTTPException(400, f"Allocation failed: {str(e.orig) if getattr(e, 'orig', None) else str(e)}")
+        raise HTTPException(400, f"Allocation failed: {str(e)}")
 
     allocated = requested - remaining
     if allocated <= 0:
@@ -165,6 +160,75 @@ def allocate_material(payload: AllocateIn, db: Session = Depends(get_db)):
         items=created_items,
     )
 
+
+# ===============================
+# 🔹 RETURN MATERIAL (คืนสต็อก)
+# ===============================
+class MaterialReturnIn(BaseModel):
+    lot_id: int
+    material_code: str
+    batch_no: str
+    qty: float
+
+
+@router.post("/return")
+def return_material(payload: MaterialReturnIn, db: Session = Depends(get_db)):
+    """คืนวัสดุกลับเข้าคลัง"""
+    lot = db.get(ProductionLot, payload.lot_id)
+    if not lot:
+        raise HTTPException(404, "Lot not found")
+
+    # หา allocation เดิม
+    alloc = (
+        db.query(LotMaterialUse)
+        .join(RawBatch, RawBatch.id == LotMaterialUse.batch_id)
+        .join(RawMaterial, RawMaterial.id == RawBatch.material_id)
+        .filter(
+            LotMaterialUse.lot_id == payload.lot_id,
+            RawMaterial.code == payload.material_code,
+            RawBatch.batch_no == payload.batch_no,
+        )
+        .first()
+    )
+    if not alloc:
+        raise HTTPException(404, "Allocation not found for return")
+
+    if payload.qty <= 0:
+        raise HTTPException(400, "Return qty must be positive")
+    if payload.qty > alloc.qty:
+        raise HTTPException(400, "Return qty exceeds allocated qty")
+
+    # หักออกจาก allocation เดิม
+    alloc.qty -= payload.qty
+    batch = alloc.batch
+    if batch:
+        batch.qty_used = (batch.qty_used or 0) - payload.qty
+        if batch.qty_used < 0:
+            batch.qty_used = 0
+
+    # ถ้าเหลือ 0 ให้ลบ allocation
+    if alloc.qty <= 0:
+        db.delete(alloc)
+
+    # เพิ่ม record ประวัติ return
+    db.add(
+        LotMaterialUse(
+            lot_id=payload.lot_id,
+            batch_id=batch.id if batch else None,
+            qty=-abs(payload.qty),
+            uom=batch.material.uom if batch and batch.material else None,
+            note="Returned to inventory",
+            action="return",
+        )
+    )
+
+    db.commit()
+    return {"ok": True, "message": f"Returned {payload.qty} of {payload.material_code}"}
+
+
+# ===============================
+# 🔹 LIST ALLOCATIONS
+# ===============================
 @router.get("/{lot_id}", response_model=List[AllocationItem])
 def list_uses(lot_id: int, db: Session = Depends(get_db)):
     rows = (
@@ -187,6 +251,9 @@ def list_uses(lot_id: int, db: Session = Depends(get_db)):
     ]
 
 
+# ===============================
+# 🔹 UPDATE / DELETE
+# ===============================
 @router.patch("/{id}", response_model=AllocationItem)
 def update_use(id: int, payload: dict, db: Session = Depends(get_db)):
     use = db.get(LotMaterialUse, id)
@@ -216,13 +283,13 @@ def delete_use(id: int, db: Session = Depends(get_db)):
     db.commit()
 
 
+# ===============================
+# 🔹 LOT HEADER
+# ===============================
 @router.get("/lot/{lot_id}/header")
 def get_lot_header(lot_id: int, db: Session = Depends(get_db)):
-    lot = (
-        db.query(ProductionLot)
-        .filter(ProductionLot.id == lot_id)
-        .first()
-    )
+    print("Fetching header for lot ID:", lot_id)
+    lot = db.query(ProductionLot).filter(ProductionLot.id == lot_id).first()
     if not lot:
         raise HTTPException(404, "Lot not found")
 
@@ -233,6 +300,7 @@ def get_lot_header(lot_id: int, db: Session = Depends(get_db)):
         "planned_qty": lot.planned_qty,
         "note": lot.note,
         "part": {
+            "id": lot.part_id if lot.part else None,
             "part_no": lot.part.part_no if lot.part else None,
         },
         "po": lot.po_id,

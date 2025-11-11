@@ -68,8 +68,8 @@ def create_lot_and_traveler(
     )
 
     try:
-        lot_no = next_code_yearly(db, "LOT")
-        traveler_no = next_code_yearly(db, "TRV")
+        lot_no = next_code_yearly(db, "")
+        traveler_no = next_code_yearly(db, "T")
 
         lot = ProductionLot(
             lot_no=lot_no,

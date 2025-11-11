@@ -76,8 +76,8 @@ def create_lot(payload: ProductionLotCreate, db: Session = Depends(get_db)):
 
     raw = (payload.lot_no or "").strip().upper()
     autogen = raw in ("", "AUTO", "AUTOGEN")
-    lot_no = next_code_yearly(db, ProductionLot, "lot_no", prefix="LOT") if autogen else raw
-
+    lot_no = next_code_yearly(db, ProductionLot, "lot_no", prefix="") if autogen else raw
+    print("lot_no",lot_no )
     if db.query(ProductionLot).filter(ProductionLot.lot_no == lot_no).first():
         raise HTTPException(409, "Lot number already exists")
 

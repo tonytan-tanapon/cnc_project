@@ -25,6 +25,7 @@
         flex-direction: column;
       }
 
+      /* ===== LOT HEADER + MATERIAL ADD ===== */
       .lot-info {
         padding: 14px 18px;
         border-bottom: 1px solid #e5e7eb;
@@ -32,6 +33,7 @@
         background: #fff;
       }
 
+      /* layout ซ้าย-ขวา */
       .lot-flex {
         display: grid;
         grid-template-columns: 1.6fr 0.9fr;
@@ -58,6 +60,7 @@
         font-size: 14px;
       }
 
+      /* ===== ADD MATERIAL PANEL ===== */
       .lot-right {
         background: #fff;
         border: 1px solid #e5e7eb;
@@ -124,6 +127,7 @@
         line-height: 1;
       }
 
+      /* ===== PANEL ===== */
       .panel {
         flex: none;
         display: flex;
@@ -174,57 +178,6 @@
         font-size: 14px;
         color: #111;
       }
-
-      /* === Add Batch Inline Form === */
-      .add-batch-form {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        padding: 10px;
-        border-bottom: 1px solid #e5e7eb;
-        background: #f8fafc;
-      }
-
-      .add-batch-form input {
-        height: 32px;
-        border: 1px solid #d1d5db;
-        border-radius: 6px;
-        padding: 4px 8px;
-        font-size: 14px;
-      }
-
-      .add-batch-form label {
-        font-size: 14px;
-        font-weight: 600;
-      }
-
-      .add-batch-form .btn {
-        background: #22c55e;
-      }
-
-      .add-batch-form .btn:hover {
-        background: #16a34a;
-      }
-
-      /* ✅ Autocomplete styling */
-      .autocomplete-items,
-      .autocomplete-suggestions {
-        position: absolute !important;
-        z-index: 99999 !important;
-        background: #fff;
-        border: 1px solid #d1d5db;
-        border-radius: 6px;
-        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-      }
-
-      .autocomplete-item {
-        padding: 6px 10px;
-        cursor: pointer;
-      }
-
-      .autocomplete-item:hover {
-        background: #f3f4f6;
-      }
     </style>
   </head>
 
@@ -237,6 +190,7 @@
       <main class="main main--edge">
         <!-- ===== LOT HEADER + ADD MATERIAL ===== -->
         <div class="lot-info lot-flex">
+          <!-- ซ้าย: LOT DETAIL -->
           <div class="lot-left">
             <h2>📄 Lot Detail</h2>
             <div id="lotHeader" class="lot-grid">
@@ -244,6 +198,7 @@
             </div>
           </div>
 
+          <!-- ขวา: ADD MATERIAL -->
           <div class="lot-right">
             <h3>🧱 Add Material</h3>
             <div class="mat-row">
@@ -258,44 +213,27 @@
           </div>
         </div>
 
-        <!-- ===== MATERIAL INVENTORY ===== -->
+        <!-- ===== ROW 2: MATERIAL INVENTORY ===== -->
         <section class="panel">
-          <h3>📦 Material Inventory</h3>
-
-          <!-- ✅ Inline Add Batch Form -->
-          <div class="add-batch-form">
-            <label>Batch No</label>
-            <input type="text" id="batchNoInput" placeholder="AUTO" />
-
-            <label>Material Name</label>
-            <input
-              type="text"
-              id="materialInput"
-              placeholder="Search material..."
-            />
-
-            <label>Qty</label>
-            <input
-              type="number"
-              id="qtyInput"
-              placeholder="0"
-              min="0"
-              step="0.01"
-            />
-
-            <button id="btnSaveBatch" class="btn">+ Add Batch</button>
-          </div>
-
+          <h3>
+            📦 Material Inventory
+            <button
+              id="btnAddBatch"
+              class="btn"
+              style="margin-left: auto; background: #22c55e"
+            >
+              + Add Batch
+            </button>
+          </h3>
           <div id="materialTable" class="table-wrap"></div>
         </section>
-
-        <!-- ===== ALLOCATED MATERIALS ===== -->
+        <!-- ===== ROW 3: ALLOCATED MATERIALS ===== -->
         <section class="panel">
           <h3>🔗 Allocated Materials</h3>
           <div id="allocationTable" class="table-wrap"></div>
         </section>
 
-        <!-- ===== HISTORY ===== -->
+        <!-- ===== ROW 4: HISTORY ===== -->
         <section class="panel">
           <h3>📜 Material Allocation History</h3>
           <div id="historyTable" class="table-wrap"></div>
@@ -307,6 +245,12 @@
 
     <script type="module" src="/static/js/nav-loader.js"></script>
     <script src="/static/vendor/tabulator/tabulator.min.js"></script>
-    <script type="module" src="/static/js/manage-lot-materials.js"></script>
+
+    <!-- ✅ สคริปต์หลัก -->
+    <script
+      type="module"
+      src="/static/js/manage-lot-materials.js"
+      defer
+    ></script>
   </body>
 </html>

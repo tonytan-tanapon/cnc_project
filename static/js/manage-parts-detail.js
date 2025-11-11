@@ -80,14 +80,75 @@ const fmtDate = (s) => {
       .tabulator .tabulator-footer{display:none}
 
       /* header grid: left=Part detail, right=Materials */
-      .header-grid{display:grid;grid-template-columns:1.5fr .9fr;gap:12px}
-      .mat-card .hd{display:flex;justify-content:space-between;align-items:center}
-      .mat-row{display:flex;gap:8px;align-items:center;margin-top:8px; position: relative; overflow: visible;}
-      .mat-row input[type="text"]{flex:1;height:32px;border:1px solid #e5e7eb;border-radius:8px;padding:4px 8px}
-      .btn{border:1px solid #e5e7eb;background:#0ea5e9;color:#fff;border-radius:8px;padding:6px 10px;font-weight:600;cursor:pointer}
-      .chips-wrap{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
-      .chip--pill{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border:1px solid #e5e7eb;border-radius:999px;background:#f8fafc}
-      .chip--pill .x{cursor:pointer;font-weight:700;line-height:1}
+      /* header grid: left=Part detail, right=Materials */
+.header-grid {
+  display: grid;
+  grid-template-columns: 1.5fr 0.9fr;
+  gap: 12px;
+}
+
+/* Material card header */
+.mat-card .hd {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px; /* 🔹 เล็กลงจาก default */
+}
+
+/* Material row input */
+.mat-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+  position: relative;
+  overflow: visible;
+  font-size: 13px; /* 🔹 ฟอนต์เล็กลงทั้งแถว */
+}
+.mat-row input[type="text"] {
+  flex: 1;
+  height: 28px; /* เดิม 32px → ลดให้ match กับ font ที่เล็กลง */
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 3px 6px;
+  font-size: 13px;
+}
+
+/* ปุ่ม */
+.btn {
+  border: 1px solid #e5e7eb;
+  background: #0ea5e9;
+  color: #fff;
+  border-radius: 8px;
+  padding: 5px 9px;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 13px; /* 🔹 ปรับขนาดปุ่มให้พอดี */
+}
+
+/* Chip แสดงวัสดุ */
+.chips-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 13px;
+}
+.chip--pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  background: #f8fafc;
+  font-size: 13px;
+}
+.chip--pill .x {
+  cursor: pointer;
+  font-weight: 700;
+  line-height: 1;
+}
 
       /* Prevent AC menu from being clipped */
       .header-grid, .mat-card, .mat-card .bd { overflow: visible; }
@@ -249,9 +310,7 @@ function renderMaterials() {
     const chip = document.createElement("span");
     chip.className = "chip--pill";
     chip.innerHTML = `
-      <span>${
-        m.code ? `<strong>${safeText(m.code)}</strong> — ` : ""
-      }${safeText(m.name ?? "")}</span>
+      <span>${safeText(m.name ?? "")}</span>
       <span class="x" title="Remove" data-pm-id="${m.id}">×</span>
     `;
     list.appendChild(chip);
@@ -336,12 +395,8 @@ function initMaterialAutocomplete() {
     }
   };
 
-  const getDisplayValue = (m) =>
-    m?.code ? `${m.code} — ${m.name ?? ""}` : m?.name ?? "";
-  const renderItem = (m) =>
-    `${m?.code ? `<strong>${safeText(m.code)}</strong> — ` : ""}${safeText(
-      m?.name ?? ""
-    )}`;
+  const getDisplayValue = (m) => (m?.code ? `${m.name ?? ""}` : m?.name ?? "");
+  const renderItem = (m) => `${safeText(m?.name ?? "")}`;
 
   const onSelectItem = async (m) => {
     // keep the selection (you can also auto-add here if preferred)
@@ -408,7 +463,7 @@ function initMaterialAutocomplete() {
     }
 
     try {
-      await addMaterialById(m.id);
+      await addMaterialById(m.id); // add by material_id
       ip.value = "";
       pendingSelectedMaterial = null;
     } catch (e) {
@@ -425,7 +480,7 @@ async function fetchLookups() {
   ]);
   lookups.processes = sortAlpha(procs?.items || [], "name");
   lookups.finishes = sortAlpha(fins?.items || [], "name");
-
+  console.log("Fetching lookups...", lookups);
   // find IDs for "Cutting" and "Heat Treating & Stress Relieve"
   idCutting =
     (lookups.processes.find((p) => p.name === "Cutting") || {}).id || null;
@@ -435,6 +490,8 @@ async function fetchLookups() {
         (p) => p.name === "Heat Treating & Stress Relieve"
       ) || {}
     ).id || null;
+
+  console.log("Cutting ID:", idCutting, "Heat ID:", idHeat);
 }
 
 // ---- render filters with data-id attributes (so we can save by ID)
@@ -502,10 +559,10 @@ function renderFilters() {
 async function preloadSelectionsIntoUI() {
   const { part_id } = qsParams();
   if (!part_id) return;
-
+  console.log("Preloading selections for part_id", part_id);
   try {
     const data = await jfetch(`/part-selections/${part_id}`); // { process_ids:[], finish_ids:[], others:[] }
-
+    console.log("Preloaded selections:", data);
     // basics
     if (idCutting && data.process_ids?.includes(idCutting)) {
       const cb = document.getElementById("g_cutting");
@@ -547,6 +604,7 @@ async function preloadSelectionsIntoUI() {
 
 // ---- persist selections (POST /part-selections/{part_id})
 async function saveSelectionsToDB() {
+  console.log("💾 saveSelectionsToDB called");
   const { part_id } = qsParams();
   if (!part_id) return;
 

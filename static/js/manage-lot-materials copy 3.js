@@ -1,7 +1,6 @@
 import { $, jfetch, toast } from "./api.js";
 import { attachAutocomplete } from "./autocomplete.js";
 
-/* ---------------- GLOBAL STATE ---------------- */
 let currentPartId = null;
 let partMaterials = [];
 let pendingSelectedMaterial = null;
@@ -22,7 +21,6 @@ const ENDPOINTS = {
   lotSummary: `/api/v1/lot-uses/lot/${encodeURIComponent(lotId)}/summary`,
 };
 
-/* ---------------- TABLES ---------------- */
 let tables = { material: null, allocation: null, history: null };
 
 /* ---------------- LOAD LOT HEADER ---------------- */
@@ -30,7 +28,10 @@ async function loadLotHeader() {
   try {
     const lot = await jfetch(ENDPOINTS.lotHeader);
     currentPartId = lot.part?.part_id ?? null;
+    console.log("📦 Lot Info:", lot);
+    console.log("🔧 currentPartId:", currentPartId);
     const summary = await jfetch(ENDPOINTS.lotSummary);
+    console.log("📊 Lot summary:", summary);
 
     const el = document.querySelector("#lotHeader");
     if (!el) return;
@@ -74,6 +75,7 @@ async function loadPartMaterials() {
   try {
     const res = await jfetch(`/parts/${currentPartId}/materials`);
     partMaterials = Array.isArray(res?.items) ? res.items : res;
+    console.log("📗 Loaded part materials:", partMaterials);
     renderMaterialChips(partMaterials);
   } catch (e) {
     console.error("❌ Failed to load part materials:", e);
@@ -94,7 +96,9 @@ function renderMaterialChips(list) {
     const chip = document.createElement("span");
     chip.className = "chip--pill";
     chip.innerHTML = `
-      <span>${m.name ?? ""}</span>
+      <span>${m.code ? `<strong>${m.code}</strong> — ` : ""}${
+      m.name ?? ""
+    }</span>
       <span class="x" data-id="${m.id}" title="Remove">×</span>
     `;
     chip.querySelector(".x").addEventListener("click", async () => {
@@ -106,10 +110,15 @@ function renderMaterialChips(list) {
 
 /* ---------------- ADD/DELETE MATERIAL ---------------- */
 async function addMaterialById(material_id) {
-  if (!currentPartId || !material_id) return toast("Missing ID", false);
-  if (partMaterials.some((m) => m.material_id === material_id))
-    return toast("Material already added", true);
+  if (!currentPartId || !material_id) {
+    console.log("⚠️ Missing currentPartId or material_id");
+    return toast("Missing ID", false);
+  }
 
+  if (partMaterials.some((m) => m.material_id === material_id)) {
+    return toast("Material already added", true);
+  }
+  console.log("➕ currentpartID:", currentPartId);
   try {
     await jfetch(`/parts/${currentPartId}/materials`, {
       method: "POST",
@@ -136,7 +145,7 @@ async function deletePartMaterial(id, code) {
   }
 }
 
-/* ---------------- AUTOCOMPLETE: ADD MATERIAL ---------------- */
+/* ---------------- AUTOCOMPLETE ---------------- */
 function initMaterialAutocomplete() {
   const ip = document.getElementById("mat_ac_input");
   const btn = document.getElementById("mat_add_btn");
@@ -148,9 +157,9 @@ function initMaterialAutocomplete() {
   const fetchItems = async (q) => {
     try {
       const res = await jfetch(MAT_LOOKUP_URL(q || ""));
-
       const items = Array.isArray(res?.items) ? res.items : [];
       lastItems = items;
+      console.log("🔍 Autocomplete items:", items);
       return items;
     } catch {
       lastItems = [];
@@ -162,6 +171,7 @@ function initMaterialAutocomplete() {
     m?.code ? `${m.code} — ${m.name ?? ""}` : m?.name ?? "";
   const renderItem = (m) =>
     `${m?.code ? `<strong>${m.code}</strong> — ` : ""}${m?.name ?? ""}`;
+
   const onSelectItem = (m) => (pendingSelectedMaterial = m || null);
 
   attachAutocomplete(ip, {
@@ -197,13 +207,13 @@ function initMaterialAutocomplete() {
   });
 }
 
-/* ---------------- MATERIAL INVENTORY TABLE ---------------- */
+/* ---------------- MATERIAL INVENTORY ---------------- */
 function initMaterialTable() {
   tables.material = new Tabulator("#materialTable", {
     layout: "fitColumns",
     placeholder: "No material data",
     columns: [
-      { title: "Material PO", field: "batch_no" },
+      { title: "Batch No", field: "batch_no" },
       { title: "Material", field: "name" },
       { title: "#Available", field: "qty_available", hozAlign: "right" },
       { title: "UOM", field: "uom", width: 80, hozAlign: "center" },
@@ -211,7 +221,6 @@ function initMaterialTable() {
         title: "Qty Allocate",
         field: "allocate",
         editor: "number",
-        mutator: (value, data) => value ?? data.qty_available ?? 0,
         editorParams: { step: "1", min: 0 },
       },
       {
@@ -236,8 +245,6 @@ function initMaterialTable() {
             toast(`✅ Allocated ${qtyValue} ${row.name}`);
             await loadAllocationTable();
             await loadLotHeader();
-            await loadMaterialTable();
-            await loadHistoryTable();
           } catch (err) {
             toast(err?.message || "Allocation failed", false);
           }
@@ -246,28 +253,44 @@ function initMaterialTable() {
     ],
   });
 
+  // ✅ โหลดเฉพาะวัสดุของ part ที่ถูก add มา
   loadMaterialTable();
 }
-
 async function loadMaterialTable() {
-  if (!currentPartId) return;
+  if (!currentPartId) {
+    console.warn("⚠️ No currentPartId, cannot filter materials");
+    return;
+  }
+
   try {
+    // 1️⃣ โหลดวัสดุทั้งหมด
     const allMaterials = await jfetch(ENDPOINTS.materialInventory);
+
+    // 2️⃣ โหลดวัสดุของ part
     const partRes = await jfetch(`/parts/${currentPartId}/materials`);
     const partList = Array.isArray(partRes?.items)
       ? partRes.items
       : partRes || [];
+
+    // ✅ ใช้ code ในการ match
     const allowedCodes = new Set(
       partList.map((m) => m.code?.trim().toLowerCase())
     );
+
+    // 3️⃣ กรองเฉพาะวัสดุที่ code ตรงกัน และมี stock
     const filtered = allMaterials.filter(
       (r) =>
         allowedCodes.has(r.code?.trim().toLowerCase()) &&
         (r.qty_available ?? 0) > 0
     );
+
+    // 4️⃣ ใส่ข้อมูลลงตาราง
     tables.material.setData(filtered);
+
+    console.log("📦 Filtered material inventory:", filtered);
   } catch (err) {
     console.error("❌ Failed to load filtered materials:", err);
+    toast("Failed to load material inventory", false);
   }
 }
 
@@ -276,7 +299,7 @@ async function loadAllocationTable() {
   try {
     const res = await jfetch(ENDPOINTS.lotAllocations);
     tables.allocation.setData(res);
-  } catch {
+  } catch (err) {
     toast("Failed to load allocation table", false);
   }
 }
@@ -285,7 +308,7 @@ async function loadHistoryTable() {
   try {
     const res = await jfetch(ENDPOINTS.lotHistory);
     tables.history.setData(res);
-  } catch {
+  } catch (err) {
     toast("Failed to load history", false);
   }
 }
@@ -295,7 +318,7 @@ function initAllocationTable() {
     layout: "fitColumns",
     placeholder: "No allocation records",
     columns: [
-      { title: "Material PO", field: "batch_no" },
+      { title: "Batch", field: "batch_no" },
       { title: "Material", field: "material_name" },
       { title: "Qty", field: "qty", hozAlign: "right" },
       { title: "UOM", field: "uom", width: 80 },
@@ -308,6 +331,7 @@ function initAllocationTable() {
             `Return ${row.qty} ${row.uom} of ${row.material_name}?`
           );
           if (!confirmReturn) return;
+
           try {
             await jfetch(`/api/v1/lot-uses/return`, {
               method: "POST",
@@ -319,11 +343,10 @@ function initAllocationTable() {
                 qty: row.qty,
               }),
             });
+
             toast(`↩️ Returned ${row.qty} ${row.uom} of ${row.material_name}`);
             await loadAllocationTable();
             await loadLotHeader();
-            await loadMaterialTable();
-            await loadHistoryTable();
           } catch (err) {
             toast(err?.message || "Return failed", false);
           }
@@ -351,112 +374,18 @@ function initHistoryTable() {
   });
 }
 
-/* ---------------- INLINE ADD BATCH FORM ---------------- */
-function initInlineAddBatchForm() {
-  const batchNoInput = $("batchNoInput");
-  const materialInput = $("materialInput");
-  const qtyInput = $("qtyInput");
-  const btnSave = $("btnSaveBatch");
-
-  let selectedMaterial = null;
-
-  const MAT_LOOKUP_URL = (q) => `/lookups/materials?q=${encodeURIComponent(q)}`;
-  const fetchItems = async (q) => {
-    try {
-      const res = await jfetch(MAT_LOOKUP_URL(q || ""));
-      return Array.isArray(res?.items) ? res.items : [];
-    } catch {
-      return [];
-    }
-  };
-  const getDisplayValue = (m) => (m?.code ? `${m.name ?? ""}` : m?.name ?? "");
-  const renderItem = (m) => `${m?.name ?? ""}`;
-  const onSelectItem = (m) => (selectedMaterial = m || null);
-
-  attachAutocomplete(materialInput, {
-    minChars: 0,
-    fetchItems,
-    getDisplayValue,
-    renderItem,
-    onSelectItem,
-  });
-
-  materialInput.addEventListener("input", () => (selectedMaterial = null));
-  materialInput.addEventListener("focus", () => {
-    if (!materialInput.value)
-      materialInput.dispatchEvent(new Event("input", { bubbles: true }));
-  });
-
-  btnSave?.addEventListener("click", async () => {
-    const batchNo = batchNoInput.value.trim() || "AUTO";
-    const qty = qtyInput.value.trim();
-    const textInput = materialInput.value.trim();
-
-    const cleanInput = textInput.split("—")[0].trim(); // 🧽 ตัดส่วนหลัง "—" ทิ้ง
-
-    // 🧠 ถ้าไม่ได้เลือกจาก autocomplete แต่พิมพ์เอง → ค้นหาในฐานข้อมูลอีกที
-    if (!selectedMaterial && cleanInput) {
-      try {
-        const res = await jfetch(
-          `/lookups/materials?q=${encodeURIComponent(cleanInput)}`
-        );
-        const list = Array.isArray(res?.items) ? res.items : [];
-        selectedMaterial =
-          list.find((m) =>
-            (m.code + " " + m.name)
-              .toLowerCase()
-              .includes(cleanInput.toLowerCase())
-          ) || null;
-      } catch (err) {
-        console.warn("⚠️ Lookup failed:", err);
-      }
-    }
-
-    if (!selectedMaterial) {
-      toast("Please select a valid Material", false);
-      return;
-    }
-    if (!qty || Number(qty) <= 0) {
-      toast("Please enter a valid quantity", false);
-      return;
-    }
-
-    const payload = {
-      batch_no: batchNo,
-      material_id: selectedMaterial.id,
-      qty_received: String(qty),
-      status: "active",
-    };
-
-    try {
-      const res = await jfetch("/api/v1/batches", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      toast(`✅ Created Materail PO ${res.batch_no || ""}`);
-      batchNoInput.value = "";
-      materialInput.value = "";
-      qtyInput.value = "";
-      selectedMaterial = null;
-      await loadMaterialTable();
-    } catch (err) {
-      console.error("❌ Create batch failed:", err);
-      toast(err?.message || "Create batch failed", false);
-    }
-  });
-}
-
 /* ---------------- BOOT ---------------- */
 document.addEventListener("DOMContentLoaded", async () => {
   await loadLotHeader();
-  await loadPartMaterials();
+  await loadPartMaterials(); // ✅ ให้แน่ใจก่อนว่า currentPartId ถูกตั้งค่า
   initMaterialAutocomplete();
   initAllocationTable();
   initHistoryTable();
+
+  // ✅ ย้าย initMaterialTable() มาไว้หลังจาก loadPartMaterials()
   initMaterialTable();
+
   await loadAllocationTable();
   await loadHistoryTable();
-  initInlineAddBatchForm();
+  console.log("✅ manage-lot-materials initialized successfully");
 });

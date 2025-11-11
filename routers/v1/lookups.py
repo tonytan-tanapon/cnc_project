@@ -25,6 +25,7 @@ def list_processes(db: Session = Depends(get_db)):
         .order_by(ManufacturingProcess.name)
         .all()
     )
+   
     return {"items": [Row(id=r.id, code=r.code, name=r.name) for r in rows]}
 
 @lookups.get("/finishes", response_model=Out)
