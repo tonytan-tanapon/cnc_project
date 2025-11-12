@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>POs · Topnotch – MFG</title>
+
+    <link rel="stylesheet" href="/static/css/app.css" />
+    <link
+      rel="stylesheet"
+      href="/static/vendor/tabulator/tabulator_modern.min.css"
+    />
+
+    <style>
+      body {
+        margin: 0;
+        font-family: system-ui, sans-serif;
+        background: #f9fafb;
+      }
+
+      /* ✅ Layout แนวตั้ง */
+      .main--stack {
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        overflow: hidden;
+      }
+
+      /* ===== ฟอร์มด้านบน ===== */
+      #createPanel {
+        background: #fff;
+        padding: 14px 16px;
+        border-bottom: 1px solid #e5e7eb;
+        display: flex;
+        flex-direction: column;
+      }
+      #createPanel h3 {
+        margin: 0 0 8px 0;
+        font-size: 15px;
+      }
+      #poForm {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        font-size: 13px; /* 🔹 ตัวอักษรเล็กลง */
+      }
+      #poForm label {
+        font-weight: 600;
+        margin-bottom: 2px;
+      }
+      #poForm input,
+      #poForm textarea {
+        padding: 4px 6px;
+        font-size: 13px;
+        border: 1px solid #d1d5db;
+        border-radius: 4px;
+      }
+
+      /* ✅ แถวคู่ PO No. + Customer */
+      .row-two {
+        display: flex;
+        gap: 8px;
+      }
+      .row-two .col {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+      }
+
+      #poForm textarea {
+        resize: vertical;
+      }
+
+      #poForm .form-actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 8px;
+      }
+
+      /* ===== ตารางด้านล่าง ===== */
+      #listPanel {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        background: #fff;
+      }
+      .list-topbar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        height: 40px;
+        padding: 0 10px;
+        border-bottom: 1px solid #e5e7eb;
+      }
+      .search-lg {
+        flex: 0 0 240px;
+        height: 28px;
+        padding: 0 8px;
+        font-size: 13px;
+      }
+      #listBody {
+        flex: 1;
+        overflow: auto;
+      }
+      #listBody .tabulator {
+        height: 100% !important;
+        border: 0;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="app">
+      <aside class="sidebar"><div id="navSlot" data-nav-slot></div></aside>
+
+      <main class="main main--stack">
+        <!-- ✅ ด้านบน: ฟอร์มสร้าง PO -->
+        <section id="createPanel">
+          <h3>Create New PO</h3>
+          <form id="poForm" onsubmit="return false;">
+            <div class="row-two">
+              <div class="col">
+                <label>PO No.</label>
+                <input
+                  id="po_number"
+                  type="text"
+                  placeholder="Enter PO number"
+                />
+              </div>
+              <div class="col">
+                <label>Customer</label>
+                <input
+                  id="customer_input"
+                  type="text"
+                  placeholder="Search customer…"
+                />
+              </div>
+            </div>
+
+            <label>Description</label>
+            <textarea
+              id="po_desc"
+              rows="3"
+              placeholder="Optional description"
+            ></textarea>
+
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary">Save</button>
+              <button id="btnClear" type="button" class="btn">Clear</button>
+            </div>
+          </form>
+        </section>
+
+        <!-- ✅ ด้านล่าง: ตาราง PO -->
+        <section id="listPanel">
+          <div class="list-topbar">
+            <input
+              id="_q"
+              type="search"
+              class="search-lg"
+              placeholder="Search POs…"
+            />
+          </div>
+          <div id="listBody"></div>
+        </section>
+      </main>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite">
+      <span id="toastText"></span>
+    </div>
+
+    <script type="module" src="/static/js/nav-loader.js"></script>
+    <script src="/static/vendor/tabulator/tabulator.min.js"></script>
+    <script type="module" src="/static/js/manage-pos.js"></script>
+  </body>
+</html>
