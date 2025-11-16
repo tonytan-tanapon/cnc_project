@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Saithong Para Thai</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <style>
+      :root {
+        --primary: #b8860b;
+        --primary-dark: #8b6508;
+        --bg: #fffdf7;
+        --text: #222222;
+        --muted: #666666;
+        --card-bg: #ffffff;
+        --border: #e5e5e5;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+          sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        line-height: 1.6;
+      }
+
+      a {
+        text-decoration: none;
+        color: inherit;
+      }
+
+      img {
+        max-width: 100%;
+        display: block;
+      }
+
+      .container {
+        width: min(1100px, 100%);
+        margin: 0 auto;
+        padding: 0 1.5rem;
+      }
+
+      /* NAVBAR */
+      header {
+        background: #ffffff;
+        border-bottom: 1px solid var(--border);
+        position: sticky;
+        top: 0;
+        z-index: 10;
+      }
+
+      .nav {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.8rem 0;
+      }
+
+      .logo {
+        font-weight: 700;
+        font-size: 1.1rem;
+        color: var(--primary-dark);
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+
+      .nav-links {
+        display: flex;
+        gap: 1.5rem;
+        font-size: 0.95rem;
+      }
+
+      .nav-links a {
+        position: relative;
+        color: var(--muted);
+      }
+
+      .nav-links a::after {
+        content: "";
+        position: absolute;
+        left: 0;
+        bottom: -0.25rem;
+        width: 0;
+        height: 2px;
+        background: var(--primary);
+        transition: width 0.2s ease;
+      }
+
+      .nav-links a:hover::after {
+        width: 100%;
+      }
+
+      /* HERO */
+      .hero {
+        padding: 3rem 0 2.5rem;
+      }
+
+      .hero-inner {
+        display: grid;
+        grid-template-columns: minmax(0, 3fr);
+        gap: 2rem;
+        align-items: center;
+      }
+
+      .hero-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-size: 0.8rem;
+        padding: 0.2rem 0.7rem;
+        border-radius: 999px;
+        background: rgba(184, 134, 11, 0.08);
+        color: var(--primary-dark);
+        margin-bottom: 0.6rem;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+      }
+
+      .hero-title {
+        font-size: clamp(2rem, 3vw + 1rem, 2.6rem);
+        line-height: 1.2;
+        margin-bottom: 0.7rem;
+      }
+
+      .hero-subtitle {
+        font-size: 1.05rem;
+        color: var(--muted);
+        max-width: 34rem;
+        margin-bottom: 1.4rem;
+      }
+
+      .hero-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.8rem;
+        margin-bottom: 0.8rem;
+      }
+
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0.6rem 1.4rem;
+        border-radius: 999px;
+        border: 1px solid transparent;
+        font-size: 0.95rem;
+        cursor: pointer;
+        transition: background 0.15s ease, color 0.15s ease,
+          border-color 0.15s ease, transform 0.1s ease;
+      }
+
+      .btn-primary {
+        background: var(--primary);
+        color: #ffffff;
+        border-color: var(--primary);
+      }
+
+      .btn-primary:hover {
+        background: var(--primary-dark);
+        border-color: var(--primary-dark);
+        transform: translateY(-1px);
+      }
+
+      .btn-outline {
+        background: transparent;
+        border-color: var(--primary);
+        color: var(--primary-dark);
+      }
+
+      .btn-outline:hover {
+        background: rgba(184, 134, 11, 0.08);
+        transform: translateY(-1px);
+      }
+
+      .hero-note {
+        font-size: 0.85rem;
+        color: var(--muted);
+      }
+
+      /* GENERIC SECTION */
+      section {
+        padding: 2.5rem 0;
+      }
+
+      .section-heading {
+        text-align: center;
+        margin-bottom: 2rem;
+      }
+
+      .section-heading h2 {
+        font-size: 1.6rem;
+        margin-bottom: 0.3rem;
+      }
+
+      .section-heading p {
+        color: var(--muted);
+        font-size: 0.95rem;
+      }
+
+      /* ABOUT */
+      .about-card {
+        background: var(--card-bg);
+        border-radius: 1rem;
+        padding: 1.5rem 1.4rem;
+        border: 1px solid var(--border);
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.03);
+        max-width: 46rem;
+        margin: 0 auto;
+      }
+
+      .about-card h3 {
+        font-size: 1.3rem;
+        margin-bottom: 0.75rem;
+        color: var(--primary-dark);
+      }
+
+      .about-card p {
+        font-size: 0.97rem;
+        color: var(--text);
+      }
+
+      .about-card p + p {
+        margin-top: 0.6rem;
+      }
+
+      .about-card .read-more {
+        margin-top: 1rem;
+        display: inline-flex;
+        font-size: 0.9rem;
+        color: var(--primary-dark);
+        font-weight: 500;
+      }
+
+      /* CARDS GRID */
+      .cards-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 1.3rem;
+      }
+
+      .card {
+        background: var(--card-bg);
+        border-radius: 1rem;
+        padding: 1.1rem 1.2rem;
+        border: 1px solid var(--border);
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.03);
+        display: flex;
+        flex-direction: column;
+        gap: 0.4rem;
+        height: 100%;
+      }
+
+      .card-tag {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        color: var(--primary-dark);
+        opacity: 0.8;
+      }
+
+      .card h3 {
+        font-size: 1.1rem;
+        margin-bottom: 0.2rem;
+      }
+
+      .card p {
+        font-size: 0.9rem;
+        color: var(--muted);
+        flex: 1;
+      }
+
+      .card-footer {
+        margin-top: 0.5rem;
+        font-size: 0.85rem;
+        color: var(--primary-dark);
+        font-weight: 500;
+      }
+
+      /* CONTACT / FOOTER */
+      .contact-wrapper {
+        display: grid;
+        grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+        gap: 2rem;
+        align-items: start;
+      }
+
+      .contact-info {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        font-size: 0.95rem;
+      }
+
+      .contact-info h3 {
+        font-size: 1.3rem;
+        margin-bottom: 0.4rem;
+        color: var(--primary-dark);
+      }
+
+      .contact-info a {
+        color: var(--primary-dark);
+        font-weight: 500;
+        word-break: break-word;
+      }
+
+      .contact-info .address {
+        white-space: pre-line;
+        color: var(--muted);
+      }
+
+      .hours-card {
+        background: var(--card-bg);
+        border-radius: 1rem;
+        padding: 1rem 1.2rem;
+        border: 1px solid var(--border);
+        font-size: 0.9rem;
+      }
+
+      .hours-card h4 {
+        font-size: 1rem;
+        margin-bottom: 0.15rem;
+        color: var(--primary-dark);
+      }
+
+      .hours-row {
+        margin-bottom: 0.6rem;
+      }
+
+      .hours-row:last-child {
+        margin-bottom: 0;
+      }
+
+      .map-link {
+        margin-top: 1rem;
+      }
+
+      .map-link a {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        font-size: 0.9rem;
+        color: var(--primary-dark);
+        font-weight: 500;
+      }
+
+      .map-link a::before {
+        content: "📍";
+      }
+
+      footer {
+        border-top: 1px solid var(--border);
+        padding: 1.2rem 0 1.6rem;
+        text-align: center;
+        font-size: 0.8rem;
+        color: var(--muted);
+      }
+
+      /* RESPONSIVE */
+      @media (max-width: 720px) {
+        .nav {
+          flex-direction: column;
+          gap: 0.3rem;
+          align-items: flex-start;
+        }
+
+        .hero {
+          padding-top: 2.2rem;
+        }
+
+        .contact-wrapper {
+          grid-template-columns: minmax(0, 1fr);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- NAVBAR -->
+    <header>
+      <div class="container nav">
+        <div class="logo">Saithong Para Thai</div>
+        <nav class="nav-links">
+          <a href="#home">Home</a>
+          <a href="#about">About</a>
+          <a href="#dishes">Menu</a>
+          <a href="#drinks">Drinks</a>
+          <a href="#contact">Contact</a>
+        </nav>
+      </div>
+    </header>
+
+    <!-- HERO -->
+    <main id="home" class="hero">
+      <div class="container hero-inner">
+        <div>
+          <div class="hero-badge">Discover the Flavors of Tradition</div>
+          <h1 class="hero-title">Authentic Thai Food in Fredericksburg, VA</h1>
+          <p class="hero-subtitle">
+            Saithong Para Thai brings the heart of Thailand to Virginia with
+            comforting curries, stir-fries, and street-food favorites prepared
+            with fresh ingredients and warm hospitality.
+          </p>
+          <div class="hero-actions">
+            <a href="#dishes" class="btn btn-primary">View Famous Dishes</a>
+            <a href="#contact" class="btn btn-outline">Visit or Call Us</a>
+          </div>
+          <p class="hero-note">
+            “Saithong” means <strong>golden light</strong> — a symbol of joy and
+            hospitality that inspires everything we do.
+          </p>
+        </div>
+      </div>
+    </main>
+
+    <!-- ABOUT -->
+    <section id="about">
+      <div class="container">
+        <div class="section-heading">
+          <h2>About Us</h2>
+          <p>Where the warmth of Thailand meets the charm of Virginia.</p>
+        </div>
+        <div class="about-card">
+          <h3>Welcome to Saithong Para Thai</h3>
+          <p>
+            Welcome to Saithong Para Thai, where the heart of Thailand meets the
+            warmth of Virginia. “Saithong” means golden light — a symbol of joy
+            and hospitality that inspires everything we do.
+          </p>
+          <p>
+            Saithong Para Thai, located in Fredericksburg, VA, is a beloved spot
+            for authentic Thai cuisine. With a warm and inviting atmosphere, the
+            restaurant offers a wide variety of flavorful dishes, from
+            traditional curries to stir-fries. Guests enjoy excellent service,
+            and the menu caters to various tastes and dietary preferences.
+          </p>
+          <p>
+            Whether you choose to dine in or take out, Saithong Para Thai
+            promises a satisfying experience with fresh, delicious food.
+          </p>
+          <span class="read-more">Read More</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- FAMOUS DISHES -->
+    <section id="dishes">
+      <div class="container">
+        <div class="section-heading">
+          <h2>Famous Thai Dishes</h2>
+          <p>Comforting Thai classics, cooked with care and bold flavors.</p>
+        </div>
+
+        <div class="cards-grid">
+          <!-- Pad See Ew -->
+          <article class="card">
+            <span class="card-tag">Noodles</span>
+            <h3>Pad See Ew</h3>
+            <p>
+              A popular Thai stir-fried noodle dish made with wide rice noodles,
+              soy sauce, Chinese broccoli, egg, and your choice of protein —
+              usually chicken, beef, or tofu. It’s known for its slightly smoky
+              flavor from stir-frying over high heat and its balance of savory
+              and sweet notes from dark soy sauce and oyster sauce. The noodles
+              are tender yet lightly crisped on the edges, making it one of the
+              most comforting Thai street foods.
+            </p>
+            <div class="card-footer">A must-try Thai street favorite.</div>
+          </article>
+
+          <!-- Yellow Curry -->
+          <article class="card">
+            <span class="card-tag">Curry</span>
+            <h3>Yellow Curry</h3>
+            <p>
+              Mild and fragrant curry with a rich coconut milk base, potatoes,
+              and your choice of protein. Perfect for those who enjoy deep
+              flavor without too much heat.
+            </p>
+            <div class="card-footer">Creamy, aromatic, and comforting.</div>
+          </article>
+
+          <!-- Pad Thai -->
+          <article class="card">
+            <span class="card-tag">Noodles</span>
+            <h3>Pad Thai</h3>
+            <p>
+              Thailand’s most iconic noodle dish, stir-fried with rice noodles,
+              egg, bean sprouts, peanuts, and a tangy tamarind-based sauce.
+              Balanced in sweet, sour, and savory flavors.
+            </p>
+            <div class="card-footer">The classic you can’t go wrong with.</div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- THAI TEA / DRINKS -->
+    <section id="drinks">
+      <div class="container">
+        <div class="section-heading">
+          <h2>Thai Tea & Drinks</h2>
+          <p>Refreshing Thai classics to pair with your meal.</p>
+        </div>
+
+        <div class="cards-grid">
+          <article class="card">
+            <span class="card-tag">Thai Tea</span>
+            <h3>Thai Tea (Cha Yen)</h3>
+            <p>
+              A rich and creamy iced tea brewed from fragrant Thai black tea
+              leaves, blended with sweetened condensed milk and served over ice.
+              Its bold flavor and signature orange hue make it a refreshing Thai
+              classic.
+            </p>
+            <div class="card-footer">Perfect for a hot day.</div>
+          </article>
+
+          <article class="card">
+            <span class="card-tag">Hot Drink</span>
+            <h3>Hot Thai Tea</h3>
+            <p>
+              The same fragrant Thai black tea served hot, with milk and sugar,
+              for a cozy and aromatic drink.
+            </p>
+            <div class="card-footer">Warm and comforting.</div>
+          </article>
+
+          <article class="card">
+            <span class="card-tag">Iced Drink</span>
+            <h3>Thai Iced Tea</h3>
+            <p>
+              Classic Thai iced tea with crushed ice and creamy top, sweet and
+              smooth, ideal alongside spicy dishes.
+            </p>
+            <div class="card-footer">Sweet, creamy, and iconic.</div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- CONTACT / HOURS -->
+    <section id="contact">
+      <div class="container">
+        <div class="section-heading">
+          <h2>Visit or Contact Us</h2>
+          <p>We look forward to welcoming you. Swing by soon!</p>
+        </div>
+
+        <div class="contact-wrapper">
+          <!-- Contact details -->
+          <div class="contact-info">
+            <h3>Saithong Para Thai</h3>
+            <p>
+              Phone:
+              <a href="tel:+15409934666">+1 (540) 993-4666</a>
+            </p>
+            <p>
+              Website:
+              <a href="http://www.reallygreatsite.com" target="_blank"
+                >www.reallygreatsite.com</a
+              >
+            </p>
+            <p class="address">
+              20 Plantation Dr Unit 137 Fredericksburg, VA 22406
+            </p>
+
+            <div class="map-link">
+              <a
+                href="https://maps.google.com/?daddr=38.3542953523077,-77.5061693558197"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Get directions on Google Maps
+              </a>
+            </div>
+          </div>
+
+          <!-- Hours -->
+          <div class="hours-card">
+            <div class="hours-row">
+              <h4>Business Hours</h4>
+              <p>Mon - Sun: 11:00 AM - 8:30 PM</p>
+            </div>
+            <div class="hours-row">
+              <h4>Carryout Hours</h4>
+              <p>Mon - Sun: 11:00 AM - 8:00 PM</p>
+            </div>
+            <div class="hours-row">
+              <h4>Delivery Hours</h4>
+              <p>Mon - Sun: 11:00 AM - 8:00 PM</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      ©
+      <span id="year"></span>
+      Saithong Para Thai. All rights reserved.
+    </footer>
+
+    <script>
+      // Set current year in footer
+      document.getElementById("year").textContent = new Date()
+        .getFullYear()
+        .toString();
+    </script>
+  </body>
+</html>

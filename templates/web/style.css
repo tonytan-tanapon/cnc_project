@@ -1,0 +1,155 @@
+/* --- GLOBAL STYLE --- */
+body {
+  margin: 0;
+  font-family: "Poppins", sans-serif;
+  color: #222;
+  background: #fff;
+  overflow-x: auto;       /* desktop slide horizontally */
+  overflow-y: hidden;
+  height: 100vh;
+}
+
+.horizontal-wrapper {
+  display: flex;
+  flex-direction: row;
+  width: max-content;
+}
+
+/* Each slide = full page */
+.slide {
+  width: 100vw;
+  height: 100vh;
+  padding: 60px;
+  box-sizing: border-box;
+}
+
+/* NAV */
+.navbar {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 30px;
+}
+
+.logo {
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.nav-menu a {
+  margin-left: 20px;
+  text-decoration: none;
+  color: #444;
+  font-weight: 500;
+}
+
+/* HERO */
+.section-hero {
+  display: flex;
+  flex-direction: column;
+}
+
+.content-center {
+  margin: auto;
+  text-align: center;
+}
+
+.hero-subtitle {
+  color: #b8860b;
+  font-size: 20px;
+}
+
+.hero-title {
+  font-size: 52px;
+  font-weight: 700;
+  margin-top: 10px;
+}
+
+/* TEXT */
+.section-heading {
+  font-size: 32px;
+  text-align: center;
+  margin-bottom: 25px;
+}
+
+.section-text {
+  font-size: 17px;
+  line-height: 1.6;
+  max-width: 700px;
+  margin: auto;
+  text-align: justify;
+}
+
+.section-text.center {
+  text-align: center;
+}
+
+/* CARDS */
+.grid-3 {
+  display: grid;
+  gap: 30px;
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.card {
+  border: 1px solid #ddd;
+  padding: 20px;
+  border-radius: 12px;
+  background: white;
+}
+
+.card-title {
+  font-size: 20px;
+  font-weight: 600;
+}
+
+/* CONTACT */
+.contact-line {
+  text-align: center;
+  font-size: 17px;
+}
+
+.hours-title {
+  margin-top: 20px;
+  text-align: center;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.map-link {
+  display: block;
+  margin-top: 20px;
+  text-align: center;
+  color: #b8860b;
+  font-weight: 600;
+}
+
+.mt20 { margin-top: 20px; }
+
+/* --- MOBILE VERSION (VERTICAL SCROLL) --- */
+@media (max-width: 768px) {
+
+  body {
+    overflow-x: hidden;
+    overflow-y: auto;   /* scroll normal */
+    height: auto;
+  }
+
+  .horizontal-wrapper {
+    display: block;     /* stack vertically */
+    width: 100%;
+  }
+
+  .slide {
+    width: 100%;
+    height: auto;
+    padding: 40px 20px;
+  }
+
+  .grid-3 {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-title {
+    font-size: 38px;
+  }
+}
