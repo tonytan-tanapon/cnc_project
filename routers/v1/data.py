@@ -73,6 +73,7 @@ def list_lots(
             ProductionLot.po_id.label("po_id"),
             ProductionLot.part_id.label("part_id"),
             ProductionLot.part_revision_id.label("part_revision_id"),
+            
             rn,
         )
         .subquery("pl_latest_sq")

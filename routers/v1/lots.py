@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session, joinedload, selectinload, load_only
 from database import get_db
 from models import (
     ProductionLot, Part, PartRevision, PO,
-    LotMaterialUse, RawBatch, RawMaterial, Supplier, MaterialPO,
+    LotMaterialUse, RawBatch, RawMaterial, Supplier, MaterialPO
 )
 from schemas import ProductionLotCreate, ProductionLotUpdate, ProductionLotOut
 from utils.code_generator import next_code_yearly
@@ -120,7 +120,7 @@ def list_lots(
         .outerjoin(PO, PO.id == ProductionLot.po_id)
         .options(
             joinedload(ProductionLot.part),
-            joinedload(ProductionLot.po),
+            joinedload(ProductionLot.po).joinedload(PO.lines),
             joinedload(ProductionLot.part_revision),
         )
     )

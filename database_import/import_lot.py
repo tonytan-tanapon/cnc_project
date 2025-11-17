@@ -36,7 +36,7 @@ from models import (
 # ---------- CONFIG ----------
 DATABASE_URL = "postgresql+psycopg2://postgres:1234@localhost:5432/mydb"
 CSV_FILE = Path(r"C:\Users\TPSERVER\dev\cnc_project\database_import\import_lot.csv")
-# CSV_FILE = Path(r"C:\Users\TPSERVER\dev\cnc_project\database_import\import_lot_back.csv")
+# CSV_FILE = Path(r"C:\Users\TPSERVER\dev\cnc_project\database_import\import_lot_back2.csv")
 CSV_ENCODING = "utf-8-sig"
 CSV_DELIMITER = ","
 
@@ -261,7 +261,7 @@ def main():
                 invoice_no = pick(row, "Invoice#", "Invoice No.")
                 residual_inv = parse_int(pick(row, "Residual Inv", "Residual Invoice"))
                 ship_date = parse_date(pick(row, "Ship Date", "Shipped Date"))
-
+                # print(ship_date)
                 qty_ship = parse_int(parse_int(pick(row, "Qty Shipped")))
 
                 if qty_po == 0:
