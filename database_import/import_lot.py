@@ -50,18 +50,26 @@ SessionLocal = sessionmaker(bind=engine, class_=Session, autoflush=False, autoco
 
 # ---------- Helper functions ----------
 
-def pick(d: dict, *keys: str) -> Optional[str]:
-    """Return first non-empty string among given keys (trimmed)."""
+def pick(d: dict, *keys: str):
     for k in keys:
-        if k in d:
-            v = d.get(k)
-        else:
-            cand = next((kk for kk in d.keys() if kk.strip() == k.strip()), None)
-            v = d.get(cand) if cand else None
-        if v is not None:
-            s = str(v).strip()
-            if s != "":
-                return s
+        if not isinstance(k, str):
+            continue
+
+        k_clean = k.strip()
+
+        cand = next(
+            (kk for kk in d.keys()
+             if isinstance(kk, str) and kk.strip() == k_clean),
+            None
+        )
+
+        if cand:
+            v = d.get(cand)
+            if v is not None:
+                s = str(v).strip()
+                if s:
+                    return s
+
     return None
 
 def clean_money(s: Optional[str]) -> Optional[Decimal]:

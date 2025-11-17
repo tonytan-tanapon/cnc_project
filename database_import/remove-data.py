@@ -43,11 +43,9 @@ TRUNCATE TABLE
     public.customer_invoice_lines,
     public.customer_returns,
     public.customer_return_items,
-    public.mfg_processes,
-    public.chemical_finishes,
     public.part_process_selections,
     public.part_finish_selections,
-    public.part_other_notes,
+    public.part_other_notes
 RESTART IDENTITY CASCADE;
 """
 

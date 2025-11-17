@@ -11,7 +11,91 @@
       href="/static/vendor/tabulator/tabulator_modern.min.css"
     />
 
-    <style></style>
+    <style>
+      body {
+        margin: 0;
+        font-family: system-ui, sans-serif;
+        background: #f9fafb;
+      }
+      .main--edge {
+        display: flex;
+        height: 100vh;
+        overflow: hidden;
+      }
+
+      /* ซ้าย: ตาราง */
+      #listPanel {
+        flex: 2;
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        border-right: 1px solid #e5e7eb;
+        background: #fff;
+      }
+      .list-topbar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        height: 44px;
+        padding: 0 10px;
+        border-bottom: 1px solid #e5e7eb;
+      }
+      .search-lg {
+        flex: 0 0 260px;
+        height: 32px;
+        padding: 0 10px;
+      }
+      #_add {
+        height: 32px;
+      }
+      #listBody {
+        flex: 1;
+        overflow: auto;
+      }
+      #listBody .tabulator {
+        height: 100% !important;
+        border: 0;
+      }
+
+      /* ขวา: ฟอร์มสร้าง PO */
+      #createPanel {
+        flex: 1;
+        min-width: 340px;
+        max-width: 420px;
+        background: #fff;
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        border-left: 1px solid #e5e7eb;
+      }
+      #createPanel h3 {
+        margin: 0 0 12px 0;
+      }
+      #poForm {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      #poForm label {
+        font-weight: 600;
+      }
+      #poForm input,
+      #poForm textarea {
+        padding: 6px 8px;
+        font-size: 14px;
+        border: 1px solid #d1d5db;
+        border-radius: 4px;
+      }
+      #poForm .form-actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 12px;
+      }
+      /* สวยขึ้นนิดเวลามีรายการยาว */
+      #createPanel {
+        overflow-y: auto;
+      }
+    </style>
   </head>
   <body>
     <div class="app">
