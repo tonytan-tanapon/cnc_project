@@ -77,6 +77,16 @@
       .tabulator .tabulator-tableholder {
         overflow-y: auto !important;
       }
+
+      /* ลดขนาดฟอนต์ของชื่อ Column ทั้งหมด */
+    #p_table .tabulator-col-title {
+      font-size: 15px !important;
+      text-align: center;
+      justify-content: center;
+    }
+    #p_table .tabulator-cell {
+      font-size: 15px !important;
+    }
     </style>
   </head>
   <body>
@@ -103,31 +113,7 @@
                 placeholder="search part_no / name / spec"
                 style="flex: 1"
               />
-              <button class="btn" id="p_reload" type="button">Reload</button>
-
-              <div
-                style="
-                  margin-left: auto;
-                  display: flex;
-                  gap: 8px;
-                  align-items: center;
-                "
-              >
-                <label
-                  >Per page:
-                  <select id="p_per_page">
-                    <option value="10">10</option>
-                    <option value="20" selected>20</option>
-                    <option value="50">50</option>
-                    <option value="100">100</option>
-                  </select>
-                </label>
-
-                <!-- <div class="pager" style="display:flex;gap:6px;align-items:center;">
-                <button class="btn-small" id="p_prev" type="button">« Prev</button>
-                <span id="p_page_info" class="muted">Page 1</span>
-                <button class="btn-small" id="p_next" type="button">Next »</button>
-              </div> -->
+    
               </div>
             </div>
 
