@@ -170,7 +170,7 @@ function initTable() {
 
     columns: [
       {
-        title: "Lot<br>Date",
+        title: "PO<br>Date",
         field: "lot_created",
         minWidth: 82,
         headerSort: true,
