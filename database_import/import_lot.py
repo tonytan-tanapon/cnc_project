@@ -362,7 +362,7 @@ def main():
                     db=db,
                     lot_no=lot_no,
                     po_line=line,
-                    qty=Decimal(qty_po or 0),
+                    qty= 0,
                     lot_due_date=due_date,
                     start_date=(due_date - timedelta(days=30)) if due_date else None,
                     created_date=created_at,
