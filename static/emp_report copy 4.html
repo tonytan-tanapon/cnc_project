@@ -1398,7 +1398,8 @@
 
           // 🟢 2. Apply six-day rule (weekly lowest-day OT)
           const adjusted = applySixDayRule(normalized, { weekStartsOn: 1 });
-          lastAdjustedRows = adjusted; // ← เก็บไว้ใช้ตอน Calculate
+
+          // 🟢 3. Render the adjusted result
           renderRawWithPay(adjusted);
         }
       }
@@ -1413,9 +1414,7 @@
       });
 
       document.getElementById("recalc").addEventListener("click", () => {
-        if (lastAdjustedRows.length) {
-          renderRawWithPay(lastAdjustedRows);
-        }
+        render(lastSummary, lastBreaksByDate, lastShiftsByDate);
       });
 
       document
