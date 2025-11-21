@@ -155,7 +155,7 @@
       await preloadEmployees();
       const periods = await loadPayPeriods();
       if(periods.length){
-        selPeriod.value = String(periods[0].id); // ล่าสุดอยู่บนสุดจาก backend (start_at desc)
+        selPeriod.value = String(periods[1].id); // ล่าสุดอยู่บนสุดจาก backend (start_at desc)
         await loadEmployeesForSelectedPeriod();
       }else{
         listBox.innerHTML = `<div class="empty">No pay periods</div>`;
