@@ -7,7 +7,7 @@ from . import (
     parts, users, pay_periods, payroll_extras, data, data_detail,part_selections,lookups, 
     part_materials,report_materials, po_lines,
     reports_due_date_monitor,lots_browse, shipment_status,customer_shipments,
-    lot_materials,inventory,lot_shippments,
+    lot_materials,inventory,lot_shippments,lot_summary,
 
 
 
@@ -16,8 +16,8 @@ from . import (
 )
 
 api_v1 = APIRouter()
-
-
+api_v1.include_router(lot_summary.router)
+# api_v1.include_router(lot_summary.router)
 api_v1.include_router(lots_browse.router)  
 # Routers ที่ export เป็น .router
 api_v1.include_router(auth.router)

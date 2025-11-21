@@ -9,13 +9,7 @@ function fmtQty(v) {
 function fmtDate(s) {
   if (!s) return "";
   const d = new Date(s);
-  if (isNaN(d)) return "";
-
-  return d.toLocaleDateString("en-US", {
-    year: "2-digit",
-    month: "numeric",
-    day: "numeric",
-  });
+  return isNaN(d) ? "" : d.toLocaleDateString();
 }
 
 // -------- State -------------------------------------------------------
@@ -53,7 +47,6 @@ function normalizeRow(row) {
   }
 
   return {
-    lot_created: r.created_at ?? null,
     lot_id: r.lot_id ?? null,
     lot_no: r.lot_no ?? "",
     lot_qty: r.lot_qty ?? null,
@@ -76,8 +69,7 @@ function normalizeRow(row) {
     customer_name: r.customer_name ?? "",
 
     ship_qty: r.ship_qty ?? 0,
-    // ship_date: r.ship_date ?? null,
-    ship_date: r.ship_date ? r.ship_date.split(" ")[0] : null,
+    ship_date: r.ship_date ?? null,
 
     traveler_id: r.traveler_id ?? null,
   };
@@ -169,48 +161,28 @@ function initTable() {
     pagination: false,
 
     columns: [
-      {
-        title: "PO<br>Date",
-        field: "lot_created",
-        minWidth: 82,
-        headerSort: true,
-        formatter: (c) => fmtDate(c.getValue()),
-      },
-      {
-        title: "Cust.",
-        field: "customer_code",
-        minWidth: 80,
-        headerSort: true,
-      },
-
       // LOT NUMBER
       {
         title: "Lot",
         field: "lot_no",
-        minWidth: 80,
+        minWidth: 120,
         headerSort: true,
+        formatter: (cell) => {
+          const r = cell.getRow().getData();
+          if (!r.lot_id) return r.lot_no || "—";
+          return `<a href="/static/lot-detail.html?lot_id=${r.lot_id}" style="color:#2563eb;">${r.lot_no}</a>`;
+        },
+        cellClick: (_, cell) => {
+          const r = cell.getRow().getData();
+          if (r.lot_id)
+            location.href = `/static/lot-detail.html?lot_id=${r.lot_id}`;
+        },
       },
-      // {
-      //   title: "Lot",
-      //   field: "lot_no",
-      //   minWidth: 80,
-      //   headerSort: true,
-      //   formatter: (cell) => {
-      //     const r = cell.getRow().getData();
-      //     if (!r.lot_id) return r.lot_no || "—";
-      //     return `<a href="/static/lot-detail.html?lot_id=${r.lot_id}" style="color:#2563eb;">${r.lot_no}</a>`;
-      //   },
-      //   cellClick: (_, cell) => {
-      //     const r = cell.getRow().getData();
-      //     if (r.lot_id)
-      //       location.href = `/static/lot-detail.html?lot_id=${r.lot_id}`;
-      //   },
-      // },
 
       // PO NUMBER
       {
         title: "PO",
-        minWidth: 80,
+        minWidth: 120,
         headerSort: true,
         formatter: (cell) => {
           const r = cell.getRow().getData();
@@ -249,20 +221,6 @@ function initTable() {
           }
         },
       },
-
-      {
-        title: "Desc.",
-        field: "part_name",
-        minWidth: 120,
-        headerSort: true,
-      },
-      {
-        title: "Rev",
-        field: "revision_code",
-        minWidth: 50,
-        headerSort: true,
-      },
-
       // PROD QTY
       {
         title: "Prod<br>Qty",
@@ -273,21 +231,21 @@ function initTable() {
         formatter: (c) => fmtQty(c.getValue()),
       },
 
-      // // PROD ALLOCATE
-      // {
-      //   title: "Lot<br>QTY",
-      //   field: "lot_qty",
-      //   width: 70,
-      //   headerSort: true,
-      //   hozAlign: "right",
-      //   formatter: (c) => fmtQty(c.getValue()),
-      // },
+      // PROD ALLOCATE
+      {
+        title: "Prod<br>Allocate",
+        field: "lot_qty",
+        width: 100,
+        headerSort: true,
+        hozAlign: "right",
+        formatter: (c) => fmtQty(c.getValue()),
+      },
 
       // PROD DATE
       {
         title: "Prod<br>Date",
         field: "lot_due_date",
-        minWidth: 82,
+        minWidth: 100,
         headerSort: true,
         formatter: (c) => fmtDate(c.getValue()),
       },
@@ -296,7 +254,7 @@ function initTable() {
       {
         title: "PO<br>Qty",
         field: "qty",
-        width: 70,
+        width: 80,
         headerSort: true,
         hozAlign: "right",
         formatter: (c) => fmtQty(c.getValue()),
@@ -306,7 +264,7 @@ function initTable() {
       {
         title: "PO<br>Date",
         field: "po_due_date",
-        minWidth: 82,
+        minWidth: 100,
         headerSort: true,
         formatter: (c) => fmtDate(c.getValue()),
       },
@@ -316,7 +274,7 @@ function initTable() {
       {
         title: "Ship<br>Qty",
         field: "ship_qty",
-        width: 70,
+        width: 80,
         headerSort: true,
         hozAlign: "right",
         sorter: "number", // ⭐ force number sorting (ใช้ค่าจริงจาก DB)
@@ -327,16 +285,16 @@ function initTable() {
       {
         title: "Ship<br>Date",
         field: "ship_date",
-        minWidth: 82,
+        minWidth: 110,
         headerSort: true,
-        sorter: "string", // <— ใช้ string ก็เรียงถูก เพราะ YYYY-MM-DD sortable
+        sorter: "date", // ⭐ ใช้ date จริง
         formatter: (c) => fmtDate(c.getValue()),
       },
 
       // TRAVELERS
       {
         title: "Travelers",
-        width: 80,
+        width: 120,
         headerSort: true,
         formatter: (cell) => {
           const r = cell.getRow().getData();
@@ -361,7 +319,7 @@ function initTable() {
       // MATERIALS
       {
         title: "Materials",
-        width: 80,
+        width: 120,
         headerSort: true,
         formatter: (cell) => {
           const r = cell.getRow().getData();
@@ -373,7 +331,7 @@ function initTable() {
       // SHIPMENTS
       {
         title: "Shipments",
-        width: 80,
+        width: 120,
         headerSort: true,
         formatter: (cell) => {
           const r = cell.getRow().getData();
