@@ -177,7 +177,7 @@ function initTable() {
         formatter: (c) => fmtDate(c.getValue()),
       },
       {
-        title: "Cust.",
+        title: "Name",
         field: "customer_code",
         minWidth: 80,
         headerSort: true,
@@ -185,7 +185,7 @@ function initTable() {
 
       // LOT NUMBER
       {
-        title: "Lot",
+        title: "Lot#",
         field: "lot_no",
         minWidth: 80,
         headerSort: true,
@@ -225,7 +225,7 @@ function initTable() {
       },
       // PART NUMBER
       {
-        title: "Part",
+        title: "Part No.",
         field: "part_no",
         minWidth: 120,
         headerSort: true,
@@ -251,27 +251,19 @@ function initTable() {
       },
 
       {
-        title: "Desc.",
+        title: "Descriotion.",
         field: "part_name",
         minWidth: 120,
         headerSort: true,
       },
       {
-        title: "Rev",
+        title: "Rev.",
         field: "revision_code",
         minWidth: 50,
         headerSort: true,
       },
 
-      // PROD QTY
-      {
-        title: "Prod<br>Qty",
-        field: "lot_qty",
-        width: 80,
-        headerSort: true,
-        hozAlign: "right",
-        formatter: (c) => fmtQty(c.getValue()),
-      },
+     
 
       // // PROD ALLOCATE
       // {
@@ -286,7 +278,38 @@ function initTable() {
       // PROD DATE
       {
         title: "Prod<br>Date",
+        // field: "lot_due_date",
+        minWidth: 100,
+        headerSort: true,
+        formatter: (c) => fmtDate(c.getValue()),
+      },
+
+
+      // PROD DATE
+      {
+        title: "Prod<br>Due date",
         field: "lot_due_date",
+        minWidth: 100,
+        headerSort: true,
+        formatter: (c) => fmtDate(c.getValue()),
+      },
+
+       // PROD QTY
+      {
+        title: "Prod<br>Qty",
+        field: "lot_qty",
+        width: 80,
+        headerSort: true,
+        hozAlign: "right",
+        formatter: (c) => fmtQty(c.getValue()),
+      },
+
+      
+
+      // PO DATE
+      {
+        title: "PO<br>Date",
+        field: "po_due_date",
         minWidth: 82,
         headerSort: true,
         formatter: (c) => fmtDate(c.getValue()),
@@ -301,13 +324,15 @@ function initTable() {
         hozAlign: "right",
         formatter: (c) => fmtQty(c.getValue()),
       },
+      
 
-      // PO DATE
+      // SHIP DATE  ⭐ NEW
       {
-        title: "PO<br>Date",
-        field: "po_due_date",
+        title: "Ship<br>Date",
+        field: "ship_date",
         minWidth: 82,
         headerSort: true,
+        sorter: "string", // <— ใช้ string ก็เรียงถูก เพราะ YYYY-MM-DD sortable
         formatter: (c) => fmtDate(c.getValue()),
       },
 
@@ -322,17 +347,6 @@ function initTable() {
         sorter: "number", // ⭐ force number sorting (ใช้ค่าจริงจาก DB)
         formatter: (c) => fmtQty(c.getValue()),
       },
-
-      // SHIP DATE  ⭐ NEW
-      {
-        title: "Ship<br>Date",
-        field: "ship_date",
-        minWidth: 82,
-        headerSort: true,
-        sorter: "string", // <— ใช้ string ก็เรียงถูก เพราะ YYYY-MM-DD sortable
-        formatter: (c) => fmtDate(c.getValue()),
-      },
-
       // TRAVELERS
       {
         title: "Travelers",
@@ -347,7 +361,7 @@ function initTable() {
           return `
       <a href="/static/traveler-detail.html?id=${r.traveler_id}"
          style="color:#2563eb; text-decoration:underline;">
-         View Traveler
+         Traveler
       </a>
     `;
         },

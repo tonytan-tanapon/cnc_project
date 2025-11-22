@@ -30,7 +30,8 @@ from models import (
     ProductionLot,
     CustomerInvoice,
     CustomerShipment,
-    CustomerShipmentItem
+    CustomerShipmentItem,
+    ShopTraveler, ShopTravelerStep
 )
 
 # ---------- CONFIG ----------
@@ -220,6 +221,66 @@ def get_or_upsert_invoice(
         if changed:
             db.flush()
     return inv
+
+
+def get_or_upsert_traveler(
+    db: Session,
+    lot: ProductionLot,
+    lot_qty = 0,
+    traveler_no: Optional[str] = None,
+    
+):
+    """
+    Upsert logic for shop traveler + auto-create step 0.
+    """
+
+    # 1. Check existing traveler
+    traveler = db.scalar(
+        select(ShopTraveler).where(ShopTraveler.lot_id == lot.id)
+    )
+    if traveler:
+        return traveler
+
+    # 2. Auto-generate traveler number
+    if not traveler_no:
+        today = datetime.now().strftime("%Y%m%d")
+        traveler_no = f"TR-{today}-{lot.id:04d}"
+
+    # 3. Create traveler
+    traveler = ShopTraveler(
+        lot_id=lot.id,
+        traveler_no=traveler_no,
+        status="open",
+        created_at=datetime.utcnow(),
+    )
+    db.add(traveler)
+    db.flush()  # traveler.id ready
+  
+    # 4. Auto-create first step (step 0)
+
+    if lot_qty != 0:
+    
+        step = ShopTravelerStep(
+            traveler_id=traveler.id,
+            seq=0,
+            step_code="0",
+            step_name="Auto generate",
+            status="Passed",
+            qty_receive=lot_qty,
+            qty_accept=lot_qty,
+            qty_reject=0,
+            uom="pcs",
+            started_at=None,
+            finished_at=None,
+        )
+
+        db.add(step)
+        db.flush()
+   
+    return traveler
+
+
+
 from sqlalchemy import select, update
 # ---------- MAIN ----------
 def main():
@@ -357,18 +418,26 @@ def main():
                     db.add(line)
                     db.flush()
 
+                        
+                lot_qty = 0
+                if qty_ship == 0:
+                    lot_qty = 0
+                else:
+                    lot_qty = qty_po
                 # --- Lot ---
-                get_or_upsert_lot(
+                lot = get_or_upsert_lot(
                     db=db,
                     lot_no=lot_no,
                     po_line=line,
-                    qty= 0,
+                    qty=lot_qty,
                     lot_due_date=due_date,
                     start_date=(due_date - timedelta(days=30)) if due_date else None,
                     created_date=created_at,
                     note=need_remark,
                     fair_note=fair_no,
                 )
+                
+                get_or_upsert_traveler(db, lot, lot_qty)
 
                 # --- Invoice ---
                 if invoice_no:
@@ -378,6 +447,8 @@ def main():
                         residual_inv=residual_inv,
                     )
 
+
+                
                 # --- Shipment ---
                 if qty_ship:
                     # Find or create shipment header (per PO + ship_date)
@@ -387,6 +458,7 @@ def main():
                     ))
                     if not shipment:
                         shipment = CustomerShipment(
+                            # lot_id = lot  // xxxxxxxxxxx
                             po_id=po.id,
                             shipped_at=to_utc_midnight(ship_date),
                             notes=None,
@@ -401,6 +473,7 @@ def main():
                         CustomerShipmentItem.po_line_id == line.id,
                         CustomerShipmentItem.lot_id == (lot.id if lot else None),
                     ))
+                   
                     if not item:
                         item = CustomerShipmentItem(
                             shipment_id=shipment.id,
