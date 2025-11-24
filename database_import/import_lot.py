@@ -458,8 +458,8 @@ def main():
                     ))
                     if not shipment:
                         shipment = CustomerShipment(
-                            # lot_id = lot  // xxxxxxxxxxx
                             po_id=po.id,
+                            lot_id=lot.id,            # <<<<<<<<<<<<<< ADD THIS LINE
                             shipped_at=to_utc_midnight(ship_date),
                             notes=None,
                         )
