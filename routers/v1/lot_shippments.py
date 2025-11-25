@@ -10,6 +10,7 @@ from models import (
     CustomerShipment,
     CustomerShipmentItem,
     Part,
+    PartRevision
 )
 
 router = APIRouter(prefix="/lot-shippments", tags=["lot-shippments"])
@@ -312,7 +313,7 @@ def return_part(req: dict = Body(...), db: Session = Depends(get_db)):
 # ============================================================
 # 3️⃣  Delete shipment
 # ============================================================
-@router.delete("/{shipment_id}")
+@router.delete("/delete/{shipment_id}")
 def delete_shipment(shipment_id: int, db: Session = Depends(get_db)):
     s = db.get(CustomerShipment, shipment_id)
     if not s:
@@ -320,7 +321,6 @@ def delete_shipment(shipment_id: int, db: Session = Depends(get_db)):
     db.delete(s)
     db.commit()
     return {"status": "deleted", "shipment_id": shipment_id}
-
 
 # ============================================================
 # 4️⃣  Shipment history
@@ -490,10 +490,12 @@ def update_shipment_fields(
 
     updated_fields = []
 
+    # ---- Tracking No ----
     if "tracking_number" in payload:
         shipment.tracking_no = payload["tracking_number"]
         updated_fields.append("tracking_number")
 
+    # ---- Shipped Date ----
     if "shipped_date" in payload:
         try:
             shipment.shipped_at = datetime.fromisoformat(payload["shipped_date"])
@@ -501,18 +503,214 @@ def update_shipment_fields(
             shipment.shipped_at = datetime.utcnow()
         updated_fields.append("shipped_date")
 
-    # ✅ ถ้ามีการใส่ tracking หรือ shipped_date ให้เปลี่ยนสถานะเป็น shipped
-    if any(f in ["tracking_number", "shipped_date"] for f in updated_fields):
-        shipment.status = "shipped"
+    # ---- Status (NEW) ----
+    if "status" in payload:
+        shipment.status = payload["status"]
+        updated_fields.append("status")
+
+    # ---- Qty (NEW) ----
+    if "qty" in payload:
+        # ต้องแก้ที่ CustomerShipmentItem
+        items = (
+            db.query(CustomerShipmentItem)
+            .filter(CustomerShipmentItem.shipment_id == shipment_id)
+            .all()
+        )
+        if items:
+            items[0].qty = float(payload["qty"])
+            updated_fields.append("qty")
 
     db.commit()
     db.refresh(shipment)
 
-    print(f"✅ Updated shipment {shipment.id}: {updated_fields} -> status={shipment.status}")
-
     return {
         "id": shipment.id,
+        "updated_fields": updated_fields,
+        "status": shipment.status,
         "tracking_no": shipment.tracking_no,
         "shipped_at": shipment.shipped_at,
-        "status": shipment.status,
     }
+
+
+
+# ============================================================
+# 8️⃣  Download CofC as DOCX
+# ============================================================
+from fastapi.responses import FileResponse
+from docx import Document
+import tempfile
+import os
+
+@router.get("/{shipment_id}/download/cofc")
+def download_cofc(shipment_id: int, db: Session = Depends(get_db)):
+    import os, tempfile
+    from docx import Document
+    from fastapi.responses import FileResponse
+    from datetime import datetime
+
+    # 1) Load shipment + items + lot + part + revision
+    shipment = (
+        db.query(CustomerShipment)
+        .options(
+            joinedload(CustomerShipment.items)
+                .joinedload(CustomerShipmentItem.lot)
+                .joinedload(ProductionLot.part),
+
+            joinedload(CustomerShipment.items)
+                .joinedload(CustomerShipmentItem.lot)
+                .joinedload(ProductionLot.part_revision),
+
+            joinedload(CustomerShipment.po).joinedload(PO.customer),
+        )
+        .get(shipment_id)
+    )
+
+    if not shipment:
+        raise HTTPException(status_code=404, detail="Shipment not found")
+
+    if not shipment.items:
+        raise HTTPException(status_code=400, detail="Shipment has no shipment items")
+
+    # 🟦 ใช้ item แรกเป็นข้อมูลสำหรับ CofC
+    item = shipment.items[0]
+    lot = item.lot
+    part = lot.part if lot else None
+    revision = lot.part_revision if lot else None
+
+    lot_no = lot.lot_no if lot else ""
+    qty = float(item.qty or 0)
+    part_no = part.part_no if part else ""
+    rev = revision.rev if revision else ""
+    desc = part.name if part else ""
+
+    # PO + Customer
+    customer_name = shipment.po.customer.name if shipment.po and shipment.po.customer else ""
+    customer_address = shipment.po.customer.address if shipment.po and shipment.po.customer else ""
+    po_no = shipment.po.po_number if shipment.po else ""
+    cert_no = f"CERT-{shipment.id:05d}"
+
+    replace_map = {
+        "{CUSTOMER}": customer_name,
+        "{CUSTOMER_ADDRESS}": customer_address,
+        "{PO_NO}": po_no,
+        "{PART_NO}": part_no,
+        "{REV}": rev,
+        "{QTY}": str(qty),
+        "{LOT_NO}": lot_no,
+        "{LOT}": lot_no,
+        "{DESCRIPTION}": desc,
+        "{CERT_NO}": cert_no,
+        "{DATE}": datetime.now().strftime("%m/%d/%Y"),
+        "{}":"10",
+    }
+
+    template_path = "templates/cofc.docx"
+    if not os.path.exists(template_path):
+        raise HTTPException(status_code=404, detail="Template not found")
+
+    doc = Document(template_path)
+
+    # 2) Correct replace → preserve formatting
+    def replace_runs(paragraph):
+        for run in paragraph.runs:
+            for k, v in replace_map.items():
+                if k in run.text:
+                    run.text = run.text.replace(k, v or "")
+
+    # Replace in paragraphs
+    for p in doc.paragraphs:
+        replace_runs(p)
+
+    # Replace in tables
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                for p in cell.paragraphs:
+                    replace_runs(p)
+
+    # Save temp file
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".docx")
+    doc.save(tmp.name)
+
+    return FileResponse(
+        tmp.name,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        filename=f"CofC_{shipment_id}.docx"
+    )
+
+
+##Labels: recent-edits
+@router.get("/{shipment_id}/download/label/{size}")
+def download_label(shipment_id: int, size: int, db: Session = Depends(get_db)):
+    import os, tempfile
+    from docx import Document
+    from fastapi.responses import FileResponse
+    from datetime import datetime
+
+    if size not in (80, 60, 30):
+        raise HTTPException(status_code=400, detail="Invalid label size")
+
+    shipment = (
+        db.query(CustomerShipment)
+        .options(
+            joinedload(CustomerShipment.items)
+                .joinedload(CustomerShipmentItem.lot)
+                .joinedload(ProductionLot.part),
+            joinedload(CustomerShipment.items)
+                .joinedload(CustomerShipmentItem.lot)
+                .joinedload(ProductionLot.part_revision),
+        )
+        .get(shipment_id)
+    )
+
+    if not shipment or not shipment.items:
+        raise HTTPException(status_code=404, detail="Shipment not found or empty")
+
+    item = shipment.items[0]
+
+    # -------- load data --------
+    lot = item.lot
+    part = lot.part if lot else None
+    rev_obj = lot.part_revision if lot else None
+    po_no = shipment.po.po_number if shipment.po else ""
+    replace_map = {
+        "{PART}": "PART: "+ part.part_no+ " "+part.name if part else "",
+        "{REV}": "REV: "+ rev_obj.rev +" LOT: "+ lot.lot_no +" PO:"+ po_no if rev_obj else "",
+        "{LOT_NO}": lot.lot_no if lot else "",
+        "{QTY}": str(float(item.qty or 0)),
+        "{DESCRIPTION}": part.name if part else "",
+        "{DATE}": datetime.now().strftime("%m/%d/%Y"),
+    }
+
+    # -------- template --------
+    template_path = f"templates/label_{size}.docx"
+    if not os.path.exists(template_path):
+        raise HTTPException(status_code=404, detail=f"Template label {size} not found")
+
+    doc = Document(template_path)
+
+    # -------- correct replace preserving format --------
+    def replace_runs(paragraph):
+        for run in paragraph.runs:
+            for k, v in replace_map.items():
+                if k in run.text:
+                    run.text = run.text.replace(k, v)
+
+    for p in doc.paragraphs:
+        replace_runs(p)
+
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                for p in cell.paragraphs:
+                    replace_runs(p)
+
+    # -------- save temp --------
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".docx")
+    doc.save(tmp.name)
+
+    return FileResponse(
+        tmp.name,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        filename=f"Label_{shipment_id}_{size}.docx"
+    )

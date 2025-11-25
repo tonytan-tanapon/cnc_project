@@ -1,7 +1,7 @@
 // /static/js/manage-lot-shippments.js
 import { $, jfetch, toast } from "./api.js";
 
-/* ===== CONFIG ===== */
+/* ========= CONFIG ========= */
 const lotId = new URLSearchParams(location.search).get("lot_id");
 if (!lotId) {
   toast("Missing lot_id in URL", false);
@@ -9,96 +9,84 @@ if (!lotId) {
 }
 
 const ENDPOINTS = {
-  lotHeader: `/api/v1/lot-shippments/lot/${encodeURIComponent(lotId)}/header`,
-  lotShipments: `/api/v1/lot-shippments/${encodeURIComponent(lotId)}`,
+  lotHeader: `/api/v1/lot-shippments/lot/${lotId}/header`,
+  lotShipments: `/api/v1/lot-shippments/${lotId}`,
   createShipment: `/api/v1/lot-shippments`,
-  shipmentHistory: `/api/v1/lot-shippments/history/${encodeURIComponent(
-    lotId
-  )}`,
-  partInventory: `/api/v1/lot-shippments/lot/${encodeURIComponent(
-    lotId
-  )}/part-inventory/all`, // ✅ new endpoint (ทุก lot ของ part เดียวกัน)
-  allocatePart: `/api/v1/lot-shippments/allocate-part`, // ✅ new
-  returnPart: `/api/v1/lot-shippments/return-part`, // ✅ new
+  partInventory: `/api/v1/lot-shippments/lot/${lotId}/part-inventory/all`,
+  allocatePart: `/api/v1/lot-shippments/allocate-part`,
+  returnPart: `/api/v1/lot-shippments/return-part`,
 };
 
-/* ===== STATE ===== */
+/* ========= STATE ========= */
 let tablePart = null;
 let tableShipment = null;
-let currentShipmentId = null;
-let allShipments = []; // ✅ รายการ shipment ของ lot นี้
+let allShipments = [];
+
+/* Utility: inline update handler */
+function updateField(fieldName) {
+  return async (cell) => {
+    const row = cell.getRow().getData();
+    const newVal = cell.getValue();
+
+    try {
+      await jfetch(`/api/v1/lot-shippments/${row.id}/update-fields`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [fieldName]: newVal }),
+      });
+      toast(`Updated ${fieldName}`);
+      loadShipmentTable();
+    } catch (err) {
+      console.error("❌ inline update failed:", err);
+      toast("Update failed", false);
+      cell.restoreOldValue();
+    }
+  };
+}
+
+/* ========= LOAD LOT HEADER ========= */
+async function loadLotHeader() {
+  try {
+    const lot = await jfetch(ENDPOINTS.lotHeader);
+    const hdr = document.getElementById("lotHeader");
+
+    hdr.innerHTML = `
+      <div class="lot-grid">
+        <div><b>Lot No:</b> ${lot.lot_no}</div>
+        <div><b>Part No:</b> ${lot.part_no ?? "-"}</div>
+        <div><b>Planned Qty:</b> ${lot.planned_qty ?? "-"}</div>
+        <div><b>Finished Qty:</b> ${lot.finished_qty ?? "-"}</div>
+        <div><b>Status:</b> ${lot.status ?? "-"}</div>
+        <div><b>Due Date:</b> ${
+          lot.due_date ? new Date(lot.due_date).toLocaleDateString() : "-"
+        }</div>
+      </div>
+    `;
+  } catch (err) {
+    console.error("loadLotHeader:", err);
+    toast("Failed to load lot info", false);
+  }
+}
+
+/* ========= LOAD SHIPMENT LIST ========= */
 async function loadShipmentsList() {
   try {
     allShipments = await jfetch(ENDPOINTS.lotShipments);
   } catch (err) {
-    console.error("❌ loadShipmentsList:", err);
-    toast("Failed to load shipment list", false);
+    toast("Failed to load shipments", false);
     allShipments = [];
   }
 }
-async function loadShipmentDropdown() {
-  const select = document.getElementById("shipmentSelect");
-  if (!select) {
-    console.warn("⚠️ shipmentSelect element not found in DOM");
-    return; // ✅ หยุดการทำงาน ถ้ายังไม่เจอ element
-  }
 
-  const shipments = await jfetch(ENDPOINTS.lotShipments);
-  select.innerHTML = "";
-  for (const s of shipments) {
-    const opt = document.createElement("option");
-    opt.value = s.id;
-    opt.textContent = `${s.shipment_no} (${s.status})`;
-    select.appendChild(opt);
-  }
-
-  select.onchange = () => {
-    currentShipmentId = Number(select.value);
-    loadShipmentTable();
-  };
-
-  if (shipments.length) {
-    currentShipmentId = shipments[0].id;
-    select.value = currentShipmentId;
-  }
-}
-
-/* ===== LOAD PART INVENTORY ===== */
-async function loadPartInventory() {
-  try {
-    const data = await jfetch(ENDPOINTS.partInventory);
-
-    // ✅ กรองเฉพาะ shipment ที่ pending
-    const filtered = data.filter(
-      (row) => !row.shipment_status || row.shipment_status === "pending"
-    );
-
-    // ✅ ตั้งค่า default shipment ถ้ายังไม่มี
-    if (allShipments.length > 0) {
-      const defaultShipment =
-        allShipments.find((s) => s.status === "pending") || allShipments[0];
-      const defaultShipmentId = defaultShipment?.id;
-      for (const row of filtered) {
-        if (!row.shipment_id) row.shipment_id = defaultShipmentId;
-      }
-    }
-
-    tablePart.setData(filtered);
-  } catch (err) {
-    console.error("❌ loadPartInventory:", err);
-    toast("Failed to load part inventory", false);
-  }
-}
-
-/* ===== INIT PART TABLE ===== */
+/* ========= PART INVENTORY TABLE ========= */
 function initPartTable() {
-  console.log("Initializing part inventory table...");
   tablePart = new Tabulator("#partTable", {
     layout: "fitColumns",
-    height: "400px",
+    height: "350px",
     placeholder: "No part inventory data",
+
     columns: [
-      { title: "Lot No", field: "lot_no", width: 120 }, // ✅ added
+      { title: "Lot No", field: "lot_no", width: 120 },
       { title: "Part No", field: "part_no" },
       { title: "Planned Qty", field: "planned_qty", hozAlign: "right" },
       { title: "Shipped Qty", field: "shipped_qty", hozAlign: "right" },
@@ -108,181 +96,36 @@ function initPartTable() {
       {
         title: "Shipment",
         field: "shipment_id",
-        editor: "list", // ✅ ใช้ list แทน select
+        editor: "list",
         width: 160,
-        editorParams: function () {
-          return {
-            values: allShipments.reduce((acc, s) => {
-              acc[s.id] = `${s.shipment_no} (${s.status})`;
-              return acc;
-            }, {}),
-          };
-        },
+        editorParams: () => ({
+          values: allShipments.reduce((acc, s) => {
+            acc[s.id] = `${s.shipment_no} (${s.status})`;
+            return acc;
+          }, {}),
+        }),
         formatter: (cell) => {
-          const id = Number(cell.getValue()); // ✅ ensure numeric
-          const found = allShipments.find((s) => s.id === id);
-          return found
-            ? `<span>${found.shipment_no} <small style="color:#6b7280;">(${found.status})</small></span>`
-            : `<span style="color:#9ca3af;">(none)</span>`;
-        },
-        cellEdited: (cell) => {
-          const newVal = Number(cell.getValue());
-          const row = cell.getRow().getData();
-          row.shipment_id = newVal;
-
-          console.log("✅ cellEdited shipment_id:", newVal, row);
-
-          // ✅ ใช้วิธี refresh cell แทน updateData
-          cell.setValue(newVal, true);
-
-          const el = cell.getElement();
-          el.style.transition = "background 0.3s";
-          el.style.background = "#d1fae5";
-          setTimeout(() => (el.style.background = ""), 800);
-
-          const found = allShipments.find((s) => s.id === newVal);
-          toast(
-            found
-              ? `✅ Selected shipment: ${found.shipment_no} (${found.status})`
-              : "⚠️ Shipment not found",
-            !!found
-          );
+          const id = Number(cell.getValue());
+          const s = allShipments.find((x) => x.id === id);
+          return s
+            ? `${s.shipment_no} <small style="color:#999">(${s.status})</small>`
+            : `<span style="color:#ccc">(none)</span>`;
         },
       },
-      // ✅ NEW: user editable quantity column
-      {
-        title: "QTY",
-        field: "qty_input",
-        editor: "number",
-        hozAlign: "right",
-        width: 100,
-        editorParams: { step: "0.01", min: 0 },
-      },
-      {
-        title: "Progress",
-        field: "progress_percent",
-        hozAlign: "right",
-        formatter: (cell) => {
-          const v = cell.getValue() || 0;
-          const bar = `<div style="background:#e5e7eb;border-radius:4px;height:8px;position:relative;">
-      <div style="background:#10b981;width:${v}%;height:100%;border-radius:4px;"></div>
-    </div>`;
-          return `${v}%<br>${bar}`;
-        },
-      },
+
+      { title: "QTY", field: "qty_input", editor: "number", width: 100 },
+
       {
         title: "Action",
         formatter: (cell) => {
           const row = cell.getRow().getData();
-          // ถ้ามี source_lot_ids แสดงว่ามาจาก shipment → ปุ่ม Return
-          if (Array.isArray(row.source_lot_ids)) {
-            return `<button class="btn-mini btn-red" data-act="return">Return</button>`;
-          }
-          // ถ้ามี available_qty แสดงว่ามาจาก part inventory → ปุ่ม Allocate
-          if (row.available_qty != null) {
-            return `<button class="btn-mini btn-green" data-act="allocate">Allocate</button>`;
-          }
+          if (row.available_qty != null)
+            return `<button data-act="allocate" class="btn-mini btn-green">Allocate</button>`;
+          if (row.source_lot_ids)
+            return `<button data-act="return" class="btn-mini btn-red">Return</button>`;
           return "";
         },
-        cellClick: async (e, cell) => {
-          const row = cell.getRow().getData();
-          const act = e.target.dataset.act;
-
-          try {
-            // === ✅ Allocate (จาก part inventory) ===
-            if (act === "allocate") {
-              const qtyValue = Number(row.qty_input || 0);
-              let shipmentId = Number(row.shipment_id || 0);
-
-              if (qtyValue <= 0) {
-                toast("⚠️ Invalid quantity to allocate", false);
-                return;
-              }
-              // ✅ ถ้าไม่มี shipment_id → สร้างใหม่อัตโนมัติ
-              if (!shipmentId) {
-                toast("ℹ️ No shipment selected. Creating new shipment...");
-                try {
-                  const newShipment = await jfetch(ENDPOINTS.createShipment, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ lot_id: Number(lotId) }),
-                  });
-                  toast("🚚 Created new shipment automatically");
-                  // โหลด shipment list ใหม่
-                  await loadShipmentsList();
-                  // หา shipment ที่เพิ่งสร้าง (ใช้ id ล่าสุด)
-                  const newest = allShipments[0];
-                  shipmentId = newest?.id;
-                } catch (err) {
-                  console.error("❌ Failed to auto-create shipment:", err);
-                  toast("Failed to create shipment automatically", false);
-                  return;
-                }
-              }
-              if (!shipmentId) {
-                toast("⚠️ Please select a shipment first", false);
-                return;
-              }
-
-              await jfetch(ENDPOINTS.allocatePart, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  source_lot_id: Number(row.lot_id),
-                  target_lot_id: Number(lotId),
-                  shipment_id: shipmentId, // ✅ ใช้ shipment ที่เลือก
-                  qty: qtyValue,
-                }),
-              });
-
-              toast(
-                `✅ Allocated ${qtyValue} pcs from lot ${row.lot_no} → Shipment ${shipmentId}`
-              );
-            }
-
-            // === ✅ Return (จาก shipment record) ===
-            if (act === "return") {
-              const qtyValue = Number(row.qty || 0);
-              const source_lot_id = Array.isArray(row.source_lot_ids)
-                ? row.source_lot_ids[0]
-                : null;
-
-              if (!source_lot_id) {
-                toast("❌ Missing source_lot_id in shipment record", false);
-                console.warn("Shipment row missing source_lot_ids:", row);
-                return;
-              }
-
-              if (qtyValue <= 0) {
-                toast("⚠️ Invalid quantity to return", false);
-                return;
-              }
-
-              await jfetch(ENDPOINTS.returnPart, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  source_lot_id: source_lot_id,
-                  target_lot_id: Number(lotId),
-                  shipment_id: currentShipmentId, // ✅ เพิ่ม
-                  qty: qtyValue,
-                }),
-              });
-
-              toast(`↩️ Returned ${qtyValue} parts from lot ${source_lot_id}`);
-            }
-
-            // === Reload after success ===
-            await Promise.all([
-              loadPartInventory(),
-              loadShipmentTable(),
-              loadLotHeader(),
-            ]);
-          } catch (err) {
-            console.error("❌ Action failed:", err);
-            toast(err?.message || "Action failed", false);
-          }
-        },
+        cellClick: async (e, cell) => handlePartAction(e, cell),
       },
     ],
   });
@@ -290,212 +133,244 @@ function initPartTable() {
   loadPartInventory();
 }
 
-/* ===== LOAD LOT HEADER ===== */
-async function loadLotHeader() {
+/* ========= LOAD PART INVENTORY ========= */
+async function loadPartInventory() {
   try {
-    const lot = await jfetch(ENDPOINTS.lotHeader);
-    const hdr = document.getElementById("lotHeader");
-    hdr.innerHTML = `
-      <div class="lot-grid">
-        <div><b>Lot No:</b> ${lot.lot_no}</div>
-        <div><b>Part No:</b> ${lot.part?.part_no ?? "-"}</div>
-        <div><b>Planned Qty:</b> ${lot.planned_qty ?? "?"}</div>
-        <div><b>Finished Qty:</b> ${lot.finished_qty ?? "-"}</div>
-        <div><b>Status:</b> ${lot.status ?? "-"}</div>
-        <div><b>Due Date:</b> ${
-          lot.due_date ? new Date(lot.due_date).toLocaleDateString() : "-"
-        }</div>
-      </div>
-    `;
-    document.title = `Lot ${lot.lot_no} · Shipments`;
+    const data = await jfetch(ENDPOINTS.partInventory);
+    tablePart.setData(data);
   } catch (err) {
-    console.error("❌ loadLotHeader:", err);
-    toast("Failed to load lot info", false);
+    toast("Failed to load part inventory", false);
   }
 }
 
-/* ===== INIT SHIPMENT TABLE ===== */
+/* ========= ACTION HANDLER ========= */
+async function handlePartAction(e, cell) {
+  const row = cell.getRow().getData();
+  const act = e.target.dataset.act;
+  const qtyValue = Number(row.qty_input || row.qty || 0);
+
+  if (qtyValue <= 0) return toast("Invalid quantity", false);
+
+  try {
+    if (act === "allocate") {
+      await jfetch(ENDPOINTS.allocatePart, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          source_lot_id: row.lot_id,
+          target_lot_id: Number(lotId),
+          shipment_id: Number(row.shipment_id),
+          qty: qtyValue,
+        }),
+      });
+
+      toast("Allocated successfully");
+    }
+
+    if (act === "return") {
+      await jfetch(ENDPOINTS.returnPart, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          source_lot_id: row.source_lot_ids[0],
+          target_lot_id: Number(lotId),
+          qty: qtyValue,
+        }),
+      });
+
+      toast("Returned successfully");
+    }
+
+    await Promise.all([
+      loadPartInventory(),
+      loadShipmentTable(),
+      loadLotHeader(),
+    ]);
+  } catch (err) {
+    toast("Action failed", false);
+  }
+}
+async function downloadCofC(row) {
+  const url = `/api/v1/lot-shippments/${row.id}/download/cofc`;
+
+  try {
+    const res = await fetch(url);
+    if (!res.ok) {
+      toast("Failed to download CofC", false);
+      return;
+    }
+
+    const blob = await res.blob();
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `CofC_${row.shipment_no}.docx`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  } catch (err) {
+    toast("Error downloading CofC", false);
+  }
+}
+
+async function downloadLabel(row, size) {
+  const shipmentId = row.id;
+
+  try {
+    const url = `/api/v1/lot-shippments/${shipmentId}/download/label/${size}`;
+
+    const res = await fetch(url);
+    if (!res.ok) {
+      toast("Failed to download label", false);
+      return;
+    }
+
+    const blob = await res.blob();
+    const filename = `Label_${shipmentId}_${size}.docx`;
+
+    // force download
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  } catch (err) {
+    console.error(err);
+    toast("Label download error", false);
+  }
+}
+/* ========= SHIPMENT TABLE (INLINE EDIT ENABLED) ========= */
 function initShipmentTable() {
   tableShipment = new Tabulator("#shipmentTable", {
     layout: "fitColumns",
-    height: "400px", // ✅ เพิ่มบรรทัดนี้
+    height: "100%",
     placeholder: "No shipment data",
+
     columns: [
-      { title: "ID", field: "id", visible: false },
       { title: "Shipment No", field: "shipment_no" },
+
       {
         title: "Date",
-        field: "date",
-        formatter: (cell) => new Date(cell.getValue()).toLocaleDateString(),
-      },
-      { title: "Customer", field: "customer_name" },
-
-      // ✅ เพิ่มคอลัมน์ใหม่
-      {
-        title: "Shipped Date",
         field: "shipped_date",
         editor: "input",
-        editorParams: { elementAttributes: { type: "date" } }, // ✅ ใช้ date picker
-        width: 140,
+        editorParams: { elementAttributes: { type: "date" } },
+        width: 130,
+        cellEdited: updateField("shipped_date"),
         formatter: (cell) => {
           const v = cell.getValue();
-          if (!v) return `<span style="color:#9ca3af;">-</span>`;
-          return new Date(v).toLocaleDateString();
-        },
-        cellEdited: async (cell) => {
-          const row = cell.getRow().getData();
-          const newVal = cell.getValue();
-          console.log("🛰️ PATCH shipped_date payload:", {
-            id: row.id,
-            shipped_date: newVal,
-          }); // ✅ debug
-
-          try {
-            await jfetch(`/api/v1/lot-shippments/${row.id}/update-fields`, {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ shipped_date: newVal }),
-            });
-            toast("✅ Updated shipped date");
-            await loadShipmentTable();
-          } catch (err) {
-            console.error("❌ update shipped_date:", err);
-            toast("Failed to update shipped date", false);
-            cell.restoreOldValue();
-          }
+          return v ? new Date(v).toLocaleDateString() : "-";
         },
       },
+
+      { title: "Customer", field: "customer_name" },
+
       {
         title: "Tracking #",
         field: "tracking_number",
         editor: "input",
-        width: 180,
+        width: 160,
+        cellEdited: updateField("tracking_number"),
+      },
+
+      {
+        title: "Qty",
+        field: "qty",
+        editor: "number",
+        width: 80,
         cellEdited: async (cell) => {
           const row = cell.getRow().getData();
-          const newVal = cell.getValue();
-          console.log("🛰️ PATCH tracking_number payload:", {
-            id: row.id,
-            tracking_number: newVal,
-          }); // ✅ debug
+          const newQty = Number(cell.getValue());
+
+          if (isNaN(newQty) || newQty <= 0) {
+            toast("Invalid QTY", false);
+            cell.restoreOldValue();
+            return;
+          }
 
           try {
             await jfetch(`/api/v1/lot-shippments/${row.id}/update-fields`, {
               method: "PATCH",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ tracking_number: newVal }),
+              body: JSON.stringify({ qty: newQty }),
             });
-            toast("✅ Updated tracking number");
+
+            toast("✅ Updated Qty");
             await loadShipmentTable();
+            await loadPartInventory();
           } catch (err) {
-            console.error("❌ update tracking_number:", err);
-            toast("Failed to update tracking number", false);
+            console.error("Qty update failed:", err);
+            toast("❌ Failed to update Qty", false);
             cell.restoreOldValue();
           }
         },
       },
-      {
-        title: "Allocated Lots",
-        field: "source_lot_nos",
-        width: 220,
-        formatter: (cell) => {
-          const lots = cell.getValue();
-          if (!Array.isArray(lots) || lots.length === 0)
-            return `<span style="color:#9ca3af;">(none)</span>`;
-          const unique = [...new Set(lots)];
-          return `<span>${unique.join(", ")}</span>`;
-        },
-      },
 
-      { title: "Qty", field: "qty", hozAlign: "right" },
-      { title: "UOM", field: "uom", width: 80, hozAlign: "center" },
       {
         title: "Status",
         field: "status",
-        editor: "select", // ✅ ให้แก้ไขได้
-        editorParams: {
-          values: {
-            pending: "Pending",
-            shipped: "Shipped",
-            cancelled: "Cancelled",
-          },
-        },
+        editor: "select",
+        editorParams: { values: ["pending", "shipped", "cancelled"] },
+        width: 110,
+        cellEdited: updateField("status"),
         formatter: (cell) => {
-          const val = cell.getValue();
-          let color = "#9ca3af"; // gray as default
-          if (val === "pending") color = "#fbbf24"; // yellow
-          else if (val === "shipped") color = "#22c55e"; // green
-          else if (val === "cancelled") color = "#ef4444"; // red
+          const v = cell.getValue();
+          const colors = {
+            pending: "#fbbf24",
+            shipped: "#22c55e",
+            cancelled: "#ef4444",
+          };
           return `<span style="
-      background:${color};
-      color:#fff;
-      padding:3px 8px;
-      border-radius:6px;
-      font-size:13px;
-      text-transform:capitalize;
-    ">${val || "-"}</span>`;
-        },
-        cellEdited: async (cell) => {
-          const row = cell.getRow().getData();
-          const newStatus = cell.getValue();
-          try {
-            await jfetch(`/api/v1/lot-shippments/${row.id}/status`, {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ status: newStatus }),
-            });
-            toast(`✅ Updated to ${newStatus}`);
-          } catch (err) {
-            toast(err?.message || "Failed to update status", false);
-            cell.restoreOldValue(); // rollback on fail
-          }
+            background:${colors[v] || "#ccc"};
+            color:#fff;padding:3px 8px;border-radius:6px;
+            text-transform:capitalize;
+          ">${v}</span>`;
         },
       },
 
       {
-        title: "Action",
-        formatter: () =>
-          `<button class="btn-mini btn-red" data-act="return">Return</button>`,
+        title: "CofC",
+        width: 90,
+        formatter: () => `<button class="btn-mini btn-blue">DOC</button>`,
+        cellClick: (e, cell) => downloadCofC(cell.getRow().getData()),
+      },
+
+      {
+        title: "Label",
+        width: 120,
+        formatter: () => `
+            <div class="label-buttons">
+              <button class="btn-mini btn-orange" data-size="80">80</button>
+              <button class="btn-mini btn-blue" data-size="60">60</button>
+              <button class="btn-mini btn-green" data-size="30">30</button>
+            </div>
+          `,
+        cellClick: (e, cell) => {
+          const row = cell.getRow().getData();
+          const size = e.target.dataset.size;
+          if (!size) return;
+
+          downloadLabel(row, Number(size)); // ← ส่ง size ไปด้วย
+        },
+      },
+
+      {
+        title: "Delete",
+        width: 90,
+        formatter: () => `<button class="btn-mini btn-red">Delete</button>`,
         cellClick: async (e, cell) => {
           const row = cell.getRow().getData();
-          const qtyValue = Number(row.qty || 0);
 
-          // ✅ ใช้ source_lot_ids จาก backend
-          const source_lot_id = Array.isArray(row.source_lot_ids)
-            ? row.source_lot_ids[0]
-            : null;
-
-          if (!source_lot_id) {
-            toast("❌ Missing source_lot_id in shipment record", false);
-            console.warn("Shipment row missing source_lot_ids:", row);
-            return;
-          }
-
-          if (qtyValue <= 0) {
-            toast("⚠️ Invalid quantity to return", false);
-            return;
-          }
+          if (!confirm(`Delete shipment ${row.shipment_no}?`)) return;
 
           try {
-            await jfetch(ENDPOINTS.returnPart, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                source_lot_id: source_lot_id,
-                target_lot_id: Number(lotId),
-                qty: qtyValue,
-              }),
+            await jfetch(`/api/v1/lot-shippments/${row.id}`, {
+              method: "DELETE",
             });
 
-            toast(`↩️ Returned ${qtyValue} parts from lot ${source_lot_id}`);
-
-            await Promise.all([
-              loadPartInventory(),
-              loadShipmentTable(),
-              loadLotHeader(),
-            ]);
+            toast("Shipment deleted");
+            await loadShipmentTable();
           } catch (err) {
-            console.error("❌ Return failed:", err);
-            toast(err?.message || "Return failed", false);
+            toast("Delete failed", false);
           }
         },
       },
@@ -505,62 +380,44 @@ function initShipmentTable() {
   loadShipmentTable();
 }
 
-/* ===== LOAD SHIPMENT TABLE ===== */
+/* ========= LOAD SHIPMENTS ========= */
 async function loadShipmentTable() {
   try {
-    const res = await jfetch(ENDPOINTS.lotShipments);
-    tableShipment.setData(res);
+    const rows = await jfetch(ENDPOINTS.lotShipments);
+    tableShipment.setData(rows);
   } catch (err) {
-    console.error("❌ loadShipmentTable:", err);
-    toast(err?.message || "Failed to load shipments", false);
+    toast("Failed to load shipments", false);
   }
 }
 
-/* ===== TOOLBAR ACTIONS ===== */
+/* ========= TOOLBAR ========= */
 function initToolbar() {
-  const btnCreateShipment = document.getElementById("btnCreateShipment");
-
-  if (!btnCreateShipment) {
-    console.warn("⚠️ Toolbar buttons not found");
-    return;
-  }
-
-  btnCreateShipment.addEventListener("click", async () => {
+  const btn = document.getElementById("btnCreateShipment");
+  btn.addEventListener("click", async () => {
     try {
       await jfetch(ENDPOINTS.createShipment, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ lot_id: Number(lotId) }),
       });
-      toast("🚚 New shipment created");
 
-      // ✅ โหลดข้อมูลใหม่ทั้งหมดหลังสร้าง shipment
-      await loadShipmentsList(); // โหลดรายการ shipment ทั้งหมดใหม่
-      await loadShipmentDropdown(); // อัปเดต dropdown
-      await Promise.all([
-        loadShipmentTable(), // ✅ refresh ตาราง Shipment Records
-        loadPartInventory(), // ✅ refresh ตาราง Part Inventory
-        loadLotHeader(), // (optional) refresh header ด้วย
-      ]);
+      toast("New shipment created");
 
-      // ✅ refresh UI dropdown และ table อีกที
-      tablePart.redraw(true);
+      await loadShipmentsList();
+      await loadShipmentTable();
+      await loadPartInventory();
     } catch (err) {
-      toast(err?.message || "Create shipment failed", false);
+      toast("Create failed", false);
     }
   });
 }
 
-/* ===== BOOT ===== */
+/* ========= BOOT ========= */
 document.addEventListener("DOMContentLoaded", async () => {
-  try {
-    await loadLotHeader();
-    await loadShipmentsList(); // ✅ โหลด shipment ก่อน
-    initPartTable(); // ✅ show part inventory
-    initShipmentTable(); // ✅ show shipment list
-    initToolbar();
-  } catch (err) {
-    console.error("❌ Initialization failed:", err);
-    toast("Initialization error", false);
-  }
+  await loadLotHeader();
+  await loadShipmentsList();
+
+  initPartTable();
+  initShipmentTable();
+  initToolbar();
 });

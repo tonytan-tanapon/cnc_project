@@ -42,10 +42,10 @@ a {
 /* ===== Layout ============================================================= */
 /* layout ปกติ */
 .app {
+  height: 100vh;
+  min-height: 0;
   display: grid;
-  grid-template-columns: 240px 1fr; /* sidebar 240px + main auto */
-  height: 100%; /* ← เปลี่ยนเป็น 100% */
-  min-height: 100vh; /* ← เพิ่มเพื่อให้ยืดความสูงได้ */
+  grid-template-columns: 240px 1fr;
 }
 
 /* เมื่อ collapsed */
@@ -56,6 +56,8 @@ a {
 .sidebar {
   transition: width 0.3s;
   overflow-x: hidden;
+  flex-shrink: 0;
+  overflow-y: auto;
 }
 
 /* ปกติ */
@@ -761,12 +763,13 @@ table.grid.lines-table td:nth-child(8) {
    ============================== */
 .content {
   flex: 1;
-  min-height: 0 !important;
+  padding: 12px 16px;
   display: flex;
   flex-direction: column;
   gap: 16px;
+  overflow-y: auto;
+  min-height: 0 !important; /* ✅ ที่ถูกต้อง */
 }
-
 .panel {
   display: flex;
   flex-direction: column;
@@ -783,4 +786,13 @@ table.grid.lines-table td:nth-child(8) {
 .tabulator {
   height: 100% !important;
   min-height: 250px !important; /* ป้องกันถูกบีบจนเหลือ 0px */
+}
+
+.main--edge {
+  flex: 1;
+  height: auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
 }
