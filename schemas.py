@@ -353,7 +353,7 @@ class ProductionLotCreate(BaseModel):
     status: Optional[LotStatus] = "in_process"
 
 class ProductionLotUpdate(BaseModel):
-
+    lot_no: Optional[str] = None         
     part_id: Optional[int] = None
     part_revision_id: Optional[int] = None
     po_id: Optional[int] = None

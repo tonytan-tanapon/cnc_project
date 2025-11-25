@@ -118,6 +118,7 @@ function appendRows(items) {
     tr.innerHTML = `
       <td>${fmtDate(lotCreated)}</td>
       <td>${r.customer_code ?? ""}</td>
+      
       <td>${r.lot_no ?? ""}</td>
 
       <td class="lot-links">

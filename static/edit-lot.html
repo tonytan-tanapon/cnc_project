@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Edit Lot Number</title>
+  <link rel="stylesheet" href="/static/css/app.css" />
+  <style>
+    body { background:#f9fafb; font-family:system-ui; margin:0; padding:40px; }
+    .box {
+      max-width:420px; margin:auto; background:#fff; padding:24px;
+      border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,.08);
+    }
+    h1 { margin:0 0 16px; font-size:22px; }
+    label { display:block; margin-bottom:6px; color:#555; font-size:14px; }
+    input {
+      width:100%; padding:10px 12px; font-size:16px;
+      border:1px solid #ccc; border-radius:8px; margin-bottom:18px;
+    }
+    button {
+      padding:10px 18px; background:#000; color:#fff; border:none;
+      border-radius:8px; cursor:pointer; font-size:16px;
+    }
+    button:hover { background:#333; }
+  </style>
+</head>
+
+<body>
+<div class="box">
+  <h1>Edit Lot Number</h1>
+  <form id="f">
+    <label for="lot_no">Lot Number</label>
+    <input id="lot_no" type="text" required>
+
+    <button type="submit">Save</button>
+  </form>
+</div>
+
+<script>
+async function jfetch(url, opts={}) {
+  const res = await fetch(url, {
+    headers: { "Content-Type": "application/json" },
+    ...opts
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+const lotId = new URLSearchParams(location.search).get("lot_id");
+if (!lotId) alert("Missing lot_id");
+
+async function loadLot() {
+  const lot = await jfetch(`/api/v1/lots/${lotId}`);
+  document.getElementById("lot_no").value = lot.lot_no || "";
+}
+loadLot();
+
+document.getElementById("f").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const newNo = document.getElementById("lot_no").value.trim();
+
+  try {
+    await jfetch(`/api/v1/lots/${lotId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ lot_no: newNo })
+    });
+    alert("Updated!");
+    location.reload();
+    history.back();
+  } catch (err) {
+    alert("ERROR: " + err.message);
+  }
+});
+</script>
+
+</body>
+</html>

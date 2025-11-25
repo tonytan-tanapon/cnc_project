@@ -864,7 +864,7 @@ function initLinesTable() {
             .map(
               (l) => `
           <span style="white-space: nowrap;">
-            <a class="link" href="/static/manage-lot-materials.html?lot_id=${encodeURIComponent(
+            <a class="link" href="/static/edit-lot.html?lot_id=${encodeURIComponent(
               l.id
             )}" title="Open materials for ${safe(l.lot_no)}">
               ${safe(l.lot_no)}

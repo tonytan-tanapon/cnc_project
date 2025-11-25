@@ -578,7 +578,7 @@ def download_cofc(shipment_id: int, db: Session = Depends(get_db)):
     revision = lot.part_revision if lot else None
 
     lot_no = lot.lot_no if lot else ""
-    qty = float(item.qty or 0)
+    qty = int(item.qty or 0)
     part_no = part.part_no if part else ""
     rev = revision.rev if revision else ""
     desc = part.name if part else ""
