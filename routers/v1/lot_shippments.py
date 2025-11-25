@@ -675,7 +675,7 @@ def download_label(shipment_id: int, size: int, db: Session = Depends(get_db)):
     po_no = shipment.po.po_number if shipment.po else ""
     replace_map = {
         "{PART}": "PART: "+ part.part_no+ " "+part.name if part else "",
-        "{REV}": "REV: "+ rev_obj.rev +" LOT: "+ lot.lot_no +" PO:"+ po_no if rev_obj else "",
+        "{REV}": "REV: "+ rev_obj.rev +" LOT: "+ lot.lot_no +" PO: "+ po_no if rev_obj else "",
         "{LOT_NO}": lot.lot_no if lot else "",
         "{QTY}": str(float(item.qty or 0)),
         "{DESCRIPTION}": part.name if part else "",
