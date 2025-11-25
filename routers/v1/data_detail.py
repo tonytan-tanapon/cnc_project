@@ -169,13 +169,24 @@ def data_detail(
         if cust:
             meta.customer = {"id": cust.id, "code": cust.code, "name": cust.name}
 
+    # --- revision meta ---
     if revision_id:
+        # ถ้ากดเลือก revision เอง
         rev_obj = db.query(PartRevision).filter(PartRevision.id == revision_id).first()
-        if rev_obj:
-            meta.revision = {
-                "id": rev_obj.id,
-                "rev": rev_obj.rev,
-                "is_current": bool(getattr(rev_obj, "is_current", False))
-            }
+    else:
+        # ถ้าไม่ส่ง revision → ให้ใช้ revision ล่าสุดของ part นั้น
+        rev_obj = (
+            db.query(PartRevision)
+            .filter(PartRevision.part_id == part_id)
+            .order_by(PartRevision.id.desc())
+            .first()
+        )
+
+    if rev_obj:
+        meta.revision = {
+            "id": rev_obj.id,
+            "rev": rev_obj.rev,
+            "is_current": bool(getattr(rev_obj, "is_current", False)),
+        }
 
     return DetailOut(items=items, count=len(items), meta=meta)

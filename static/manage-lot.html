@@ -8,34 +8,16 @@
     <!-- App styles -->
     <link rel="stylesheet" href="/static/css/app.css" />
 
-    <!-- Tabulator (theme css + core js) -->
-    <link
-      rel="stylesheet"
-      href="/static/vendor/tabulator/tabulator_modern.min.css"
-    />
-    <script src="/static/vendor/tabulator/tabulator.min.js"></script>
-
     <style>
-      /* Layout hygiene so Tabulator doesn't overflow in flex containers */
+      /* Layout hygiene สำหรับ flex layout เดิม */
       .main,
       .card,
       .toolbar,
       #p_table {
         min-width: 0;
-      }
-      #p_table,
-      .tabulator {
-        width: 100%;
-        max-width: 100%;
-      }
-      .tabulator {
-        border: 0;
-      }
-      .tabulator .tabulator-row:hover {
-        background: #fafafa;
+        min-height: 0;
       }
 
-      /* Small buttons like your other pages */
       .btn-small {
         padding: 4px 8px;
         font-size: 14px;
@@ -50,43 +32,133 @@
         background: #333;
       }
 
-      .rev {
-        display: inline-block;
-      }
-      .rev.current {
-        font-weight: 600;
-        text-decoration: underline;
-      }
-      .rev-sep {
-        opacity: 0.6;
-      }
       .muted {
         opacity: 0.6;
       }
 
-      /* allow children (like Tabulator) to actually scroll inside flex boxes */
-      .main,
-      .panel,
-      .card,
-      .detail-body,
-      #p_table {
-        min-height: 0; /* key line for flex layouts */
+      /* ====== TABLE (แทน Tabulator) ====== */
+      .lot-table-wrapper {
+        margin-top: 8px;
+        border-radius: 10px;
+        border: 1px solid #e5e7eb;
+        background: #fff;
+        height: calc(100vh - 170px);
+        max-height: 700px;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
       }
 
-      /* make sure the tableholder can scroll */
-      .tabulator .tabulator-tableholder {
-        overflow-y: auto !important;
+      .lot-table-scroll {
+        flex: 1;
+        overflow-y: auto;
+        overflow-x: auto;
       }
 
-      /* ลดขนาดฟอนต์ของชื่อ Column ทั้งหมด */
-    #p_table .tabulator-col-title {
-      font-size: 15px !important;
-      text-align: center;
-      justify-content: center;
-    }
-    #p_table .tabulator-cell {
-      font-size: 15px !important;
-    }
+      table.lot-table {
+        width: 100%;
+        min-width: 1000px;
+        border-collapse: collapse;
+        font-size: 14px;
+      }
+
+      table.lot-table thead th {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        background: #f3f4f6;
+        padding: 6px 8px;
+        border-bottom: 1px solid #e5e7eb;
+        white-space: nowrap;
+        text-align: center;
+        font-size: 15px;
+      }
+
+      table.lot-table tbody td {
+        padding: 6px 8px;
+        border-bottom: 1px solid #f3f4f6;
+        vertical-align: middle;
+        font-size: 15px;
+      }
+
+      table.lot-table tbody tr:nth-child(even) {
+        background: #fafafa;
+      }
+
+      table.lot-table tbody tr:hover {
+        background: #f9fafb;
+      }
+
+      th.sortable {
+        cursor: pointer;
+      }
+
+      th.sortable::after {
+        content: " ";
+        display: inline-block;
+        margin-left: 4px;
+        border: 4px solid transparent;
+        border-top-color: #9ca3af;
+        opacity: 0.4;
+        transform: translateY(2px);
+      }
+
+      th.sortable.sort-asc::after {
+        border-bottom-color: #111827;
+        border-top-color: transparent;
+        opacity: 1;
+        transform: translateY(-1px);
+      }
+
+      th.sortable.sort-desc::after {
+        border-top-color: #111827;
+        border-bottom-color: transparent;
+        opacity: 1;
+        transform: translateY(2px);
+      }
+
+      .lot-links a {
+        color: #2563eb;
+        text-decoration: none;
+      }
+
+      .lot-links a:hover {
+        text-decoration: underline;
+      }
+
+      .lot-table-footer {
+        padding: 4px 10px 6px;
+        font-size: 13px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-top: 1px solid #e5e7eb;
+        background: #f9fafb;
+      }
+
+      .loading-row {
+        font-size: 13px;
+        color: #6b7280;
+      }
+
+      .empty-row {
+        font-size: 13px;
+        color: #6b7280;
+      }
+
+      th.resizable {
+        position: relative;
+      }
+
+      th.resizable .resize-handle {
+        position: absolute;
+        right: 0;
+        top: 0;
+        width: 6px;
+        height: 100%;
+        cursor: col-resize;
+        user-select: none;
+      }
     </style>
   </head>
   <body>
@@ -98,11 +170,7 @@
 
       <!-- Main -->
       <main class="main">
-        <!-- Topbar -->
-
-        <!-- Page -->
         <section id="page-parts">
-          <!-- Table + Pager -->
           <div class="card">
             <div
               class="toolbar"
@@ -113,18 +181,46 @@
                 placeholder="search part_no / name / spec"
                 style="flex: 1"
               />
-    
-              </div>
             </div>
 
-            <!-- Tabulator mount -->
-            <div id="p_table" style="min-height: 200px"></div>
+            <!-- TABLE (no Tabulator) -->
+            <div id="p_table" class="lot-table-wrapper">
+              <div class="lot-table-scroll">
+                <table class="lot-table">
+                  <thead>
+                    <tr>
+                      <th>PO Date</th>
+                      <th class="sortable" data-sort="customer_code">Name</th>
+                      <th class="sortable" data-sort="lot_no">Lot#</th>
+                      <th class="sortable" data-sort="po_number">PO</th>
+                      <th class="sortable" data-sort="part_no">Part No.</th>
+                      <th>Description</th>
+                      <th>Rev.</th>
+                      <th>Prod Date</th>
+                      <th class="sortable" data-sort="lot_due_date">
+                        Prod Due
+                      </th>
+                      <th class="sortable" data-sort="lot_qty">Prod Qty</th>
+                      <th class="sortable" data-sort="po_due_date">PO Due</th>
+                      <th>PO Qty</th>
+                      <th class="sortable" data-sort="ship_date">Ship Date</th>
+                      <th class="sortable" data-sort="ship_qty">Ship Qty</th>
+                      <th>Traveler</th>
+                      <th>Materials</th>
+                      <th>Shipments</th>
+                    </tr>
+                  </thead>
+                  <tbody id="p_tbody"></tbody>
+                </table>
+              </div>
 
-            <!-- <div class="toolbar" style="display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:8px;">
-            <button class="btn-small" id="p_prev2" type="button">« Prev</button>
-            <span id="p_page_info2" class="muted">Page 1</span>
-            <button class="btn-small" id="p_next2" type="button">Next »</button>
-          </div> -->
+              <div class="lot-table-footer">
+                <span id="p_status" class="muted empty-row">Ready</span>
+                <span id="p_loading" class="loading-row" style="display: none">
+                  Loading…
+                </span>
+              </div>
+            </div>
           </div>
         </section>
       </main>
@@ -137,6 +233,7 @@
 
     <!-- Scripts -->
     <script type="module" src="/static/js/nav-loader.js"></script>
+    <!-- ใช้ไฟล์ JS ใหม่ด้านล่าง -->
     <script type="module" src="/static/js/manage-lots.js"></script>
   </body>
 </html>

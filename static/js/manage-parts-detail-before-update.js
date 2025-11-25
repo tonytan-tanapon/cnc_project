@@ -58,6 +58,108 @@ const fmtDate = (s) => {
   return isNaN(d) ? "" : d.toLocaleDateString();
 };
 
+// ---- styles (once)
+(() => {
+  if (!document.getElementById("parts-detail-styles")) {
+    const st = document.createElement("style");
+    st.id = "parts-detail-styles";
+    st.textContent = `
+      .card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;box-shadow:0 2px 10px rgba(0,0,0,.04);margin-bottom:12px}
+      .card .hd{padding:12px 14px;border-bottom:1px solid #eef2f7;font-weight:700}
+      .card .bd{padding:12px 14px}
+      .fields{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+      .f .lab{font-size:12px;color:#64748b;margin-bottom:4px}
+      .f .val{font-size:16px;font-weight:600}
+      .filters{display:flex;flex-wrap:wrap;align-items:center;gap:16px}
+      .fg{border:none;padding:0;background:transparent}
+      .ttl-inline{font-weight:700;margin-right:8px;font-size:13px;color:#0f172a}
+      .chips{display:flex;flex-wrap:wrap;gap:14px;align-items:center}
+      .chip{display:inline-flex;align-items:center;gap:6px;padding:0;margin:0;background:transparent;border:none;white-space:nowrap}
+      .chip input{margin-right:6px}
+      .fg input[type="text"]{width:320px;max-width:40vw;height:32px;border:1px solid #e5e7eb;border-radius:8px;padding:4px 8px}
+      .tabulator .tabulator-footer{display:none}
+
+      /* header grid: left=Part detail, right=Materials */
+      /* header grid: left=Part detail, right=Materials */
+.header-grid {
+  display: grid;
+  grid-template-columns: 1.5fr 0.9fr;
+  gap: 12px;
+}
+
+/* Material card header */
+.mat-card .hd {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px; /* 🔹 เล็กลงจาก default */
+}
+
+/* Material row input */
+.mat-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+  position: relative;
+  overflow: visible;
+  font-size: 13px; /* 🔹 ฟอนต์เล็กลงทั้งแถว */
+}
+.mat-row input[type="text"] {
+  flex: 1;
+  height: 28px; /* เดิม 32px → ลดให้ match กับ font ที่เล็กลง */
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 3px 6px;
+  font-size: 13px;
+}
+
+/* ปุ่ม */
+.btn {
+  border: 1px solid #e5e7eb;
+  background: #0ea5e9;
+  color: #fff;
+  border-radius: 8px;
+  padding: 5px 9px;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 13px; /* 🔹 ปรับขนาดปุ่มให้พอดี */
+}
+
+/* Chip แสดงวัสดุ */
+.chips-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 13px;
+}
+.chip--pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  background: #f8fafc;
+  font-size: 13px;
+}
+.chip--pill .x {
+  cursor: pointer;
+  font-weight: 700;
+  line-height: 1;
+}
+
+      /* Prevent AC menu from being clipped */
+      .header-grid, .mat-card, .mat-card .bd { overflow: visible; }
+
+      /* Common autocomplete class names layered high */
+      .ac-menu, .ac-list, .autocomplete-menu { position: absolute; z-index: 99999; }
+    `;
+    document.head.appendChild(st);
+  }
+})();
+
 // ---- QS helpers
 function qsParams() {
   const usp = new URLSearchParams(location.search);
@@ -82,6 +184,85 @@ function buildQS(params) {
 }
 
 // ---- header & filters scaffold (Materials panel included)
+function ensureHeaderCard() {
+  let wrap = document.getElementById("p_header");
+  if (wrap) return wrap;
+
+  wrap = document.createElement("div");
+  wrap.id = "p_header";
+  wrap.className = "card";
+  wrap.innerHTML = `
+   
+      <div class="header-grid">
+        <!-- LEFT: Part meta + Filters -->
+       
+          <div class="bd">
+            <div class="fields">
+              <div class="f"><div class="lab">Part No</div>   <div id="h_part_no"   class="val">—</div></div>
+              <div class="f"><div class="lab">Part Name</div> <div id="h_part_name" class="val">—</div></div>
+              <div class="f"><div class="lab">Revision</div>  <div id="h_part_rev"  class="val">—</div></div>
+              <div class="f"><div class="lab">Customer</div>  <div id="h_customer"  class="val">—</div></div>
+            </div>
+          </div>
+          <div class="hd">Filters</div>
+          <div class="bd">
+            <div id="filters_panel" class="filters">
+              <!-- Cutting & Heat -->
+              <div class="fg" id="fg_basic">
+                <div class="chips">
+                  <label class="chip"><input type="checkbox" id="g_cutting"><span>Cutting</span></label>
+                  <label class="chip"><input type="checkbox" id="g_heat"><span>Heat Treating & Stress Relieve</span></label>
+                </div>
+              </div>
+              <!-- Manufacturing Processes group -->
+              <div class="fg" id="fg_mproc">
+                <div class="chips">
+                  <span class="ttl-inline">Manufacturing Processes</span>
+                  <span id="g_mproc"></span>
+                </div>
+              </div>
+              <!-- Chemical Finishing group -->
+              <div class="fg" id="fg_chem">
+                <div class="chips">
+                  <span class="ttl-inline">Chemical Finishing</span>
+                  <span id="g_chem"></span>
+                </div>
+              </div>
+              <!-- Other -->
+              <div class="fg" id="fg_other">
+                <div class="chips">
+                  <span class="ttl-inline">Other</span>
+                  <textarea id="g_other_text" 
+                            placeholder="Type other process / keyword..." 
+                            rows="4"></textarea>
+                </div>
+              </div>
+            </div>
+          </div>
+      
+
+        <!-- RIGHT: Materials -->
+        <div class="card mat-card">
+          <div class="hd"><span>Materials</span></div>
+          <div class="bd">
+            <div class="mat-row">
+              <input type="text" id="mat_ac_input" placeholder="Search material by code or name…" />
+              <button class="btn" id="mat_add_btn" title="Add selected material">Add</button>
+            </div>
+            <div id="mat_list" class="chips-wrap"></div>
+          </div>
+        </div>
+      </div>
+   
+  `;
+
+  const anchor = inputSearch?.closest(".toolbar") || inputSearch || tableMount;
+  if (anchor?.parentNode) anchor.parentNode.insertBefore(wrap, anchor);
+  else if (tableMount?.parentNode)
+    tableMount.parentNode.insertBefore(wrap, tableMount);
+  else document.body.prepend(wrap);
+  return wrap;
+}
 
 // ===== Materials (ID-based) =====
 async function fetchMaterials() {
@@ -509,8 +690,7 @@ function initTable() {
   if (!tableMount) return;
   /* global Tabulator */
   table = new Tabulator(tableMount, {
-    // layout: "fitColumns",
-    layout: "fitDataFill",
+    layout: "fitColumns",
     height: "auto",
     placeholder: "No rows",
     index: "lot_no",
@@ -757,7 +937,6 @@ function initTable() {
 
 // ---- load header meta (no side-effects)
 function fillHeaderMeta(meta) {
-  console.log("Filling header meta", meta);
   const elPartNo = document.getElementById("h_part_no");
   const elPartName = document.getElementById("h_part_name");
   const elPartRev = document.getElementById("h_part_rev");
@@ -788,36 +967,21 @@ function onSearchChange() {
 
 /* ---------- boot ---------- */
 inputSearch?.addEventListener("input", debounce(onSearchChange, 250));
-
 document.addEventListener("DOMContentLoaded", async () => {
-  initTopbar();
+  console.log("part-detail");
+  initTopbar?.();
+  ensureHeaderCard();
   initTable();
-  await loadData(); // โหลดตารางให้เร็วที่สุด
+  try {
+    await fetchLookups(); // 1) get IDs for process/finish
+    renderFilters(); // 2) checkboxes
+    await loadData(); // 3) table + header
+    await preloadSelectionsIntoUI(); // 4) pre-check boxes
 
-  // ทำ background tasks ทีหลัง
-  setTimeout(async () => {
-    await fetchLookups();
-    renderFilters();
-    await preloadSelectionsIntoUI();
+    // 5) Materials (autocomplete + initial list)
     initMaterialAutocomplete();
     await fetchMaterials();
-  }, 50);
+  } catch (e) {
+    toast?.(e?.message || "Init failed", false);
+  }
 });
-// document.addEventListener("DOMContentLoaded", async () => {
-//   console.log("part-detail");
-//   initTopbar?.();
-
-//   initTable();
-//   try {
-//     await fetchLookups(); // 1) get IDs for process/finish
-//     renderFilters(); // 2) checkboxes
-//     await loadData(); // 3) table + header
-//     await preloadSelectionsIntoUI(); // 4) pre-check boxes
-
-//     // 5) Materials (autocomplete + initial list)
-//     initMaterialAutocomplete();
-//     await fetchMaterials();
-//   } catch (e) {
-//     toast?.(e?.message || "Init failed", false);
-//   }
-// });

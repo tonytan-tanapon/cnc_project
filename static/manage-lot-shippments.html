@@ -22,9 +22,10 @@
         height: 100vh;
         display: flex;
         flex-direction: column;
-        overflow: hidden;
+        overflow-x: hidden;
+        overflow-y: auto;
+        min-height: 0 !important; /* ← ตัวนี้คือหัวใจ */
       }
-
       /* ===== HEADER ===== */
       .lot-info {
         padding: 14px 18px;
@@ -77,6 +78,7 @@
         display: flex;
         flex-direction: column;
         gap: 16px;
+        min-height: 0;
       }
 
       .panel {
@@ -96,8 +98,59 @@
         border-bottom: 1px solid #e5e7eb;
       }
       .table-wrap {
-        flex: 1;
+        /* flex: 1; */
         min-height: 300px;
+      }
+
+      .table-wrap {
+        overflow: hidden;
+      }
+
+      #partTable {
+        height: 350px !important;
+      }
+
+      #shipmentTable {
+        height: 400px !important;
+      }
+
+      .panel {
+        display: flex;
+        flex-direction: column;
+        min-height: 0 !important; /* ← ถ้าไม่ใส่ อันล่างจะดันอันบน */
+      }
+
+      /* ===== FIX PART INVENTORY COLLAPSING ===== */
+
+      .main--edge {
+        min-height: 0 !important;
+        overflow-y: auto;
+        overflow-x: hidden;
+      }
+
+      .content {
+        flex: 1;
+        min-height: 0 !important;
+        display: flex;
+        gap: 16px;
+        flex-direction: column;
+        overflow: hidden; /* สำคัญ */
+      }
+
+      .panel {
+        display: flex;
+        flex-direction: column;
+        min-height: 0 !important;
+      }
+
+      .panel .table-wrap {
+        flex: 1;
+        min-height: 600px !important; /* ป้องกันถูกบีบ */
+        overflow: auto;
+      }
+
+      #partTable {
+        height: 500px !important; /* ให้ Tabulator ใช้พื้นที่ขั้นต่ำ */
       }
     </style>
   </head>
