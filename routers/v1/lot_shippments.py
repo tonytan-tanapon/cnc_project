@@ -635,7 +635,7 @@ def download_cofc(shipment_id: int, db: Session = Depends(get_db)):
     return FileResponse(
         tmp.name,
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        filename=f"CofC_{shipment_id}.docx"
+        filename=f"CofC_{lot_no}_{part_no}.docx"
     )
 
 
@@ -712,5 +712,5 @@ def download_label(shipment_id: int, size: int, db: Session = Depends(get_db)):
     return FileResponse(
         tmp.name,
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        filename=f"Label_{shipment_id}_{size}.docx"
+        filename=f"Label_{lot}_{part}_{size}.docx"
     )
