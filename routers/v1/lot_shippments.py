@@ -547,8 +547,8 @@ def download_cofc(shipment_id: int, db: Session = Depends(get_db)):
     from docx import Document
     from fastapi.responses import FileResponse
     from datetime import datetime
-
-    # 1) Load shipment + items + lot + part + revision
+    
+    # 1) Load shipment + items + lot + part +   revision
     shipment = (
         db.query(CustomerShipment)
         .options(
@@ -631,11 +631,11 @@ def download_cofc(shipment_id: int, db: Session = Depends(get_db)):
     # Save temp file
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".docx")
     doc.save(tmp.name)
-
+    # print("CofC generated at:", tmp.name,)
     return FileResponse(
         tmp.name,
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        filename=f"CofC_{lot_no}_{part_no}.docx"
+        filename=f"CofCs_{lot_no}_{part_no}.docx"
     )
 
 
