@@ -629,27 +629,34 @@ def download_cofc(shipment_id: int, db: Session = Depends(get_db)):
                     replace_runs(p)
 
     # Save temp file
+    download_name = f"cofc_{lot.lot_no}_{part.part_no}.docx"
+    print("Generated CofC Filename:", download_name)
+
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".docx")
     doc.save(tmp.name)
-    # print("CofC generated at:", tmp.name,)
+
     return FileResponse(
         tmp.name,
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        filename=f"CofCs_{lot_no}_{part_no}.docx"
+        filename=download_name,  # ✅ Browser จะได้รับชื่อนี้
     )
 
-
 ##Labels: recent-edits
+from fastapi import Query
+from fastapi.responses import FileResponse
+import tempfile
+from docx import Document
+from datetime import datetime
+import os
+
 @router.get("/{shipment_id}/download/label/{size}")
-def download_label(shipment_id: int, size: int, db: Session = Depends(get_db)):
-    import os, tempfile
-    from docx import Document
-    from fastapi.responses import FileResponse
-    from datetime import datetime
-
-    if size not in (80, 60, 30):
-        raise HTTPException(status_code=400, detail="Invalid label size")
-
+def download_label(
+    shipment_id: int,
+    size: int,
+    fair: bool = Query(False),
+    db: Session = Depends(get_db),
+):
+    # 1️⃣ Load shipment + items + lot + part + revision
     shipment = (
         db.query(CustomerShipment)
         .options(
@@ -658,59 +665,82 @@ def download_label(shipment_id: int, size: int, db: Session = Depends(get_db)):
                 .joinedload(ProductionLot.part),
             joinedload(CustomerShipment.items)
                 .joinedload(CustomerShipmentItem.lot)
-                .joinedload(ProductionLot.part_revision),
+                .joinedload(ProductionLot.part_revision),  # ✅ โหลด revision แยก branch
         )
-        .get(shipment_id)
+        .filter(CustomerShipment.id == shipment_id)
+        .first()
     )
 
     if not shipment or not shipment.items:
         raise HTTPException(status_code=404, detail="Shipment not found or empty")
 
     item = shipment.items[0]
-
-    # -------- load data --------
     lot = item.lot
     part = lot.part if lot else None
-    rev_obj = lot.part_revision if lot else None
+    revision = lot.part_revision if lot else None
+
+    lot_no = lot.lot_no if lot else "UNKNOWN_LOT"
+    part_no = part.part_no if part else "UNKNOWN_PART"
     po_no = shipment.po.po_number if shipment.po else ""
+
+    # 2️⃣ Map replace fields
     replace_map = {
-        "{PART}": "PART: "+ part.part_no+ " "+part.name if part else "",
-        "{REV}": "REV: "+ rev_obj.rev +" LOT: "+ lot.lot_no +" PO: "+ po_no if rev_obj else "",
-        "{LOT_NO}": lot.lot_no if lot else "",
-        "{QTY}": str(float(item.qty or 0)),
+        "{PART}": f"Part: {part.part_no} {part.name}" if part else "",
+        "{REV}": f"Rev: {revision.rev} Lot: {lot.lot_no} PO: {po_no}" if revision else "",
+        "{LOT_NO}": lot_no,
+        "{QTY}": str(int(item.qty or 0)),
         "{DESCRIPTION}": part.name if part else "",
         "{DATE}": datetime.now().strftime("%m/%d/%Y"),
     }
 
-    # -------- template --------
+    # 3️⃣ Load template
     template_path = f"templates/label_{size}.docx"
     if not os.path.exists(template_path):
-        raise HTTPException(status_code=404, detail=f"Template label {size} not found")
+        raise HTTPException(status_code=404, detail="Template not found")
 
     doc = Document(template_path)
 
-    # -------- correct replace preserving format --------
+    # 4️⃣ Replace preserving format
     def replace_runs(paragraph):
         for run in paragraph.runs:
             for k, v in replace_map.items():
                 if k in run.text:
-                    run.text = run.text.replace(k, v)
+                    run.text = run.text.replace(k, v or "")
 
+        # ✅ ถ้า FAIR ถูกติ๊ก และ paragraph มี "Rev:" → ใส่ FAIR newline ต่อท้าย
+        if fair and "Rev:" in paragraph.text:
+            prev = paragraph.runs[-1]  # run ตัวสุดท้าย (ของเดิมจาก template)
+            new = paragraph.add_run("\nFAIR")
+            
+            # ✅ inherit style from previous run
+            new.bold = prev.bold
+            new.italic = prev.italic
+            new.underline = prev.underline
+            new.font.name = prev.font.name
+            new.font.size = prev.font.size  # ← เอา size เดิมมาใช้ 🔥
+
+    # 🔁 Replace ใน paragraph ปกติ
     for p in doc.paragraphs:
         replace_runs(p)
 
+    # 🔁 Replace ใน table cells
     for table in doc.tables:
         for row in table.rows:
             for cell in row.cells:
                 for p in cell.paragraphs:
                     replace_runs(p)
 
-    # -------- save temp --------
+    # 5️⃣ Save temp file
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".docx")
     doc.save(tmp.name)
 
+    # 6️⃣ ตั้งชื่อไฟล์ตอน download
+    download_name = f"label_{lot_no}_{part_no}{'_FAIR' if fair else ''}_{size}.docx"
+
+    # 7️⃣ Return file + force filename จาก client ✅
     return FileResponse(
-        tmp.name,
+        path=tmp.name,
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        filename=f"Label_{lot}_{part}_{size}.docx"
+        filename=download_name,
+        headers={"Content-Disposition": f'attachment; filename="{download_name}"'},
     )

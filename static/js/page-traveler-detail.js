@@ -641,7 +641,12 @@ function initStepsTable() {
         width: 110,
         hozAlign: "right",
         editor: "number",
-        editorParams: { step: 1 },
+        editorParams: { step: 1, min: 0, precision: 0 },
+        formatter: (cell) => {
+          const v = cell.getValue();
+          const n = parseInt(v, 10);
+          return Number.isFinite(n) && n >= 0 ? n : 0; // 👈 บังคับ return integer
+        },
       },
       {
         title: "Qty Accept",
@@ -649,7 +654,12 @@ function initStepsTable() {
         width: 110,
         hozAlign: "right",
         editor: "number",
-        editorParams: { step: 1 },
+        editorParams: { step: 1, min: 0, precision: 0 },
+        formatter: (cell) => {
+          const v = cell.getValue();
+          const n = parseInt(v, 10);
+          return Number.isFinite(n) && n >= 0 ? n : 0; // 👈 integer only
+        },
       },
       {
         title: "Qty Reject",
@@ -657,7 +667,12 @@ function initStepsTable() {
         width: 110,
         hozAlign: "right",
         editor: "number",
-        editorParams: { step: 1 },
+        editorParams: { step: 1, min: 0, precision: 0 },
+        formatter: (cell) => {
+          const v = cell.getValue();
+          const n = parseInt(v, 10);
+          return Number.isFinite(n) && n >= 0 ? n : 0; // 👈 integer only
+        },
       },
       { title: "Note", field: "step_note", width: 240, editor: "input" },
       { title: "Code", field: "step_code", width: 120, editor: "input" },

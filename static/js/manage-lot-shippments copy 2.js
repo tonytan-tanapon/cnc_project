@@ -224,18 +224,11 @@ async function downloadCofC(row) {
 async function downloadLabel(row, size) {
   const shipmentId = row.id;
 
-  // 🌟 อ่านค่าจาก checkbox FAIR ใน row นั้น
-  const fairCheckbox = document.querySelector(
-    `.fair-checkbox[data-id="${shipmentId}"]`
-  );
-  const fair = fairCheckbox ? fairCheckbox.checked : false;
+  // สร้างชื่อ fallback เผื่อ server ไม่ส่ง header มา
+  const safeSize = String(size);
+  const fallbackName = `cofc-${shipmentId}-${safeSize}.docx`;
 
-  // สร้าง query param ส่งไป backend
-  const params = new URLSearchParams();
-  params.set("size", size);
-  if (fair) params.set("fair", "true"); // ✅ ถ้ามี FAIR ให้ส่ง fair=true
-
-  const url = `/api/v1/lot-shippments/${shipmentId}/download/label/${size}?${params.toString()}`;
+  const url = `/api/v1/lot-shippments/${shipmentId}/download/label/${safeSize}`;
 
   try {
     const res = await fetch(url);
@@ -244,10 +237,9 @@ async function downloadLabel(row, size) {
       return;
     }
 
-    // ✅ ดึง filename จาก header backend
-    let downloadName = `label_${shipmentId}_${size}.docx`; // fallback
+    // ✅ ดึง filename จาก header backend (ถ้ามี)
+    let downloadName = fallbackName;
     const disposition = res.headers.get("Content-Disposition");
-
     if (disposition && disposition.includes("filename=")) {
       downloadName = disposition
         .split("filename=")[1]
@@ -257,9 +249,10 @@ async function downloadLabel(row, size) {
 
     const blob = await res.blob();
 
+    // ✅ Force download ด้วยชื่อจาก header server
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = downloadName; // ✅ ใช้ชื่อจาก server
+    link.download = downloadName; // ← ใช้ชื่อจาก server เสมือน cofc
     document.body.appendChild(link);
     link.click();
     link.remove();
@@ -270,7 +263,6 @@ async function downloadLabel(row, size) {
     toast("Error downloading label", false);
   }
 }
-
 /* ========= SHIPMENT TABLE (INLINE EDIT ENABLED) ========= */
 function initShipmentTable() {
   tableShipment = new Tabulator("#shipmentTable", {
@@ -421,56 +413,21 @@ function initShipmentTable() {
         title: "Label",
         width: 120,
         formatter: () => `
-    <div class="label-buttons">
-      <button class="btn-mini btn-orange" data-size="80">80</button>
-      <button class="btn-mini btn-blue" data-size="60">60</button>
-      <button class="btn-mini btn-green" data-size="30">30</button>
-    </div>
-  `,
-        cellClick: async (e, cell) => {
+            <div class="label-buttons">
+              <button class="btn-mini btn-orange" data-size="80">80</button>
+              <button class="btn-mini btn-blue" data-size="60">60</button>
+              <button class="btn-mini btn-green" data-size="30">30</button>
+            </div>
+          `,
+        cellClick: (e, cell) => {
           const row = cell.getRow().getData();
           const size = e.target.dataset.size;
           if (!size) return;
-          await downloadLabel(row, Number(size)); // ✅ เรียกฟังก์ชันใหม่แทน
+
+          downloadLabel(row, Number(size)); // ← ส่ง size ไปด้วย
         },
       },
-      {
-        title: "Action",
-        width: 110,
-        formatter: (cell) => {
-          const row = cell.getRow().getData();
-          return `<button data-act="return" class="btn-mini btn-orange">Return</button>`;
-        },
-        cellClick: async (e, cell) => {
-          const row = cell.getRow().getData();
-          const act = e.target.dataset.act;
-          if (act !== "return") return;
 
-          const qtyValue = Number(row.qty); // ✅ Return ตาม QTY ใน row ไปเลย
-          if (isNaN(qtyValue) || qtyValue <= 0) {
-            return toast("Invalid quantity", false);
-          }
-
-          try {
-            await jfetch(`/api/v1/lot-shippments/return-part`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                qty: qtyValue,
-                source_lot_id: row.source_lot_ids?.[0] || row.lot_id,
-                target_lot_id: row.lot_id,
-                shipment_id: row.id,
-              }),
-            });
-
-            toast("✅ Returned successfully");
-            await Promise.all([loadShipmentTable(), loadPartInventory()]);
-          } catch (err) {
-            console.error("Return failed:", err);
-            toast("❌ Failed to return", false);
-          }
-        },
-      },
       {
         title: "Delete",
         width: 90,
@@ -481,7 +438,7 @@ function initShipmentTable() {
           if (!confirm(`Delete shipment ${row.shipment_no}?`)) return;
 
           try {
-            await jfetch(`/api/v1/lot-shippments/delete/${row.id}`, {
+            await jfetch(`/api/v1/lot-shippments/${row.id}`, {
               method: "DELETE",
             });
 
