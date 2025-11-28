@@ -2,6 +2,7 @@
 import { $, jfetch, toast } from "./api.js";
 
 /* ========= CONFIG ========= */
+
 const lotId = new URLSearchParams(location.search).get("lot_id");
 if (!lotId) {
   toast("Missing lot_id in URL", false);
@@ -372,30 +373,41 @@ function initShipmentTable() {
         field: "allocated_lots",
         width: 170,
         formatter: (cell) => {
+          const row = cell.getRow().getData();
           const lots = cell.getValue();
           if (!lots || !Array.isArray(lots) || !lots.length) {
             return `<span style="color:#ccc">(no alloc)</span>`;
           }
+
           return lots
-            .map(
-              (lot) => `
+            .map((lot) => {
+              const disabled =
+                row.status === "shipped" ? "disabled btn-disabled" : "";
+              return `
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
         <span>${lot.lot_no}, (${lot.qty}) </span>
-        <button data-act="return-one" data-lot-id="${lot.lot_id}" data-qty="${lot.qty}" class="btn-mini btn-orange">
+        <button data-act="return-one"
+                data-lot-id="${lot.lot_id}"
+                data-qty="${lot.qty}"
+                class="btn-mini btn-orange ${disabled}">
           Return
         </button>
       </div>
-    `
-            )
+    `;
+            })
             .join("");
         },
         cellClick: async (e, cell) => {
           const btn = e.target;
           if (btn.dataset.act !== "return-one") return;
 
+          const row = cell.getRow().getData();
+          if (row.status === "shipped") {
+            return toast("⛔ Cannot return, shipment already shipped", false);
+          }
+
           const sourceLotId = Number(btn.dataset.lotId);
-          const row = cell.getRow();
-          const shipmentId = row.getData().id;
+          const shipmentId = row.id;
 
           try {
             await jfetch(ENDPOINTS.returnPart, {
@@ -411,12 +423,9 @@ function initShipmentTable() {
 
             toast("✅ Return success");
 
-            // ✅ Reload เฉพาะ table + inventory
             await loadShipmentTable();
             await loadPartInventory();
-
-            // ✅ Optionally: อัพเดต row เอฟเฟกต์ (fade or highlight)
-            row.update({}); // trigger redraw row
+            cell.getRow().update({}); // redraw row
           } catch (err) {
             console.error("Return error:", err);
             toast("❌ Return failed", false);
@@ -428,6 +437,16 @@ function initShipmentTable() {
         field: "qty",
         editor: "number",
         width: 80,
+
+        formatter: (cell) => {
+          const v = cell.getValue() ?? 0;
+          return `<div style="
+        background: yellow;
+        padding: 4px 8px;
+        border-radius: 6px;
+      ">${v}</div>`;
+        },
+
         cellEdited: async (cell) => {
           const row = cell.getRow().getData();
           const newQty = Number(cell.getValue());
@@ -455,7 +474,6 @@ function initShipmentTable() {
           }
         },
       },
-
       {
         title: "Status",
         field: "status",

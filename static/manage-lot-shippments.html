@@ -130,6 +130,27 @@
       #shipmentTable {
         height: 100% !important;
       }
+
+      .panel-header {
+        display: flex;
+        justify-content: flex-start; /* ← ให้ชิดซ้ายหมด */
+        align-items: center;
+        gap: 10px; /* ← ระยะห่างระหว่างหัวข้อกับปุ่ม (ไม่ต้องเยอะ) */
+        padding: 8px 12px;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .panel-header h3 {
+        margin: 0;
+        font-size: 16px;
+        font-weight: 600;
+      }
+
+      .btn-disabled {
+        opacity: 0.5;
+        pointer-events: none;
+        cursor: not-allowed;
+      }
     </style>
   </head>
 
@@ -148,13 +169,6 @@
           <div id="lotHeader" class="lot-grid">Loading lot information...</div>
         </section>
 
-        <!-- Toolbar -->
-        <div class="toolbar">
-          <button id="btnCreateShipment" class="btn primary">
-            ➕ Create Shipment
-          </button>
-        </div>
-
         <!-- Scrollable Content -->
         <div class="content">
           <!-- Part Inventory -->
@@ -166,8 +180,15 @@
           </section>
 
           <!-- Shipment Records -->
+          <!-- Shipment Records -->
           <section class="panel">
-            <h3>🚚 Shipment Records</h3>
+            <div class="panel-header">
+              <h3>📦 Shipment Records</h3>
+              <button id="btnCreateShipment" class="btn primary btn-mini">
+                ➕ Create Shipment
+              </button>
+            </div>
+
             <div class="table-wrap">
               <div id="shipmentTable"></div>
             </div>
