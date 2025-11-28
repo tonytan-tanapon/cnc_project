@@ -97,24 +97,17 @@ def list_lot_shipments(lot_id: int, db: Session = Depends(get_db)):
         items = s.items or []
         qty_sum = sum(float(i.qty or 0) for i in items)
 
-        # ✅ GROUP by lot_no
-        lot_group = {}
+        # ✅ สรุป lot_no + qty จาก items
+        allocated = []
         for i in items:
             if i.lot_id:
                 lot = db.get(ProductionLot, i.lot_id)
                 if lot:
-                    if lot.lot_no not in lot_group:
-                        lot_group[lot.lot_no] = {"qty": 0, "lot_id": lot.id}
-                    lot_group[lot.lot_no]["qty"] += float(i.qty or 0)
+                    allocated.append({
+                        "lot_no": lot.lot_no,
+                        "qty": float(i.qty)
+                    })
 
-        allocated_list = [
-            {
-                "lot_id": v["lot_id"],
-                "lot_no": k,
-                "qty": v["qty"],
-            }
-            for k, v in lot_group.items()
-        ]
         result.append({
             "id": s.id,
             "shipment_no": s.package_no or f"SHP-{s.id:05d}",
@@ -125,10 +118,9 @@ def list_lot_shipments(lot_id: int, db: Session = Depends(get_db)):
             "tracking_number": s.tracking_no,
             "customer_name": s.po.customer.name if s.po and s.po.customer else None,
 
-            # 🆕 ส่งให้ UI
-            "allocated_lots": allocated_list,
+            # 🆕 ใช้ field นี้ให้ UI
+            "allocated_lots": allocated,
         })
-
     return result
 
 # ============================================================
@@ -194,7 +186,7 @@ def allocate_part(req: AllocatePartRequest, db: Session = Depends(get_db)):
             & (ShopTravelerStep.seq == sub_max_seq.c.max_seq),
         )
         .join(ShopTraveler, ShopTraveler.id == ShopTravelerStep.traveler_id)
-        .filter(ShopTraveler.lot_id == source_lot.id)   # ✅ ใช้ source_lot
+        .filter(ShopTraveler.lot_id == source_lot.id)
         .filter(ShopTravelerStep.status.in_(["passed", "completed"]))
         .scalar()
         or 0
@@ -202,7 +194,7 @@ def allocate_part(req: AllocatePartRequest, db: Session = Depends(get_db)):
 
     shipped_qty = (
         db.query(func.coalesce(func.sum(CustomerShipmentItem.qty), 0))
-        .filter(CustomerShipmentItem.lot_id == source_lot.id)   # ✅ แก้แล้ว
+        .filter(CustomerShipmentItem.lot_id == source_lot.id)
         .scalar()
         or 0
     )
@@ -215,6 +207,7 @@ def allocate_part(req: AllocatePartRequest, db: Session = Depends(get_db)):
         )
 
     # ✅ ถ้ามี shipment_id ให้ใช้เลย ไม่ต้องสร้างใหม่
+    shipment = None
     if req.shipment_id:
         shipment = db.get(CustomerShipment, req.shipment_id)
         if not shipment:
@@ -225,7 +218,7 @@ def allocate_part(req: AllocatePartRequest, db: Session = Depends(get_db)):
     new_item = CustomerShipmentItem(
         shipment_id=shipment.id,
         po_line_id=target_lot.po_line_id or 0,
-        lot_id=source_lot.id,  # ของมาจาก lot ต้นทาง
+        lot_id=source_lot.id,  # ✅ ของมาจาก lot ต้นทาง
         qty=qty,
     )
 
