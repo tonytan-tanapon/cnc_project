@@ -36,7 +36,7 @@ from models import (
 
 # ---------- CONFIG ----------
 DATABASE_URL = "postgresql+psycopg2://postgres:1234@localhost:5432/mydb"
-CSV_FILE = Path(r"C:\Users\TPSERVER\dev\cnc_project\database_import\import_lot.csv")
+CSV_FILE = Path(r"C:\Users\TPSERVER\dev\cnc_project\database_import\import_lot_112825.csv")
 # CSV_FILE = Path(r"C:\Users\TPSERVER\dev\cnc_project\database_import\import_lot_back2.csv")
 CSV_ENCODING = "utf-8-sig"
 CSV_DELIMITER = ","
