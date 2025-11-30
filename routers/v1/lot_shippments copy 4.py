@@ -199,7 +199,7 @@ def allocate_part(req: AllocatePartRequest, db: Session = Depends(get_db)):
         .scalar()
         or 0
     )
-   
+
     shipped_qty = (
         db.query(func.coalesce(func.sum(CustomerShipmentItem.qty), 0))
         .filter(CustomerShipmentItem.lot_id == source_lot.id)   # ✅ แก้แล้ว
@@ -213,7 +213,7 @@ def allocate_part(req: AllocatePartRequest, db: Session = Depends(get_db)):
             status_code=400,
             detail=f"Cannot allocate {qty} pcs — only {available_qty} available in {source_lot.lot_no}",
         )
-    print(source_lot, target_lot, shipped_qty, available_qty)
+
     # ✅ ถ้ามี shipment_id ให้ใช้เลย ไม่ต้องสร้างใหม่
     if req.shipment_id:
         shipment = db.get(CustomerShipment, req.shipment_id)
@@ -226,7 +226,6 @@ def allocate_part(req: AllocatePartRequest, db: Session = Depends(get_db)):
         shipment_id=shipment.id,
         po_line_id=target_lot.po_line_id or 0,
         lot_id=source_lot.id,  # ของมาจาก lot ต้นทาง
-        lot_allocate_id = source_lot.id,
         qty=qty,
     )
 
