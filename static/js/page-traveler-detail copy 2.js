@@ -211,8 +211,7 @@ async function fillTraveler(t) {
 
   $("status").value = t.status ?? "";
   $("notes").value = t.notes ?? "";
-  console.log(t);
-  $("t_sub").textContent = `#${t.traveler_no}`;
+  $("t_sub").textContent = `#${t.id} — Lot ${t.lot_id ?? ""}`;
   document.title = `Traveler · #${t.id}`;
   markHeaderDirty(false);
 

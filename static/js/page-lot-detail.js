@@ -27,6 +27,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const lotId = new URLSearchParams(location.search).get("lot_id");
   if (!lotId) return toast("Missing lot_id in URL", false);
 
+  const elLotNo = document.getElementById("lot_no");
   const elPlanned = document.getElementById("plannedQtyInput");
   const elDueDate = document.getElementById("dueDateInput");
   const btnSavePlanned = document.getElementById("btnSavePlanned");
@@ -48,9 +49,11 @@ document.addEventListener("DOMContentLoaded", () => {
   async function loadHeader() {
     try {
       const lot = await jfetch(`/api/v1/lots/${encodeURIComponent(lotId)}`);
+      console.log(lot);
+      console.log(lot.lot_no);
       originalPlannedQty = lot.planned_qty ?? 0;
       originalDueDate = lot.lot_due_date ?? null;
-
+      elLotNo.textContent = "📄 Lot Detail: " + lot.lot_no;
       elPlanned.value = originalPlannedQty;
       elDueDate.value = originalDueDate ? lot.lot_due_date.split("T")[0] : "";
       elFinished.textContent = lot.finished_qty ?? "-";

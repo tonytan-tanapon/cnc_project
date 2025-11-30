@@ -348,6 +348,7 @@ class ProductionLotCreate(BaseModel):
     part_revision_id: Optional[int] = None
     po_id: Optional[int] = None
     planned_qty: int = 0
+    lot_due_date : Optional[datetime] = None
     started_at: Optional[datetime] = None
     finished_at: Optional[datetime] = None
     status: Optional[LotStatus] = "in_process"
@@ -357,6 +358,7 @@ class ProductionLotUpdate(BaseModel):
     part_id: Optional[int] = None
     part_revision_id: Optional[int] = None
     po_id: Optional[int] = None
+    lot_due_date : Optional[datetime] = None
     planned_qty: Optional[int] = None
     started_at: Optional[datetime] = None
     finished_at: Optional[datetime] = None
@@ -390,6 +392,7 @@ class ProductionLotOut(BaseModel):
     po_id: Optional[int] = None
 
     planned_qty: int
+    lot_due_date : Optional[datetime] = None
     started_at: Optional[datetime] = None
     finished_at: Optional[datetime] = None
     status: Optional[str] = None

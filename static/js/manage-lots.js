@@ -154,13 +154,15 @@ function appendRows(items) {
       <td>${fmtDate(r.ship_date)}</td>
       <td style="text-align:right">${fmtQty(r.ship_qty)}</td>
 
+      
       <td class="lot-links">
         ${
           travelerId
-            ? `<a href="/static/traveler-detail.html?id=${travelerId}">Traveler</a>`
+            ? `<a href="/static/traveler-detail.html?lot_id=${lotId}">Traveler</a>`
             : "—"
         }
       </td>
+      
 
       <td class="lot-links">
         ${
