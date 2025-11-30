@@ -160,7 +160,8 @@ def list_lot_shipments(lot_id: int, db: Session = Depends(get_db)):
             "date": s.shipped_at,
             "tracking_number": s.tracking_no,
             "customer_name": s.po.customer.name if s.po and s.po.customer else None,
-
+            "customer_code": s.po.customer.code if s.po and s.po.customer else None,  # ✅ เพิ่มบรรทัดนี้
+            # "customer_code": s.po.customer.code if s.po and s.po.code else None,
             # ✅ ส่งให้ UI
             "lots": lots_list,
             "allocated_lots": allocated_lots_list,  # 👈 มี allocate ID แล้ว

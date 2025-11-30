@@ -303,6 +303,22 @@ async function downloadLabel(row, size) {
   }
 }
 
+async function downloadReport(row) {
+  console.log(row);
+
+  const batContent = [
+    "@echo off",
+    'start "" "Z:\\Topnotch Group\\Public\\AS9100\\taskman.xlsx"',
+  ].join("\r\n");
+
+  const blob = new Blob([batContent], { type: "text/plain" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `open_${row.id}.bat`; // ตั้งชื่อจาก row ได้เลย
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
 /* ========= SHIPMENT TABLE (INLINE EDIT ENABLED) ========= */
 function initShipmentTable() {
   tableShipment = new Tabulator("#shipmentTable", {
@@ -311,14 +327,14 @@ function initShipmentTable() {
     placeholder: "No shipment data",
 
     columns: [
-      { title: "Shipment No", field: "shipment_no", width: 130 },
+      { title: "#Ship", field: "shipment_no", width: 95 },
 
       {
         title: "Date",
         field: "date", // 👈 ต้องตรงกับ response จาก server
         editor: "input",
         editorParams: { elementAttributes: { type: "date" } },
-        width: 100,
+        width: 90,
 
         formatter: (cell) => {
           let v = cell.getValue();
@@ -359,7 +375,7 @@ function initShipmentTable() {
         },
       },
 
-      { title: "Customer", field: "customer_name", width: 160 },
+      { title: "Cus.", field: "customer_code", width: 80 },
 
       {
         title: "Tracking #",
@@ -375,13 +391,13 @@ function initShipmentTable() {
           const lots = cell.getValue() || [];
           return lots.map((l) => l.lot_no).join(", "); // แสดงเฉพาะ lot_no
         },
-        editor: "input",
-        width: 160,
+
+        width: 100,
       },
       {
-        title: "Allocated Lot(s)",
+        title: "Allocated",
         field: "allocated_lots",
-        width: 170,
+        width: 150,
         formatter: (cell) => {
           const row = cell.getRow().getData();
           const lots = cell.getValue();
@@ -579,6 +595,22 @@ function initShipmentTable() {
           const size = e.target.dataset.size;
           if (!size) return;
           await downloadLabel(row, Number(size)); // ✅ เรียกฟังก์ชันใหม่แทน
+        },
+      },
+      {
+        title: "Report",
+        width: 100,
+        formatter: () => `
+    <div class="label-buttons">
+      <button class="btn-mini btn-orange" data-size="80">Report</button>
+      
+    </div>
+  `,
+        cellClick: async (e, cell) => {
+          const row = cell.getRow().getData();
+          const size = e.target.dataset.size;
+          if (!size) return;
+          await downloadReport(row); // ✅ เรียกฟังก์ชันใหม่แทน
         },
       },
 
