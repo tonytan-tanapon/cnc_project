@@ -334,7 +334,9 @@ async function downloadReport(row) {
   const partNo = h.part_no || "UNKNOWN_PART";
   const rev = row.rev || h.part_rev || "UNKNOWN_REV";
   const cusCode = row.customer_code || h.customer_code || "UNKNOWN_CUS";
+
   const dateCreate = "11-12-25";
+
   const cusKey = {
     AF6182: "Aero Fluid",
     BE5503: "BEI",
@@ -345,12 +347,15 @@ async function downloadReport(row) {
     TS1046: "T-System",
   };
 
-  // dict lookup (เหมือน Python dict)
-  console.log(cusKey[cusCode]); // → "BEI"
-  const folderPath = `Z:\\Topnotch Group\\Public\\${year}\\Inspection Report ${year}\\${cusKey[cusCode]}`;
+  // customer name lookup พร้อม fallback
+  const customerName = cusKey[cusCode] || "UNKNOWN_CUSTOMER";
 
+  // path ใช้ \\ ต้อง escape ให้ BAT ใช้ได้ (BAT รับ \ ปกติ)
+  const folderPath = `Z:\\Topnotch Group\\Public\\${year}\\Inspection Report ${year}\\${customerName}`;
+  const template = `Z:\\Topnotch Group\\Public\\template.xlsx`;
   const fullFile = `${folderPath}\\${partNo} ${dateCreate} ${lotNo}.xlsx`;
   console.log(fullFile);
+
   const batContent = [
     "@echo off",
     `echo Lot: ${lotNo}`,
@@ -358,16 +363,19 @@ async function downloadReport(row) {
     `echo Rev: ${rev}`,
     `echo Customer Code: ${cusCode}`,
     "",
-    'if not exist "' + folderPath + '" mkdir "' + folderPath + '"',
-    'if not exist "' + fullFile + '" echo (empty report) > "' + fullFile + '"',
-    'start "" "' + fullFile + '"',
-    "pause",
+    // check folder if not exist → create
+    `if not exist "${folderPath}" mkdir "${folderPath}"`,
+    // copy Excel template ถ้า file ยังไม่มี
+    `if not exist "${fullFile}" copy "${template}" "${fullFile}"`,
+    // open file
+    `start "" "${fullFile}"`,
+    // "pause",
   ].join("\r\n");
 
   const blob = new Blob([batContent], { type: "text/plain" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = `open_${lotNo}_${partNo}_${cusCode}_${rev}.bat`;
+  a.download = `InspectionReport_${lotNo}_${partNo}_${cusCode}.bat`;
   a.click();
   URL.revokeObjectURL(a.href);
 }
