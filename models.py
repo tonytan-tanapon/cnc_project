@@ -1295,17 +1295,30 @@ class CustomerShipment(Base):
     items = relationship("CustomerShipmentItem", back_populates="shipment", cascade="all, delete-orphan")
 
 
+from sqlalchemy import Column, Integer, ForeignKey, Numeric
+from sqlalchemy.orm import relationship
+
 class CustomerShipmentItem(Base):
     __tablename__ = "customer_shipment_items"
+
     id = Column(Integer, primary_key=True)
     shipment_id = Column(Integer, ForeignKey("customer_shipments.id"), nullable=False, index=True)
     po_line_id = Column(Integer, ForeignKey("po_lines.id"), nullable=False, index=True)
+    
     lot_id = Column(Integer, ForeignKey("production_lots.id"), nullable=True, index=True)
+    lot_allocate_id = Column(Integer, ForeignKey("production_lots.id"), nullable=True, index=True)
+
     qty = Column(Numeric(18, 3), nullable=False)
+
+    # Relationship ที่ 1 → lot of shipment (lot_id)
+    lot = relationship("ProductionLot", foreign_keys=[lot_id])
+
+    # Relationship ที่ 2 → lot ที่ถูกหักจริง (lot_allocate_id)
+    allocated_lot = relationship("ProductionLot", foreign_keys=[lot_allocate_id])
 
     shipment = relationship("CustomerShipment", back_populates="items")
     po_line = relationship("POLine")
-    lot = relationship("ProductionLot")
+
 
 
 # ===== Customer Invoice =====

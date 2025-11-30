@@ -38,7 +38,6 @@ from models import (
 DATABASE_URL = "postgresql+psycopg2://postgres:1234@localhost:5432/mydb"
 CSV_FILE = Path(r"C:\Users\TPSERVER\dev\cnc_project\database_import\import_lot_112825.csv")
 # CSV_FILE = Path(r"C:\Users\TPSERVER\dev\cnc_project\database_import\import_lot_back2.csv")
-CSV_FILE = Path(r"C:\Users\TPSERVER\dev\cnc_project\database_import\import_lot_mini.csv")
 CSV_ENCODING = "utf-8-sig"
 CSV_DELIMITER = ","
 
@@ -266,7 +265,7 @@ def get_or_upsert_traveler(
             seq=0,
             step_code="0",
             step_name="Auto generate",
-            status="passed",
+            status="Passed",
             qty_receive=lot_qty,
             qty_accept=lot_qty,
             qty_reject=0,
@@ -315,19 +314,31 @@ def main():
                 po_number = pick(row, "PO#", "PO Number")
                 lot_no = pick(row, "Lot#", "Lot #", "Lot No", "Lot Number", "LOT NO.")
                 qty_po = parse_int(pick(row, "Qty PO", "Qty", "Quantity"))
-                
                 price_each = clean_money(pick(row, "Price", "Unit Price"))
-                due_date = parse_date(pick(row, "Due Date", "Original"))                    # PO due date
-                created_at = parse_date(pick(row, "Date"))                                  # lot create datae
-                need_remark = pick(row, "Need/Remark", "Remark")        
+                due_date = parse_date(pick(row, "Due Date", "Original"))
+                created_at = parse_date(pick(row, "Date"))
+                need_remark = pick(row, "Need/Remark", "Remark")
                 fair_no = pick(row, "FAIR#", "FAIR No")
                 invoice_no = pick(row, "Invoice#", "Invoice No.")
                 residual_inv = parse_int(pick(row, "Residual Inv", "Residual Invoice"))
-                ship_date = parse_date(pick(row, "Ship Date", "Shipped Date"))              # ship create date
-              
-                qty_ship = parse_int(parse_int(pick(row, "Qty Shipped")))                   # ship qty
+                ship_date = parse_date(pick(row, "Ship Date", "Shipped Date"))
+                # print(ship_date)
+                qty_ship = parse_int(parse_int(pick(row, "Qty Shipped")))
 
-                     
+                if qty_po == 0:
+                     qty_po = qty_ship
+                if qty_ship is None:
+                    qty_ship = 0
+                
+                ship_status = True if qty_ship > 0 else  False
+                
+              
+
+                # --- Auto-generate Lot No if missing ---
+                if not lot_no:
+                    today = datetime.now().strftime("%Y%m%d")
+                    lot_no = f"AUTO-{today}-{processed+1:04d}"
+
                 # --- Part ---
                 part = db.execute(select(Part).where(Part.part_no == part_no)).scalar_one_or_none()
                 if not part:
@@ -386,10 +397,7 @@ def main():
                     continue
                 po = db.scalar(select(PO).where(PO.po_number == po_number))
                 if not po:
-                    po = PO(
-                        po_number=po_number, 
-                        customer_id=customer.id, 
-                        created_at = to_utc_midnight(created_at))         # col A: date for po date
+                    po = PO(po_number=po_number, customer_id=customer.id)
                     db.add(po)
                     db.flush()
 
@@ -398,41 +406,32 @@ def main():
                     POLine.part_id == part.id,
                     POLine.revision_id == (rev.id if rev else None),
                 ))
-           
                 if not line:
                     line = POLine(
                         po_id=po.id,
                         part_id=part.id,
                         revision_id=(rev.id if rev else None),
-                        qty_ordered=Decimal(qty_po or 0),               # col I: QTY PO
-                        unit_price=price_each,                          # col J: Price
-                        due_date=(to_utc_midnight(due_date) if due_date else None),  # col H: due date
+                        qty_ordered=Decimal(qty_po or 0),
+                        unit_price=price_each,
+                        due_date=(to_utc_midnight(due_date) if due_date else None),
                     )
                     db.add(line)
                     db.flush()
 
-                # --- Auto-generate Lot No if missing ---
-                if not lot_no:
-                    today = datetime.now().strftime("%Y%m%d")
-                    lot_no = f"AUTO-{today}-{processed+1:04d}"
-
+                        
                 lot_qty = 0
-                if qty_ship != 0 and qty_po != 0  :
+                if qty_ship == 0:
+                    lot_qty = 0
+                else:
                     lot_qty = qty_po
-                # elif qty_ship !=0 and lot_qty !=0:
-                #     lot_qty = qty_po
-                # elif qty_ship !=0 and lot_qty ==0:
-                #     lot_qty = 0
-
-               
                 # --- Lot ---
                 lot = get_or_upsert_lot(
                     db=db,
                     lot_no=lot_no,
                     po_line=line,
-                    qty=lot_qty,    # plan qty
-                    lot_due_date=(due_date - timedelta(days=30)) if due_date else None,
-                    start_date=(due_date - timedelta(days=60)) if due_date else None,
+                    qty=lot_qty,
+                    lot_due_date=due_date,
+                    start_date=(due_date - timedelta(days=30)) if due_date else None,
                     created_date=created_at,
                     note=need_remark,
                     fair_note=fair_no,
@@ -448,21 +447,16 @@ def main():
                         residual_inv=residual_inv,
                     )
 
-                 #### ship temp 
-                # if qty_po == 0:
-                #      qty_po = qty_ship
-                # if qty_ship is None:
-                #     qty_ship = 0
+
                 
-                # ship_status = True if qty_ship > 0 else  False
-                #####
-                lot_back = lot.id  # from customer_shipment.lot_id
-                # # --- Shipment ---
+                # --- Shipment ---
                 if qty_ship:
-                    print("ship",qty_ship)
                     # Find or create shipment header (per PO + ship_date)
-                   
-                    if True:
+                    shipment = db.scalar(select(CustomerShipment).where(
+                        CustomerShipment.po_id == po.id,
+                        CustomerShipment.shipped_at == to_utc_midnight(ship_date),
+                    ))
+                    if not shipment:
                         shipment = CustomerShipment(
                             po_id=po.id,
                             lot_id=lot.id,            # <<<<<<<<<<<<<< ADD THIS LINE
@@ -472,47 +466,40 @@ def main():
                         db.add(shipment)
                         db.flush()
 
-                    # # Find or create shipment item (detail row per lot)
-                    # lot = db.scalar(
-                    #     select(ProductionLot).where(ProductionLot.po_id == po.id, ProductionLot.planned_qty > 0)
-                    #         .order_by(ProductionLot.lot_due_date.asc())
-                    # )
-
-                    # item = db.scalar(select(CustomerShipmentItem).where(
-                    #     CustomerShipmentItem.shipment_id == shipment.id,
-                    #     CustomerShipmentItem.po_line_id == line.id,
-                    #     CustomerShipmentItem.lot_id == (lot.id if lot else None),
-                        
-                    # ))
+                    # Find or create shipment item (detail row per lot)
+                    lot = db.scalar(select(ProductionLot).where(ProductionLot.lot_no == lot_no))
+                    item = db.scalar(select(CustomerShipmentItem).where(
+                        CustomerShipmentItem.shipment_id == shipment.id,
+                        CustomerShipmentItem.po_line_id == line.id,
+                        CustomerShipmentItem.lot_id == (lot.id if lot else None),
+                    ))
                    
-                    # if not item:
-                    #     item = CustomerShipmentItem(
-                    #         shipment_id=shipment.id,
-                    #         po_line_id=line.id,
-                    #         lot_id=lot_back,
-                    #         qty=Decimal(qty_ship or 0),
-                    #         lot_allocate_id =(lot.id if lot else None),
+                    if not item:
+                        item = CustomerShipmentItem(
+                            shipment_id=shipment.id,
+                            po_line_id=line.id,
+                            lot_id=(lot.id if lot else None),
+                            qty=Decimal(qty_ship or 0),
+                        )
+                        db.add(item)
+                        db.flush()
 
-                    #     )
-                    #     db.add(item)
-                    #     db.flush()
+                    # ✅ Update customer_shipments.status
+                    if ship_date:
+                        db.execute(
+                            update(CustomerShipment)
+                            .where(CustomerShipment.id == shipment.id)
+                            .values(status="shipped")
+                        )
+                        db.flush()
 
-                    # # ✅ Update customer_shipments.status
-                    # if ship_date:
-                    #     db.execute(
-                    #         update(CustomerShipment)
-                    #         .where(CustomerShipment.id == shipment.id)
-                    #         .values(status="shipped")
-                    #     )
-                    #     db.flush()
-
-                    # # ✅ Also mark the ProductionLot as completed if qty_ship > 0
-                    # if qty_ship and lot:
-                    #     db.execute(
-                    #         update(ProductionLot)
-                    #         .where(ProductionLot.id == lot.id)
-                    #         .values(status="completed")
-                    #     )
+                    # ✅ Also mark the ProductionLot as completed if qty_ship > 0
+                    if qty_ship and lot:
+                        db.execute(
+                            update(ProductionLot)
+                            .where(ProductionLot.id == lot.id)
+                            .values(status="completed")
+                        )
 
 
 
@@ -524,13 +511,5 @@ def main():
             db.commit()
     print(f"✅ Done. Processed {processed} rows from {CSV_FILE.name}")
 
-    # รันไฟล์อื่นต่อ
-    import_customer.main()
-    import_material.main()
-import import_customer
-import import_material
-import remove_data
 if __name__ == "__main__":
-    remove_data.main()
-    print("Another file finished too!")
     main()
