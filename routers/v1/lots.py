@@ -90,6 +90,7 @@ def create_lot(payload: ProductionLotCreate, db: Session = Depends(get_db)):
         started_at=payload.started_at,
         finished_at=payload.finished_at,
         status=payload.status or "in_process",
+        
     )
 
     for _ in range(3):
@@ -279,10 +280,12 @@ def get_lot(lot_id: int, db: Session = Depends(get_db)):
     )
     if not lot:
         raise HTTPException(404, "Lot not found")
+  
     return lot
 
 @router.put("/{lot_id}", response_model=ProductionLotOut)
 def update_lot_put(lot_id: int, payload: ProductionLotUpdate, db: Session = Depends(get_db)):
+    print(ProductionLotUpdate)
     lot = db.get(ProductionLot, lot_id)
     if not lot:
         raise HTTPException(404, "Lot not found")
