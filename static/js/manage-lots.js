@@ -74,7 +74,7 @@ async function loadMore() {
       done = true;
       return;
     }
-
+    console.log(items);
     appendRows(items);
     totalLoaded += items.length;
     page += 1;
