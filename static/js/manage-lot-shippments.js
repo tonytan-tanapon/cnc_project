@@ -369,6 +369,16 @@ function initShipmentTable() {
         cellEdited: updateField("tracking_number"),
       },
       {
+        title: "Lot",
+        field: "lots",
+        formatter: (cell) => {
+          const lots = cell.getValue() || [];
+          return lots.map((l) => l.lot_no).join(", "); // แสดงเฉพาะ lot_no
+        },
+        editor: "input",
+        width: 160,
+      },
+      {
         title: "Allocated Lot(s)",
         field: "allocated_lots",
         width: 170,

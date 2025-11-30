@@ -34,9 +34,9 @@ def get_part_inventory_data(db: Session, lot_id: int):
     if not part:
         raise HTTPException(status_code=404, detail="Part not found")
 
+    # ✅ ใช้ traveler steps เพื่อคำนวณ finished_qty
     from models import ShopTraveler, ShopTravelerStep
 
-    # ===== คิด finished_qty จาก traveler steps =====
     sub_max_seq = (
         db.query(
             ShopTravelerStep.traveler_id,
@@ -55,15 +55,14 @@ def get_part_inventory_data(db: Session, lot_id: int):
         )
         .join(ShopTraveler, ShopTraveler.id == ShopTravelerStep.traveler_id)
         .filter(ShopTraveler.lot_id == lot.id)
-        .filter(ShopTravelerStep.status.in_(["passed", "completed"]))
+        .filter(ShopTravelerStep.status.in_(["passed", "completed"]))  # ✅ fixed
         .scalar()
         or 0
     )
 
-    # ===== shipped_qty ควรดูจาก lot_allocate_id (lot แหล่งของสต็อก) =====
     shipped_qty = (
-        db.query(func.coalesce(func.sum(CustomerShipmentItem.qty), 0))
-        .filter(CustomerShipmentItem.lot_allocate_id == lot_id)  # 👈 เปลี่ยนเป็น lot_allocate_id
+        db.query(func.sum(CustomerShipmentItem.qty))
+        .filter(CustomerShipmentItem.lot_id == lot_id)
         .scalar()
         or 0
     )
@@ -71,25 +70,21 @@ def get_part_inventory_data(db: Session, lot_id: int):
     planned_qty = float(lot.planned_qty or 0)
     finished_qty = float(finished_qty)
     shipped_qty = float(shipped_qty)
-
-    # ถ้าติดลบให้ตัดที่ 0 ไว้กัน error
     available_qty = max(finished_qty - shipped_qty, 0)
 
     return part, planned_qty, finished_qty, shipped_qty, available_qty
+
 
 # ============================================================
 # 1️⃣  List shipments for a lot
 # ============================================================
 from models import PO, Customer
-from models import CustomerShipmentItem  # อย่าลืม import
-
 @router.get("/{lot_id}")
 def list_lot_shipments(lot_id: int, db: Session = Depends(get_db)):
     shipments = (
         db.query(CustomerShipment)
         .options(
-            joinedload(CustomerShipment.items).joinedload(CustomerShipmentItem.allocated_lot),
-            joinedload(CustomerShipment.items).joinedload(CustomerShipmentItem.lot),  # preload source lot ด้วย
+            joinedload(CustomerShipment.items),
             joinedload(CustomerShipment.po).joinedload(PO.customer),
         )
         .filter(CustomerShipment.lot_id == lot_id)
@@ -102,55 +97,25 @@ def list_lot_shipments(lot_id: int, db: Session = Depends(get_db)):
         items = s.items or []
         qty_sum = sum(float(i.qty or 0) for i in items)
 
-        # ✅ GROUP by source lot_no
+        # ✅ GROUP by lot_no
         lot_group = {}
         for i in items:
-            if i.lot and i.lot_id:
-                lot_no = i.lot.lot_no
-                if lot_no not in lot_group:
-                    lot_group[lot_no] = {
-                        "qty": 0,
-                        "lot_id": i.lot.id,
-                        "lot_allocate_id": i.lot_allocate_id  # 👈 ดึง lot_allocate_id เผื่อ UI ต้องใช้ด้วย
-                    }
-                lot_group[lot_no]["qty"] += float(i.qty or 0)
+            if i.lot_id:
+                lot = db.get(ProductionLot, i.lot_id)
+                if lot:
+                    if lot.lot_no not in lot_group:
+                        lot_group[lot.lot_no] = {"qty": 0, "lot_id": lot.id}
+                    lot_group[lot.lot_no]["qty"] += float(i.qty or 0)
 
-        # ✅ GROUP by allocated lot to include lot_allocate_id
-        allocated_group = {}
-        for i in items:
-            if i.allocated_lot and i.lot_allocate_id:
-                a_lot = i.allocated_lot
-                key = a_lot.lot_no
-                if key not in allocated_group:
-                    allocated_group[key] = {
-                        "qty": 0,
-                        "lot_id": a_lot.id,
-                        "lot_allocate_id": i.lot_allocate_id  # 👈 ฟิลด์ที่ต้องการจาก table
-                    }
-                allocated_group[key]["qty"] += float(i.qty or 0)
-
-        # ✅ list source lots (ปรับ JSON ให้มี key ตรง)
-        lots_list = [
+        allocated_list = [
             {
+                "lot_id": v["lot_id"],
+                
                 "lot_no": k,
                 "qty": v["qty"],
-                "lot_id": v["lot_id"],
-                "lot_allocate_id": v["lot_allocate_id"],  # อาจจะ null ได้
             }
             for k, v in lot_group.items()
         ]
-
-        # ✅ list allocated lots พร้อม lot_allocate_id
-        allocated_lots_list = [
-            {
-                "lot_no": k,
-                "qty": v["qty"],
-                "lot_id": v["lot_id"],
-                "lot_allocate_id": v["lot_allocate_id"],  # 👈 ค่า allocate จริง
-            }
-            for k, v in allocated_group.items()
-        ]
-
         result.append({
             "id": s.id,
             "shipment_no": s.package_no or f"SHP-{s.id:05d}",
@@ -161,14 +126,11 @@ def list_lot_shipments(lot_id: int, db: Session = Depends(get_db)):
             "tracking_number": s.tracking_no,
             "customer_name": s.po.customer.name if s.po and s.po.customer else None,
 
-            # ✅ ส่งให้ UI
-            "lots": lots_list,
-            "allocated_lots": allocated_lots_list,  # 👈 มี allocate ID แล้ว
+            # 🆕 ส่งให้ UI
+            "allocated_lots": allocated_list,
         })
 
     return result
-
-
 
 # ============================================================
 # 2️⃣  Allocate / Return part
@@ -252,7 +214,7 @@ def allocate_part(req: AllocatePartRequest, db: Session = Depends(get_db)):
             status_code=400,
             detail=f"Cannot allocate {qty} pcs — only {available_qty} available in {source_lot.lot_no}",
         )
-   
+    print(source_lot, target_lot, shipped_qty, available_qty)
     # ✅ ถ้ามี shipment_id ให้ใช้เลย ไม่ต้องสร้างใหม่
     if req.shipment_id:
         shipment = db.get(CustomerShipment, req.shipment_id)
@@ -287,20 +249,15 @@ def allocate_part(req: AllocatePartRequest, db: Session = Depends(get_db)):
 def return_part(req: dict = Body(...), db: Session = Depends(get_db)):
     source_lot_id = req.get("source_lot_id")
     target_lot_id = req.get("target_lot_id")
-    shipment_id = req.get("shipment_id")  # optional
+    shipment_id = req.get("shipment_id")  # ✅ optional
     qty = float(req.get("qty", 0))
 
     if not source_lot_id or not target_lot_id:
         raise HTTPException(status_code=400, detail="Missing source_lot_id or target_lot_id")
     if qty <= 0:
         raise HTTPException(status_code=400, detail="Quantity must be > 0")
-
-    # ✅ ดึง shipment ที่ต้องใช้ในการ return (priority: shipment_id)
     if shipment_id:
-        shipment = db.get(CustomerShipment, shipment_id)
-        if not shipment:
-            raise HTTPException(status_code=404, detail="Shipment not found")
-        shipments = [shipment]
+        shipments = [db.get(CustomerShipment, shipment_id)]
     else:
         shipments = (
             db.query(CustomerShipment)
@@ -311,51 +268,53 @@ def return_part(req: dict = Body(...), db: Session = Depends(get_db)):
 
     if not shipments:
         raise HTTPException(status_code=400, detail="No shipment found for target lot")
+    # ✅ target lot ต้องมี shipment ของตัวเอง
+    shipments = (
+        db.query(CustomerShipment)
+        .filter(CustomerShipment.lot_id == target_lot_id)
+        .order_by(CustomerShipment.id.desc())
+        .all()
+    )
+    if not shipments:
+        raise HTTPException(status_code=400, detail="No shipment found for target lot")
 
     remain = qty
     total_returned = 0.0
 
-    # ✅ return จาก item ที่ถูก allocate จริงจาก source_lot_id
+    # ✅ คืนจาก item ที่มาจาก source_lot ภายใต้ shipment ของ target_lot เท่านั้น
     for s in shipments:
         items = (
             db.query(CustomerShipmentItem)
             .filter(CustomerShipmentItem.shipment_id == s.id)
-            .filter(CustomerShipmentItem.lot_allocate_id == source_lot_id)  # 👈 ต้อง filter จาก allocate_id จริง
+            .filter(CustomerShipmentItem.lot_id == source_lot_id)
             .order_by(CustomerShipmentItem.id.desc())
             .all()
         )
-
         for it in items:
             if remain <= 0:
                 break
-
-            item_qty = float(it.qty or 0)
-            if item_qty <= remain:
-                remain -= item_qty
-                total_returned += item_qty
-                total_returned += item_qty
+            if float(it.qty) <= remain:
+                remain -= float(it.qty)
+                total_returned += float(it.qty)
                 db.delete(it)
             else:
-                it.qty = item_qty - remain
+                it.qty = float(it.qty) - remain
                 total_returned += remain
                 remain = 0
-
         if remain <= 0:
             break
 
     db.commit()
 
     if total_returned == 0:
-        raise HTTPException(status_code=400, detail="No allocatable part qty found to return")
+        raise HTTPException(status_code=400, detail="No part available to return")
 
     return {
         "status": "returned",
         "returned_qty": total_returned,
         "source_lot_id": source_lot_id,
         "target_lot_id": target_lot_id,
-        "shipment_id": shipment_id or shipments[0].id,
     }
-
 
 
 # ============================================================
