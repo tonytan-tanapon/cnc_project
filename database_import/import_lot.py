@@ -38,7 +38,7 @@ from models import (
 DATABASE_URL = "postgresql+psycopg2://postgres:1234@localhost:5432/mydb"
 CSV_FILE = Path(r"C:\Users\TPSERVER\dev\cnc_project\database_import\import_lot_112825.csv")
 # CSV_FILE = Path(r"C:\Users\TPSERVER\dev\cnc_project\database_import\import_lot_back2.csv")
-CSV_FILE = Path(r"C:\Users\TPSERVER\dev\cnc_project\database_import\import_lot_mini.csv")
+# CSV_FILE = Path(r"C:\Users\TPSERVER\dev\cnc_project\database_import\import_lot_mini.csv")
 CSV_ENCODING = "utf-8-sig"
 CSV_DELIMITER = ","
 
@@ -459,7 +459,7 @@ def main():
                 lot_back = lot.id  # from customer_shipment.lot_id
                 # # --- Shipment ---
                 if qty_ship:
-                    print("ship",qty_ship)
+                   
                     # Find or create shipment header (per PO + ship_date)
                    
                     if True:
@@ -472,47 +472,47 @@ def main():
                         db.add(shipment)
                         db.flush()
 
-                    # # Find or create shipment item (detail row per lot)
-                    # lot = db.scalar(
-                    #     select(ProductionLot).where(ProductionLot.po_id == po.id, ProductionLot.planned_qty > 0)
-                    #         .order_by(ProductionLot.lot_due_date.asc())
-                    # )
+                    # Find or create shipment item (detail row per lot)
+                    lot = db.scalar(
+                        select(ProductionLot).where(ProductionLot.po_id == po.id, ProductionLot.planned_qty > 0)
+                            .order_by(ProductionLot.lot_due_date.asc())
+                    )
 
-                    # item = db.scalar(select(CustomerShipmentItem).where(
-                    #     CustomerShipmentItem.shipment_id == shipment.id,
-                    #     CustomerShipmentItem.po_line_id == line.id,
-                    #     CustomerShipmentItem.lot_id == (lot.id if lot else None),
+                    item = db.scalar(select(CustomerShipmentItem).where(
+                        CustomerShipmentItem.shipment_id == shipment.id,
+                        CustomerShipmentItem.po_line_id == line.id,
+                        CustomerShipmentItem.lot_id == (lot.id if lot else None),
                         
-                    # ))
+                    ))
                    
-                    # if not item:
-                    #     item = CustomerShipmentItem(
-                    #         shipment_id=shipment.id,
-                    #         po_line_id=line.id,
-                    #         lot_id=lot_back,
-                    #         qty=Decimal(qty_ship or 0),
-                    #         lot_allocate_id =(lot.id if lot else None),
+                    if not item:
+                        item = CustomerShipmentItem(
+                            shipment_id=shipment.id,
+                            po_line_id=line.id,
+                            lot_id=lot_back,
+                            qty=Decimal(qty_ship or 0),
+                            lot_allocate_id =(lot.id if lot else None),
 
-                    #     )
-                    #     db.add(item)
-                    #     db.flush()
+                        )
+                        db.add(item)
+                        db.flush()
 
-                    # # ✅ Update customer_shipments.status
-                    # if ship_date:
-                    #     db.execute(
-                    #         update(CustomerShipment)
-                    #         .where(CustomerShipment.id == shipment.id)
-                    #         .values(status="shipped")
-                    #     )
-                    #     db.flush()
+                    # ✅ Update customer_shipments.status
+                    if ship_date:
+                        db.execute(
+                            update(CustomerShipment)
+                            .where(CustomerShipment.id == shipment.id)
+                            .values(status="shipped")
+                        )
+                        db.flush()
 
-                    # # ✅ Also mark the ProductionLot as completed if qty_ship > 0
-                    # if qty_ship and lot:
-                    #     db.execute(
-                    #         update(ProductionLot)
-                    #         .where(ProductionLot.id == lot.id)
-                    #         .values(status="completed")
-                    #     )
+                    # ✅ Also mark the ProductionLot as completed if qty_ship > 0
+                    if qty_ship and lot:
+                        db.execute(
+                            update(ProductionLot)
+                            .where(ProductionLot.id == lot.id)
+                            .values(status="completed")
+                        )
 
 
 
