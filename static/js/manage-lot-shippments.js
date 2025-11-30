@@ -8,7 +8,7 @@ if (!lotId) {
   toast("Missing lot_id in URL", false);
   throw new Error("Missing lot_id");
 }
-
+let TABLE_HEADER = null; // 👈 เก็บ header data
 const ENDPOINTS = {
   lotHeader: `/api/v1/lot-shippments/lot/${lotId}/header`,
   lotShipments: `/api/v1/lot-shippments/${lotId}`,
@@ -49,6 +49,7 @@ function updateField(fieldName) {
 async function loadLotHeader() {
   try {
     const lot = await jfetch(ENDPOINTS.lotHeader);
+    TABLE_HEADER = lot; // 👈 เก็บลง state
     const hdr = document.getElementById("lotHeader");
 
     hdr.innerHTML = `
@@ -303,21 +304,104 @@ async function downloadLabel(row, size) {
   }
 }
 
-async function downloadReport(row) {
-  console.log(row);
+function logShipmentRow(row) {
+  console.log("====== Shipment Log ======");
 
+  const h = TABLE_HEADER || {};
+
+  console.log("Shipment ID:", row.id);
+  console.log("Shipment No:", row.shipment_no);
+
+  // 👇 ถ้าไม่มีใน row → อ่านจาก header state
+  console.log("Lot No:", row.lot_no ?? h.lot_no ?? "-");
+  console.log("Part No:", row.part_no ?? h.part_no ?? "-");
+  console.log("Revision:", row.rev ?? h.part_rev ?? "-");
+
+  // Customer Code
+  console.log("Customer Code:", row.customer_code ?? h.customer_code ?? "-");
+
+  // Shipment Date
+  console.log("Date:", row.date ?? new Date().toLocaleDateString());
+
+  console.log("=========================");
+}
+
+async function downloadReport(row) {
+  const year = 2025;
+  const h = TABLE_HEADER || {};
+
+  const lotNo = h.lot_no || "UNKNOWN_LOT";
+  const partNo = h.part_no || "UNKNOWN_PART";
+  const rev = row.rev || h.part_rev || "UNKNOWN_REV";
+  const cusCode = row.customer_code || h.customer_code || "UNKNOWN_CUS";
+  const dateCreate = "11-12-25";
+  const cusKey = {
+    AF6182: "Aero Fluid",
+    BE5503: "BEI",
+    "AUTO-EMBEIN-458674": "EMBE",
+    Resource: "Resource",
+    SIE: "SIE",
+    SA8884: "Skurka",
+    TS1046: "T-System",
+  };
+
+  // dict lookup (เหมือน Python dict)
+  console.log(cusKey[cusCode]); // → "BEI"
+  const folderPath = `Z:\\Topnotch Group\\Public\\${year}\\Inspection Report ${year}\\${cusKey[cusCode]}`;
+
+  const fullFile = `${folderPath}\\${partNo} ${dateCreate} ${lotNo}.xlsx`;
+  console.log(fullFile);
   const batContent = [
     "@echo off",
-    'start "" "Z:\\Topnotch Group\\Public\\AS9100\\taskman.xlsx"',
+    `echo Lot: ${lotNo}`,
+    `echo Part: ${partNo}`,
+    `echo Rev: ${rev}`,
+    `echo Customer Code: ${cusCode}`,
+    "",
+    'if not exist "' + folderPath + '" mkdir "' + folderPath + '"',
+    'if not exist "' + fullFile + '" echo (empty report) > "' + fullFile + '"',
+    'start "" "' + fullFile + '"',
+    "pause",
   ].join("\r\n");
 
   const blob = new Blob([batContent], { type: "text/plain" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = `open_${row.id}.bat`; // ตั้งชื่อจาก row ได้เลย
+  a.download = `open_${lotNo}_${partNo}_${cusCode}_${rev}.bat`;
   a.click();
   URL.revokeObjectURL(a.href);
 }
+
+// function generateFullPath(row, partNo, filename) {
+//   const folderPath = `Z:\\Topnotch Group\\Public\\2025\\Inspection Report 2025\\${row.customer_code}\\${partNo}`;
+
+//   const fullFile = `${folderPath}\\${filename}`;
+//   return { folderPath, fullFile };
+// }
+
+// async function downloadReport(row) {
+//   const filename = `${row.part_no}.xlsx`; // หรืออะไรก็ได้ที่ UI มีอยู่แล้ว
+//   const { folderPath, fullFile } = generateFullPath(row, row.part_no, filename);
+//   console.log(fullFile);
+//   const batLines = [
+//     "@echo off",
+//     `echo Shipment for Customer: ${row.customername}`,
+//     `echo Part: ${row.part_no}`,
+//     `echo Rev: ${row.rev}`,
+//     "",
+//     `if not exist "${folderPath}" mkdir "${folderPath}"`,
+//     `if not exist "${fullFile}" echo Empty report created > "${fullFile}"`,
+//     `start "" "${fullFile}"`,
+//     "pause",
+//   ];
+
+//   const blob = new Blob([batLines.join("\r\n")], { type: "text/plain" });
+//   const a = document.createElement("a");
+//   a.href = URL.createObjectURL(blob);
+//   a.download = `open_${row.part_no}_REV_${row.rev}.bat`;
+//   a.click();
+//   URL.revokeObjectURL(a.href);
+// }
 
 /* ========= SHIPMENT TABLE (INLINE EDIT ENABLED) ========= */
 function initShipmentTable() {
@@ -600,20 +684,16 @@ function initShipmentTable() {
       {
         title: "Report",
         width: 100,
-        formatter: () => `
-    <div class="label-buttons">
-      <button class="btn-mini btn-orange" data-size="80">Report</button>
-      
-    </div>
-  `,
+        formatter: () =>
+          `<button class="btn-mini btn-orange" data-act="report">Report</button>`,
         cellClick: async (e, cell) => {
           const row = cell.getRow().getData();
-          const size = e.target.dataset.size;
-          if (!size) return;
-          await downloadReport(row); // ✅ เรียกฟังก์ชันใหม่แทน
+          if (e.target.dataset.act === "report") {
+            logShipmentRow(row); // 👈 log detail row
+            await downloadReport(row);
+          }
         },
       },
-
       {
         title: "Delete",
         width: 90,

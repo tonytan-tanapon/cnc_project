@@ -89,7 +89,8 @@ def list_lot_shipments(lot_id: int, db: Session = Depends(get_db)):
         db.query(CustomerShipment)
         .options(
             joinedload(CustomerShipment.items).joinedload(CustomerShipmentItem.allocated_lot),
-            joinedload(CustomerShipment.items).joinedload(CustomerShipmentItem.lot),  # preload source lot ด้วย
+            # joinedload(CustomerShipment.items).joinedload(CustomerShipmentItem.lot),  # preload source lot ด้วย
+            joinedload(CustomerShipment.items).joinedload(CustomerShipmentItem.lot).joinedload(ProductionLot.part_revision),  # 👈 preload rev
             joinedload(CustomerShipment.po).joinedload(PO.customer),
         )
         .filter(CustomerShipment.lot_id == lot_id)
@@ -165,6 +166,7 @@ def list_lot_shipments(lot_id: int, db: Session = Depends(get_db)):
             # ✅ ส่งให้ UI
             "lots": lots_list,
             "allocated_lots": allocated_lots_list,  # 👈 มี allocate ID แล้ว
+            "rev": i.lot.part_revision.rev if i.lot and i.lot.part_revision else None  # 👈 append rev from item
         })
 
     return result
@@ -435,6 +437,7 @@ def get_part_inventory(lot_id: int, db: Session = Depends(get_db)):
     return {
         "part_id": part.id,
         "part_no": part.part_no,
+   
         "lot_id": lot_id,
         "planned_qty": planned,
         "finished_qty": finished,
