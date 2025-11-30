@@ -38,8 +38,8 @@ from models import (
 DATABASE_URL = "postgresql+psycopg2://postgres:1234@localhost:5432/mydb"
 CSV_FILE = Path(r"C:\Users\TPSERVER\dev\cnc_project\database_import\import_lot_112825.csv")
 # CSV_FILE = Path(r"C:\Users\TPSERVER\dev\cnc_project\database_import\import_lot_back2.csv")
-CSV_FILE = Path(r"C:\Users\TPSERVER\dev\cnc_project\database_import\import_lot_mini.csv")
-CSV_FILE = Path(r"C:\Users\TPSERVER\dev\cnc_project\database_import\import_lot_112825mini.csv")
+# CSV_FILE = Path(r"C:\Users\TPSERVER\dev\cnc_project\database_import\import_lot_mini.csv")
+# CSV_FILE = Path(r"C:\Users\TPSERVER\dev\cnc_project\database_import\import_lot_112825mini.csv")
 CSV_ENCODING = "utf-8-sig"
 CSV_DELIMITER = ","
 
@@ -425,6 +425,9 @@ def main():
 
                 if qty_ship == (0 or None):
                     lot_qty = 0
+                
+                if qty_ship != None and qty_ship > qty_po:
+                    lot_qty = qty_ship
                 # elif qty_ship !=0 and lot_qty !=0:
                 #     lot_qty = qty_po
                 # elif qty_ship !=0 and lot_qty ==0:
@@ -443,7 +446,7 @@ def main():
                     note=need_remark,
                     fair_note=fair_no,
                 )
-                print(lot_no,qty_po,qty_ship, lot_qty)
+                # print(lot_no,qty_po,qty_ship, lot_qty)
                 get_or_upsert_traveler(db, lot, lot_qty)
 
                 # --- Invoice ---
