@@ -1,0 +1,15 @@
+[
+  {
+    "timestamp": "2025-11-30T16:27:45.453265",
+    "webhook_id": "abc123",
+    "method": "POST",
+    "body": "hello world",
+    "headers": {
+      "host": "localhost:8000",
+      "user-agent": "curl/8.16.0",
+      "accept": "*/*",
+      "content-length": "11",
+      "content-type": "application/x-www-form-urlencoded"
+    }
+  }
+]
