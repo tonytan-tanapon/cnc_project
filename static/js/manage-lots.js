@@ -64,7 +64,7 @@ async function loadMore() {
     if (searchText) usp.set("q", searchText);
 
     const res = await jfetch(`/api/v1/lot-summary?${usp}`);
-
+    console.log(res);
     const items = res?.items || [];
 
     if (!items.length) {
