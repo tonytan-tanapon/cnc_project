@@ -12,6 +12,7 @@ def extract_lot_rows(file_path):
 
     # Scan rows
     for row in ws.iter_rows(min_row=4, values_only=True):  # ignore header rows
+       
         lot_no = row[1]  # Column B (index 1)
 
         if lot_no and isinstance(lot_no, str) and lot_no.startswith("L"):
@@ -29,7 +30,18 @@ def process_all_files(folder, output_file):
     header = [
         "No", "Lot Number", "PO Number", "Prod Qty", "PO Date",
         "Qty PO", "Due Date", "Qty Shipped", "First Article",
-        "Remark", "Tracking No", "Real Shipped Date", "Incoming Stock"
+        "Remark", "Tracking No", "Real Shipped Date", "Incoming Stock",
+        "Received QTY",	"Name Inspection",	"Remark (QA Inspection)",	"Rework/Repair",	"*Remark (Rework)",	"Qty Reject",	"*Remark (Reject)",
+        "Incoming Rework",	"Finish goods in stock",	"Lot Number",	"PO Number",	"Qty Take Out",	"Date Take Out Stock",
+        "","",
+        "WIP",	"WIP Cont w/Lot"	"QTY Rework",	"Green Tag N.",	"Rework w/Lot",	"QTY Prod",	"QTY Shipped",	"Residual", 	"QTY Use",	"Balance",	"Scrap Later",	"From Lot",	"ST Status",	"Note",	"Date",
+
+
+					
+
+
+						
+
     ]
     master_ws.append(header)
 
@@ -43,7 +55,9 @@ def process_all_files(folder, output_file):
         lot_rows = extract_lot_rows(file_path)
 
         for row in lot_rows:
-            master_ws.append(row)
+            # print("  Extracted:", row[0])
+            if row[0] != "No.":
+                master_ws.append(row)
 
     master_wb.save(output_file)
     print("DONE! Exported to", output_file)
