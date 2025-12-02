@@ -65,13 +65,30 @@ import shutil
 # ===============================
 # CONFIG
 # ===============================
-SOURCE_FILE = r"C:\Data Base & Inventory Stock\source.xlsx"
-DEST_FOLDER = r"C:\Data Base & Inventory Stock\data"
-TEMPLATE_FILE = r"C:\Data Base & Inventory Stock\Template form.xlsm"
+DIR = r"C:\Data Base & Inventory Stock"
+SOURCE_FILE = r"Z:\Topnotch Group\Public\Data Base & Inventory Stock\source.xlsx"
+DEST_FOLDER = r"Z:\Topnotch Group\Public\Data Base & Inventory Stock\data"
+TEMPLATE_FILE = r"Z:\Topnotch Group\Public\Data Base & Inventory Stock\Template form.xlsm"
+
+
+###
+# src_wb = load_workbook(SOURCE_FILE)
+# src = src_wb.active
+
+# for row in src.iter_rows(min_row=2, values_only=True):
+#     print(">> ", row)
+#     # lot_number, po_number, part_no = row
+#     date_po, name_cus,lot_number,po_number,part_no,part_desc, part_rev, duedate, qty_po,_ = row
+
+###
 
 START_ROW = 7
 COLUMN_LOT = "B"
 COLUMN_PO = "C"
+COLUMN_PO_DATE = "E"
+COLUMN_QTY_PO = "F"
+COLUMN_DUEDATE = "G"
+
 
 
 # ===============================
@@ -106,7 +123,10 @@ src_wb = load_workbook(SOURCE_FILE)
 src = src_wb.active
 
 for row in src.iter_rows(min_row=2, values_only=True):
-    lot_number, po_number, part_no = row
+    print(">> ", row)
+    # lot_number, po_number, part_no = row
+    date_po, name_cus,lot_number,po_number,part_no,part_desc, part_rev, duedate, qty_po,_ = row
+
 
     if not part_no:
         continue
@@ -172,6 +192,28 @@ for row in src.iter_rows(min_row=2, values_only=True):
     # =============================
     ws[f"{COLUMN_LOT}{insert_row}"] = lot_number
     ws[f"{COLUMN_PO}{insert_row}"] = po_number
+    ws[f"{COLUMN_PO_DATE}{insert_row}"] = date_po
+    ws[f"{COLUMN_QTY_PO}{insert_row}"] = qty_po
+
+    from dateutil.relativedelta import relativedelta
+    import datetime
+
+    if duedate is not None:
+        one_month_ago = duedate - relativedelta(months=1)
+
+        # weekday(): Monday=0 ... Sunday=6
+        weekday = one_month_ago.weekday()
+
+        if weekday == 5:          # Saturday
+            # Move forward to next Friday (6 days later)
+            one_month_ago += datetime.timedelta(days=6)
+        elif weekday == 6:        # Sunday
+            # Move forward to next Friday (5 days later)
+            one_month_ago += datetime.timedelta(days=5)
+
+        ws[f"{COLUMN_DUEDATE}{insert_row}"] = one_month_ago
+
+   
     # =============================
     # STEP 5 : Cascade shift ลงล่างสำหรับ column อื่น ๆ
     # =============================
@@ -180,7 +222,7 @@ for row in src.iter_rows(min_row=2, values_only=True):
     # STEP 5 : Column-wise shift แบบ temp buffer
     # =============================
 
-    COLUMNS_TO_MOVE = list(range(4, 12))  # D–K = 4..11
+    COLUMNS_TO_MOVE = list(range(9, 11))  # D–K = 4..11
     row = insert_row
     next_row = insert_row + 1
 
