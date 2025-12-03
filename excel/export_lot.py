@@ -1,7 +1,7 @@
 import os
 from openpyxl import load_workbook, Workbook
 
-SOURCE_FOLDER = r"C:\Data Base & Inventory Stock\test"
+SOURCE_FOLDER = r"C:\Data Base & Inventory Stock\data"
 DEST_FILE = r"C:\Data Base & Inventory Stock\lot_export.xlsx"
 
 def extract_lot_rows(file_path):
@@ -33,8 +33,8 @@ def process_all_files(folder, output_file):
         "Remark", "Tracking No", "Real Shipped Date", "Incoming Stock",
         "Received QTY",	"Name Inspection",	"Remark (QA Inspection)",	"Rework/Repair",	"*Remark (Rework)",	"Qty Reject",	"*Remark (Reject)",
         "Incoming Rework",	"Finish goods in stock",	"Lot Number",	"PO Number",	"Qty Take Out",	"Date Take Out Stock",
-        "","",
-        "WIP",	"WIP Cont w/Lot"	"QTY Rework",	"Green Tag N.",	"Rework w/Lot",	"QTY Prod",	"QTY Shipped",	"Residual", 	"QTY Use",	"Balance",	"Scrap Later",	"From Lot",	"ST Status",	"Note",	"Date",
+        "empty",
+        "WIP",	"WIP Cont w/Lot",	"QTY Rework",	"Green Tag N.",	"Rework w/Lot",	"QTY Prod",	"QTY Shipped",	"Residual", 	"QTY Use",	"Balance",	"Scrap Later",	"From Lot",	"ST Status",	"Note",	"Date",
 
 
 					
@@ -50,7 +50,7 @@ def process_all_files(folder, output_file):
             continue
 
         file_path = os.path.join(folder, file)
-        print(f"Processing: {file_path}")
+        # print(f"Processing: {file_path}")
 
         lot_rows = extract_lot_rows(file_path)
 
