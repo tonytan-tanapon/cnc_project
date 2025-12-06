@@ -90,17 +90,18 @@ def process_all_files_parallel(folder, output_file):
                     update_to_database(part_name, row)
                     all_rows.append(row)
     
-    print(lot_data['L15857'])
+    print("loaded lot data:", len(lot_data) )
+    return lot_data
     # Write CSV output
-    with open(output_file, "w", newline="", encoding="utf-8") as csvfile:
-        writer = csv.writer(csvfile)
-        writer.writerow(header)
+    # with open(output_file, "w", newline="", encoding="utf-8") as csvfile:
+    #     writer = csv.writer(csvfile)
+    #     writer.writerow(header)
 
-        for row in all_rows:
+    #     for row in all_rows:
             
-            writer.writerow(row)
+    #         writer.writerow(row)
 
-    print("DONE! CSV exported to", output_file)
+    # print("DONE! CSV exported to", output_file)
 
 
 # ----------------------
