@@ -325,10 +325,16 @@ def update_lot_put(lot_id: int, payload: ProductionLotUpdate, db: Session = Depe
     db.refresh(lot)
     return _with_joined(db, lot.id)
 
+# @router.patch("/{lot_id}", response_model=ProductionLotOut)
+# def update_lot_patch(lot_id: int, payload: ProductionLotUpdate, db: Session = Depends(get_db)):
+#     # ใช้ logic เดียวกับ PUT
+#     return update_lot_put(lot_id, payload, db)
 @router.patch("/{lot_id}", response_model=ProductionLotOut)
 def update_lot_patch(lot_id: int, payload: ProductionLotUpdate, db: Session = Depends(get_db)):
-    # ใช้ logic เดียวกับ PUT
+    print(ProductionLotUpdate)
+    print("Received PATCH payload =>", payload.dict(exclude_unset=False))
     return update_lot_put(lot_id, payload, db)
+
 
 @router.delete("/{lot_id}")
 def delete_lot(lot_id: int, db: Session = Depends(get_db)):

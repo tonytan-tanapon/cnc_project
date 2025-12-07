@@ -72,66 +72,8 @@ function makeColumns() {
       },
     },
 
-    {
-    title: "Lot Status",
-    field: "status",
-    width: 140,
-    editor: "select",
-    editorParams: {
-    values: {
-        not_start: "Not Start",
-        in_process: "In Process",
-        hold: "Hold",
-        completed: "Completed",
-        shipped: "Shipped",
-        canceled: "Canceled",
-    }
-},
-    formatter: (cell) => {
-        const v = cell.getValue();
-        const map = {
-    not_start: "#6b7280",
-    in_process: "#3b82f6",
-    hold: "#f59e0b",
-    completed: "#10b981",
-    shipped: "#0ea5e9",
-    canceled: "#ef4444",
-};
 
-        const label = {
-            not_start: "Not Start",
-            in_process: "In Process",
-            pending: "Pending",
-            completed: "Completed",
-        }[v] || v;
 
-        return `<span style="
-            background:${map[v] || "#999"};
-            color:white;
-            padding:4px 8px;
-            border-radius:6px;
-            font-weight:600;">
-            ${label}
-        </span>`;
-    },
-    cellEdited: async (cell) => {
-        const row = cell.getRow().getData();
-        const lot_id = row.lot_id;
-        const newStatus = cell.getValue();
-        console.log("➡ PATCH /lots/" + lot_id, { status: newStatus });
-
-        // const res = await jfetch(API_URL);
-        try {
-            await jfetch(`/lots/${lot_id}`, {
-                method: "PATCH",
-                body: { status: newStatus },
-            });
-            toast("✅ Status updated");
-        } catch (err) {
-            toast("❌ Update failed: " + (err?.message || err), false);
-        }
-    }
-},
     { title: "Part Name", field: "part_name", widthGrow: 2, cssClass: "wrap" },
     { title: "Rev", field: "revision", width: 80, hozAlign: "center" },
     { title: "PO No", field: "po_number", width: 120 },

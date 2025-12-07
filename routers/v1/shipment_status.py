@@ -30,11 +30,12 @@ def get_shipment_status(
         conditions.append("shipment_status = :status")
         params["status"] = status
 
-    sql = "SELECT * FROM v_lot_shipment_status"
+    sql = "SELECT * FROM v_lot_shipment_status2"
     if conditions:
         sql += " WHERE " + " AND ".join(conditions)
     sql += f" ORDER BY {order_col}"
 
     query = text(sql)
     result = db.execute(query, params).mappings().all()
+    print(result[0].keys())
     return list(result)

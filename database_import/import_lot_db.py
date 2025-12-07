@@ -35,12 +35,17 @@ from models import (
 )
 
 # ---------- CONFIG ----------
+
+SOURCE_LOT = r"C:\Data Base & Inventory Stock\data"
+DEST_LOT = r"C:\Data Base & Inventory Stock\data\lot_export.csv"
+
+
 DATABASE_URL = "postgresql+psycopg2://postgres:1234@localhost:5432/mydb"
 CSV_FILE = Path(r"C:\Users\TPSERVER\dev\cnc_project\database_import\import_lot_112825.csv")
 # CSV_FILE = Path(r"C:\Users\TPSERVER\dev\cnc_project\database_import\import_lot_back2.csv")
 # CSV_FILE = Path(r"C:\Users\TPSERVER\dev\cnc_project\database_import\import_lot_mini.csv")
 # CSV_FILE = Path(r"C:\Users\TPSERVER\dev\cnc_project\database_import\import_lot_112825mini.csv")
-CSV_FILE = Path(r"C:\Users\Tanapon\Documents\GitHub\cnc\database_import\import_lot_mini.csv")
+# CSV_FILE = Path(r"C:\Users\Tanapon\Documents\GitHub\cnc\database_import\import_lot_mini.csv")
 
 CSV_ENCODING = "utf-8-sig"
 CSV_DELIMITER = ","
@@ -286,12 +291,63 @@ def get_or_upsert_traveler(
 
 
 from sqlalchemy import select, update
+from datetime import datetime
+
+from datetime import datetime, date
+from openpyxl.utils.datetime import from_excel
+
+def clean_date(value):
+    if value is None or value == "":
+        return None
+
+    # already a datetime or date → return clean
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+
+    # Excel serial date (float or int)
+    if isinstance(value, (int, float)):
+        try:
+            return from_excel(value).date()
+        except:
+            pass
+
+    # Convert to string
+    value = str(value).strip()
+
+    # Fix broken format like 121/19/24 → 12/19/24
+    if "/" in value:
+        parts = value.split("/")
+        if len(parts) == 3 and len(parts[0]) > 2:
+            parts[0] = parts[0][:2]  # fix month overflow
+            value = "/".join(parts)
+
+    # Test multiple date formats
+    fmts = [
+        "%Y-%m-%d",
+        "%Y/%m/%d",
+        "%m/%d/%y",
+        "%m/%d/%Y",
+        "%d/%m/%Y",
+        "%Y-%m-%d %H:%M:%S",
+        "%m-%d-%Y",
+    ]
+
+    for fmt in fmts:
+        try:
+            return datetime.strptime(value, fmt).date()
+        except:
+            pass
+
+    print("❌ Invalid date:", value)
+    return None
 
 
 # ---------- MAIN ----------
 def main():
 
-    
+    print("Starting import...")
     # print(all_lots)
     with SessionLocal() as db:
         fix_sequences(db, [
@@ -424,22 +480,10 @@ def main():
                     today = datetime.now().strftime("%Y%m%d")
                     lot_no = f"AUTO-{today}-{processed+1:04d}"
 
-                lot_qty = 0
-                if qty_ship != 0 and qty_po != 0  :
-                    lot_qty = qty_po
-                if qty_ship != 0 and qty_po == 0  :
-                    lot_qty = qty_ship
 
-                if qty_ship == (0 or None):
-                    lot_qty = 0
-                
-                if qty_ship != None and qty_ship > qty_po:
-                    lot_qty = qty_ship
-                # elif qty_ship !=0 and lot_qty !=0:
-                #     lot_qty = qty_po
-                # elif qty_ship !=0 and lot_qty ==0:
-                #     lot_qty = 0
-
+                lot_qty = all_lots.get(lot_no, {}).get("prod_qty", 0)
+                # print("lot_qty from excel:", lot_no, lot_qty,qty_ship, qty_po)
+        
                
                 # --- Lot ---
                 lot = get_or_upsert_lot(
@@ -464,35 +508,34 @@ def main():
                         residual_inv=residual_inv,
                     )
 
-                 #### ship temp 
-                # if qty_po == 0:
-                #      qty_po = qty_ship
-                # if qty_ship is None:
-                #     qty_ship = 0
-                
+              
                 # ship_status = True if qty_ship > 0 else  False
                 #####
-                lot_back = lot.id  # from customer_shipment.lot_id
+                # lot_back = lot.id  # from customer_shipment.lot_id
                 # # --- Shipment ---
                 if qty_ship:
                    
                     # Find or create shipment header (per PO + ship_date)
-                   
+                    # print(  all_lots.get(lot_no, {}).get("part_name", None), lot_no,  all_lots.get(lot_no, {}).get("ship_date", None),)
                     if True:
                         shipment = CustomerShipment(
                             po_id=po.id,
                             lot_id=lot.id,            # <<<<<<<<<<<<<< ADD THIS LINE
-                            shipped_at=to_utc_midnight(ship_date),
+                            shipped_at = clean_date(all_lots.get(lot_no, {}).get("ship_date", None)),
+                            tracking_no=all_lots.get(lot_no, {}).get("tracking_no", None),
+
                             notes=None,
+                            status="pending",
                         )
                         db.add(shipment)
                         db.flush()
-
-                    # Find or create shipment item (detail row per lot)
-                    lot = db.scalar(
-                        select(ProductionLot).where(ProductionLot.po_id == po.id, ProductionLot.planned_qty > 0)
-                            .order_by(ProductionLot.lot_due_date.asc())
-                    )
+                    lot_allocate = lot
+                    # # Find or create shipment item (detail row per lot)
+                    if lot_qty is None or lot_qty <= 0  :
+                        lot_allocate = db.scalar(
+                            select(ProductionLot).where(ProductionLot.po_id == po.id, ProductionLot.planned_qty > 0 )
+                                .order_by(ProductionLot.lot_due_date.asc())
+                        )
 
                     item = db.scalar(select(CustomerShipmentItem).where(
                         CustomerShipmentItem.shipment_id == shipment.id,
@@ -500,14 +543,17 @@ def main():
                         CustomerShipmentItem.lot_id == (lot.id if lot else None),
                         
                     ))
-                   
+                    
                     if not item:
+                        # print("Adding shipment item:", shipment.id,", line id: ",line.id,", lot no: ",lot_no, ", lot_allocate: ",lot_allocate,", qty ship: ",qty_ship)
                         item = CustomerShipmentItem(
+
+
                             shipment_id=shipment.id,
                             po_line_id=line.id,
-                            lot_id=lot_back,
+                            lot_id=lot.id,
                             qty=Decimal(qty_ship or 0),
-                            lot_allocate_id =(lot.id if lot else None),
+                            lot_allocate_id =(lot_allocate.id if lot_allocate else None),
 
                         )
                         db.add(item)
@@ -523,13 +569,28 @@ def main():
                         db.flush()
 
                     # ✅ Also mark the ProductionLot as completed if qty_ship > 0
-                    if qty_ship and lot:
-                        db.execute(
-                            update(ProductionLot)
-                            .where(ProductionLot.id == lot.id)
-                            .values(status="completed")
-                        )
-
+                    # print("qty_ship:", qty_ship, "lot_qty:", lot_qty, "lot_no:", lot_no)
+                if qty_ship is None or qty_ship == 0 :
+                    db.execute(
+                         update(ProductionLot)
+                        .where(ProductionLot.id == lot.id)
+                        .values(status="not_started")
+                    )
+                elif qty_ship > 0 and qty_ship == lot_qty :
+                    db.execute(
+                        update(ProductionLot)
+                        .where(ProductionLot.id == lot.id)
+                        .values(status="completed")
+                    )
+                else :
+                    db.execute(
+                        update(ProductionLot)
+                        .where(ProductionLot.id == lot.id)
+                        .values(status="in_process")
+                    )
+                    
+                        
+                db.flush()
 
 
 
@@ -550,8 +611,7 @@ import remove_data
 from update_lot import process_all_files_parallel
 
 
-SOURCE_LOT = r"C:\Data Base & Inventory Stock\test"
-DEST_LOT = r"C:\Data Base & Inventory Stock\test\lot_export.csv"
+
 
 all_lots = {}
 if __name__ == "__main__":

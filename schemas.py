@@ -338,7 +338,7 @@ class RawBatchOut(RawBatchBase):
 # =========================
 # ============== Production Lots ==========
 # =========================
-LotStatus = Literal["planned", "in_process", "hold", "completed", "shipped", "canceled"]
+LotStatus = Literal["planned", "in_process", "hold", "completed", "shipped", "canceled","not_start"]
 
 
 class ProductionLotCreate(BaseModel):

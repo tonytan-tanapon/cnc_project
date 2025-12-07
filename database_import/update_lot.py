@@ -30,11 +30,13 @@ def extract_lot_rows(file_path):
         return f"ERROR::{file_path}::{e}"
 
 def update_to_database(part_name, row): 
+    
     lot_no = row[1]
     prod_qty = row[3]
     due_date = row[6]
     tracking_no = row[10]
     ship_date = row[11] 
+
 
     lot_data[lot_no]    = {
         "part_name": part_name,
@@ -90,7 +92,7 @@ def process_all_files_parallel(folder, output_file):
                     update_to_database(part_name, row)
                     all_rows.append(row)
     
-    print("loaded lot data:", len(lot_data) )
+    # print("loaded lot data:", len(lot_data) )
     return lot_data
     # Write CSV output
     # with open(output_file, "w", newline="", encoding="utf-8") as csvfile:
