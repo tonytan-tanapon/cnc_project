@@ -30,7 +30,7 @@ def get_shipment_status(
         conditions.append("shipment_status = :status")
         params["status"] = status
 
-    sql = "SELECT * FROM v_lot_shipment_status2"
+    sql = "SELECT * FROM v_lot_shipment_status"
     if conditions:
         sql += " WHERE " + " AND ".join(conditions)
     sql += f" ORDER BY {order_col}"
@@ -39,3 +39,59 @@ def get_shipment_status(
     result = db.execute(query, params).mappings().all()
     print(result[0].keys())
     return list(result)
+
+
+# =======================
+#  PO Shipment Status API
+# =======================
+# =======================
+#  PO Shipment Summary API
+# =======================
+@router.get("/po-shipment-status")
+def get_po_shipment_status(
+    db: Session = Depends(get_db),
+    customer: Optional[str] = Query(None),
+    status: Optional[str] = Query(None),
+    order_by: Optional[str] = Query("po_number"),
+):
+    """Return shipment summary per PO (not per PO line)."""
+
+    # Allowed sorting columns
+    allowed_order = {
+        "po_number",
+        "customer_name",
+        "total_ordered",
+        "total_shipped",
+        "total_remaining",
+        "po_shipment_status",
+        "shipped_percent",
+        "last_ship_date",
+    }
+
+    order_col = order_by if order_by in allowed_order else "po_number"
+
+    # Build WHERE conditions
+    conditions = []
+    params = {}
+
+    if customer:
+        conditions.append("customer_name ILIKE :customer")
+        params["customer"] = f"%{customer}%"
+
+    if status:
+        conditions.append("po_shipment_status = :status")
+        params["status"] = status
+
+    # Build SQL query
+    sql = "SELECT * FROM v_po_summary_shipment"
+    if conditions:
+        sql += " WHERE " + " AND ".join(conditions)
+    sql += f" ORDER BY {order_col}"
+
+    # Execute
+    rows = db.execute(text(sql), params).mappings().all()
+
+    if rows:
+        print("PO summary keys:", rows[0].keys())
+
+    return list(rows)

@@ -18,9 +18,9 @@ let table = null;
 function makeColumns() {
   return [
     {
-      title: "Lot No",
+      title: "Lot",
       field: "lot_no",
-      width: 120,
+      width: 100,
       sorter: (a, b) => {
         if (!a) a = "";
         if (!b) b = "";
@@ -36,9 +36,45 @@ function makeColumns() {
         return `<a class="link" href="${href}">${cell.getValue() ?? ""}</a>`;
       },
     },
-
     {
-      title: "Part No",
+      title: "PO",
+      field: "po_number",
+      width: 100,
+      formatter: (cell) => {
+        const d = cell.getData();
+        const poId = d.po_id;
+        if (!poId) return cell.getValue() ?? "";
+
+        const href = `/static/manage-pos-detail.html?id=${poId}`;
+        return `<a class="po-link" href="${href}" 
+              style="color:#2563eb;text-decoration:underline;cursor:pointer;">
+              ${cell.getValue() ?? ""}
+            </a>`;
+      },
+      // cellClick: (e, cell) => {
+      //   console.log("PO cell clicked");
+      //   const d = cell.getData();
+      //   const poId = d.po_id;
+      //   if (!poId) return;
+      //   window.location.href = `/static/manage-pos-detail.html?id=${poId}`;
+      // },
+      cellClick: (e, cell) => {
+        const d = cell.getData();
+        const poId = d.po_id;
+        if (!poId) return;
+
+        const url = `/static/manage-pos-detail.html?id=${poId}`;
+
+        if (e.ctrlKey || e.metaKey || e.button === 1) {
+          window.open(url, "_blank");
+          return;
+        }
+
+        window.location.href = url;
+      },
+    },
+    {
+      title: "Part",
       field: "part_no",
       width: 120,
       formatter: (cell) => {
@@ -48,14 +84,62 @@ function makeColumns() {
         return `<a href="${href}" class="part-link" style="color:#2563eb;text-decoration:underline;">${cell.getValue()}</a>`;
       },
     },
+    { title: "Part Name", field: "part_name", width: 140 },
+    { title: "Rev", field: "revision", width: 50, hozAlign: "center" },
 
+    { title: "Cust", field: "customer_code", width: 80 },
+
+    // Due Date
+    {
+      title: "Due Date",
+      field: "due_date",
+      width: 120,
+      formatter: (cell) => {
+        const v = cell.getValue();
+        if (!v) return "";
+        const d = new Date(v);
+        return d.toLocaleDateString();
+      },
+    },
+
+    // Days Left
+    {
+      title: "Days Left",
+      field: "days_left",
+      width: 120,
+      hozAlign: "center",
+      mutator: (value, data) => {
+        const v = data.due_date;
+        if (!v) return null;
+        const due = new Date(v);
+        const now = new Date();
+        return Math.ceil((due - now) / 86400000);
+      },
+      formatter: (cell) => {
+        const days = cell.getValue();
+        if (days == null) return "";
+        const color = days < 0 ? "#ef4444" : days <= 3 ? "#f59e0b" : "#10b981";
+        const text = days < 0 ? `${Math.abs(days)}d overdue` : `${days}d left`;
+        return `<span style="background:${color};color:white;padding:4px 8px;border-radius:8px;">${text}</span>`;
+      },
+    },
+
+    {
+      title: "PO/Ship/Remain",
+      field: "qty_ordered", // ใช้อะไรก็ได้ แต่ต้องมี field หนึ่ง
+      width: 180,
+      formatter: (cell) => {
+        const row = cell.getRow().getData();
+        return `${row.qty_ordered} / ${row.lot_shipped_qty} / ${row.lot_remaining_qty}`;
+      },
+    },
     /* =======================
        Lot Status (Editable)
        ======================= */
     {
       title: "Lot Status",
-      field: "status",
-      width: 140,
+      field: "lot_status",
+      width: 120,
       editor: "select",
       editorParams: {
         values: {
@@ -117,55 +201,10 @@ function makeColumns() {
         }
       },
     },
-
-    { title: "Part Name", field: "part_name", widthGrow: 2 },
-    { title: "Rev", field: "revision", width: 80, hozAlign: "center" },
-    { title: "PO No", field: "po_number", width: 120 },
-    { title: "Customer", field: "customer_name", widthGrow: 1 },
-
-    // Due Date
     {
-      title: "Due Date",
-      field: "due_date",
-      width: 120,
-      formatter: (cell) => {
-        const v = cell.getValue();
-        if (!v) return "";
-        const d = new Date(v);
-        return d.toLocaleDateString();
-      },
-    },
-
-    // Days Left
-    {
-      title: "Days Left",
-      field: "days_left",
-      width: 120,
-      hozAlign: "center",
-      mutator: (value, data) => {
-        const v = data.due_date;
-        if (!v) return null;
-        const due = new Date(v);
-        const now = new Date();
-        return Math.ceil((due - now) / 86400000);
-      },
-      formatter: (cell) => {
-        const days = cell.getValue();
-        if (days == null) return "";
-        const color = days < 0 ? "#ef4444" : days <= 3 ? "#f59e0b" : "#10b981";
-        const text = days < 0 ? `${Math.abs(days)}d overdue` : `${days}d left`;
-        return `<span style="background:${color};color:white;padding:4px 8px;border-radius:8px;">${text}</span>`;
-      },
-    },
-
-    { title: "Planned", field: "planned_qty", width: 100, hozAlign: "right" },
-    { title: "Shipped", field: "qty_shipped", width: 100, hozAlign: "right" },
-    { title: "Remain", field: "qty_remaining", width: 100, hozAlign: "right" },
-
-    {
-      title: "Status",
+      title: "Ship Status",
       field: "shipment_status",
-      width: 150,
+      width: 120,
       formatter: (cell) => {
         const v = cell.getValue();
         const color =
@@ -220,7 +259,7 @@ function applyFilter() {
 
   // ⭐ Lot Status filter
   if (lotStatus) {
-    table.addFilter("status", "=", lotStatus);
+    table.addFilter("lot_status", "=", lotStatus);
   }
 
   // due date filter

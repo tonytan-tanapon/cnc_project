@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Lot Shipment Status · Topnotch – MFG</title>
+    <title>PO Shipment Status · Topnotch – MFG</title>
 
     <link rel="stylesheet" href="/static/css/app.css" />
     <link
@@ -20,37 +20,23 @@
       .panel--edge {
         margin: 0;
         border-radius: 0;
-        border-left-width: 0;
-        border-right-width: 0;
       }
       #listPanel {
         display: flex;
         flex-direction: column;
         height: 100%;
-        min-height: 0;
       }
       .list-topbar {
         display: flex;
         align-items: center;
         gap: 8px;
         height: 44px;
+        padding: 0 8px;
         border-bottom: 1px solid #e5e7eb;
-        padding: 0;
-      }
-      .list-topbar .search-lg {
-        flex: 0 0 200px;
-        height: 36px;
-        padding: 0 12px;
-        border-radius: 0;
       }
       #listBody {
         flex: 1 1 auto;
-        min-height: 0;
         overflow: auto;
-      }
-      #listBody .tabulator {
-        height: 100% !important;
-        border: 0;
       }
     </style>
   </head>
@@ -66,35 +52,15 @@
               id="_q"
               type="search"
               class="search-lg"
-              placeholder="Search…"
-            />LOT STATUS:
-            <select id="_lot_status" class="search-lg">
-              <option value="">All Status</option>
-              <option value="not_start" selected>Not Start</option>
-              <option value="planned">Planned</option>
-              <option value="in_process">In Process</option>
-              <option value="hold">Hold</option>
-              <option value="completed">Completed</option>
-              <option value="shipped">Shipped</option>
-              <option value="canceled">Canceled</option>
-            </select>
-            Shipment STATUS:
+              placeholder="Search PO / Part / Customer"
+            />
+
+            Status:
             <select id="_status" class="search-lg">
-              <option value="">All Status</option>
+              <option value="">All</option>
               <option value="Not Shipped">Not Shipped</option>
               <option value="Partially Shipped">Partially Shipped</option>
               <option value="Fully Shipped">Fully Shipped</option>
-            </select>
-
-            <!-- ✅ NEW DROPDOWN for Due Date -->
-            Due Date:
-            <select id="_duedays" class="search-lg">
-              <option value="">All Due Dates</option>
-              <option value="7">Due in ≤ 7 days</option>
-              <option value="30">Due in ≤ 30 days</option>
-              <option value="60">Due in ≤ 60 days</option>
-              <option value="90">Due in ≤ 90 days</option>
-              <option value="gt90">Due in > 90 days</option>
             </select>
 
             <button id="_reload" class="btn" type="button">Reload</button>
@@ -111,7 +77,7 @@
     <script type="module" src="/static/js/nav-loader.js"></script>
     <script
       type="module"
-      src="/static/js/manage-lot-shipment-status.js"
+      src="/static/js/manage-po-shipment-status.js"
     ></script>
   </body>
 </html>
