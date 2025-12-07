@@ -329,6 +329,12 @@ def update_lot_put(lot_id: int, payload: ProductionLotUpdate, db: Session = Depe
 # def update_lot_patch(lot_id: int, payload: ProductionLotUpdate, db: Session = Depends(get_db)):
 #     # ใช้ logic เดียวกับ PUT
 #     return update_lot_put(lot_id, payload, db)
+
+
+@router.get("/test/")
+def test():
+    print("testtt")
+    return {"message": "ss."} 
 @router.patch("/{lot_id}", response_model=ProductionLotOut)
 def update_lot_patch(lot_id: int, payload: ProductionLotUpdate, db: Session = Depends(get_db)):
     print(ProductionLotUpdate)

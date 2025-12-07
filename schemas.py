@@ -362,7 +362,7 @@ class ProductionLotUpdate(BaseModel):
     planned_qty: Optional[int] = None
     started_at: Optional[datetime] = None
     finished_at: Optional[datetime] = None
-    status: Optional[LotStatus] = None
+    status: Optional[str] = None
 
 class PartTiny(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -396,6 +396,7 @@ class ProductionLotOut(BaseModel):
     started_at: Optional[datetime] = None
     finished_at: Optional[datetime] = None
     status: Optional[str] = None
+    
 
     # ✅ nested objects
     part: Optional[PartTiny] = None

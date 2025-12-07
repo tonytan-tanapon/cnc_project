@@ -91,6 +91,10 @@ def create_lot(payload: ProductionLotCreate, db: Session = Depends(get_db)):
 
     raise HTTPException(500, "Failed to generate unique lot number")
 
+@router.get("/test")
+def test_patch():
+    print("This is a test endpoint for PATCH method.")
+    return {"message": "This is a test endpoint for PATCH method."} 
 @router.get("", response_model=LotPage)
 def list_lots(
     q: Optional[str] = Query(None, description="Search lot/part/po/status"),

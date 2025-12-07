@@ -574,7 +574,7 @@ def main():
                     db.execute(
                          update(ProductionLot)
                         .where(ProductionLot.id == lot.id)
-                        .values(status="not_started")
+                        .values(status="not_start")
                     )
                 elif qty_ship > 0 and qty_ship == lot_qty :
                     db.execute(
