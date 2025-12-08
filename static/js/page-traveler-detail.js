@@ -827,13 +827,113 @@ function makeBlankStep(seq) {
   };
 }
 
+
+async function downloadDrawingBatch() {
+  try {
+    const res = await fetch(`/api/v1/traveler_drawing/drawing/${travelerId}`, {
+      method: "POST",
+    });
+
+    if (!res.ok) {
+      const txt = await res.text().catch(() => "");
+      console.error("Download error:", res.status, txt);
+      toast("Download failed");
+      return;
+    }
+
+    const blob = await res.blob();
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `drawing_${travelerId}.bat`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  } catch (err) {
+    console.error("Download exception:", err);
+    toast("Download failed (exception)");
+  }
+}
+
+async function downloadTravelerBatch() {
+  try {
+    const res = await fetch(`/api/v1/traveler_drawing/traveletdoc/${travelerId}`, {
+      method: "POST",
+    });
+
+    if (!res.ok) {
+      const txt = await res.text().catch(() => "");
+      console.error("Download error:", res.status, txt);
+      toast("Download failed");
+      return;
+    }
+
+    const blob = await res.blob();
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `drawing_${travelerId}.bat`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  } catch (err) {
+    console.error("Download exception:", err);
+    toast("Download failed (exception)");
+  }
+}
+
+async function downloadInspectionBatch() {
+  try {
+    const res = await fetch(`/api/v1/traveler_drawing/inspection/${travelerId}`, {
+      method: "POST",
+    });
+
+    if (!res.ok) {
+      const txt = await res.text().catch(() => "");
+      console.error("Download error:", res.status, txt);
+      toast("Download failed");
+      return;
+    }
+
+    const blob = await res.blob();
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `drawing_${travelerId}.bat`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  } catch (err) {
+    console.error("Download exception:", err);
+    toast("Download failed (exception)");
+  }
+}
+
+async function downloadInspection() {
+  const res = await fetch(`/traveler_drawing/inspection/${travelerId}`, {
+    method: "POST",
+  });
+
+  if (!res.ok) {
+    const err = await res.json();
+    alert(err.detail || "File not found");
+    return;
+  }
+
+  const blob = await res.blob();
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `inspection_${travelerId}.bat`;
+  a.click();
+}
+
+
+
+
 /* ---------- Boot ---------- */
 document.addEventListener("DOMContentLoaded", async () => {
   initTopbar();
   ensureHeaderButtons();
   wireHeaderDirtyOnly();
   initHeaderAutocomplete();
-
+ // ---> Add Drawing diagram batch download
+  $("btnDrawing").addEventListener("click", downloadDrawingBatch);
+  $("btnTraveler").addEventListener("click", downloadTravelerBatch);
+  $("btnInspection").addEventListener("click", downloadInspectionBatch);
   // Add Step (seq +10 เริ่ม 10)
   // $("btnAddStep")?.addEventListener("click", async () => {
   //   if (!travelerId) {
