@@ -782,11 +782,15 @@ function initToolbar() {
   });
 }
 
+
+
 /* ========= BOOT ========= */
 document.addEventListener("DOMContentLoaded", async () => {
   await loadLotHeader();
   await loadShipmentsList();
 
+
+  
   initPartTable();
   initShipmentTable();
   initToolbar();

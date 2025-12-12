@@ -8,6 +8,7 @@ from . import (
     part_materials,report_materials, po_lines,
     reports_due_date_monitor,lots_browse, shipment_status,customer_shipments,
     lot_materials,inventory,lot_shippments,lot_summary,
+    traveler_drawing,
 
 
 
@@ -31,7 +32,7 @@ api_v1.include_router(travelers.router)
 api_v1.include_router(traveler_steps.router)
 
 
-
+api_v1.include_router(traveler_drawing.router)
 # api_v1.include_router(suppliers.router)
 
 
