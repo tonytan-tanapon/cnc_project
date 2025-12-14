@@ -840,7 +840,7 @@ async function downloadDrawingBatch() {
       toast("Download failed");
       return;
     }
-
+    console.log(res); 
     const blob = await res.blob();
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
@@ -869,7 +869,7 @@ async function downloadTravelerBatch() {
     const blob = await res.blob();
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = `drawing_${travelerId}.bat`;
+    a.download = `traveler_${travelerId}.bat`;
     a.click();
     URL.revokeObjectURL(a.href);
   } catch (err) {
@@ -894,7 +894,7 @@ async function downloadInspectionBatch() {
     const blob = await res.blob();
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = `drawing_${travelerId}.bat`;
+    a.download = `inspection_${travelerId}.bat`;
     a.click();
     URL.revokeObjectURL(a.href);
   } catch (err) {
@@ -903,23 +903,23 @@ async function downloadInspectionBatch() {
   }
 }
 
-async function downloadInspection() {
-  const res = await fetch(`/traveler_drawing/inspection/${travelerId}`, {
-    method: "POST",
-  });
+// async function downloadInspection() {
+//   const res = await fetch(`/traveler_drawing/inspection/${travelerId}`, {
+//     method: "POST",
+//   });
 
-  if (!res.ok) {
-    const err = await res.json();
-    alert(err.detail || "File not found");
-    return;
-  }
+//   if (!res.ok) {
+//     const err = await res.json();
+//     alert(err.detail || "File not found");
+//     return;
+//   }
 
-  const blob = await res.blob();
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = `inspection_${travelerId}.bat`;
-  a.click();
-}
+//   const blob = await res.blob();
+//   const a = document.createElement("a");
+//   a.href = URL.createObjectURL(blob);
+//   a.download = `inspection_${travelerId}.bat`;
+//   a.click();
+// }
 
 
 

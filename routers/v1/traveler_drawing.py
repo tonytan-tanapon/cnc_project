@@ -95,17 +95,17 @@ def build_drawing_batch(traveler_id: int, db: Session = Depends(get_db)):
     folder = f"Z:/Topnotch Group/Public/AS9100/Shop Traveler/Control Drawing for Production/{cus_code}/"
     # folder = f"Z:/Topnotch Group/Public/{year}/Drawing Diagram {year}/{cus_code}"
 
-    prefix = f"{part_no} {rev}"
-    latest = latest_file(folder, prefix)
-    # ❌ ถ้าไม่เจอไฟล์ → ส่ง 404 พร้อมข้อความสวย ๆ
-    if not latest:
-        raise HTTPException(
-            status_code=404,
-            detail=f"No inspection file found for {part_no} Rev {rev} in {folder}"
-        )
-    pdf_path = os.path.join(folder, latest) if latest else None
-    print(f"Searching in folder: {folder}")
-    print(f"Latest PDF: {pdf_path}")
+    # prefix = f"{part_no} {rev}"
+    # latest = latest_file(folder, prefix)
+    # # ❌ ถ้าไม่เจอไฟล์ → ส่ง 404 พร้อมข้อความสวย ๆ
+    # if not latest:
+    #     raise HTTPException(
+    #         status_code=404,
+    #         detail=f"No inspection file found for {part_no} Rev {rev} in {folder}"
+    #     )
+    # pdf_path = os.path.join(folder, latest) if latest else None
+    # print(f"Searching in folder: {folder}")
+    # print(f"Latest PDF: {pdf_path}")
     bat = [
         "@echo off",
         f"echo Lot: {lot_no}",
@@ -113,13 +113,17 @@ def build_drawing_batch(traveler_id: int, db: Session = Depends(get_db)):
         f"echo Rev: {rev}",
         f"echo Customer: {cus_code}",
         "",
+         
+        f'start "" "{folder}"',
+
     ]
 
-    if pdf_path:
-        bat.append(f'start "" "{pdf_path}"')
-    else:
-        bat.append("echo PDF not found.")
-
+    # if pdf_path:
+    
+    #     bat.append(f'start "" "{folder}"')
+    # else:
+    #     bat.append("echo PDF not found.")
+    print(bat)
     filename = f"drawing_{lot_no}.bat"
 
     # ใช้ temp folder ของ Windows
@@ -146,23 +150,24 @@ def build_drawing_batch(traveler_id: int, db: Session = Depends(get_db)):
     year = datetime.now().year
     # Z:\Topnotch Group\Public\AS9100\Shop Traveler\Control Drawing for Production\SA8884
     
-    folder = f"Z:/Topnotch Group/Public/AS9100/Shop Traveler/SHOP TRAVELER/{cus_code}/{part_no} {rev}/"
+    # folder = f"Z:/Topnotch Group/Public/AS9100/Shop Traveler/SHOP TRAVELER/{cus_code}/{part_no} {rev}/"
+    folder = f"Z:/Topnotch Group/Public/AS9100/Shop Traveler/SHOP TRAVELER/{cus_code}/"
     # folder = f"Z:/Topnotch Group/Public/{year}/Drawing Diagram {year}/{cus_code}"
 
-    prefix = f"{lot_no}"
-    latest = latest_file(folder, prefix,["doc"])
+    # prefix = f"{lot_no}"
+    # latest = latest_file(folder, prefix,["doc"])
 
-    # ❌ ถ้าไม่เจอไฟล์ → ส่ง 404 พร้อมข้อความสวย ๆ
-    if not latest:
-        raise HTTPException(
-            status_code=404,
-            detail=f"No inspection file found for {part_no} Rev {rev} in {folder}"
-        )
-    pdf_path = os.path.join(folder, latest) if latest else None
-    print(f"Searching in folder: {folder}")
+    # # ❌ ถ้าไม่เจอไฟล์ → ส่ง 404 พร้อมข้อความสวย ๆ
+    # if not latest:
+    #     raise HTTPException(
+    #         status_code=404,
+    #         detail=f"No inspection file found for {part_no} Rev {rev} in {folder}"
+    #     )
+    # pdf_path = os.path.join(folder, latest) if latest else None
+    # print(f"Searching in folder: {folder}")
 
-    print(prefix)
-    print(f"Latest PDF: {pdf_path}")
+    # print(prefix)
+    # print(f"Latest PDF: {pdf_path}")
     bat = [
         "@echo off",
         f"echo Lot: {lot_no}",
@@ -170,13 +175,15 @@ def build_drawing_batch(traveler_id: int, db: Session = Depends(get_db)):
         f"echo Rev: {rev}",
         f"echo Customer: {cus_code}",
         "",
+        f'start "" "{folder}"',
     ]
 
-    if pdf_path:
-        bat.append(f'start "" "{pdf_path}"')
-    else:
-        bat.append("echo PDF not found.")
-
+    # if pdf_path:
+        
+    #     bat.append(f'start "" "{folder}"')
+    # else:
+    #     bat.append("echo PDF not found.")
+    print(bat)
     filename = f"traveler_{lot_no}.bat"
 
     # ใช้ temp folder ของ Windows
@@ -204,20 +211,20 @@ def build_inspection_batch(traveler_id: int, db: Session = Depends(get_db)):
     cus_code = data["po"]["customer_code"]
 
     year = datetime.now().year
-    folder = f"Z:/Topnotch Group/Public/AS9100/Shop Traveler/INSPECT WIP Report/{cus_code}/{part_no} {rev}/"
+    # folder = f"Z:/Topnotch Group/Public/AS9100/Shop Traveler/INSPECT WIP Report/{cus_code}/{part_no} {rev}/"
+    folder = f"Z:/Topnotch Group/Public/AS9100/Shop Traveler/INSPECT WIP Report/{cus_code}/"
+    # prefix = f"{part_no} {rev}"
+    # latest = latest_file(folder, prefix, ["doc"])
 
-    prefix = f"{part_no} {rev}"
-    latest = latest_file(folder, prefix, ["doc"])
+    # # ❌ ถ้าไม่เจอไฟล์ → ส่ง 404 พร้อมข้อความสวย ๆ
+    # if not latest:
+    #     raise HTTPException(
+    #         status_code=404,
+    #         detail=f"No inspection file found for {part_no} Rev {rev} in {folder}"
+    #     )
 
-    # ❌ ถ้าไม่เจอไฟล์ → ส่ง 404 พร้อมข้อความสวย ๆ
-    if not latest:
-        raise HTTPException(
-            status_code=404,
-            detail=f"No inspection file found for {part_no} Rev {rev} in {folder}"
-        )
-
-    pdf_path = os.path.join(folder, latest)
-    print(f"Found file: {pdf_path}")
+    # pdf_path = os.path.join(folder, latest)
+    # print(f"Found file: {pdf_path}")
 
     # ---------- build .bat ----------
     bat = [
@@ -227,9 +234,10 @@ def build_inspection_batch(traveler_id: int, db: Session = Depends(get_db)):
         f"echo Rev: {rev}",
         f"echo Customer: {cus_code}",
         "",
-        f'start "" "{pdf_path}"',
+       
+         f'start "" "{folder}"',
     ]
-
+    print(bat)
     filename = f"inspection_{lot_no}.bat"
     tmp = os.path.join(tempfile.gettempdir(), filename)
 
