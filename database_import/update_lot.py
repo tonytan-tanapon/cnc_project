@@ -8,9 +8,9 @@ import csv
 from openpyxl import load_workbook
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
-SOURCE_FOLDER = r"C:\Data Base & Inventory Stock\test"
-DEST_FILE = r"C:\Data Base & Inventory Stock\test\lot_export.csv"
-
+SOURCE_FOLDER = r"Z:\Topnotch Group\Public\Data Base & Inventory Stock\Data"
+# DEST_FILE = r"C:\Data Base & Inventory Stock\test\lot_export.csv"
+DEST_FILE = ""
 lot_data = {}
 
 def extract_lot_rows(file_path):
@@ -34,18 +34,26 @@ def update_to_database(part_name, row):
     lot_no = row[1]
     prod_qty = row[3]
     due_date = row[6]
+    qty_ship = row[7]
     tracking_no = row[10]
     ship_date = row[11] 
-
+    take_out_qty = row[26]
+    
+    good_sotck = row[21]
+    
 
     lot_data[lot_no]    = {
         "part_name": part_name,
         "prod_qty": prod_qty,
         "due_date": due_date,
+        "qty_ship": qty_ship,
         "tracking_no": tracking_no,
-        "ship_date": ship_date
+        "ship_date": ship_date,
+        
+        "good_sotck": good_sotck,
+       
     }
-    
+   
 def process_all_files_parallel(folder, output_file):
 
     header = [
@@ -92,7 +100,9 @@ def process_all_files_parallel(folder, output_file):
                     update_to_database(part_name, row)
                     all_rows.append(row)
     
-    # print("loaded lot data:", len(lot_data) )
+    
+
+   
     return lot_data
     # Write CSV output
     # with open(output_file, "w", newline="", encoding="utf-8") as csvfile:

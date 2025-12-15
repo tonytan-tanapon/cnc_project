@@ -469,6 +469,7 @@ class ProductionLot(Base):
     planned_qty = Column(Integer, nullable=False, default=0)
     started_at = Column(DateTime(timezone=True), nullable=True)
     finished_at = Column(DateTime(timezone=True), nullable=True)
+    lot_po_date = Column(Date, nullable=True, index=True)
     lot_due_date = Column(Date, nullable=True, index=True)
     status = Column(String, nullable=False, default="in_process")
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)

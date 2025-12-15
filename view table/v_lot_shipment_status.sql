@@ -1,39 +1,52 @@
-DROP VIEW IF EXISTS v_lot_shipment_status2;
+DROP VIEW IF EXISTS v_lot_shipment_status;
 
-CREATE VIEW v_lot_shipment_status2 AS
+CREATE VIEW v_lot_shipment_status AS
 SELECT
     pl.id AS lot_id,
     pl.lot_no,
-    pl.status,
+    pl.status AS lot_status,
 
-    -- IDs
-    p.id AS part_id,
-    pr.id AS part_revision_id,
-    cu.id AS customer_id,
+    -- LOT due date
+    pl.lot_po_date AS lot_po_date,
+    (pl.lot_po_date::date - CURRENT_DATE) AS days_left,
+
+    -- PO / Part IDs (⭐ NEW)
     po.id AS po_id,
+    p.id AS part_id,
 
-    -- display fields
+    -- PO / Part info
+    pol.id AS po_line_id,
+    po.po_number,
+    pol.qty_ordered,
+
     p.part_no,
     p.name AS part_name,
     pr.rev AS revision,
-    po.po_number,
+
     cu.name AS customer_name,
     cu.code AS customer_code,
-    pol.due_date,
-    pol.qty_ordered,
-    pl.planned_qty,
 
-    -- shipment calculations
-    COALESCE(SUM(csi.qty), 0) AS qty_shipped,
-    (pol.qty_ordered - COALESCE(SUM(csi.qty), 0)) AS qty_remaining,
+    -- Lot qty
+    pl.planned_qty AS lot_planned_qty,
 
+    -- Shipped qty
+    COALESCE(SUM(csi.qty), 0) AS lot_shipped_qty,
+
+    -- Remaining qty
+    (pl.planned_qty - COALESCE(SUM(csi.qty), 0)) AS lot_remaining_qty,
+
+    -- Last shipment date
+    MAX(cs.shipped_at) AS lot_last_ship_date,
+
+    -- Overship flag
+    (COALESCE(SUM(csi.qty), 0) > pl.planned_qty) AS lot_overship,
+
+    -- Shipment status
     CASE
-        WHEN SUM(csi.qty) IS NULL OR SUM(csi.qty) = 0 THEN 'Not Shipped'
-        WHEN SUM(csi.qty) < pol.qty_ordered THEN 'Partially Shipped'
+        WHEN COALESCE(SUM(csi.qty), 0) = 0 THEN 'Not Shipped'
+        WHEN COALESCE(SUM(csi.qty), 0) < pl.planned_qty THEN 'Partially Shipped'
         ELSE 'Fully Shipped'
-    END AS shipment_status,
-
-    MAX(cs.shipped_at) AS last_ship_date
+    END AS lot_shipment_status
 
 FROM production_lots pl
 JOIN po_lines pol ON pl.po_line_id = pol.id
@@ -45,19 +58,11 @@ LEFT JOIN customer_shipment_items csi ON csi.lot_id = pl.id
 LEFT JOIN customer_shipments cs ON cs.id = csi.shipment_id
 
 GROUP BY
-    pl.id,
-    pl.lot_no,
-    pl.status,
-    p.id,
-    p.part_no,
-    p.name,
-    pr.id,
-    pr.rev,
-    cu.id,
-    cu.name,
-    cu.code,
-    po.id,
-    po.po_number,
-    pol.due_date,
-    pol.qty_ordered,
+    pl.id, pl.lot_no, pl.status,
+    pl.lot_po_date,
+    po.id,                -- ⭐ add
+    p.id,                 -- ⭐ add
+    pol.id, po.po_number, pol.qty_ordered,
+    p.part_no, p.name, pr.rev,
+    cu.name, cu.code,
     pl.planned_qty;
