@@ -18,6 +18,55 @@ let table = null;
 function makeColumns() {
   return [
     {
+      title: "Copy",
+      field: "copy",
+      width: 70,
+      hozAlign: "center",
+      formatter: () => {
+        return `
+      <button
+        style="
+          padding:4px 8px;
+          background:#e5e7eb;
+          border-radius:6px;
+          font-size:12px;
+          cursor:pointer;
+        "
+      >
+        Copy
+      </button>
+    `;
+      },
+      cellClick: (e, cell) => {
+        const d = cell.getRow().getData();
+
+        const text = [
+          d.lot_no ?? "",
+          d.po_number ?? "",
+          d.customer_code ?? "",
+          d.part_no ? `${d.part_no}${d.revision ? ` (${d.revision})` : ""}` : ""
+        ]
+          .filter(Boolean)
+          .join(",");
+
+        // ✅ Fallback copy (WORKS EVERYWHERE)
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+
+        console.log("Copied:", text);
+        toast?.success?.("Copied!");
+      },
+
+    },
+
+    {
       title: "Lot",
       field: "lot_no",
       width: 100,
@@ -37,11 +86,80 @@ function makeColumns() {
       },
     },
 
-     {
+    {
+      title: "Lot",
+      field: "lot_no",
+      width: 130,
+      sorter: (a, b) => {
+        if (!a) a = "";
+        if (!b) b = "";
+        const na = Number((a.match(/\d+/) || [0])[0]);
+        const nb = Number((b.match(/\d+/) || [0])[0]);
+        return na - nb;
+      },
+
+      formatter: (cell) => {
+        const d = cell.getRow().getData();
+        const lotNo = cell.getValue() ?? "";
+
+        if (!d.lot_id) return lotNo;
+
+        return `
+      <div class="lot-cell" style="display:flex;gap:6px;align-items:center;">
+        <a class="link"
+           href="/static/lot-detail.html?lot_id=${d.lot_id}">
+          ${lotNo}
+        </a>
+        <span
+          class="copy-lot"
+          title="Copy Lot Info"
+          style="cursor:pointer;"
+        >
+          📋
+        </span>
+      </div>
+    `;
+      },
+
+      cellClick: (e, cell) => {
+        // ✅ copy เฉพาะตอนคลิก icon
+        if (!e.target.classList.contains("copy-lot")) return;
+
+        e.preventDefault();
+        e.stopPropagation();
+
+        const d = cell.getRow().getData();
+
+        const text = [
+          d.lot_no ?? "",
+          d.customer_code ?? "",
+          d.po_number ?? "",
+          d.part_no
+            ? `${d.part_no}${d.revision ? ` (${d.revision})` : ""}`
+            : ""
+        ]
+          .filter(Boolean)
+          .join(" | ");
+
+        // 🔒 SAFE COPY (no clipboard API)
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.position = "fixed";
+        ta.style.top = "-1000px";
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+
+        toast?.success?.("Copied");
+      },
+    }
+    ,
+    {
       title: "PO",
       field: "po_number",
       width: 100,
-     
+
       formatter: (cell) => {
         const d = cell.getData();
         if (!d.po_id) return cell.getValue() ?? "";
@@ -54,83 +172,149 @@ function makeColumns() {
       },
     },
 
+    { title: "Cust", field: "customer_code", width: 80 },
 
 
-{
-  title: "Part",
-  field: "part_no",
-  width: 120,
-  formatter: (cell) => {
-    const d = cell.getData();
-    const rev = d.revision ? ` (${d.revision})` : "";
+    {
+      title: "Part",
+      field: "part_no",
+      width: 120,
+      formatter: (cell) => {
+        const d = cell.getData();
+        const rev = d.revision ? ` (${d.revision})` : "";
 
-    if (!d.part_id) return `${d.part_no ?? ""}${rev}`;
+        if (!d.part_id) return `${d.part_no ?? ""}${rev}`;
 
-    const url =
-      `/static/manage-part-detail.html` +
-      `?part_id=${d.part_id}` +
-      `&part_revision_id=${d.part_revision_id ?? ""}` +
-      `&customer_id=${d.customer_id ?? ""}`;
+        const url =
+          `/static/manage-part-detail.html` +
+          `?part_id=${d.part_id}` +
+          `&part_revision_id=${d.part_revision_id ?? ""}` +
+          `&customer_id=${d.customer_id ?? ""}`;
 
-    return `
+        return `
       <a class="link" href="${url}">
         ${d.part_no ?? ""}${rev}
       </a>
     `;
-  },
-},
+      },
+    },
 
 
 
 
     { title: "Part Name", field: "part_name", width: 140 },
-    { title: "Cust", field: "customer_code", width: 80 },
 
     {
-  title: "Due Date",
-  field: "lot_po_date",
-  width: 120,
-  formatter: (cell) => {
-    const v = cell.getValue();
-    return v ? new Date(v + "T00:00:00").toLocaleDateString() : "";
-  },
-},
-
-    {
-  title: "Days Left",
-  field: "days_left",
-  width: 120,
-  hozAlign: "center",
-  sorter: "number",        // ⭐ สำคัญ
-  formatter: (cell) => {
-    const days = cell.getValue();
-    if (days == null) return "";
-    const color =
-      days < 0 ? "#ef4444" :
-      days <= 3 ? "#f59e0b" :
-      "#10b981";
-
-    const text =
-      days < 0 ? `${Math.abs(days)}d OD` :
-      `${days}d left`;
-
-    return `<span style="background:${color};
-      color:white;padding:4px 8px;border-radius:8px;">
-      ${text}
-    </span>`;
-  },
-},
-
-
-    {
-      title: "PO / Ship / Remain",
-      field: "qty_ordered",
-      width: 180,
+      title: "Due Date",
+      field: "lot_po_date",
+      width: 120,
       formatter: (cell) => {
-        const r = cell.getRow().getData();
-        return `${r.qty_ordered ?? 0} / ${r.lot_shipped_qty ?? 0} / ${r.lot_remaining_qty ?? 0}`;
+        const v = cell.getValue();
+        return v ? new Date(v + "T00:00:00").toLocaleDateString() : "";
       },
     },
+
+    {
+      title: "Days Left",
+      field: "days_left",
+      width: 120,
+      hozAlign: "center",
+      sorter: "number",
+      formatter: (cell) => {
+        const row = cell.getRow().getData();
+
+        // 🚫 Hide if lot is complete
+        if (row.lot_status === "completed") return `
+        <span style="
+          background:#10b981;
+          color:white;
+          padding:4px 10px;
+          border-radius:999px;
+          font-weight:600;
+        ">
+          Shipped
+        </span>
+      `;
+
+        const days = cell.getValue();
+        if (days == null) return "";
+
+        const color =
+          days < 0 ? "#ef4444" :
+            days <= 3 ? "#f59e0b" :
+              "#10b981";
+
+        const text =
+          days < 0 ? `${Math.abs(days)}d OD` :
+            `${days}d left`;
+
+        return `
+      <span style="
+        background:${color};
+        color:white;
+        padding:4px 8px;
+        border-radius:8px;
+      ">
+        ${text}
+      </span>
+    `;
+      },
+    },
+
+
+    //     {
+    //   title: "PO | Ship | Remain",
+    //   width: 200,
+    //   formatter: (cell) => {
+    //     const r = cell.getRow().getData();
+
+    //     return `
+    //       <div class="qty-grid">
+    //         <span>${r.qty_ordered ?? 0} | </span>
+    //         <span>${r.lot_shipped_qty ?? 0} |</span>
+    //         <span>${r.lot_remaining_qty ?? 0}</span>
+    //       </div>
+    //     `;
+    //   },
+    // },
+
+    {
+      title: "PO",
+      width: 80,
+      formatter: (cell) => {
+        const r = cell.getRow().getData();
+
+        return `
+      ${r.qty_ordered ?? 0}`;
+      },
+    },
+    {
+      title: "Ship",
+      width: 80,
+      formatter: (cell) => {
+        const r = cell.getRow().getData();
+
+        return `
+      
+        ${r.lot_shipped_qty ?? 0} 
+       
+    `;
+      },
+    },
+    {
+      title: "Rem.",
+      width: 80,
+      formatter: (cell) => {
+        const r = cell.getRow().getData();
+
+        return `
+     
+        ${r.lot_remaining_qty ?? 0}
+      
+    `;
+      },
+    },
+
 
     {
       title: "Lot Status",
@@ -142,7 +326,7 @@ function makeColumns() {
           not_start: "Not Start",
           in_process: "In Process",
           completed: "Completed",
-       
+
         },
       },
       formatter: (cell) => {

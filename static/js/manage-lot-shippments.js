@@ -59,9 +59,8 @@ async function loadLotHeader() {
         <div><b>Planned Qty:</b> ${lot.planned_qty ?? "-"}</div>
         <div><b>Finished Qty:</b> ${lot.finished_qty ?? "-"}</div>
         <div><b>Status:</b> ${lot.status ?? "-"}</div>
-        <div><b>Due Date:</b> ${
-          lot.due_date ? new Date(lot.due_date).toLocaleDateString() : "-"
-        }</div>
+        <div><b>Due Date:</b> ${lot.due_date ? new Date(lot.due_date).toLocaleDateString() : "-"
+      }</div>
       </div>
     `;
   } catch (err) {
@@ -254,21 +253,18 @@ async function downloadCofC(row) {
   }
 }
 
-async function downloadLabel(row, size) {
+async function downloadLabel(row, size, type) {
   const shipmentId = row.id;
 
-  // 🌟 อ่านค่าจาก checkbox FAIR ใน row นั้น
-  const fairCheckbox = document.querySelector(
-    `.fair-checkbox[data-id="${shipmentId}"]`
-  );
-  const fair = fairCheckbox ? fairCheckbox.checked : false;
-
-  // สร้าง query param ส่งไป backend
+  // ✅ ALWAYS define params first
   const params = new URLSearchParams();
-  params.set("size", size);
-  if (fair) params.set("fair", "true"); // ✅ ถ้ามี FAIR ให้ส่ง fair=true
 
-  const url = `/api/v1/lot-shippments/${shipmentId}/download/label/${size}?${params.toString()}`;
+  // size is part of path, not query (already correct)
+  if (type) params.set("type", type); // fair | cmm | box
+
+  const url =
+    `/api/v1/lot-shippments/${shipmentId}/download/label/${size}` +
+    (params.toString() ? `?${params.toString()}` : "");
 
   try {
     const res = await fetch(url);
@@ -277,8 +273,7 @@ async function downloadLabel(row, size) {
       return;
     }
 
-    // ✅ ดึง filename จาก header backend
-    let downloadName = `label_${shipmentId}_${size}.docx`; // fallback
+    let downloadName = `label_${shipmentId}_${size}.docx`;
     const disposition = res.headers.get("Content-Disposition");
 
     if (disposition && disposition.includes("filename=")) {
@@ -289,10 +284,9 @@ async function downloadLabel(row, size) {
     }
 
     const blob = await res.blob();
-
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = downloadName; // ✅ ใช้ชื่อจาก server
+    link.download = downloadName;
     document.body.appendChild(link);
     link.click();
     link.remove();
@@ -303,6 +297,7 @@ async function downloadLabel(row, size) {
     toast("Error downloading label", false);
   }
 }
+
 
 function logShipmentRow(row) {
   console.log("====== Shipment Log ======");
@@ -616,79 +611,72 @@ function initShipmentTable() {
 
       {
         title: "CofC",
-        width: 90,
+        width: 80,
         formatter: () => `<button class="btn-mini btn-blue">DOC</button>`,
         cellClick: (e, cell) => downloadCofC(cell.getRow().getData()),
       },
-      {
-        title: "#Label",
-        field: "label_controls", // ฟิลด์ dummy ไม่ต้องมีจริงใน backend
-        width: 130,
-
-        formatter: (cell) => {
-          const row = cell.getRow().getData();
-
-          return `
-      <div style="display:flex; align-items:center; gap:8px;">
-        <label style="display:flex; align-items:center; gap:4px; cursor:pointer;">
-          <input type="checkbox" 
-                 class="fair-checkbox" 
-                 data-id="${row.id}" 
-                 ${row.fair ? "checked" : ""}>
-          FAIR
-        </label>
-
-        <input type="number" 
-               class="label-input" 
-               data-id="${row.id}"
-               value="${row.label_value ?? ""}"
-               style="width:60px; padding:2px 4px; border:1px solid #ccc; border-radius:4px;">
-      </div>
-    `;
-        },
-
-        cellClick: (e, cell) => {
-          const target = e.target;
-          const row = cell.getRow().getData();
-
-          // ---- Handle Checkbox (FAIR) ----
-          if (target.classList.contains("fair-checkbox")) {
-            const newVal = target.checked;
-            console.log("FAIR changed:", row.id, newVal);
-
-            // 🟢 ส่งค่ากลับ server (optional)
-            // await jfetch(`/api/v1/...`, {method:"PATCH", body:JSON.stringify({fair:newVal})})
-          }
-
-          // ---- Handle Number Input ----
-          if (target.classList.contains("label-input")) {
-            target.addEventListener("change", async () => {
-              const newVal = Number(target.value);
-              console.log("Number changed:", row.id, newVal);
-
-              // 🟢 ส่งค่ากลับ server (optional)
-              // await jfetch(`/api/v1/...`, {method:"PATCH", body:JSON.stringify({label_value:newVal})})
-            });
-          }
-        },
-      },
+     
       {
         title: "Label",
-        width: 120,
+        width: 250,
         formatter: () => `
-    <div class="label-buttons">
-      <button class="btn-mini btn-orange" data-size="80">80</button>
-      <button class="btn-mini btn-blue" data-size="60">60</button>
-      <button class="btn-mini btn-green" data-size="30">30</button>
-    </div>
-  `,
+          <div class="label-buttons">
+            <!-- SIZE -->
+            <button class="btn-mini btn-orange"
+                    data-action="size"
+                    data-size="80">80</button>
+
+            <button class="btn-mini btn-blue"
+                    data-action="size"
+                    data-size="60">60</button>
+
+            <button class="btn-mini btn-green"
+                    data-action="size"
+                    data-size="30">30</button>
+
+            <!-- TYPE -->
+            <button class="btn-mini btn-gray"
+                    data-action="type"
+                    data-type="fair">Fair</button>
+
+            <button class="btn-mini btn-gray"
+                    data-action="type"
+                    data-type="cmm">CMM</button>
+
+            <button class="btn-mini btn-gray"
+                    data-action="type"
+                    data-type="box">Box</button>
+          </div>
+        `,
+
         cellClick: async (e, cell) => {
+          const btn = e.target.closest("button");
+          if (!btn) return;
+
           const row = cell.getRow().getData();
-          const size = e.target.dataset.size;
-          if (!size) return;
-          await downloadLabel(row, Number(size)); // ✅ เรียกฟังก์ชันใหม่แทน
+
+          const action = btn.dataset.action;   // ✅ works now
+          var size = btn.dataset.size;       // string | undefined
+          var type = btn.dataset.type;       // string | undefined
+          if (size === undefined ) {
+            size = 30; // default size
+          }
+          if (type === undefined) {
+            type = 'label'; // default type
+          }
+          console.log("Button clicked:", {
+            action,
+            size,
+            type,
+            shipmentId: row.id,
+          });
+          await downloadLabel(row, Number(size),type);
+          return;
+         
+      
         },
-      },
+
+  },
       {
         title: "Report",
         width: 100,
@@ -790,7 +778,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   await loadShipmentsList();
 
 
-  
+
   initPartTable();
   initShipmentTable();
   initToolbar();

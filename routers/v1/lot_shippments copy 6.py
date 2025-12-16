@@ -10,7 +10,7 @@ from models import (
     CustomerShipment,
     CustomerShipmentItem,
     Part,
-    PartRevision,PO
+    PartRevision
 )
 
 router = APIRouter(prefix="/lot-shippments", tags=["lot-shippments"])
@@ -705,27 +705,24 @@ import os
 def download_label(
     shipment_id: int,
     size: int,
-    type: str = Query(None, description="Type of label: fair, cmm, or default"),
-    
+    fair: bool = Query(False),
     db: Session = Depends(get_db),
 ):
-    print(f"Generating label for shipment {shipment_id}, size {size}, type {type}")
     # 1️⃣ Load shipment + items + lot + part + revision
     shipment = (
         db.query(CustomerShipment)
         .options(
-            joinedload(CustomerShipment.po)
-                .joinedload(PO.customer),   # ✅ ตรงนี้สำคัญ
             joinedload(CustomerShipment.items)
                 .joinedload(CustomerShipmentItem.lot)
                 .joinedload(ProductionLot.part),
             joinedload(CustomerShipment.items)
                 .joinedload(CustomerShipmentItem.lot)
-                .joinedload(ProductionLot.part_revision),
+                .joinedload(ProductionLot.part_revision),  # ✅ โหลด revision แยก branch
         )
         .filter(CustomerShipment.id == shipment_id)
         .first()
     )
+
     if not shipment or not shipment.items:
         raise HTTPException(status_code=404, detail="Shipment not found or empty")
 
@@ -737,13 +734,7 @@ def download_label(
     lot_no = lot.lot_no if lot else "UNKNOWN_LOT"
     part_no = part.part_no if part else "UNKNOWN_PART"
     po_no = shipment.po.po_number if shipment.po else ""
-    
-    customer_name = (
-        shipment.po.customer.name
-        if shipment.po and shipment.po.customer
-        else ""
-    )
-    print("Customer Name for Label:", customer_name)
+
     # 2️⃣ Map replace fields
     replace_map = {
         "{PART}": f"Part: {part.part_no} {part.name}" if part else "",
@@ -752,18 +743,10 @@ def download_label(
         "{QTY}": str(int(item.qty or 0)),
         "{DESCRIPTION}": part.name if part else "",
         "{DATE}": datetime.now().strftime("%m/%d/%Y"),
-        "CUSTOMER": customer_name,   # ✅ เพิ่ม
     }
-    
+    customer_name = shipment.customer.name if shipment.customer else ""
     # 3️⃣ Load template
-    if type == "fair":
-        template_path = f"templates/label_fair.docx"
-    elif type == "cmm":
-        template_path = f"templates/label_cmm.docx"
-    elif type == "box":
-        template_path = f"templates/label_box.docx"
-    else:
-        template_path = f"templates/label_{size}.docx"
+    template_path = f"templates/label_{size}.docx"
     if not os.path.exists(template_path):
         raise HTTPException(status_code=404, detail="Template not found")
 
@@ -771,18 +754,30 @@ def download_label(
 
     # 4️⃣ Replace preserving format
     def replace_runs(paragraph):
-        for run in list(paragraph.runs):
-            # replace placeholders ปกติ
+        for run in paragraph.runs:
             for k, v in replace_map.items():
                 if k in run.text:
                     run.text = run.text.replace(k, v or "")
 
-        
-            
+            # ✅ FAIR: เปลี่ยนชื่อบริษัท
+            if fair and "Topnotch Quality Works" in run.text:
+                run.text = run.text.replace(
+                    "Topnotch Quality Works",
+                    f"Topnotch Quality Works\nTo: {customer_name}"
+                )
 
-        
-    print(len(doc.paragraphs))        # อาจ = 0
-    print(len(doc.tables))            # มี table เต็ม
+        # ✅ ถ้า FAIR ถูกติ๊ก และ paragraph มี "Rev:" → ใส่ FAIR newline ต่อท้าย
+        if fair and "Rev:" in paragraph.text:
+            prev = paragraph.runs[-1]  # run ตัวสุดท้าย (ของเดิมจาก template)
+            new = paragraph.add_run("\nFIRST ARTICLE\nPart has no damages. Please handle with care ")
+            
+            # ✅ inherit style from previous run
+            new.bold = prev.bold
+            new.italic = prev.italic
+            new.underline = prev.underline
+            new.font.name = prev.font.name
+            new.font.size = prev.font.size  # ← เอา size เดิมมาใช้ 🔥
+
     # 🔁 Replace ใน paragraph ปกติ
     for p in doc.paragraphs:
         replace_runs(p)
@@ -799,10 +794,7 @@ def download_label(
     doc.save(tmp.name)
 
     # 6️⃣ ตั้งชื่อไฟล์ตอน download
-    label_type = type.upper() if type else "label"
-
-    download_name = f"label_{lot_no}_{part_no}_{label_type}_{size}.docx"
-    # download_name = f"label_{lot_no}_{part_no}.docx"
+    download_name = f"label_{lot_no}_{part_no}{'_FAIR' if fair else ''}_{size}.docx"
 
     # 7️⃣ Return file + force filename จาก client ✅
     return FileResponse(

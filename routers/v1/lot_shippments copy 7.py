@@ -705,11 +705,9 @@ import os
 def download_label(
     shipment_id: int,
     size: int,
-    type: str = Query(None, description="Type of label: fair, cmm, or default"),
-    
+    fair: bool = Query(False),
     db: Session = Depends(get_db),
 ):
-    print(f"Generating label for shipment {shipment_id}, size {size}, type {type}")
     # 1️⃣ Load shipment + items + lot + part + revision
     shipment = (
         db.query(CustomerShipment)
@@ -737,13 +735,7 @@ def download_label(
     lot_no = lot.lot_no if lot else "UNKNOWN_LOT"
     part_no = part.part_no if part else "UNKNOWN_PART"
     po_no = shipment.po.po_number if shipment.po else ""
-    
-    customer_name = (
-        shipment.po.customer.name
-        if shipment.po and shipment.po.customer
-        else ""
-    )
-    print("Customer Name for Label:", customer_name)
+
     # 2️⃣ Map replace fields
     replace_map = {
         "{PART}": f"Part: {part.part_no} {part.name}" if part else "",
@@ -752,16 +744,15 @@ def download_label(
         "{QTY}": str(int(item.qty or 0)),
         "{DESCRIPTION}": part.name if part else "",
         "{DATE}": datetime.now().strftime("%m/%d/%Y"),
-        "CUSTOMER": customer_name,   # ✅ เพิ่ม
     }
-    
+    customer_name = (
+        shipment.po.customer.name
+        if shipment.po and shipment.po.customer
+        else ""
+    )
     # 3️⃣ Load template
-    if type == "fair":
-        template_path = f"templates/label_fair.docx"
-    elif type == "cmm":
+    if fair:
         template_path = f"templates/label_cmm.docx"
-    elif type == "box":
-        template_path = f"templates/label_box.docx"
     else:
         template_path = f"templates/label_{size}.docx"
     if not os.path.exists(template_path):
@@ -777,12 +768,35 @@ def download_label(
                 if k in run.text:
                     run.text = run.text.replace(k, v or "")
 
-        
-            
+            # ✅ FAIR: เปลี่ยน Topnotch + ใส่ To: + bold customer
+            if fair and "Topnotch Quality Works" in run.text:
+                # ล้างข้อความเดิม
+                run.text = run.text.replace("Topnotch Quality Works", "Topnotch Quality Works\n")
 
-        
-    print(len(doc.paragraphs))        # อาจ = 0
-    print(len(doc.tables))            # มี table เต็ม
+                # run สำหรับ "To: "
+                to_run = paragraph.add_run("To: ")
+                to_run.bold = False
+                to_run.font.name = run.font.name
+                to_run.font.size = run.font.size  # ← เอา size เดิมมาใช้
+
+                # run สำหรับ customer name (bold)
+                cust_run = paragraph.add_run(customer_name or "")
+                cust_run.bold = True
+                cust_run.font.name = run.font.name
+                cust_run.font.size = run.font.size  # ← เอา size เดิมมาใช้ 🔥
+
+        # ✅ ถ้า FAIR ถูกติ๊ก และ paragraph มี "Rev:" → ใส่ FAIR newline ต่อท้าย
+        if fair and "Rev:" in paragraph.text:
+            prev = paragraph.runs[-1]  # run ตัวสุดท้าย (ของเดิมจาก template)
+            new = paragraph.add_run("\nFIRST ARTICLE\nPart has no damages. Please handle with care ")
+            
+            # ✅ inherit style from previous run
+            new.bold = prev.bold
+            new.italic = prev.italic
+            new.underline = prev.underline
+            new.font.name = prev.font.name
+            new.font.size = prev.font.size  # ← เอา size เดิมมาใช้ 🔥
+
     # 🔁 Replace ใน paragraph ปกติ
     for p in doc.paragraphs:
         replace_runs(p)
@@ -799,10 +813,7 @@ def download_label(
     doc.save(tmp.name)
 
     # 6️⃣ ตั้งชื่อไฟล์ตอน download
-    label_type = type.upper() if type else "label"
-
-    download_name = f"label_{lot_no}_{part_no}_{label_type}_{size}.docx"
-    # download_name = f"label_{lot_no}_{part_no}.docx"
+    download_name = f"label_{lot_no}_{part_no}{'_FAIR' if fair else ''}_{size}.docx"
 
     # 7️⃣ Return file + force filename จาก client ✅
     return FileResponse(

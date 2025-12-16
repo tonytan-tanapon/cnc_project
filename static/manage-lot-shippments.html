@@ -151,6 +151,28 @@
         pointer-events: none;
         cursor: not-allowed;
       }
+
+      /* ===== Shipment type radio (Tabulator-safe) ===== */
+
+.ship-type-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ship-radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+  line-height: 1;
+}
+
+.ship-radio input[type="radio"] {
+  margin: 0;
+  transform: none; /* IMPORTANT: prevents overlap */
+}
     </style>
   </head>
 

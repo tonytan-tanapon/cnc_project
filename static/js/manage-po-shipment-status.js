@@ -19,7 +19,7 @@ function makeColumns() {
     {
       title: "PO",
       field: "po_number",
-      width: 100,
+      width: 120,
       formatter: (cell) => {
         const d = cell.getData();
         const poId = d.po_id;
