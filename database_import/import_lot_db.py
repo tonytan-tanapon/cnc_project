@@ -381,8 +381,9 @@ def main():
                 qty_po = parse_int(pick(row, "Qty PO", "Qty", "Quantity"))
                 
                 price_each = clean_money(pick(row, "Price", "Unit Price"))
-                due_date = parse_date(pick(row, "Due Date", "Original"))                    # PO due date
-                created_at = parse_date(pick(row, "Date"))                                  # lot create datae
+                due_date = parse_date(pick(row, "Due Date", "Original"))                    # due_date due date
+                created_at = parse_date(pick(row, "Date"))                                  # PO date, lot issue date
+
                 need_remark = pick(row, "Need/Remark", "Remark")        
                 fair_no = pick(row, "FAIR#", "FAIR No")
                 invoice_no = pick(row, "Invoice#", "Invoice No.")
@@ -447,20 +448,23 @@ def main():
 
                 # --- PO / POLine ---
                 if not po_number:
-                    continue
+                    po_number = f"NOPO-{processed+1:06d}"
                 po = db.scalar(select(PO).where(PO.po_number == po_number))
                 if not po:
+                    # create new PO
                     po = PO(
                         po_number=po_number, 
                         customer_id=customer.id, 
-                        created_at = to_utc_midnight(created_at))         # col A: date for po date
+                        po_date=to_utc_midnight(created_at),     # col A: date for po date 
+                        created_at = to_utc_midnight(created_at)  )    # col A: date for po date
                     db.add(po)
                     db.flush()
 
+                # check existing POLine
                 line = db.scalar(select(POLine).where(
                     POLine.po_id == po.id,
                     POLine.part_id == part.id,
-                    POLine.revision_id == (rev.id if rev else None),
+                    POLine.revision_id == (rev.id if rev else None)
                 ))
            
                 if not line:
@@ -474,6 +478,17 @@ def main():
                     )
                     db.add(line)
                     db.flush()
+                else:
+                    
+                        
+                    # เพิ่ม qty_ordered เข้าไปจากของเดิม
+                    line.qty_ordered = (line.qty_ordered or Decimal(0)) + Decimal(qty_po or 0)
+                    
+                    db.flush()
+                    # if qty_po >0:
+                    #     print(po_number, part_no, "POLine exists, updated qty_ordered to", line.qty_ordered)
+                   
+                    
 
                 # --- Auto-generate Lot No if missing ---
                 if not lot_no:
@@ -483,7 +498,10 @@ def main():
 
                 lot_qty = all_lots.get(lot_no, {}).get("prod_qty", 0)
                 # print("lot_qty from excel:", lot_no, lot_qty,qty_ship, qty_po)
-        
+                if lot_qty in (None, 0):
+                    if qty_ship is not None and qty_ship > 0:
+                        lot_qty = qty_ship
+                
                
                 # --- Lot ---
                 lot = get_or_upsert_lot(
@@ -493,7 +511,7 @@ def main():
                     qty=lot_qty,    # plan qty
                     lot_due_date=(due_date - timedelta(days=30)) if due_date else None,
                     start_date=(due_date - timedelta(days=60)) if due_date else None,
-                    created_date=created_at,
+                    created_date=(due_date - timedelta(days=60)) if due_date else None,
                     note=need_remark,
                     fair_note=fair_no,
                 )
@@ -576,18 +594,24 @@ def main():
                         .where(ProductionLot.id == lot.id)
                         .values(status="not_start")
                     )
-                elif qty_ship > 0 and qty_ship == lot_qty :
+                else:
                     db.execute(
                         update(ProductionLot)
                         .where(ProductionLot.id == lot.id)
                         .values(status="completed")
                     )
-                else :
-                    db.execute(
-                        update(ProductionLot)
-                        .where(ProductionLot.id == lot.id)
-                        .values(status="in_process")
-                    )
+                # elif qty_ship > 0 and qty_ship == lot_qty :
+                #     db.execute(
+                #         update(ProductionLot)
+                #         .where(ProductionLot.id == lot.id)
+                #         .values(status="completed")
+                #     )
+                # else :
+                #     db.execute(
+                #         update(ProductionLot)
+                #         .where(ProductionLot.id == lot.id)
+                #         .values(status="in_process")
+                #     )
                     
                         
                 db.flush()

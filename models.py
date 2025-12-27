@@ -184,6 +184,7 @@ class PO(Base):
     po_number = Column(String, unique=True, index=True, nullable=False)
     description = Column(String, nullable=True)
     customer_id = Column(Integer, ForeignKey("customers.id"), nullable=False, index=True)
+    po_date = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     customer = relationship("Customer", back_populates="pos", foreign_keys=[customer_id])
@@ -191,6 +192,8 @@ class PO(Base):
     lines = relationship("POLine", back_populates="po", cascade="all, delete-orphan")
     shipments = relationship("CustomerShipment", back_populates="po", cascade="all, delete-orphan")
     invoices = relationship("CustomerInvoice", back_populates="po", cascade="all, delete-orphan")
+
+    status = Column(String, default="active", nullable=True)
     lots = relationship(
         "ProductionLot",
         back_populates="po",
@@ -1240,12 +1243,16 @@ class POLine(Base):
     unit_price = Column(Numeric(18, 2))
     due_date = Column(DateTime(timezone=True))
     second_due_date = Column(DateTime(timezone=True))
+    third_due_date = Column(DateTime(timezone=True))
     notes = Column(Text)
-
+    
+    status = Column(String, default="active", nullable=True)
     po = relationship("PO", back_populates="lines", foreign_keys=[po_id])
     part = relationship("Part", foreign_keys=[part_id])
     rev = relationship("PartRevision", foreign_keys=[revision_id])
 
+
+    
     __table_args__ = (
         Index("ix_po_lines_po", "po_id"),
         Index("ix_po_lines_part_rev", "part_id", "revision_id"),
