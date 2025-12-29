@@ -568,50 +568,50 @@ function initTable() {
     // groupBy: "po_number",
     pagination: false,
     columns: [
-   {
-  title: "📌",
-  minWidth: 40,
-  field: "lot_status",
-  hozAlign: "center",
-  headerHozAlign: "center",
+      {
+        title: "📌",
+        minWidth: 40,
+        field: "lot_status",
+        hozAlign: "center",
+        headerHozAlign: "center",
 
-  formatter: (cell) => {
-    const v = cell.getValue();
-    if (!v) return "—";
+        formatter: (cell) => {
+          const v = cell.getValue();
+          if (!v) return "—";
 
-    const s = v.toLowerCase();
+          const s = v.toLowerCase();
 
-    // สีประกอบ (optional แต่ช่วยอ่านเร็ว)
-    const colorMap = {
-      complete: "#10b981",        // green
-      process: "#f59e0b",         // orange
-      in_process: "#f59e0b",
-      "not start": "#6b7280",     // gray
-      not_started: "#6b7280",
-      hold: "#ef4444",            // red
-      cancel: "#ef4444",
-      canceled: "#ef4444",
-      cancelled: "#ef4444",
-      reject: "#ef4444",
-    };
+          // สีประกอบ (optional แต่ช่วยอ่านเร็ว)
+          const colorMap = {
+            complete: "#10b981",        // green
+            process: "#f59e0b",         // orange
+            in_process: "#f59e0b",
+            "not start": "#6b7280",     // gray
+            not_started: "#6b7280",
+            hold: "#ef4444",            // red
+            cancel: "#ef4444",
+            canceled: "#ef4444",
+            cancelled: "#ef4444",
+            reject: "#ef4444",
+          };
 
-    let icon = v;
+          let icon = v;
 
-    if (s === "completed") icon = "✅";
-    else if (s === "in_process") icon = "⚙️";
-    else if (s === "not start" || s === "not_started") icon = "⏳";
-    else if (s === "hold") icon = "⏸️";
-    else if ( s === "not_start"  ) icon = "❌";
+          if (s === "completed") icon = "✅";
+          else if (s === "in_process") icon = "⚙️";
+          else if (s === "not start" || s === "not_started") icon = "⏳";
+          else if (s === "hold") icon = "⏸️";
+          else if (s === "not_start") icon = "❌";
 
-    const color = colorMap[s] || "#111827";
+          const color = colorMap[s] || "#111827";
 
-    return `
+          return `
       <span title="${v}" style="font-size:16px; color:${color};">
         ${icon}
       </span>
     `;
-  },
-},
+        },
+      },
 
 
       {
@@ -672,7 +672,7 @@ function initTable() {
           )}`;
         },
       },
-     
+
       {
         title: "Prod<br>Qty",
         field: "lot_qty",
@@ -782,6 +782,45 @@ function initTable() {
         },
       },
 
+    //   {
+    //     title: "Ship/PO(Rem)",
+    //     width: 170,
+    //     hozAlign: "center",
+    //     formatter: (cell) => {
+    //       const r = cell.getRow().getData();
+
+    //       const shipped = r.po_shipped_total ?? 0;
+    //       const total = r.po_qty_total ?? 0;
+    //       const remain = r.po_remaining_qty ?? (total - shipped);
+
+    //       // สีตามสถานะ
+    //       let bg = "#6b7280"; // gray
+    //       if (shipped === 0) bg = "#ef4444";              // not shipped
+    //       else if (remain > 0) bg = "#f59e0b";            // partial
+    //       else if (remain === 0) bg = "#10b981";          // complete
+    //       else bg = "#7c3aed";                             // overship
+
+    //       // format remain
+    //       const remText =
+    //         remain < 0 ? `-${Math.abs(remain)}` : remain;
+
+    //       return `
+    //   <span style="
+    //     background:${bg};
+    //     color:white;
+    //     padding:4px 10px;
+    //     border-radius:8px;
+    //     font-weight:600;
+    //     display:inline-block;
+    //     min-width:120px;
+    //     text-align:center;
+    //   ">
+    //     ${shipped} / ${total} (${remText})
+    //   </span>
+    // `;
+    //     },
+    //   },
+    
       {
         title: "PO(Rem)<br>QTY",
         field: "po_qty_total",
@@ -823,52 +862,52 @@ function initTable() {
         },
       },
 
- {
-  title: "PO<br>Date",
-  field: "po_due_date",
-  headerSort: true,
-  minWidth: 90,
-  hozAlign: "center",
-  headerHozAlign: "center",
-  sorter: "string",
+      {
+        title: "Due<br>Date",
+        field: "po_due_date",
+        headerSort: true,
+        minWidth: 90,
+        hozAlign: "center",
+        headerHozAlign: "center",
+        sorter: "string",
 
-  formatter: (cell) => {
-    const r = cell.getRow().getData();
+        formatter: (cell) => {
+          const r = cell.getRow().getData();
 
-    const dueRaw = r.po_due_date;
-    if (!dueRaw) return "—";
+          const dueRaw = r.po_due_date;
+          if (!dueRaw) return "—";
 
-    const dueText = fmtDateMMDDYY(dueRaw);
-    const shippedQty = r.lot_shipped_qty ?? 0;
+          const dueText = fmtDateMMDDYY(dueRaw);
+          const shippedQty = r.lot_shipped_qty ?? 0;
 
-    const dueDate = toDateOnly(r.po_due_date);
-const today   = toDateOnly(new Date());
+          const dueDate = toDateOnly(r.po_due_date);
+          const today = toDateOnly(new Date());
 
-    console.log(dueDate, today)
-    let bg = "#e5e7eb";
-    let color = "#111827";
-    let title = "No status";
+          console.log(dueDate, today)
+          let bg = "#e5e7eb";
+          let color = "#111827";
+          let title = "No status";
 
-    if (shippedQty > 0) {
-      // 🔵 shipped
-      bg = "#3b82f6";
-      color = "white";
-      title = "Shipped";
-    } else {
-      if (dueDate < today) {
-        // 🔴 overdue
-        bg = "#ef4444";
-        color = "white";
-        title = "Not shipped • Overdue";
-      } else {
-        // 🟢 on time
-        bg = "#10b981";
-        color = "white";
-        title = "Not shipped • On time";
-      }
-    }
+          if (shippedQty > 0) {
+            // 🔵 shipped
+            bg = "#3b82f6";
+            color = "white";
+            title = "Shipped";
+          } else {
+            if (dueDate < today) {
+              // 🔴 overdue
+              bg = "#ef4444";
+              color = "white";
+              title = "Not shipped • Overdue";
+            } else {
+              // 🟢 on time
+              bg = "#10b981";
+              color = "white";
+              title = "Not shipped • On time";
+            }
+          }
 
-    return `
+          return `
       <span
         title="${title}"
         style="
@@ -885,8 +924,8 @@ const today   = toDateOnly(new Date());
         ${dueText}
       </span>
     `;
-  },
-},
+        },
+      },
 
 
 
@@ -936,7 +975,7 @@ const today   = toDateOnly(new Date());
         },
       },
 
-     
+
       // placeholders...
       {
         title: "FAIR",
@@ -946,31 +985,31 @@ const today   = toDateOnly(new Date());
 
       },
 
-       {
-  title: "Tracking no.",
-  field: "tracking_no_list",
-  minWidth: 120,
-  maxWidth: 250,          // ⭐ คุมไม่ให้กว้างเกิน
-  headerSort: true,
-  cssClass: "cell-wrap",
+      {
+        title: "Tracking no.",
+        field: "tracking_no_list",
+        minWidth: 120,
+        maxWidth: 250,          // ⭐ คุมไม่ให้กว้างเกิน
+        headerSort: true,
+        cssClass: "cell-wrap",
 
-  formatter: (cell) => {
-    const v = cell.getValue();
-    if (!v) return "";
-    return v
-      .split(",")
-      .map(s => s.trim())
-      .join("<br>");
-  },
-},
-{
-  title: "Note",
-  field: "note",
-  minWidth: 150,
-  maxWidth: 250,
-  headerSort: true,
-  cssClass: "cell-wrap",
-},
+        formatter: (cell) => {
+          const v = cell.getValue();
+          if (!v) return "";
+          return v
+            .split(",")
+            .map(s => s.trim())
+            .join("<br>");
+        },
+      },
+      {
+        title: "Note",
+        field: "note",
+        minWidth: 150,
+        maxWidth: 250,
+        headerSort: true,
+        cssClass: "cell-wrap",
+      },
 
 
 

@@ -236,67 +236,170 @@ function makeColumns() {
     },
 
     /* ===== PO QTY ===== */
-   
-//  {
-//       title: "Ship",
-//       width: 90,
 
-//       formatter: (cell) => cell.getRow().getData().lot_shipped_qty ?? 0,
+    //  {
+    //       title: "Ship",
+    //       width: 90,
 
-//       http://100.88.56.126:9000/static/manage-lot-shippments.html?lot_id=2
-//     },
+    //       formatter: (cell) => cell.getRow().getData().lot_shipped_qty ?? 0,
 
-{
-  title: "Ship",
-  width: 110,
-  field: "lot_shipped_qty",
-  hozAlign: "center",
+    //       http://100.88.56.126:9000/static/manage-lot-shippments.html?lot_id=2
+    //     },
 
-  formatter: (cell) => {
-    const d = cell.getRow().getData();
-    const shipped = d.lot_shipped_qty ?? 0;
+    {
+      title: "Ship",
+      width: 150,
+      field: "lot_shipped_qty",
+      hozAlign: "center",
+      headerHozAlign: "center",
 
-    if (!d.lot_id) return shipped;
+      formatter: (cell) => {
+        const r = cell.getRow().getData();
+        const lotId = r.lot_id;
+        const shipped = r.lot_shipped_qty ?? 0;
 
-    const url = `http://100.88.56.126:9000/static/manage-lot-shippments.html?lot_id=${d.lot_id}`;
+        if (!lotId) return shipped;
 
-    return `
-      <div style="display:flex; align-items:center; gap:6px; justify-content:center;">
-        <span>${shipped}</span>
-        <a href="${url}"
-           target="_blank"
-           title="Open shipment"
-           style="text-decoration:none; font-size:14px;">
-           📦 
+        return `
+      <div style="
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        gap:6px;
+        white-space:nowrap;
+      ">
+        <span style="font-weight:600;">
+          ${shipped}
+        </span>
+
+        <!-- Traveler -->
+        <span
+          data-action="traveler"
+          title="Traveler"
+          style="cursor:pointer;"
+        >
+          🧾
+        </span>
+
+        <!-- Materials -->
+        <span
+          data-action="materials"
+          title="Materials"
+          style="cursor:pointer;"
+        >
+          🔩
+        </span>
+
+        <!-- Shipment -->
+        <a
+          href="/static/manage-lot-shippments.html?lot_id=${encodeURIComponent(lotId)}"
+          target="_blank"
+          title="Shipment"
+          style="text-decoration:none; font-size:14px;"
+          data-action="shipment"
+        >
+          📦
         </a>
       </div>
     `;
-  }
-}
-,
-   {
-  title: "Ship/PO(Rem)",
-  width: 170,
-  hozAlign: "center",
-  formatter: (cell) => {
-    const r = cell.getRow().getData();
+      },
 
-    const shipped = r.po_shipped_total ?? 0;
-    const total   = r.po_qty_total ?? 0;
-    const remain  = r.po_remaining_qty ?? (total - shipped);
+      cellClick: async (e, cell) => {
+        const action = e.target?.dataset?.action;
+        if (!action) return;
 
-    // สีตามสถานะ
-    let bg = "#6b7280"; // gray
-    if (shipped === 0) bg = "#ef4444";              // not shipped
-    else if (remain > 0) bg = "#f59e0b";            // partial
-    else if (remain === 0) bg = "#10b981";          // complete
-    else bg = "#7c3aed";                             // overship
+        e.preventDefault();
+        e.stopPropagation();
 
-    // format remain
-    const remText =
-      remain < 0 ? `-${Math.abs(remain)}` : remain;
+        const r = cell.getRow().getData();
+        const lotId = r.lot_id;
+        if (!lotId) return toast("No lot ID found", false);
 
-    return `
+        try {
+          if (action === "traveler") {
+            const res = await fetch(
+              `/api/v1/lot-uses/lot/${encodeURIComponent(lotId)}/material-id`
+            );
+            if (!res.ok) throw new Error("Server error");
+            const data = await res.json();
+
+            if (!data.traveler_id) {
+              toast("❌ Traveler not found", false);
+              return;
+            }
+
+            window.location.href =
+              `/static/traveler-detail.html?id=${encodeURIComponent(
+                data.traveler_id
+              )}`;
+
+          } else if (action === "materials") {
+            window.location.href =
+              `/static/manage-lot-materials.html?lot_id=${encodeURIComponent(lotId)}`;
+
+          } else if (action === "shipment") {
+            // link เปิด tab ใหม่อยู่แล้ว แค่กัน tabulator click
+            return;
+          }
+
+        } catch (err) {
+          toast("⚠️ Action failed", false);
+          console.error(err);
+        }
+      },
+    }
+    ,
+
+    // {
+    //   title: "Ship",
+    //   width: 110,
+    //   field: "lot_shipped_qty",
+    //   hozAlign: "center",
+
+    //   formatter: (cell) => {
+    //     const d = cell.getRow().getData();
+    //     const shipped = d.lot_shipped_qty ?? 0;
+
+    //     if (!d.lot_id) return shipped;
+
+    //     const url = `http://100.88.56.126:9000/static/manage-lot-shippments.html?lot_id=${d.lot_id}`;
+
+    //     return `
+    //       <div style="display:flex; align-items:center; gap:6px; justify-content:center;">
+    //         <span>${shipped}</span>
+    //         <a href="${url}"
+    //            target="_blank"
+    //            title="Open shipment"
+    //            style="text-decoration:none; font-size:14px;">
+    //            📦 
+    //         </a>
+    //       </div>
+    //     `;
+    //   }
+    // },
+    {
+      title: "Ship/PO(Rem)",
+      width: 170,
+      hozAlign: "center",
+      formatter: (cell) => {
+        const r = cell.getRow().getData();
+
+        const shipped = r.po_shipped_total ?? 0;
+        const total = r.po_qty_total ?? 0;
+        const remain = r.po_remaining_qty ?? (total - shipped);
+
+        // สีตามสถานะ
+        let bg = "#6b7280"; // gray
+        if (shipped === 0) bg = "#ef4444";              // not shipped
+        else if (remain > 0) bg = "#f59e0b";            // partial
+        else if (remain === 0) bg = "#10b981";          // complete
+        else bg = "#7c3aed";                             // overship
+
+        // format remain
+        const remText =
+          remain < 0 ? `-${Math.abs(remain)}` : remain;
+
+        return `
       <span style="
         background:${bg};
         color:white;
@@ -310,14 +413,51 @@ function makeColumns() {
         ${shipped} / ${total} (${remText})
       </span>
     `;
-  },
-} ,
+      },
+    },
 
-    /* ===== LOT STATUS ===== */
+    // /* ===== LOT STATUS ===== */
+    // {
+    //   title: "Lot Status",
+    //   field: "lot_status",
+    //   width: 120,
+    //   formatter: (cell) => {
+    //     const v = cell.getValue();
+    //     const colors = {
+    //       not_start: "#6b7280",
+    //       in_process: "#3b82f6",
+    //       hold: "#f59e0b",
+    //       completed: "#10b981",
+    //       canceled: "#ef4444",
+    //     };
+    //     return `<span style="
+    //       background:${colors[v]};
+    //       color:white;
+    //       padding:4px 8px;
+    //       border-radius:6px;
+    //       font-weight:600;">
+    //       ${v}
+    //     </span>`;
+    //   },
+    // },
+
     {
       title: "Lot Status",
       field: "lot_status",
-      width: 120,
+      width: 150,
+      hozAlign: "center",
+
+      editor: "select",
+      editorParams: {
+        values: {
+          not_start: "Not Start",
+          in_process: "In Process",
+          hold: "Hold",
+          completed: "Completed",
+          canceled: "Canceled",
+        },
+      },
+
       formatter: (cell) => {
         const v = cell.getValue();
         const colors = {
@@ -327,16 +467,46 @@ function makeColumns() {
           completed: "#10b981",
           canceled: "#ef4444",
         };
+
         return `<span style="
-          background:${colors[v]};
-          color:white;
-          padding:4px 8px;
-          border-radius:6px;
-          font-weight:600;">
-          ${v}
-        </span>`;
+      background:${colors[v] || "#6b7280"};
+      color:white;
+      padding:4px 8px;
+      border-radius:6px;
+      font-weight:600;
+      display:inline-block;
+      min-width:90px;
+      text-align:center;
+    ">
+      ${v ?? ""}
+    </span>`;
       },
-    },
+
+      cellEdited: async (cell) => {
+        const newStatus = cell.getValue();
+        const oldStatus = cell.getOldValue();
+        const row = cell.getRow().getData();
+
+        if (newStatus === oldStatus) return;
+
+        try {
+          await jfetch(`/api/v1/lots/${row.lot_id}/status`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ status: newStatus }),
+          });
+
+          toast("Lot status updated", true);
+
+        } catch (err) {
+          toast("Update failed", false);
+          // rollback
+          cell.setValue(oldStatus, true);
+          console.error(err);
+        }
+      },
+    }
+    ,
 
     /* ===== LAST SHIPPED ===== */
     {
@@ -387,6 +557,7 @@ async function loadData() {
   els[UI.reload].disabled = true;
   try {
     const res = await jfetch(API_URL);
+    console.log(res)
     table.setData(res);
     applyFilter();
     toast("Data loaded");

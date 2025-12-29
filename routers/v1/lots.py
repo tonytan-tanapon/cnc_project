@@ -354,4 +354,32 @@ def delete_lot(lot_id: int, db: Session = Depends(get_db)):
     return {"message": "Lot deleted"}
 
 
+from sqlalchemy import text
+@router.put("/{lot_id}/status")
+def update_lot_status(
+    lot_id: int,
+    payload: dict,
+    db: Session = Depends(get_db),
+):
+    status = payload.get("status")
 
+    if status not in {
+        "not_start",
+        "in_process",
+        "hold",
+        "completed",
+        "canceled",
+    }:
+        raise HTTPException(400, "Invalid status")
+
+    db.execute(
+        text("""
+          UPDATE production_lots
+          SET status = :status
+          WHERE id = :lot_id
+        """),
+        {"status": status, "lot_id": lot_id},
+    )
+    db.commit()
+
+    return {"ok": True}

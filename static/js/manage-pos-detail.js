@@ -279,9 +279,8 @@ async function cancelHeaderManual() {
       code: initial.customer.code,
       name: initial.customer.name,
     };
-    elCustomer.value = `${initial.customer.code} — ${
-      initial.customer.name ?? ""
-    }`;
+    elCustomer.value = `${initial.customer.code} — ${initial.customer.name ?? ""
+      }`;
   } else {
     selectedCustomer = null;
     elCustomer.value = "";
@@ -328,9 +327,9 @@ function fmtMoney(n) {
   return n == null
     ? ""
     : Number(n).toLocaleString(undefined, {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      });
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
 }
 function fmtQty(n) {
   return Number(n ?? 0).toLocaleString(undefined, { maximumFractionDigits: 3 });
@@ -397,14 +396,14 @@ function normalizeServerLine(row) {
     lots: Array.isArray(row.lots)
       ? row.lots
       : row.lot_id && row.lot_no
-      ? [{ id: row.lot_id, lot_no: row.lot_no }]
-      : [],
+        ? [{ id: row.lot_id, lot_no: row.lot_no }]
+        : [],
 
     travelers: Array.isArray(row.travelers)
       ? row.travelers
       : row.traveler_id && row.traveler_no
-      ? [{ id: row.traveler_id, traveler_no: row.traveler_no }]
-      : [],
+        ? [{ id: row.traveler_id, traveler_no: row.traveler_no }]
+        : [],
   };
 }
 
@@ -471,7 +470,7 @@ async function autosaveRow(row, { immediate = false } = {}) {
       setTimeout(() => {
         try {
           linesTable.redraw(true);
-        } catch {}
+        } catch { }
       }, 0);
     }
     return;
@@ -541,14 +540,14 @@ async function autosaveRow(row, { immediate = false } = {}) {
             `/pos/${encodeURIComponent(poid)}/lines/${d.id}`
           );
           row.update(normalizeServerLine(fresh));
-        } catch {}
+        } catch { }
         toast(e?.message || "Save failed", false);
       }
     } finally {
       setTimeout(() => {
         try {
           linesTable.redraw(true);
-        } catch {}
+        } catch { }
       }, 0);
     }
   };
@@ -735,7 +734,7 @@ function initLinesTable() {
     if (!ready || !holder.offsetWidth) return;
     try {
       linesTable.redraw(true);
-    } catch {}
+    } catch { }
   };
 
   linesTable = new Tabulator(holder, {
@@ -759,7 +758,7 @@ function initLinesTable() {
       {
         title: "Part No.",
         field: "part_no",
-        width: 160,
+        width: 120,
         editor: partAutocompleteEditor,
         formatter: (cell) => {
           const d = cell.getData();
@@ -793,7 +792,7 @@ function initLinesTable() {
       {
         title: "Qty",
         field: "qty",
-        width: 80,
+        width: 70,
         hozAlign: "right",
         headerHozAlign: "right",
         editor: "number",
@@ -810,109 +809,143 @@ function initLinesTable() {
         editorParams: { step: "0.01" },
         formatter: (c) => fmtMoney(c.getValue()),
       },
+
       {
         title: "Due 1",
         field: "due_date",
-        width: 120,
+        width: 90,
         editor: "date",
 
         formatter: (c) => {
           const val = c.getValue();
           if (!val) return "";
-          const [y, m, d] = String(val).split("T")[0].split("-");
+
+          // รับได้ทั้ง "YYYY-MM-DD" และ ISO string
+          const datePart = String(val).split("T")[0];
+          const [y, m, d] = datePart.split("-");
           if (!y || !m || !d) return "";
-          // ✅ ตีความว่าเป็นวันที่ตามปฏิทิน (ไม่สน timezone)
-          return new Date(
-            Number(y),
-            Number(m) - 1,
-            Number(d)
-          ).toLocaleDateString("en-US", { timeZone: "America/Los_Angeles" });
+
+          const mm = String(m).padStart(2, "0");
+          const dd = String(d).padStart(2, "0");
+          const yy = String(y).slice(-2);
+
+          return `${mm}/${dd}/${yy}`;
         },
-      },
+      }
+      ,
+
       {
         title: "Due 2",
         field: "second_due_date",
-        width: 120,
+        width: 90,
         editor: "date",
 
         formatter: (c) => {
           const val = c.getValue();
           if (!val) return "";
-          const [y, m, d] = String(val).split("T")[0].split("-");
+
+          // รองรับทั้ง YYYY-MM-DD และ ISO
+          const datePart = String(val).split("T")[0];
+          const [y, m, d] = datePart.split("-");
           if (!y || !m || !d) return "";
-          // ✅ ตีความว่าเป็นวันที่ตามปฏิทิน (ไม่สน timezone)
-          return new Date(
-            Number(y),
-            Number(m) - 1,
-            Number(d)
-          ).toLocaleDateString("en-US", { timeZone: "America/Los_Angeles" });
+
+          const mm = String(m).padStart(2, "0");
+          const dd = String(d).padStart(2, "0");
+          const yy = String(y).slice(-2);
+
+          return `${mm}/${dd}/${yy}`;
         },
-      },
+      }
+      ,
       { title: "Notes", field: "note", editor: "input", width: 120 },
 
       // --- Multi-Lot & Multi-Traveler renderers ---
       {
         title: `Lot`,
         field: "lots",
-        width: 180,
+        width: 110,
         headerSort: false,
+
         formatter: (cell) => {
           const lots = cell.getValue() || [];
-          if (!lots.length) return "";
 
-          return lots
-            .map(
-              (l) => `
-          <span style="white-space: nowrap;">
-            <a class="link" href="/static/edit-lot.html?lot_id=${encodeURIComponent(
-              l.id
-            )}" title="Open materials for ${safe(l.lot_no)}">
-              ${safe(l.lot_no)}
-            </a>
-            <a href="#" class="link text-red-500" data-lotid="${
-              l.id
-            }" title="Delete ${safe(l.lot_no)}">❌</a>
-          </span>`
-            )
-            .join("<br>");
+          const lotHtml = lots.length
+            ? lots
+              .map(
+                (l) => `
+              <span style="white-space: nowrap;">
+                <a class="link"
+                   href="/static/edit-lot.html?lot_id=${encodeURIComponent(l.id)}"
+                   title="Open materials for ${safe(l.lot_no)}">
+                  ${safe(l.lot_no)}
+                </a>
+                <a href="#"
+                   class="link text-red-500"
+                   data-lotid="${l.id}"
+                   title="Delete ${safe(l.lot_no)}">❌</a>
+              </span>
+            `
+              )
+              .join("<br>")
+            : "";
+
+          // ✅ แค่ append ปุ่ม Add ต่อท้าย
+          return `
+      ${lotHtml}
+      ${lotHtml ? "<br>" : ""}
+      <div style="margin-top:4px; text-align:center;">
+        <button
+          class="btn-mini btn-primary"
+          data-act="build"
+        >
+          Add
+        </button>
+      </div>
+    `;
         },
+
         cellClick: async (e, cell) => {
+          const row = cell.getRow();
+          const d = row.getData();
+
+          /* ===== delete lot (เหมือนเดิม) ===== */
           const delLink = e.target.closest("a[data-lotid]");
-          if (!delLink) return;
-          e.preventDefault();
+          if (delLink) {
+            e.preventDefault();
 
-          const lotId = delLink.dataset.lotid;
-          if (!confirm(`Delete lot ${lotId}? This action cannot be undone.`))
+            const lotId = delLink.dataset.lotid;
+            if (!confirm(`Delete lot ${lotId}? This action cannot be undone.`))
+              return;
+
+            try {
+              await jfetch(`/lots/${encodeURIComponent(lotId)}`, {
+                method: "DELETE",
+              });
+              toast(`Deleted lot ${lotId}`);
+
+              const newLots = (d.lots || []).filter(
+                (l) => String(l.id) !== lotId
+              );
+
+              const newTravelers = (d.travelers || []).filter((t, i) => {
+                const lot = d.lots?.[i];
+                return lot && String(lot.id) !== lotId;
+              });
+
+              row.update({ lots: newLots, travelers: newTravelers });
+              row.reformat();
+              setTimeout(() => linesTable.redraw(true), 100);
+            } catch (err) {
+              toast(err?.message || "Delete failed", false);
+            }
             return;
+          }
 
-          try {
-            // ✅ เรียก API ลบ lot
-            await jfetch(`/lots/${encodeURIComponent(lotId)}`, {
-              method: "DELETE",
-            });
-            toast(`Deleted lot ${lotId}`);
-
-            // ✅ เอา lot ออกจากข้อมูล row
-            const row = cell.getRow();
-            const d = row.getData();
-
-            const newLots = (d.lots || []).filter(
-              (l) => String(l.id) !== lotId
-            );
-
-            // ✅ เอา traveler ที่ match กับ lot นั้นออกด้วย
-            const newTravelers = (d.travelers || []).filter((t, i) => {
-              const lot = d.lots?.[i];
-              return lot && String(lot.id) !== lotId;
-            });
-
-            row.update({ lots: newLots, travelers: newTravelers });
-
-            // ✅ Refresh render เฉพาะแถว
-            row.reformat();
-            setTimeout(() => linesTable.redraw(true), 100);
-          } catch (err) {
-            toast(err?.message || "Delete failed", false);
+          /* ===== add lot (เหมือนคอลัมน์เดิม Lot/Traveler) ===== */
+          const addBtn = e.target.closest("button[data-act='build']");
+          if (addBtn) {
+            e.preventDefault();
+            await createLotAndTravelerForRow(row);
           }
         },
       },
@@ -920,31 +953,20 @@ function initLinesTable() {
       {
         title: "Traveler",
         field: "travelers",
-        width: 120,
+        width: 100,
         headerSort: false,
         formatter: (cell) => {
-          const rowData = cell.getData();
-          const trs = cell.getValue() || [];
-          const lots = rowData.lots || [];
-
-          if (!trs.length && !lots.length) return "";
-
-          return trs
-            .map((t, i) => {
-              // Prefer traveler_id if exists, else fall back to lot_id
-              const travelerId = t?.id;
-              const travelerNo = safe(t?.traveler_no || "");
-              const lotId = lots[i]?.id || lots[0]?.id; // fallback to first lot
-
-              // Build URL
-              const url = travelerId
-                ? `/static/traveler-detail.html?lot_id=${encodeURIComponent(
-                    lotId
-                  )}`
-                : "#";
-
-              return `<a class="link" href="${url}">${travelerNo}</a>`;
-            })
+          const lots = cell.getRow().getData().lots || [];
+          if (!lots.length) return "";
+          return lots
+            .map(
+              (l) =>
+                `<a class="link" href="/static/traveler-detail.html?lot_id=${encodeURIComponent(
+                  l.id
+                )}" title="Open materials for ${safe(l.lot_no)}">
+            ${safe(l.lot_no)}
+          </a>`
+            )
             .join("<br>");
         },
       },
@@ -952,7 +974,7 @@ function initLinesTable() {
       {
         title: "Materials",
         field: "materials",
-        width: 140,
+        width: 100,
         headerSort: false,
         formatter: (cell) => {
           const lots = cell.getRow().getData().lots || [];
@@ -963,7 +985,7 @@ function initLinesTable() {
                 `<a class="link" href="/static/manage-lot-materials.html?lot_id=${encodeURIComponent(
                   l.id
                 )}" title="Open materials for ${safe(l.lot_no)}">
-            ${safe(l.lot_no)} 🔧
+            ${safe(l.lot_no)}
           </a>`
             )
             .join("<br>");
@@ -972,7 +994,7 @@ function initLinesTable() {
       {
         title: "Shipments",
         field: "shipments",
-        width: 140,
+        width: 100,
         headerSort: false,
         formatter: (cell) => {
           const lots = cell.getRow().getData().lots || [];
@@ -983,62 +1005,83 @@ function initLinesTable() {
                 `<a class="link" href="/static/manage-lot-shippments.html?lot_id=${encodeURIComponent(
                   l.id
                 )}" title="Open shipments for ${safe(l.lot_no)}">
-            ${safe(l.lot_no)} 📦
+            ${safe(l.lot_no)}
           </a>`
             )
             .join("<br>");
         },
       },
-
       {
-        title: "Lot/Traveler",
-        field: "_build",
-        width: 140,
-        hozAlign: "center",
-        headerSort: false,
-        formatter: () =>
-          `<button class="btn-mini btn-primary" data-act="build">Add</button>`,
-        cellClick: async (e, cell) => {
-          const btn = e.target.closest("button[data-act='build']");
-          if (!btn) return;
-          await createLotAndTravelerForRow(cell.getRow());
-        },
-      },
+  title: "Actions",
+  field: "_actions",
+  width: 120,
+  hozAlign: "center",
+  headerSort: false,
 
-      {
-        title: "Actions",
-        field: "_actions",
-        width: 160,
-        hozAlign: "center",
-        headerSort: false,
-        formatter: () => `
+  formatter: () => `
     <div>
-      <button class="btn-mini btn-secondary" data-act="edit">✎ Edit</button>
       <button class="btn-mini btn-danger" data-act="del">Delete</button>
     </div>
   `,
-        cellClick: async (e, cell) => {
-          const btn = e.target.closest("button[data-act]");
-          if (!btn) return;
-          const act = btn.dataset.act;
-          const row = cell.getRow();
 
-          if (act === "edit") {
-            // Switch to edit mode for that row
-            toggleRowEdit(row, true);
-            setReadMode(false);
-            const firstEditable = row
-              .getCells()
-              .find((c) => c.getColumn().getDefinition().editor);
-            if (firstEditable) firstEditable.edit(true);
-            toast("Editing mode");
-            return;
-          }
-          if (act === "del") {
-            await deleteLine(row);
-          }
-        },
-      },
+  cellClick: async (e, cell) => {
+    const btn = e.target.closest("button[data-act='del']");
+    if (!btn) return;
+
+    const row = cell.getRow();
+    await deleteLine(row);
+  },
+}
+
+      // {
+      //   title: "Lot/Traveler",
+      //   field: "_build",
+      //   width: 140,
+      //   hozAlign: "center",
+      //   headerSort: false,
+      //   formatter: () =>
+      //     `<button class="btn-mini btn-primary" data-act="build">Add</button>`,
+      //   cellClick: async (e, cell) => {
+      //     const btn = e.target.closest("button[data-act='build']");
+      //     if (!btn) return;
+      //     await createLotAndTravelerForRow(cell.getRow());
+      //   },
+      // },
+
+  //     {
+  //       title: "Actions",
+  //       field: "_actions",
+  //       width: 160,
+  //       hozAlign: "center",
+  //       headerSort: false,
+  //       formatter: () => `
+  //   <div>
+  //     <button class="btn-mini btn-secondary" data-act="edit">✎ Edit</button>
+  //     <button class="btn-mini btn-danger" data-act="del">Delete</button>
+  //   </div>
+  // `,
+  //       cellClick: async (e, cell) => {
+  //         const btn = e.target.closest("button[data-act]");
+  //         if (!btn) return;
+  //         const act = btn.dataset.act;
+  //         const row = cell.getRow();
+
+  //         if (act === "edit") {
+  //           // Switch to edit mode for that row
+  //           toggleRowEdit(row, true);
+  //           setReadMode(false);
+  //           const firstEditable = row
+  //             .getCells()
+  //             .find((c) => c.getColumn().getDefinition().editor);
+  //           if (firstEditable) firstEditable.edit(true);
+  //           toast("Editing mode");
+  //           return;
+  //         }
+  //         if (act === "del") {
+  //           await deleteLine(row);
+  //         }
+  //       },
+  //     },
     ],
   });
 
@@ -1114,7 +1157,7 @@ document.addEventListener("visibilitychange", () => {
           active.focus();
           active.select?.();
         }
-      } catch {}
+      } catch { }
     }, 100);
   }
 });

@@ -59,7 +59,7 @@ def list_lot_summary(
         params["po_id"] = po_id
 
     where_sql = "WHERE " + " AND ".join(where) if where else ""
-
+   
     sql = f"""
         SELECT *
         FROM v_lot_summary
@@ -68,6 +68,15 @@ def list_lot_summary(
         LIMIT :size
         OFFSET :offset
     """
+
+    # sql = f"""
+    #     SELECT *
+    #     FROM v_lot_shipment_status
+    #     {where_sql}
+    #     ORDER BY {sort_by} {direction}
+    #     LIMIT :size
+    #     OFFSET :offset
+    # """
 
     params["size"] = size
     params["offset"] = (page - 1) * size
