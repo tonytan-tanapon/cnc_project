@@ -82,20 +82,7 @@ function buildQS(params) {
 }
 
 // ---- header & filters scaffold (Materials panel included)
-async function fetchLotsByPart() {
-  const { part_id, part_revision_id } = qsParams();
-  if (!part_id) return [];
 
-  const qs = new URLSearchParams();
-  qs.set("part_id", part_id);
-
-  if (part_revision_id) {
-    qs.set("revision_id", part_revision_id);
-  }
-
-  const res = await jfetch(`/api/v1/lot-summary?${qs.toString()}`);
-  return res?.items || [];
-}
 // ===== Materials (ID-based) =====
 async function fetchMaterials() {
   const { part_id } = qsParams();
@@ -133,9 +120,9 @@ function renderMaterials() {
     return ac !== 0
       ? ac
       : (a.name || "").localeCompare(b.name || "", undefined, {
-        numeric: true,
-        sensitivity: "base",
-      });
+          numeric: true,
+          sensitivity: "base",
+        });
   });
 
   for (const m of rows) {
@@ -312,7 +299,7 @@ async function fetchLookups() {
   ]);
   lookups.processes = sortAlpha(procs?.items || [], "name");
   lookups.finishes = sortAlpha(fins?.items || [], "name");
-  // console.log("Fetching lookups...", lookups);
+  console.log("Fetching lookups...", lookups);
   // find IDs for "Cutting" and "Heat Treating & Stress Relieve"
   idCutting =
     (lookups.processes.find((p) => p.name === "Cutting") || {}).id || null;
@@ -323,7 +310,7 @@ async function fetchLookups() {
       ) || {}
     ).id || null;
 
-  // console.log("Cutting ID:", idCutting, "Heat ID:", idHeat);
+  console.log("Cutting ID:", idCutting, "Heat ID:", idHeat);
 }
 
 // ---- render filters with data-id attributes (so we can save by ID)
@@ -345,8 +332,9 @@ function renderFilters() {
   for (const p of mprocs) {
     const l = document.createElement("label");
     l.className = "chip";
-    l.innerHTML = `<input type="checkbox" data-id="${p.id
-      }" data-kind="process"><span>${safeText(p.name)}</span>`;
+    l.innerHTML = `<input type="checkbox" data-id="${
+      p.id
+    }" data-kind="process"><span>${safeText(p.name)}</span>`;
     elMproc.appendChild(l);
   }
 
@@ -355,8 +343,9 @@ function renderFilters() {
   for (const f of lookups.finishes) {
     const l = document.createElement("label");
     l.className = "chip";
-    l.innerHTML = `<input type="checkbox" data-id="${f.id
-      }" data-kind="finish"><span>${safeText(f.name)}</span>`;
+    l.innerHTML = `<input type="checkbox" data-id="${
+      f.id
+    }" data-kind="finish"><span>${safeText(f.name)}</span>`;
     elChem.appendChild(l);
   }
 
@@ -389,10 +378,10 @@ function renderFilters() {
 async function preloadSelectionsIntoUI() {
   const { part_id } = qsParams();
   if (!part_id) return;
-  // console.log("Preloading selections for part_id", part_id);
+  console.log("Preloading selections for part_id", part_id);
   try {
     const data = await jfetch(`/part-selections/${part_id}`); // { process_ids:[], finish_ids:[], others:[] }
-    // console.log("Preloaded selections:", data);
+    console.log("Preloaded selections:", data);
     // basics
     if (idCutting && data.process_ids?.includes(idCutting)) {
       const cb = document.getElementById("g_cutting");
@@ -509,51 +498,11 @@ async function fetchDetail() {
     revision_id: part_revision_id ?? undefined,
   });
   const res = await jfetch(`/data_detail?${qs}`);
-  // console.log(res);
+  console.log(res);
   const items = Array.isArray(res?.items) ? res.items : [];
   const meta = res?.meta ?? null;
   return { items, meta };
 }
-function fmtDateMMDDYY(v) {
-  if (!v) return "";
-
-  let d;
-
-  if (v instanceof Date) {
-    d = v;
-  } else if (typeof v === "string") {
-    // กัน timezone เพี้ยน
-    d = new Date(v.includes("T") ? v : v + "T00:00:00");
-  } else {
-    return "";
-  }
-
-  if (isNaN(d.getTime())) return "";
-
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  const yy = String(d.getFullYear()).slice(-2);
-
-  return `${mm}/${dd}/${yy}`;
-}
-
-function toDateOnly(v) {
-  if (!v) return null;
-
-  if (v instanceof Date) {
-    return new Date(v.getFullYear(), v.getMonth(), v.getDate());
-  }
-
-  if (typeof v === "string") {
-    // ตัด timezone + เวลาออก
-    const d = new Date(v);
-    if (isNaN(d)) return null;
-    return new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  }
-
-  return null;
-}
-
 
 // ---- Tabulator
 function initTable() {
@@ -568,56 +517,10 @@ function initTable() {
     // groupBy: "po_number",
     pagination: false,
     columns: [
-   {
-  title: "📌",
-  minWidth: 40,
-  field: "lot_status",
-  hozAlign: "center",
-  headerHozAlign: "center",
-
-  formatter: (cell) => {
-    const v = cell.getValue();
-    if (!v) return "—";
-
-    const s = v.toLowerCase();
-
-    // สีประกอบ (optional แต่ช่วยอ่านเร็ว)
-    const colorMap = {
-      complete: "#10b981",        // green
-      process: "#f59e0b",         // orange
-      in_process: "#f59e0b",
-      "not start": "#6b7280",     // gray
-      not_started: "#6b7280",
-      hold: "#ef4444",            // red
-      cancel: "#ef4444",
-      canceled: "#ef4444",
-      cancelled: "#ef4444",
-      reject: "#ef4444",
-    };
-
-    let icon = v;
-
-    if (s === "completed") icon = "✅";
-    else if (s === "in_process") icon = "⚙️";
-    else if (s === "not start" || s === "not_started") icon = "⏳";
-    else if (s === "hold") icon = "⏸️";
-    else if ( s === "not_start"  ) icon = "❌";
-
-    const color = colorMap[s] || "#111827";
-
-    return `
-      <span title="${v}" style="font-size:16px; color:${color};">
-        ${icon}
-      </span>
-    `;
-  },
-},
-
-
       {
-        title: "Lot",
+        title: "Lot Number",
         field: "lot_no",
-        minWidth: 80,
+        minWidth: 120,
         headerSort: true,
         formatter: (cell) => {
           const row = cell.getRow().getData();
@@ -643,10 +546,8 @@ function initTable() {
         },
       },
       {
-        title: "PO",
-        field: "po_number",
-        width: 80,
-        headerSort: true,
+        title: "PO No",
+        width: 100,
         formatter: (cell) => {
           const row = cell.getRow().getData();
           const poNumber = row.po_number || "—";
@@ -672,315 +573,191 @@ function initTable() {
           )}`;
         },
       },
-     
       {
-        title: "Prod<br>Qty",
+        title: "Prod Qty",
         field: "lot_qty",
+        width: 100,
+        hozAlign: "right",
+        headerHozAlign: "right",
+        formatter: (cell) => fmtQty(cell.getValue()),
+      },
+      {
+        title: "Prod allocate",
+        field: "lot_qty",
+        width: 100,
+        hozAlign: "right",
+        headerHozAlign: "right",
+        formatter: (cell) => fmtQty(cell.getValue()),
+      },
+      {
+        title: "Prod Date",
+        field: "lot_due_date",
+        minWidth: 100,
+        sorter: "date",
+        formatter: (cell) => fmtDate(cell.getValue()),
+      },
+      {
+        title: "PO Qty",
+        field: "qty",
         width: 110,
-        hozAlign: "center",
-        headerHozAlign: "center",
-
+        hozAlign: "right",
+        headerHozAlign: "right",
+        formatter: (cell) => fmtQty(cell.getValue()),
+      },
+      {
+        title: "PO Date",
+        field: "po_due_date",
+        minWidth: 130,
+        sorter: "date",
+        formatter: (cell) => fmtDate(cell.getValue()),
+      },
+      {
+        title: "Ship Qty",
+        field: "qty",
+        width: 110,
+        hozAlign: "right",
+        headerHozAlign: "right",
+        formatter: (cell) => fmtQty(cell.getValue()),
+      },
+      {
+        title: "Travelers",
+        width: 120,
         formatter: (cell) => {
-          const r = cell.getRow().getData();
-          const lotId = r.lot_id;
-          const rev = r.revision_code
-          const qty = fmtQty(r.lot_qty);
-
-          if (!lotId) return qty ?? "—";
-
+          const row = cell.getRow().getData();
+          const lotId = row.lot_id;
+          if (!lotId) return "—";
           return `
-      <div style="
-        display:flex;
-        align-items:center;
-        justify-content:center;
-        gap:6px;
-        white-space:nowrap;
-      ">
-        <span style="font-weight:600;">
-          ${qty} (${rev})
-        </span>
-
-        <span data-action="traveler"
-              title="Traveler"
-              style="cursor:pointer;">
-          🧾
-        </span>
-
-        <span data-action="materials"
-              title="Materials"
-              style="cursor:pointer;">
-          🔩
-        </span>
-      </div>
+      <a href="#" class="link-blue"
+         style="color:#2563eb; text-decoration:underline; cursor:pointer;">
+         Travelers
+      </a>
     `;
         },
-
         cellClick: async (e, cell) => {
-          const action = e.target?.dataset?.action;
-          if (!action) return;
-
           e.preventDefault();
-
-          const r = cell.getRow().getData();
-          const lotId = r.lot_id;
+          const row = cell.getRow().getData();
+          const lotId = row.lot_id;
           if (!lotId) return toast("No lot ID found", false);
 
           try {
-            if (action === "traveler") {
-              const res = await fetch(
-                `/api/v1/lot-uses/lot/${encodeURIComponent(lotId)}/material-id`
-              );
-              if (!res.ok) throw new Error("Server error");
-              const data = await res.json();
+            const res = await fetch(
+              `/api/v1/lot-uses/lot/${encodeURIComponent(lotId)}/material-id`
+            );
+            if (!res.ok) throw new Error("Server error");
+            const data = await res.json();
 
-              if (!data.traveler_id) {
-                toast("❌ Traveler not found", false);
-                return;
-              }
-
-              window.location.href =
-                `/static/traveler-detail.html?id=${encodeURIComponent(
-                  data.traveler_id
-                )}`;
-
-            } else if (action === "materials") {
-              window.location.href =
-                `/static/manage-lot-materials.html?lot_id=${encodeURIComponent(lotId)}`;
+            if (!data.traveler_id) {
+              toast("❌ Traveler not found", false);
+              return;
             }
-
+            window.location.href = `/static/traveler-detail.html?id=${encodeURIComponent(
+              data.traveler_id
+            )}`;
           } catch (err) {
-            toast("⚠️ Action failed", false);
+            toast("⚠️ Failed to fetch traveler id", false);
             console.error(err);
           }
         },
       },
-
-      // {
-      //   title: "Prod allocate",
-      //   field: "lot_qty",
-      //   width: 100,
-      //   hozAlign: "right",
-      //   headerHozAlign: "right",
-      //   formatter: (cell) => fmtQty(cell.getValue()),
-      // },
       {
-        title: "Prod<br>Date",
-        field: "lot_due_date",
-        headerSort: true,
-        minWidth: 80,
-        sorter: "string",
-        formatter: (cell) => {
-          const r = cell.getRow().getData();
-          const created = fmtDateMMDDYY(r.created_at);
-          const due = fmtDateMMDDYY(r.lot_due_date);
-
-          if (!created && !due) return "—";
-          if (created && !due) return created;
-          if (!created && due) return due;
-
-          return `${created} →<br> ${due}`;
-        },
-      },
-
-      {
-        title: "PO(Rem)<br>QTY",
-        field: "po_qty_total",
+        title: "Materials",
         width: 120,
-        hozAlign: "center",
-        sorter: "string",
         formatter: (cell) => {
-          const r = cell.getRow().getData();
-
-          const shipped = r.po_shipped_total ?? 0;
-          const total = r.po_qty_total ?? 0;
-          const remain = r.po_remaining_qty ?? (total - shipped);
-
-          // สีตามสถานะ
-          let bg = "#6b7280"; // gray
-          if (shipped === 0) bg = "#ef4444";              // not shipped
-          else if (remain > 0) bg = "#f59e0b";            // partial
-          else if (remain === 0) bg = "#10b981";          // complete
-          else bg = "#7c3aed";                             // overship
-
-          // format remain
-          const remText =
-            remain < 0 ? `-${Math.abs(remain)}` : remain;
-
+          const row = cell.getRow().getData();
+          const lotId = row.lot_id;
+          if (!lotId) return "—";
           return `
-      <span style="
-        background:${bg};
-        color:white;
-        padding:4px 10px;
-        border-radius:8px;
-        font-weight:600;
-        display:inline-block;
-      
-        text-align:center;
-      ">
-         ${total} (${remText})
-      </span>
+      <a href="/static/manage-lot-materials.html?lot_id=${encodeURIComponent(
+        lotId
+      )}"
+         class="link-blue"
+         style="color:#2563eb; text-decoration:underline; cursor:pointer;">
+         Materials
+      </a>
     `;
+        },
+        cellClick: (e, cell) => {
+          e.preventDefault();
+          const row = cell.getRow().getData();
+          const lotId = row.lot_id;
+          if (!lotId) return toast("No lot ID found", false);
+          window.location.href = `/static/manage-lot-materials.html?lot_id=${encodeURIComponent(
+            lotId
+          )}`;
         },
       },
 
- {
-  title: "PO<br>Date",
-  field: "po_due_date",
-  headerSort: true,
-  minWidth: 90,
-  hozAlign: "center",
-  headerHozAlign: "center",
-  sorter: "string",
-
-  formatter: (cell) => {
-    const r = cell.getRow().getData();
-
-    const dueRaw = r.po_due_date;
-    if (!dueRaw) return "—";
-
-    const dueText = fmtDateMMDDYY(dueRaw);
-    const shippedQty = r.lot_shipped_qty ?? 0;
-
-    const dueDate = toDateOnly(r.po_due_date);
-const today   = toDateOnly(new Date());
-
-    console.log(dueDate, today)
-    let bg = "#e5e7eb";
-    let color = "#111827";
-    let title = "No status";
-
-    if (shippedQty > 0) {
-      // 🔵 shipped
-      bg = "#3b82f6";
-      color = "white";
-      title = "Shipped";
-    } else {
-      if (dueDate < today) {
-        // 🔴 overdue
-        bg = "#ef4444";
-        color = "white";
-        title = "Not shipped • Overdue";
-      } else {
-        // 🟢 on time
-        bg = "#10b981";
-        color = "white";
-        title = "Not shipped • On time";
-      }
-    }
-
-    return `
-      <span
-        title="${title}"
-        style="
-          background:${bg};
-          color:${color};
-          padding:4px 8px;
-          border-radius:6px;
-          font-weight:600;
-          display:inline-block;
-          min-width:70px;
-          text-align:center;
-          cursor:default;
-        ">
-        ${dueText}
-      </span>
-    `;
-  },
-},
-
-
-
       {
-        title: "Ship<br>QTY",
-        width: 110,
-        field: "lot_shipped_qty",
-        hozAlign: "center",
-        headerHozAlign: "center",
-
+        title: "Shippments",
+        width: 120,
         formatter: (cell) => {
-          const d = cell.getRow().getData();
-          const shipped = d.lot_shipped_qty ?? 0;
-
-          if (!d.lot_id) return shipped;
-
-          const url = `http://100.88.56.126:9000/static/manage-lot-shippments.html?lot_id=${d.lot_id}`;
-
+          const row = cell.getRow().getData();
+          const lotId = row.lot_id;
+          if (!lotId) return "—";
           return `
-      <div style="display:flex; align-items:center; gap:6px; justify-content:center;">
-        <span>${shipped}</span>
-        <a href="${url}"
-           target="_blank"
-           title="Open shipment"
-           style="text-decoration:none; font-size:14px;">
-           📦 
-        </a>
-      </div>
+      <a href="/static/manage-lot-shippments.html?lot_id=${encodeURIComponent(
+        lotId
+      )}"
+         class="link-blue"
+         style="color:#2563eb; text-decoration:underline; cursor:pointer;">
+         Shippments
+      </a>
     `;
-        }
-      }
-      ,
-      {
-        title: "Shipped<br>Date",
-        field: "shipped_at_list",
-        minWidth: 100,
-        headerSort: true,
-        formatter: (cell) => {
-          const v = cell.getValue();
-          if (!v) return "";
-
-          // backend ส่งมาเป็น "YYYY-MM-DD, YYYY-MM-DD"
-          return v
-            .split(",")
-            .map(s => fmtDateMMDDYY(s.trim()))
-            .join("<br>");
+        },
+        cellClick: (e, cell) => {
+          e.preventDefault();
+          const row = cell.getRow().getData();
+          const lotId = row.lot_id;
+          if (!lotId) return toast("No lot ID found", false);
+          window.location.href = `/static/manage-lot-shippments.html?lot_id=${encodeURIComponent(
+            lotId
+          )}`;
         },
       },
 
-     
       // placeholders...
       {
         title: "FAIR",
-        field: "fair_note",
+        field: "",
         minWidth: 50,
         headerSort: false,
-
+        formatter: () => "",
       },
-
-       {
-  title: "Tracking no.",
-  field: "tracking_no_list",
-  minWidth: 120,
-  maxWidth: 250,          // ⭐ คุมไม่ให้กว้างเกิน
-  headerSort: true,
-  cssClass: "cell-wrap",
-
-  formatter: (cell) => {
-    const v = cell.getValue();
-    if (!v) return "";
-    return v
-      .split(",")
-      .map(s => s.trim())
-      .join("<br>");
-  },
-},
-{
-  title: "Note",
-  field: "note",
-  minWidth: 150,
-  maxWidth: 250,
-  headerSort: true,
-  cssClass: "cell-wrap",
-},
-
-
-
+      {
+        title: "*Remark Product Control",
+        field: "",
+        minWidth: 100,
+        headerSort: false,
+        formatter: () => "",
+      },
+      {
+        title: "Tracking no.",
+        field: "",
+        minWidth: 100,
+        headerSort: false,
+        formatter: () => "",
+      },
+      {
+        title: "Real Shipped Date",
+        field: "",
+        minWidth: 100,
+        headerSort: false,
+        formatter: () => "",
+      },
+      {
+        title: "INCOMING STOCK",
+        field: "",
+        minWidth: 100,
+        headerSort: false,
+        formatter: () => "",
+      },
     ],
   });
 }
 
 // ---- load header meta (no side-effects)
 function fillHeaderMeta(meta) {
-  // console.log("Filling header meta", meta);
+  console.log("Filling header meta", meta);
   const elPartNo = document.getElementById("h_part_no");
   const elPartName = document.getElementById("h_part_name");
   const elPartRev = document.getElementById("h_part_rev");
@@ -994,35 +771,12 @@ function fillHeaderMeta(meta) {
   elCust.textContent = c.code || c.name || "—";
 }
 
-// // ---- load
-// async function loadData() {
-//   console.log("TESTTTT")
-//   const { metatest } = await fetchDetail();   // เอาไว้เติม header
-//   const lotstest = await fetchLotsByPart();   // 👈 lot ของ part นี้
-
-//   allRows = lots;
-//   console.log("metatest",metatest)
-//   console.log("lotstest",lotstest)
-//   table?.setData(lotstest);
-
-//   // const { items, meta } = await fetchDetail();
-//   // console.log("LOADDDD")
-//   // console.log(items,meta)
-//   // allRows = items;
-//   // fillHeaderMeta(meta);
-//   // table?.setData(items);
-
-
-//   applyFiltersToTable();
-// }
+// ---- load
 async function loadData() {
-  const { meta } = await fetchDetail();   // header meta
-  const lots = await fetchLotsByPart();   // lot ของ part นี้
-  console.log("LOTS", lots)
-  allRows = lots;                         // ✅ ตัวแปรที่ประกาศไว้
+  const { items, meta } = await fetchDetail();
+  allRows = items;
   fillHeaderMeta(meta);
-
-  table?.setData(lots);
+  table?.setData(items);
   applyFiltersToTable();
 }
 

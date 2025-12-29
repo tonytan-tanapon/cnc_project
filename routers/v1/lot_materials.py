@@ -42,7 +42,7 @@ def list_lot_material_uses(lot_id: int, db: Session = Depends(get_db)):
             "batch_id": x.batch_id,
             "batch_no": x.batch.batch_no if x.batch else None,
             "qty": float(x.qty or 0),
-            "uom": x.uom,
+            "qty_uom": x.qty_uom,
             "note": x.note,
             "used_at": x.used_at,
         }
@@ -100,7 +100,7 @@ def allocate_material(req: AllocateRequest, db: Session = Depends(get_db)):
             batch_id=b.id,
             raw_material_id=mat.id,
             qty=use,
-            uom=mat.uom,
+            qty_uom=mat.uom,
             used_at=datetime.now(),
         )
         db.add(rec)
@@ -178,7 +178,7 @@ def return_auto(req: ReturnRequest, db: Session = Depends(get_db)):
                 raw_material_id=alloc.raw_material_id,
                 batch_id=alloc.batch_id,
                 qty=alloc_qty,
-                uom=alloc.uom,
+                uom=alloc.qty_uom,
                 action="RETURN",
             ))
 

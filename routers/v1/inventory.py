@@ -17,6 +17,7 @@ def get_parts():
 
 @router.get("/materials")
 def get_materials(db: Session = Depends(get_db)):
+    print("inventory")
     # Query: Material + Batch + Remaining Qty
     stmt = (
         select(

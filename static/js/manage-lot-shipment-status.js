@@ -237,12 +237,43 @@ function makeColumns() {
 
     /* ===== PO QTY ===== */
    
- {
-      title: "Ship",
-      width: 90,
+//  {
+//       title: "Ship",
+//       width: 90,
 
-      formatter: (cell) => cell.getRow().getData().lot_shipped_qty ?? 0,
-    },
+//       formatter: (cell) => cell.getRow().getData().lot_shipped_qty ?? 0,
+
+//       http://100.88.56.126:9000/static/manage-lot-shippments.html?lot_id=2
+//     },
+
+{
+  title: "Ship",
+  width: 110,
+  field: "lot_shipped_qty",
+  hozAlign: "center",
+
+  formatter: (cell) => {
+    const d = cell.getRow().getData();
+    const shipped = d.lot_shipped_qty ?? 0;
+
+    if (!d.lot_id) return shipped;
+
+    const url = `http://100.88.56.126:9000/static/manage-lot-shippments.html?lot_id=${d.lot_id}`;
+
+    return `
+      <div style="display:flex; align-items:center; gap:6px; justify-content:center;">
+        <span>${shipped}</span>
+        <a href="${url}"
+           target="_blank"
+           title="Open shipment"
+           style="text-decoration:none; font-size:14px;">
+           📦 
+        </a>
+      </div>
+    `;
+  }
+}
+,
    {
   title: "Ship/PO(Rem)",
   width: 170,

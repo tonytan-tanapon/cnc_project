@@ -78,6 +78,31 @@ def to_part_out(p: Part, include_revs: bool = False) -> PartOut:
         revs = getattr(p, 'revisions', None) or []
         obj.revisions = [RevOut.model_validate(r) for r in revs]
     return obj
+from sqlalchemy import text
+# ===================== list (OFFSET) =====================
+@parts_router.get("/{part_id}/lots")
+def get_lots_by_part(
+    part_id: int,
+    revision_id: int | None = None,
+    db: Session = Depends(get_db),
+):
+    sql = """
+    SELECT *
+    FROM v_lot_summary
+    WHERE part_id = :part_id
+      AND (:revision_id IS NULL OR revision_id = :revision_id)
+    ORDER BY created_at DESC NULLS LAST, lot_id DESC
+    """
+
+    rows = db.execute(
+        text(sql),
+        {
+            "part_id": part_id,
+            "revision_id": revision_id,
+        },
+    ).mappings().all()
+
+    return {"items": [dict(r) for r in rows]}
 
 # ===================== 🔹 NEW: lookup & bulk (ต้องวางเหนือ /{part_id}) =====================
 
@@ -113,6 +138,7 @@ def bulk_parts(payload: BulkRequest = Body(...), db: Session = Depends(get_db)):
     return rows
 
 # ===================== 🔹 NEW: keyset (DESC: newest -> oldest) =====================
+
 
 @parts_router.get("/keyset", response_model=PartCursorPage)
 def list_parts_keyset(
@@ -160,8 +186,6 @@ def list_parts_keyset(
         "prev_cursor": prev_cursor,
         "has_more": has_more,
     }
-
-# ===================== list (OFFSET) =====================
 
 @parts_router.get("/", response_model=dict)
 def list_parts(

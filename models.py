@@ -256,6 +256,7 @@ class RawMaterial(Base):
     uom = Column(String, default="kg", nullable=False)
     remark = Column(Text, nullable=True)
     size = Column(Numeric(18, 2), nullable=True)
+    size_uom = Column(String, nullable=True, default="inch")  # 
     size_text = Column(String, nullable=True)
 
     # map ไปยัง taxonomy
@@ -289,7 +290,7 @@ class MaterialPOLine(Base):
     po_id = Column(Integer, ForeignKey("material_pos.id"), nullable=False, index=True)
     material_id = Column(Integer, ForeignKey("raw_materials.id"), nullable=False, index=True)
     qty_ordered = Column(Numeric(18, 3), nullable=False)
-
+    qty_uom = Column(String, nullable=True, default="pcs")  # 👈 หน่วยต่อ step เช่น 'pcs', 'foot'
     unit_price = Column(Numeric(18, 2), nullable=True)
     price_each = Column(Numeric(18, 2), nullable=True)   # ✅ NEW
     total_price = Column(Numeric(18, 2), nullable=True)   # ✅ NEW
@@ -299,8 +300,13 @@ class MaterialPOLine(Base):
     part_no = Column(String, nullable=True, index=True)   # ✅ NEW (เพื่อ map กับ CSV)
     heat_lot = Column(Text, nullable=True)
     size = Column(Text, nullable=True)
+    size_uom = Column(String, nullable=True, default="inch")  
+    size_text = Column(Text, nullable=True)
     length = Column(Numeric(18, 3), nullable=True)
+    length_uom = Column(String, nullable=True, default="foot")  
+    length_text =Column(Text, nullable=True)
     weight = Column(Numeric(18, 3), nullable=True)
+    
     cert = Column(Text, nullable=True)
 
     batches = relationship("RawBatch", back_populates="po_line")
@@ -330,12 +336,17 @@ class RawBatch(Base):
 
     received_at = Column(Date, nullable=True)
     qty_received = Column(Numeric(18, 3), nullable=False, default=0)
+    qty_uom = Column(String, nullable=True, default="pcs")
+    qty_text = Column(String, nullable=True)
     cert_file = Column(String, nullable=True)
     location = Column(String, nullable=True)
 
     heat_lot = Column(Text, nullable=True)
     size = Column(Text, nullable=True)
+    size_uom = Column(String, nullable=True, default="inch")
+    size_text =  Column(String, nullable=True) 
     length = Column(Numeric(18, 3), nullable=True)
+    length_uom = Column(String, nullable=True, default="foot")
     length_text = Column(String, nullable=True)   # ✅ NEW (raw text เช่น "20 ft")
     weight = Column(Numeric(18, 3), nullable=True)
     cert = Column(Text, nullable=True)
@@ -472,10 +483,10 @@ class ProductionLot(Base):
     planned_qty = Column(Integer, nullable=False, default=0)
     started_at = Column(DateTime(timezone=True), nullable=True)
     finished_at = Column(DateTime(timezone=True), nullable=True)
-    lot_po_date = Column(Date, nullable=True, index=True)
-    lot_due_date = Column(Date, nullable=True, index=True)
+    lot_po_date = Column(DateTime(timezone=True), nullable=True)
+    lot_due_date = Column(DateTime(timezone=True), nullable=True)    
+    created_at = Column(DateTime(timezone=True), nullable=True)
     status = Column(String, nullable=False, default="in_process")
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     note =  Column(String,  nullable=True)
     
 
@@ -534,7 +545,7 @@ class LotMaterialUse(Base):
     batch_id = Column(Integer, ForeignKey("raw_batches.id"), nullable=False, index=True)
     raw_material_id = Column(Integer, ForeignKey("raw_materials.id"), nullable=False, index=True)  # denormalized for faster join
     qty = Column(Numeric(18, 3), nullable=False)
-    uom = Column(String, nullable=True)
+    qty_uom = Column(String, nullable=True)
     used_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     used_by_id = Column(Integer, ForeignKey("employees.id"), nullable=True)
     note = Column(Text, nullable=True)

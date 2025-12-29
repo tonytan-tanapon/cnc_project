@@ -41,7 +41,9 @@ DEST_LOT = r"C:\Data Base & Inventory Stock\data\lot_export.csv"
 
 
 DATABASE_URL = "postgresql+psycopg2://postgres:1234@localhost:5432/mydb"
-CSV_FILE = Path(r"C:\Users\TPSERVER\dev\cnc_project\database_import\import_lot_112825.csv")
+
+CSV_FILE = Path(r"C:\Users\TPSERVER\dev\cnc_project\database_import\import_lot_122725.csv")
+# CSV_FILE = Path(r"C:\Users\TPSERVER\dev\cnc_project\database_import\import_lot_112825.csv")
 # CSV_FILE = Path(r"C:\Users\TPSERVER\dev\cnc_project\database_import\import_lot_back2.csv")
 # CSV_FILE = Path(r"C:\Users\TPSERVER\dev\cnc_project\database_import\import_lot_mini.csv")
 # CSV_FILE = Path(r"C:\Users\TPSERVER\dev\cnc_project\database_import\import_lot_112825mini.csv")
@@ -168,6 +170,7 @@ def get_or_upsert_lot(
     created_date: Optional[date],
     note: Optional[str],
     fair_note: Optional[str],
+    lot_po_date=Optional[date],
 ):
     lot = db.execute(select(ProductionLot).where(ProductionLot.lot_no == lot_no)).scalar_one_or_none()
     if not lot:
@@ -184,6 +187,7 @@ def get_or_upsert_lot(
             status="in_process",
             note=(note.strip() if note else None),
             fair_note=(fair_note.strip() if fair_note else None),
+            lot_po_date=(datetime.combine(lot_po_date, time.min) if lot_po_date else None),
         )
         db.add(lot)
         db.flush()
@@ -376,7 +380,7 @@ def main():
                 rev_code = pick(row, "Rev.", "Rev")
 
 
-                po_number = pick(row, "PO#", "PO Number")
+                po_number = pick(row, "PO#", "PO Number", "PO")
                 lot_no = pick(row, "Lot#", "Lot #", "Lot No", "Lot Number", "LOT NO.")
                 qty_po = parse_int(pick(row, "Qty PO", "Qty", "Quantity"))
                 
@@ -514,6 +518,7 @@ def main():
                     created_date=(due_date - timedelta(days=60)) if due_date else None,
                     note=need_remark,
                     fair_note=fair_no,
+                    lot_po_date=created_at
                 )
                 # print(lot_no,qty_po,qty_ship, lot_qty)
                 get_or_upsert_traveler(db, lot, lot_qty)
@@ -531,15 +536,16 @@ def main():
                 #####
                 # lot_back = lot.id  # from customer_shipment.lot_id
                 # # --- Shipment ---
-                if qty_ship:
+                if qty_ship and ship_date:
                    
                     # Find or create shipment header (per PO + ship_date)
                     # print(  all_lots.get(lot_no, {}).get("part_name", None), lot_no,  all_lots.get(lot_no, {}).get("ship_date", None),)
                     if True:
+                        # shipped_at = clean_date(all_lots.get(lot_no, {}).get("ship_date", None)),
                         shipment = CustomerShipment(
                             po_id=po.id,
                             lot_id=lot.id,            # <<<<<<<<<<<<<< ADD THIS LINE
-                            shipped_at = clean_date(all_lots.get(lot_no, {}).get("ship_date", None)),
+                            shipped_at = ship_date,
                             tracking_no=all_lots.get(lot_no, {}).get("tracking_no", None),
 
                             notes=None,
@@ -595,10 +601,11 @@ def main():
                         .values(status="not_start")
                     )
                 else:
-                    db.execute(
-                        update(ProductionLot)
-                        .where(ProductionLot.id == lot.id)
-                        .values(status="completed")
+                    if ship_date is not None:
+                        db.execute(
+                            update(ProductionLot)
+                            .where(ProductionLot.id == lot.id)
+                            .values(status="completed")
                     )
                 # elif qty_ship > 0 and qty_ship == lot_qty :
                 #     db.execute(

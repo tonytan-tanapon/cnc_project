@@ -41,7 +41,7 @@ async function loadLotHeader() {
             .map(
               (s) =>
                 `${s.material_name}: <b>${(s.total_qty ?? 0).toFixed(2)} ${
-                  s.uom ?? ""
+                  s.qty_uom ?? ""
                 }</b>`
             )
             .join(", ")
@@ -206,7 +206,7 @@ function initMaterialTable() {
       { title: "Material PO", field: "batch_no" },
       { title: "Material", field: "name" },
       { title: "#Available", field: "qty_available", hozAlign: "right" },
-      { title: "UOM", field: "uom", width: 80, hozAlign: "center" },
+      { title: "UOM", field: "qty_uom", width: 80, hozAlign: "center" },
       {
         title: "Qty Allocate",
         field: "allocate",
@@ -262,8 +262,7 @@ async function loadMaterialTable() {
     );
     const filtered = allMaterials.filter(
       (r) =>
-        allowedCodes.has(r.code?.trim().toLowerCase()) &&
-        (r.qty_available ?? 0) > 0
+        allowedCodes.has(r.code?.trim().toLowerCase()) 
     );
     tables.material.setData(filtered);
   } catch (err) {
@@ -273,8 +272,11 @@ async function loadMaterialTable() {
 
 /* ---------------- ALLOCATION + HISTORY ---------------- */
 async function loadAllocationTable() {
+  console.log("get allocate")
   try {
+    
     const res = await jfetch(ENDPOINTS.lotAllocations);
+    console.log(res)
     tables.allocation.setData(res);
   } catch {
     toast("Failed to load allocation table", false);
@@ -298,16 +300,16 @@ function initAllocationTable() {
       { title: "Material PO", field: "batch_no" },
       { title: "Material", field: "material_name" },
       { title: "Qty", field: "qty", hozAlign: "right" },
-      { title: "UOM", field: "uom", width: 80 },
+      { title: "UOM", field: "sty_uom", width: 80 },
       {
         title: "Action",
         formatter: () => `<a href="#" class="link link-red">Return</a>`,
         cellClick: async (e, cell) => {
           const row = cell.getRow().getData();
-          const confirmReturn = confirm(
-            `Return ${row.qty} ${row.uom} of ${row.material_name}?`
-          );
-          if (!confirmReturn) return;
+          // const confirmReturn = confirm(
+          //   `Return ${row.qty} ${row.qty_uom} of ${row.material_name}?`
+          // );
+          // if (!confirmReturn) return;
           try {
             await jfetch(`/api/v1/lot-uses/return`, {
               method: "POST",
@@ -319,7 +321,7 @@ function initAllocationTable() {
                 qty: row.qty,
               }),
             });
-            toast(`↩️ Returned ${row.qty} ${row.uom} of ${row.material_name}`);
+            toast(`↩️ Returned ${row.qty} ${row.qty_uom} of ${row.material_name}`);
             await loadAllocationTable();
             await loadLotHeader();
             await loadMaterialTable();

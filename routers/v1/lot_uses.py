@@ -40,7 +40,7 @@ class AllocationItem(BaseModel):
     material_code: str
     batch_no: str
     qty: Decimal
-    uom: Optional[str] = None
+    qty_uom: Optional[str] = None
 
 
 class AllocateOut(BaseModel):
@@ -54,6 +54,7 @@ class AllocateOut(BaseModel):
 # ===============================
 @router.post("/allocate", response_model=AllocateOut)
 def allocate_material(payload: AllocateIn, db: Session = Depends(get_db)):
+    print("allocate")
     lot = db.get(ProductionLot, payload.lot_id)
     if not lot:
         raise HTTPException(404, "Lot not found")
@@ -63,17 +64,18 @@ def allocate_material(payload: AllocateIn, db: Session = Depends(get_db)):
     created_items: list[AllocationItem] = []
 
     def _create_use(batch: RawBatch, take: Decimal):
+        if take <= 0:
+            return
+
         lmu = LotMaterialUse(
             lot_id=lot.id,
             batch_id=batch.id,
+            raw_material_id=batch.material_id,     # ✅ ใส่ชัด
             qty=take,
-            uom=batch.material.uom if batch.material and batch.material.uom else None,
+            qty_uom=batch.material.uom if batch.material else None,
             note=payload.note,
         )
         db.add(lmu)
-
-        # หักสต็อกจาก batch
-        batch.qty_used = (batch.qty_used or 0) + take
 
         created_items.append(
             AllocationItem(
@@ -82,11 +84,13 @@ def allocate_material(payload: AllocateIn, db: Session = Depends(get_db)):
                 material_code=batch.material.code if batch.material else "",
                 batch_no=batch.batch_no or "",
                 qty=take,
-                uom=batch.material.uom if batch.material else None,
+                qty_uom=batch.material.uom if batch.material else None,
             )
         )
 
-    # ถ้ามี batch_id → ตัด batch เดียว
+    # -----------------------------
+    # Case 1: allocate from specific batch
+    # -----------------------------
     if payload.batch_id:
         batch = (
             db.query(RawBatch)
@@ -105,9 +109,10 @@ def allocate_material(payload: AllocateIn, db: Session = Depends(get_db)):
         _create_use(batch, take)
         remaining -= take
 
+    # -----------------------------
+    # Case 2: allocate by material (FIFO / LIFO)
+    # -----------------------------
     else:
-        # หา material_id
-        mat_id = None
         if payload.material_id:
             mat_id = payload.material_id
         elif payload.material_code:
@@ -122,10 +127,12 @@ def allocate_material(payload: AllocateIn, db: Session = Depends(get_db)):
         else:
             raise HTTPException(400, "Provide batch_id or material_id/material_code")
 
-        # หา batch ของวัสดุนั้น
         order_clause = (
-            RawBatch.received_at.asc() if payload.strategy == "fifo" else RawBatch.received_at.desc()
+            RawBatch.received_at.asc()
+            if payload.strategy == "fifo"
+            else RawBatch.received_at.desc()
         )
+
         batches = (
             db.query(RawBatch)
             .options(joinedload(RawBatch.material))
@@ -173,57 +180,54 @@ class MaterialReturnIn(BaseModel):
 
 @router.post("/return")
 def return_material(payload: MaterialReturnIn, db: Session = Depends(get_db)):
-    """คืนวัสดุกลับเข้าคลัง"""
     lot = db.get(ProductionLot, payload.lot_id)
     if not lot:
         raise HTTPException(404, "Lot not found")
 
-    # หา allocation เดิม
+    if payload.qty <= 0:
+        raise HTTPException(400, "Return qty must be positive")
+
+    # หา allocation เดิม (เพื่อ validate)
     alloc = (
         db.query(LotMaterialUse)
         .join(RawBatch, RawBatch.id == LotMaterialUse.batch_id)
-        .join(RawMaterial, RawMaterial.id == RawBatch.material_id)
+        .join(RawMaterial, RawMaterial.id == LotMaterialUse.raw_material_id)
         .filter(
             LotMaterialUse.lot_id == payload.lot_id,
             RawMaterial.code == payload.material_code,
             RawBatch.batch_no == payload.batch_no,
+            LotMaterialUse.qty > 0,   # allocate only
         )
+        .order_by(LotMaterialUse.used_at.asc())
         .first()
     )
+
     if not alloc:
         raise HTTPException(404, "Allocation not found for return")
 
-    if payload.qty <= 0:
-        raise HTTPException(400, "Return qty must be positive")
     if payload.qty > alloc.qty:
         raise HTTPException(400, "Return qty exceeds allocated qty")
 
-    # หักออกจาก allocation เดิม
-    alloc.qty -= payload.qty
     batch = alloc.batch
-    if batch:
-        batch.qty_used = (batch.qty_used or 0) - payload.qty
-        if batch.qty_used < 0:
-            batch.qty_used = 0
 
-    # ถ้าเหลือ 0 ให้ลบ allocation
-    if alloc.qty <= 0:
-        db.delete(alloc)
-
-    # เพิ่ม record ประวัติ return
-    db.add(
-        LotMaterialUse(
-            lot_id=payload.lot_id,
-            batch_id=batch.id if batch else None,
-            qty=-abs(payload.qty),
-            uom=batch.material.uom if batch and batch.material else None,
-            note="Returned to inventory",
-            action="return",
-        )
+    # ✅ เพิ่ม transaction ใหม่ (qty ติดลบ)
+    ret = LotMaterialUse(
+        lot_id=payload.lot_id,
+        batch_id=batch.id,
+        raw_material_id=batch.material_id,
+        qty=-Decimal(payload.qty),
+        qty_uom=batch.material.uom if batch.material else None,
+        note="RETURN",
     )
+    db.add(ret)
 
     db.commit()
-    return {"ok": True, "message": f"Returned {payload.qty} of {payload.material_code}"}
+
+    return {
+        "ok": True,
+        "message": f"Returned {payload.qty} {batch.material.uom if batch.material else ''}",
+    }
+
 
 
 # ===============================
@@ -231,6 +235,7 @@ def return_material(payload: MaterialReturnIn, db: Session = Depends(get_db)):
 # ===============================
 @router.get("/{lot_id}", response_model=List[AllocationItem])
 def list_uses(lot_id: int, db: Session = Depends(get_db)):
+    print("lot test")
     rows = (
         db.query(LotMaterialUse)
         .options(joinedload(LotMaterialUse.batch).joinedload(RawBatch.material))
@@ -238,18 +243,19 @@ def list_uses(lot_id: int, db: Session = Depends(get_db)):
         .order_by(LotMaterialUse.id)
         .all()
     )
-    return [
-        AllocationItem(
-            lot_id=r.lot_id,
-            batch_id=r.batch_id,
-            material_code=r.batch.material.code if r.batch and r.batch.material else "",
-            batch_no=r.batch.batch_no or "",
-            qty=r.qty,
-            uom=r.uom,
-        )
-        for r in rows
-    ]
-
+    print("lot allocate")
+    # return [
+    #     AllocationItem(
+    #         lot_id=r.lot_id,
+    #         batch_id=r.batch_id,
+    #         material_code=r.batch.material.code if r.batch and r.batch.material else "",
+    #         batch_no=r.batch.batch_no or "",
+    #         qty=r.qty,
+    #         qty_uom=r.qty_uom,
+    #     )
+    #     for r in rows
+    # ]
+    return 1
 
 # ===============================
 # 🔹 UPDATE / DELETE
@@ -270,7 +276,7 @@ def update_use(id: int, payload: dict, db: Session = Depends(get_db)):
         material_code=use.batch.material.code if use.batch and use.batch.material else "",
         batch_no=use.batch.batch_no or "",
         qty=use.qty,
-        uom=use.uom,
+        qty_uom=use.qty_uom,
     )
 
 

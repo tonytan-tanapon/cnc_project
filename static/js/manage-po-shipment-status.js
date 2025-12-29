@@ -54,25 +54,60 @@ function makeColumns() {
       },
     },
     {
-      title: "Part",
-      field: "part_nos",
-      width: 100,
-      formatter: (cell) => {
-        const v = cell.getValue();
-        if (!v) return "";
+  title: "Part",
+  field: "part_nos",
+  width: 180,
 
-        return `
+  formatter: (cell) => {
+    const d = cell.getRow().getData();
+    if (!d.part_nos || !d.part_ids) return "";
+
+    const partNos = d.part_nos.split(",").map(s => s.trim());
+    const partIds = d.part_ids.split(",").map(s => s.trim());
+    const revIds  = d.revision_ids
+      ? d.revision_ids.split(",").map(s => s.trim())
+      : [];
+
+    return `
       <div style="
         font-size:12px;
-        color:#374151;
-        line-height:1.3;
+        line-height:1.35;
         white-space:normal;
+        display:flex;
+        flex-direction:column;
+        gap:2px;
       ">
-        ${v}
+        ${partNos.map((pn, i) => {
+          const pid = partIds[i];
+          const rid = revIds[i] ?? "";
+          return `
+            <a class="link"
+               href="/static/manage-part-detail.html
+                 ?part_id=${encodeURIComponent(pid)}
+                 &part_revision_id=${encodeURIComponent(rid)}
+                 &customer_id=${encodeURIComponent(d.customer_id)}">
+              ${pn}
+            </a>
+          `;
+        }).join("")}
       </div>
     `;
-      },
-    },
+  },
+}   ,
+
+{
+  title: "PO / Ship",
+  hozAlign: "center",
+  formatter: (cell) => {
+    const r = cell.getRow().getData();
+    return `
+      <span style="font-weight:600;">
+        ${r.total_shipped_qty} / ${r.total_po_qty}
+      </span>
+    `;
+  }
+}
+,
 
 
     { title: "Customer", field: "customer_code", width: 100 },
