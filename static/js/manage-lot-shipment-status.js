@@ -60,7 +60,7 @@ function makeColumns() {
         const text = [
           d.po_number ? `PO#${d.po_number}` : null,
           d.part_no ? `Part#${d.part_no}` : null,
-          d.lot_no ? `LOT#${d.lot_no}` : null,
+          d.lot_no ? `${d.lot_no}` : null,
         ].filter(Boolean).join(",");
         copyWithFeedback(e.target, text, "Copied summary");
       },
@@ -246,21 +246,21 @@ function makeColumns() {
     //       http://100.88.56.126:9000/static/manage-lot-shippments.html?lot_id=2
     //     },
 
-    {
-      title: "Ship",
-      width: 150,
-      field: "lot_shipped_qty",
-      hozAlign: "center",
-      headerHozAlign: "center",
+   {
+  title: "Ship",
+  width: 150,
+  field: "lot_shipped_qty",
+  hozAlign: "center",
+  headerHozAlign: "center",
 
-      formatter: (cell) => {
-        const r = cell.getRow().getData();
-        const lotId = r.lot_id;
-        const shipped = r.lot_shipped_qty ?? 0;
+  formatter: (cell) => {
+    const r = cell.getRow().getData();
+    const lotId = r.lot_id;
+    const shipped = r.lot_shipped_qty ?? 0;
 
-        if (!lotId) return shipped;
+    if (!lotId) return shipped;
 
-        return `
+    return `
       <div style="
         display:flex;
         align-items:center;
@@ -271,85 +271,41 @@ function makeColumns() {
         <span style="font-weight:600;">
           ${shipped}
         </span>
-
-        <!-- Traveler -->
-        <span
-          data-action="traveler"
-          title="Traveler"
-          style="cursor:pointer;"
-        >
-          🧾
-        </span>
-
-        <!-- Materials -->
-        <span
-          data-action="materials"
+         <!-- Materials -->
+        <a
+          href="/static/manage-lot-materials.html?lot_id=${encodeURIComponent(lotId)}"
           title="Materials"
-          style="cursor:pointer;"
+          style="text-decoration:none;"
+          target="_blank"
         >
           🔩
-        </span>
+        </a>
+        <!-- Traveler -->
+        <a
+          href="/static/traveler-detail.html?lot_id=${encodeURIComponent(lotId)}"
+          title="Traveler"
+          style="text-decoration:none;"
+          target="_blank"
+        >
+          🧾
+        </a>
+
+       
 
         <!-- Shipment -->
         <a
           href="/static/manage-lot-shippments.html?lot_id=${encodeURIComponent(lotId)}"
-          target="_blank"
           title="Shipment"
-          style="text-decoration:none; font-size:14px;"
-          data-action="shipment"
+          style="text-decoration:none;"
+          target="_blank"
         >
           📦
         </a>
       </div>
     `;
-      },
-
-      cellClick: async (e, cell) => {
-        const action = e.target?.dataset?.action;
-        if (!action) return;
-
-        e.preventDefault();
-        e.stopPropagation();
-
-        const r = cell.getRow().getData();
-        const lotId = r.lot_id;
-        if (!lotId) return toast("No lot ID found", false);
-
-        try {
-          if (action === "traveler") {
-            const res = await fetch(
-              `/api/v1/lot-uses/lot/${encodeURIComponent(lotId)}/material-id`
-            );
-            if (!res.ok) throw new Error("Server error");
-            const data = await res.json();
-
-            if (!data.traveler_id) {
-              toast("❌ Traveler not found", false);
-              return;
-            }
-
-            window.location.href =
-              `/static/traveler-detail.html?id=${encodeURIComponent(
-                data.traveler_id
-              )}`;
-
-          } else if (action === "materials") {
-            window.location.href =
-              `/static/manage-lot-materials.html?lot_id=${encodeURIComponent(lotId)}`;
-
-          } else if (action === "shipment") {
-            // link เปิด tab ใหม่อยู่แล้ว แค่กัน tabulator click
-            return;
-          }
-
-        } catch (err) {
-          toast("⚠️ Action failed", false);
-          console.error(err);
-        }
-      },
-    }
-    ,
-
+  },
+}
+,
     // {
     //   title: "Ship",
     //   width: 110,

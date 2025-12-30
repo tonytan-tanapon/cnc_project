@@ -1,4 +1,6 @@
 // --- tiny helpers ---
+
+const lotId = new URLSearchParams(location.search).get("lot_id");
 async function jfetch(url, opts = {}) {
   const res = await fetch(url, opts);
   if (!res.ok) {
@@ -23,8 +25,60 @@ function toast(msg, ok = true) {
 }
 
 // ================================
+
+
+function makeLotLinks(lotId) {
+  if (!lotId) return;
+
+  const links = [
+     {
+      id: "lot_link",
+      href: `/static/lot-detail.html?lot_id=${encodeURIComponent(lotId)}`,
+      title: "Traveler",
+    },
+    {
+      id: "traveler_link",
+      href: `/static/traveler-detail.html?lot_id=${encodeURIComponent(lotId)}`,
+      title: "Traveler",
+    },
+    {
+      id: "material_link",
+      href: `/static/manage-lot-materials.html?lot_id=${encodeURIComponent(lotId)}`,
+      title: "Materials",
+    },
+    {
+      id: "shippment_link",
+      href: `/static/manage-lot-shippments.html?lot_id=${encodeURIComponent(lotId)}`,
+      title: "Shipment",
+    },
+  ];
+
+  links.forEach(({ id, href, title }) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+
+    const a = document.createElement("a");
+    a.href = href;
+    a.title = title;
+    // a.target = "_blank";
+    a.style.textDecoration = "none";
+    a.style.color = "inherit";
+    a.style.cursor = "pointer";
+
+    // move existing content (icon + text) inside <a>
+    while (el.firstChild) {
+      a.appendChild(el.firstChild);
+    }
+
+    el.replaceWith(a);
+  });
+}
+
 document.addEventListener("DOMContentLoaded", () => {
+
+  
   const lotId = new URLSearchParams(location.search).get("lot_id");
+   makeLotLinks(lotId);
   if (!lotId) return toast("Missing lot_id in URL", false);
 
   const elLotNo = document.getElementById("lot_no");
@@ -37,10 +91,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const elProg = document.getElementById("progressBar");
   const elProgLabel = document.getElementById("progressLabel");
 
-  const btnMat = document.getElementById("btnViewMaterials");
-  const btnTrav = document.getElementById("btnViewTravelers");
-  const btnShip = document.getElementById("btnViewShipments");
-  const btnRefresh = document.getElementById("btnRefresh");
+
 
   let originalPlannedQty = null;
   let originalDueDate = null;
@@ -226,24 +277,6 @@ document.addEventListener("DOMContentLoaded", () => {
       loadHeader(),
     ]);
   }
-
-  // scroll shortcuts
-  btnMat?.addEventListener("click", () =>
-    document
-      .querySelector("#materialTable")
-      ?.scrollIntoView({ behavior: "smooth" })
-  );
-  btnTrav?.addEventListener("click", () =>
-    document
-      .querySelector("#travelerTable")
-      ?.scrollIntoView({ behavior: "smooth" })
-  );
-  btnShip?.addEventListener("click", () =>
-    document
-      .querySelector("#shipmentTable")
-      ?.scrollIntoView({ behavior: "smooth" })
-  );
-  btnRefresh?.addEventListener("click", () => refreshAll());
 
   // boot
   initTables();

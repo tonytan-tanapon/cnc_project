@@ -1,312 +1,319 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Lot Material Allocation · Topnotch – MFG</title>
 
-    <link rel="stylesheet" href="/static/css/app.css" />
-    <link
-      rel="stylesheet"
-      href="/static/vendor/tabulator/tabulator_modern.min.css"
-    />
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Lot Material Allocation · Topnotch – MFG</title>
 
-    <style>
-      body {
-        background: #f9fafb;
-        margin: 0;
-        font-family: system-ui, sans-serif;
-      }
+  <link rel="stylesheet" href="/static/css/app.css" />
+  <link rel="stylesheet" href="/static/vendor/tabulator/tabulator_modern.min.css" />
 
-      .main--edge {
-        min-height: 100vh;
-        overflow-y: auto;
-        display: flex;
-        flex-direction: column;
-      }
+  <style>
+    body {
+      background: #f9fafb;
+      margin: 0;
+      font-family: system-ui, sans-serif;
+    }
 
-      .lot-info {
-        padding: 14px 18px;
-        border-bottom: 1px solid #e5e7eb;
-        font-size: 15px;
-        background: #fff;
-      }
+    .main--edge {
+      min-height: 100vh;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+    }
 
-      .lot-flex {
-        display: grid;
-        grid-template-columns: 1.6fr 0.9fr;
-        gap: 16px;
-        align-items: start;
-      }
+    .lot-info {
+      padding: 14px 18px;
+      border-bottom: 1px solid #e5e7eb;
+      font-size: 15px;
+      background: #fff;
+    }
 
-      .lot-left {
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-      }
+    .lot-flex {
+      display: grid;
+      grid-template-columns: 1.6fr 0.9fr;
+      gap: 16px;
+      align-items: start;
+    }
 
-      .lot-left h2 {
-        margin: 0 0 6px 0;
-        font-size: 16px;
-        color: #111827;
-      }
+    .lot-left {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
 
-      .lot-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-        gap: 8px;
-        font-size: 14px;
-      }
+    .lot-left h2 {
+      margin: 0 0 6px 0;
+      font-size: 16px;
+      color: #111827;
+    }
 
-      .lot-right {
-        background: #fff;
-        border: 1px solid #e5e7eb;
-        border-radius: 8px;
-        padding: 12px;
-        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
-      }
+    .lot-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 8px;
+      font-size: 14px;
+    }
 
-      .lot-right h3 {
-        margin: 0 0 8px;
-        font-size: 15px;
-        color: #111827;
-      }
+    .lot-right {
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 12px;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+    }
 
-      .mat-row {
-        display: flex;
-        gap: 8px;
-        margin-bottom: 10px;
-      }
+    .lot-right h3 {
+      margin: 0 0 8px;
+      font-size: 15px;
+      color: #111827;
+    }
 
-      .mat-row input {
-        flex: 1;
-        height: 32px;
-        border: 1px solid #e5e7eb;
-        border-radius: 8px;
-        padding: 4px 8px;
-      }
+    .mat-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
 
-      .btn {
-        border: none;
-        background: #0ea5e9;
-        color: white;
-        border-radius: 8px;
-        padding: 6px 10px;
-        cursor: pointer;
-        font-weight: 600;
-      }
+    .mat-row input {
+      flex: 1;
+      height: 32px;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 4px 8px;
+    }
 
-      .btn:hover {
-        background: #0284c7;
-      }
+    .btn {
+      border: none;
+      background: #0ea5e9;
+      color: white;
+      border-radius: 8px;
+      padding: 6px 10px;
+      cursor: pointer;
+      font-weight: 600;
+    }
 
-      .chips-wrap {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-        margin-top: 6px;
-      }
+    .btn:hover {
+      background: #0284c7;
+    }
 
-      .chip--pill {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        padding: 6px 10px;
-        border: 1px solid #e5e7eb;
-        border-radius: 999px;
-        background: #f8fafc;
-        font-size: 13px;
-      }
+    .chips-wrap {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 6px;
+    }
 
-      .chip--pill .x {
-        cursor: pointer;
-        font-weight: 700;
-        line-height: 1;
-      }
+    .chip--pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      border: 1px solid #e5e7eb;
+      border-radius: 999px;
+      background: #f8fafc;
+      font-size: 13px;
+    }
 
-      .panel {
-        flex: none;
-        display: flex;
-        flex-direction: column;
-        background: #fff;
-        border: 1px solid #e5e7eb;
-        border-radius: 6px;
-        margin: 10px 16px;
-        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
-        overflow: hidden;
-      }
+    .chip--pill .x {
+      cursor: pointer;
+      font-weight: 700;
+      line-height: 1;
+    }
 
-      .panel h3 {
-        margin: 0;
-        padding: 8px 10px;
-        background: #f3f4f6;
-        border-bottom: 1px solid #e5e7eb;
-        font-size: 15px;
-        display: flex;
-        align-items: center;
-        gap: 6px;
-      }
+    .panel {
+      flex: none;
+      display: flex;
+      flex-direction: column;
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      margin: 10px 16px;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+      overflow: hidden;
+    }
 
-      .table-wrap {
-        flex: 1;
-        height: 35vh;
-        overflow: auto;
-      }
+    .panel h3 {
+      margin: 0;
+      padding: 8px 10px;
+      background: #f3f4f6;
+      border-bottom: 1px solid #e5e7eb;
+      font-size: 15px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
 
-      .toast {
-        position: fixed;
-        bottom: 16px;
-        right: 16px;
-        background: rgba(17, 24, 39, 0.95);
-        color: #fff;
-        padding: 10px 14px;
-        border-radius: 6px;
-        font-size: 14px;
-        display: none;
-        z-index: 9999;
-      }
+    .table-wrap {
+      flex: 1;
+      height: 35vh;
+      overflow: auto;
+    }
 
-      .lot-summary {
-        margin-top: 6px;
-        padding: 6px 10px;
-        background: #f9fafb;
-        border-left: 3px solid #10b981;
-        font-size: 14px;
-        color: #111;
-      }
+    .toast {
+      position: fixed;
+      bottom: 16px;
+      right: 16px;
+      background: rgba(17, 24, 39, 0.95);
+      color: #fff;
+      padding: 10px 14px;
+      border-radius: 6px;
+      font-size: 14px;
+      display: none;
+      z-index: 9999;
+    }
 
-      /* === Add Batch Inline Form === */
-      .add-batch-form {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        padding: 10px;
-        border-bottom: 1px solid #e5e7eb;
-        background: #f8fafc;
-      }
+    .lot-summary {
+      margin-top: 6px;
+      padding: 6px 10px;
+      background: #f9fafb;
+      border-left: 3px solid #10b981;
+      font-size: 14px;
+      color: #111;
+    }
 
-      .add-batch-form input {
-        height: 32px;
-        border: 1px solid #d1d5db;
-        border-radius: 6px;
-        padding: 4px 8px;
-        font-size: 14px;
-      }
+    /* === Add Batch Inline Form === */
+    .add-batch-form {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px;
+      border-bottom: 1px solid #e5e7eb;
+      background: #f8fafc;
+    }
 
-      .add-batch-form label {
-        font-size: 14px;
-        font-weight: 600;
-      }
+    .add-batch-form input {
+      height: 32px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      padding: 4px 8px;
+      font-size: 14px;
+    }
 
-      .add-batch-form .btn {
-        background: #22c55e;
-      }
+    .add-batch-form label {
+      font-size: 14px;
+      font-weight: 600;
+    }
 
-      .add-batch-form .btn:hover {
-        background: #16a34a;
-      }
+    .add-batch-form .btn {
+      background: #22c55e;
+    }
 
-      /* ✅ Autocomplete styling */
-      .autocomplete-items,
-      .autocomplete-suggestions {
-        position: absolute !important;
-        z-index: 99999 !important;
-        background: #fff;
-        border: 1px solid #d1d5db;
-        border-radius: 6px;
-        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-      }
+    .add-batch-form .btn:hover {
+      background: #16a34a;
+    }
 
-      .autocomplete-item {
-        padding: 6px 10px;
-        cursor: pointer;
-      }
+    /* ✅ Autocomplete styling */
+    .autocomplete-items,
+    .autocomplete-suggestions {
+      position: absolute !important;
+      z-index: 99999 !important;
+      background: #fff;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    }
 
-      .autocomplete-item:hover {
-        background: #f3f4f6;
-      }
-    </style>
-  </head>
+    .autocomplete-item {
+      padding: 6px 10px;
+      cursor: pointer;
+    }
 
-  <body>
-    <div class="app">
-      <aside class="sidebar">
-        <div id="navSlot" data-nav-slot></div>
-      </aside>
+    .autocomplete-item:hover {
+      background: #f3f4f6;
+    }
 
-      <main class="main main--edge">
-        <!-- ===== LOT HEADER + ADD MATERIAL ===== -->
-        <div class="lot-info lot-flex">
-          <div class="lot-left">
-            <h2>📄 Lot Detail</h2>
-            <div id="lotHeader" class="lot-grid">
-              Loading lot information...
-            </div>
-          </div>
 
-          <div class="lot-right">
-            <h3>🧱 Add Material</h3>
-            <div class="mat-row">
-              <input
-                type="text"
-                id="mat_ac_input"
-                placeholder="Search material by code or name…"
-              />
-              <button class="btn" id="mat_add_btn">Add</button>
-            </div>
-            <div id="mat_list" class="chips-wrap"></div>
+   .quick-links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: #f3f4f6;
+  font-weight: 600;
+}
+
+.quick-links a:hover {
+  background: #e5e7eb;
+}
+  </style>
+</head>
+
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div id="navSlot" data-nav-slot></div>
+    </aside>
+
+    <main class="main main--edge">
+      <section class="quick-links">
+<div id="lot_link">🧾 LOT</div>
+       <div id="material_link">🔩 Material</div>
+        <div id="traveler_link">🧾 Traveler</div>
+
+        <div id="shippment_link">📦 Shipment</div>
+      </section>
+      <!-- ===== LOT HEADER + ADD MATERIAL ===== -->
+      <div class="lot-info lot-flex">
+        <div class="lot-left">
+          <h2>📄 Lot Detail</h2>
+          <div id="lotHeader" class="lot-grid">
+            Loading lot information...
           </div>
         </div>
 
-        <!-- ===== MATERIAL INVENTORY ===== -->
-        <section class="panel">
-          <h3>📦 Material Inventory</h3>
-
-          <!-- ✅ Inline Add Batch Form -->
-          <div class="add-batch-form">
-            <label>Batch No</label>
-            <input type="text" id="batchNoInput" placeholder="AUTO" />
-
-            <label>Material Name</label>
-            <input
-              type="text"
-              id="materialInput"
-              placeholder="Search material..."
-            />
-
-            <label>Qty</label>
-            <input
-              type="number"
-              id="qtyInput"
-              placeholder="0"
-              min="0"
-              step="0.01"
-            />
-
-            <button id="btnSaveBatch" class="btn">+ Add Batch</button>
+        <div class="lot-right">
+          <h3>🧱 Add Material</h3>
+          <div class="mat-row">
+            <input type="text" id="mat_ac_input" placeholder="Search material by code or name…" />
+            <button class="btn" id="mat_add_btn">Add</button>
           </div>
+          <div id="mat_list" class="chips-wrap"></div>
+        </div>
+      </div>
 
-          <div id="materialTable" class="table-wrap"></div>
-        </section>
+      <!-- ===== MATERIAL INVENTORY ===== -->
+      <section class="panel">
+        <h3>📦 Material Inventory</h3>
 
-        <!-- ===== ALLOCATED MATERIALS ===== -->
-        <section class="panel">
-          <h3>🔗 Allocated Materials</h3>
-          <div id="allocationTable" class="table-wrap"></div>
-        </section>
+        <!-- ✅ Inline Add Batch Form -->
+        <div class="add-batch-form">
+          <label>Batch No</label>
+          <input type="text" id="batchNoInput" placeholder="AUTO" />
 
-        <!-- ===== HISTORY ===== -->
-        <section class="panel">
-          <h3>📜 Material Allocation History</h3>
-          <div id="historyTable" class="table-wrap"></div>
-        </section>
-      </main>
-    </div>
+          <label>Material Name</label>
+          <input type="text" id="materialInput" placeholder="Search material..." />
 
-    <div class="toast" id="toast"><span id="toastText"></span></div>
+          <label>Qty</label>
+          <input type="number" id="qtyInput" placeholder="0" min="0" step="0.01" />
 
-    <script type="module" src="/static/js/nav-loader.js"></script>
-    <script src="/static/vendor/tabulator/tabulator.min.js"></script>
-    <script type="module" src="/static/js/manage-lot-materials.js"></script>
-  </body>
+          <button id="btnSaveBatch" class="btn">+ Add Batch</button>
+        </div>
+
+        <div id="materialTable" class="table-wrap"></div>
+      </section>
+
+      <!-- ===== ALLOCATED MATERIALS ===== -->
+      <section class="panel">
+        <h3>🔗 Allocated Materials</h3>
+        <div id="allocationTable" class="table-wrap"></div>
+      </section>
+
+      <!-- ===== HISTORY ===== -->
+      <section class="panel">
+        <h3>📜 Material Allocation History</h3>
+        <div id="historyTable" class="table-wrap"></div>
+      </section>
+    </main>
+  </div>
+
+  <div class="toast" id="toast"><span id="toastText"></span></div>
+
+  <script type="module" src="/static/js/nav-loader.js"></script>
+  <script src="/static/vendor/tabulator/tabulator.min.js"></script>
+  <script type="module" src="/static/js/manage-lot-materials.js"></script>
+</body>
+
 </html>

@@ -174,18 +174,39 @@
         height: 34px;
         font-weight: 500;
       }
+
+      .quick-links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: #f3f4f6;
+  font-weight: 600;
+}
+
+.quick-links a:hover {
+  background: #e5e7eb;
+}
     </style>
   </head>
   <body>
     <div class="app">
-      <aside class="sidebar"><div id="navSlot" data-nav-slot></div></aside>
+      <!-- ========== SIDEBAR NAV ========== -->
+      <aside class="sidebar">
+        <div id="navSlot" data-nav-slot></div>
+      </aside>
 
-      <main class="main main--edge">
-        <section>
-          <div>Traveler</div>
-          <div>Material</div>
-          <div>Shipment</div>
-        </section>
+      <!-- ========== MAIN AREA ========== -->
+      <main class="main">
+
+        <section class="quick-links">
+  <div id="lot_link">🧾 LOT</div>
+    <div id="material_link">🔩 Material</div>
+  <div id="traveler_link">🧾 Traveler</div>
+
+  <div id="shippment_link">📦 Shipment</div>
+</section>
 
         <section class="panel panel--edge" id="travPanel">
           <!-- Title row -->

@@ -144,6 +144,21 @@
         display: none;
         z-index: 9999;
       }
+
+
+       .quick-links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: #f3f4f6;
+  font-weight: 600;
+}
+
+.quick-links a:hover {
+  background: #e5e7eb;
+}
     </style>
   </head>
 
@@ -154,6 +169,14 @@
       </aside>
 
       <main class="main main--edge">
+
+         <section class="quick-links">
+        <div id="lot_link">🧾 LOT</div>
+          <div id="material_link">🔩 Material</div>
+  <div id="traveler_link">🧾 Traveler</div>
+
+  <div id="shippment_link">📦 Shipment</div>
+</section>
         <!-- ===== LOT HEADER ===== -->
         <div class="lot-info">
           <h2 id="lot_no">📄 Lot Detail</h2>
@@ -199,12 +222,12 @@
         </div>
 
         <!-- ===== TOOLBAR ===== -->
-        <div class="toolbar">
+        <!-- <div class="toolbar">
           <button id="btnViewMaterials" class="warning">🧱 Materials</button>
           <button id="btnViewTravelers" class="success">👷 Travelers</button>
           <button id="btnViewShipments" class="secondary">🚚 Shipments</button>
           <button id="btnRefresh" class="success">🔄 Refresh</button>
-        </div>
+        </div> -->
 
         <!-- ===== MATERIALS ===== -->
         <section class="panel">

@@ -2,6 +2,9 @@
 import { $, jfetch, toast, initTopbar } from "./api.js";
 import { attachAutocomplete } from "./autocomplete.js";
 
+import { loadPartial } from "./load-partials.js";
+import { applyLotLinks } from "./lot-links.js";
+
 const qs = new URLSearchParams(location.search);
 let travelerId = qs.get("id"); // ✅ must be let so we can reassign later
 const lotId = qs.get("lot_id"); // ✅ add this line
@@ -556,6 +559,8 @@ function stationAutocompleteEditor(cell, onRendered, success, cancel) {
   return input;
 }
 
+
+
 function operatorAutocompleteEditor(cell, onRendered, success, cancel) {
   const input = document.createElement("input");
   input.type = "text";
@@ -924,44 +929,7 @@ async function downloadInspectionBatch() {
 
 
 
-/* ---------- Boot ---------- */
-document.addEventListener("DOMContentLoaded", async () => {
-  initTopbar();
-  ensureHeaderButtons();
-  wireHeaderDirtyOnly();
-  initHeaderAutocomplete();
- // ---> Add Drawing diagram batch download
-  $("btnDrawing").addEventListener("click", downloadDrawingBatch);
-  $("btnTraveler").addEventListener("click", downloadTravelerBatch);
-  $("btnInspection").addEventListener("click", downloadInspectionBatch);
-  // Add Step (seq +10 เริ่ม 10)
-  // $("btnAddStep")?.addEventListener("click", async () => {
-  //   if (!travelerId) {
-  //     toast("Missing traveler id", false);
-  //     return;
-  //   }
-  //   const nextSeq = getNextSeq();
-  //   const row = await stepsTable.addRow(
-  //     makeBlankStep(nextSeq),
-  //     false,
-  //     "bottom"
-  //   );
-  //   row.getCell("step_name")?.edit();
-  //   setDirtyClass(row, true);
-  // });
 
-  // Keyboard: Ctrl+Delete → (optional) delete traveler
-  document.addEventListener("keydown", (e) => {
-    if (e.ctrlKey && e.key.toLowerCase() === "delete") {
-      e.preventDefault();
-      // (อาจต่อยอดลบ traveler ได้ ถ้าต้องการ)
-    }
-  });
-
-  initStepsTable();
-  await loadTraveler();
-  await reloadSteps();
-});
 
 /* ---------- QR Code Popup ---------- */
 
@@ -1013,3 +981,92 @@ function printTravelerQR(travelerNo, qrLink) {
   `);
   w.document.close();
 }
+
+
+
+function makeLotLinks(lotId) {
+  if (!lotId) return;
+
+  const links = [
+    {
+      id: "lot_link",
+      href: `/static/lot-detail.html?lot_id=${encodeURIComponent(lotId)}`,
+      title: "Traveler",
+    },
+    {
+      id: "traveler_link",
+      href: `/static/traveler-detail.html?lot_id=${encodeURIComponent(lotId)}`,
+      title: "Traveler",
+    },
+    {
+      id: "material_link",
+      href: `/static/manage-lot-materials.html?lot_id=${encodeURIComponent(lotId)}`,
+      title: "Materials",
+    },
+    {
+      id: "shippment_link",
+      href: `/static/manage-lot-shippments.html?lot_id=${encodeURIComponent(lotId)}`,
+      title: "Shipment",
+    },
+  ];
+
+  links.forEach(({ id, href, title }) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+
+    const a = document.createElement("a");
+    a.href = href;
+    a.title = title;
+    // a.target = "_blank";
+    a.style.textDecoration = "none";
+    a.style.color = "inherit";
+    a.style.cursor = "pointer";
+
+    // move existing content (icon + text) inside <a>
+    while (el.firstChild) {
+      a.appendChild(el.firstChild);
+    }
+
+    el.replaceWith(a);
+  });
+}
+
+/* ---------- Boot ---------- */
+document.addEventListener("DOMContentLoaded", async () => {
+  initTopbar();
+  ensureHeaderButtons();
+  wireHeaderDirtyOnly();
+  initHeaderAutocomplete();
+ // ---> Add Drawing diagram batch download
+  $("btnDrawing").addEventListener("click", downloadDrawingBatch);
+  $("btnTraveler").addEventListener("click", downloadTravelerBatch);
+  $("btnInspection").addEventListener("click", downloadInspectionBatch);
+  // Add Step (seq +10 เริ่ม 10)
+  // $("btnAddStep")?.addEventListener("click", async () => {
+  //   if (!travelerId) {
+  //     toast("Missing traveler id", false);
+  //     return;
+  //   }
+  //   const nextSeq = getNextSeq();
+  //   const row = await stepsTable.addRow(
+  //     makeBlankStep(nextSeq),
+  //     false,
+  //     "bottom"
+  //   );
+  //   row.getCell("step_name")?.edit();
+  //   setDirtyClass(row, true);
+  // });
+
+  // Keyboard: Ctrl+Delete → (optional) delete traveler
+  document.addEventListener("keydown", (e) => {
+    if (e.ctrlKey && e.key.toLowerCase() === "delete") {
+      e.preventDefault();
+      // (อาจต่อยอดลบ traveler ได้ ถ้าต้องการ)
+    }
+  });
+
+  initStepsTable();
+  await loadTraveler();
+  await reloadSteps();
+   makeLotLinks(lotId);
+});

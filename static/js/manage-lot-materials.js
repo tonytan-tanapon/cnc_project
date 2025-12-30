@@ -450,6 +450,54 @@ function initInlineAddBatchForm() {
   });
 }
 
+
+
+function makeLotLinks(lotId) {
+  if (!lotId) return;
+
+  const links = [
+     {
+      id: "lot_link",
+      href: `/static/lot-detail.html?lot_id=${encodeURIComponent(lotId)}`,
+      title: "Traveler",
+    },
+    {
+      id: "traveler_link",
+      href: `/static/traveler-detail.html?lot_id=${encodeURIComponent(lotId)}`,
+      title: "Traveler",
+    },
+    {
+      id: "material_link",
+      href: `/static/manage-lot-materials.html?lot_id=${encodeURIComponent(lotId)}`,
+      title: "Materials",
+    },
+    {
+      id: "shippment_link",
+      href: `/static/manage-lot-shippments.html?lot_id=${encodeURIComponent(lotId)}`,
+      title: "Shipment",
+    },
+  ];
+
+  links.forEach(({ id, href, title }) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+
+    const a = document.createElement("a");
+    a.href = href;
+    a.title = title;
+    // a.target = "_blank";
+    a.style.textDecoration = "none";
+    a.style.color = "inherit";
+    a.style.cursor = "pointer";
+
+    // move existing content (icon + text) inside <a>
+    while (el.firstChild) {
+      a.appendChild(el.firstChild);
+    }
+
+    el.replaceWith(a);
+  });
+}
 /* ---------------- BOOT ---------------- */
 document.addEventListener("DOMContentLoaded", async () => {
   await loadLotHeader();
@@ -461,4 +509,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   await loadAllocationTable();
   await loadHistoryTable();
   initInlineAddBatchForm();
+
+   makeLotLinks(lotId);
 });

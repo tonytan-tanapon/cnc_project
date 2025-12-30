@@ -699,18 +699,18 @@ function initTable() {
         <span style="font-weight:600;">
           ${qty} (${rev})
         </span>
-
+        <span data-action="materials"
+              title="Materials"
+              style="cursor:pointer;">
+          🔩
+        </span>
         <span data-action="traveler"
               title="Traveler"
               style="cursor:pointer;">
           🧾
         </span>
 
-        <span data-action="materials"
-              title="Materials"
-              style="cursor:pointer;">
-          🔩
-        </span>
+        
       </div>
     `;
         },

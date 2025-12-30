@@ -173,6 +173,22 @@
   margin: 0;
   transform: none; /* IMPORTANT: prevents overlap */
 }
+
+
+
+   .quick-links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: #f3f4f6;
+  font-weight: 600;
+}
+
+.quick-links a:hover {
+  background: #e5e7eb;
+}
     </style>
   </head>
 
@@ -185,6 +201,13 @@
 
       <!-- ========== MAIN AREA ========== -->
       <main class="main">
+
+        <section class="quick-links">
+        <div id="lot_link">🧾 LOT</div>
+         <div id="material_link">🔩 Material</div>
+  <div id="traveler_link">🧾 Traveler</div>
+  <div id="shippment_link">📦 Shipment</div>
+</section>
         <!-- Lot Header -->
         <section class="lot-info">
           <h2>🚚 Lot Shipments</h2>
