@@ -381,16 +381,18 @@ def main():
            
           
             for row in reader:
-               
+                print("============",count,"==============")
+                print(row)
                
                 company = normalize(row.get("Company"))
                 vendor_po = normalize(row.get("Vendor PO"))
-                print(vendor_po)
+          
                 part_no = normalize(row.get("Part no."))
                 size = row.get("Size")
                 lenght = row.get("Length")
 
-                
+                if not company or not vendor_po:
+                    continue
                 
                 ## 1. suppliers Table
                 supplier = upsert_supplier(db, company)

@@ -1259,7 +1259,6 @@
     let baseEmployeeId = null;
     let lastAdjustedRows = [];
     async function loadPage(fetchFromApi = true) {
-
       const pp_id = getQS("pp_id");
       const employee_id = getQS("employee_id");
       currentPpId = pp_id;
@@ -1275,14 +1274,6 @@
       let pp;
       try {
         pp = await safeGetPayPeriod(pp_id);
-        currentPpStart = fmtDate(pp.start_at);
-        currentPpEnd   = fmtDate(pp.end_at);
-        console.log("main ",currentPpStart)
-
-         const leaveSection = document.getElementById("leaveSection");
-         console.log("leaveSection",leaveSection)
-        leaveSection.dataset.ppStart = currentPpStart;
-        leaveSection.dataset.ppEnd = currentPpEnd;
       } catch (e) {
         $(
           "#tblBody"
@@ -1302,8 +1293,6 @@
       currentEmpName = emp?.name ?? `Emp_${employee_id}`;
       currentPpStart = fmtDate(pp.start_at);
       currentPpEnd = fmtDate(pp.end_at);
-
-     
 
       /* ================== 🔘 PAYEE BUTTON ================== */
       const btnPayee = document.getElementById("btnPayee");
@@ -1501,9 +1490,6 @@
         lastAdjustedRows = adjusted; // ← เก็บไว้ใช้ตอน Calculate
         renderRawWithPay(adjusted);
       }
-
-
-      
     }
 
     /* ========= Wire up ========= */
@@ -1535,44 +1521,13 @@
 
 
   <!-- Time leave -->
-
-  
   <hr style="margin:40px 0" />
 
 
-   <h2 style="margin-bottom:10px">
-  Time Leave
-  <button
-    id="toggleLeaveBtn"
-    style="
-      margin-left:12px;
-      font-size:13px;
-      padding:3px 8px;
-      border-radius:6px;
-      border:1px solid #d1d5db;
-      background:#f9fafb;
-      cursor:pointer;
-    "
-  >
-    Show all
-  </button>
-
-  <span
-    id="leaveTotalHours"
-    style="margin-left:12px;font-size:14px;color:#374151"
-  >
-    (Total: 0.00 hrs)
-  </span>
-</h2>
-
-
+    <h2 style="margin-bottom:10px">Time Leave</h2>
 
    
-<div
-  id="leaveSection"
-  data-pp-start=""
-  data-pp-end=""
->
+<div id="leaveSection">
 <table>
   <thead>
     <tr>

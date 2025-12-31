@@ -1,0 +1,1541 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Employee Timesheet</title>
+    <style>
+      :root {
+        --line: #e5e7eb;
+        --muted: #6b7280;
+      }
+
+      body {
+        font: 16px/1.5 system-ui, -apple-system, Segoe UI, Roboto, Arial;
+        margin: 0;
+        padding: 20px;
+      }
+
+      h1 {
+        margin: 0 0 8px;
+        font-size: 22px;
+      }
+
+      .muted {
+        color: var(--muted);
+        font-size: 13px;
+        margin-bottom: 4px;
+      }
+
+      input[type="number"] {
+        width: 110px;
+        text-align: right;
+        padding: 6px 8px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+      }
+
+      button {
+        padding: 8px 12px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #111;
+        color: #fff;
+        cursor: pointer;
+      }
+
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        margin-top: 12px;
+      }
+
+      th,
+      td {
+        border: 1px solid var(--line);
+        padding: 6px 8px;
+        text-align: center;
+        vertical-align: top;
+      }
+
+      th {
+        background: #f8fafc;
+      }
+
+      .num {
+        text-align: right;
+      }
+
+      .left {
+        text-align: left;
+      }
+
+      .nowrap {
+        white-space: nowrap;
+      }
+
+      .mono {
+        font-variant-numeric: tabular-nums;
+      }
+
+      .empty {
+        color: var(--muted);
+        padding: 10px;
+      }
+
+      .page-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin: 0 0 8px;
+      }
+
+      .back-link {
+        margin-left: auto;
+        text-decoration: none;
+        color: #2563eb;
+        font-weight: 600;
+      }
+
+      .back-link:hover {
+        text-decoration: underline;
+      }
+
+      .bar {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin: 12px 0;
+        justify-content: flex-end;
+      }
+
+      .link {
+        color: #2563eb;
+        text-decoration: none;
+        font-weight: 600;
+      }
+
+      .link:hover {
+        text-decoration: underline;
+      }
+
+      .center {
+        text-align: center;
+      }
+
+      /* ==== Make Action column smaller ==== */
+      th:first-child,
+      td.actions {
+        width: 50px;
+        /* ความกว้างคงที่ */
+        text-align: center;
+        white-space: nowrap;
+        padding: 4px 6px;
+        /* ลดช่องว่างด้านใน */
+      }
+
+      .actions button {
+        border: none;
+        background: none;
+        cursor: pointer;
+        font-size: 1.1rem;
+        color: #111;
+        padding: 2px 4px;
+        transition: color 0.2s, transform 0.1s;
+      }
+
+      .actions button:hover {
+        color: #2563eb;
+        transform: scale(1.15);
+      }
+
+      .actions button i {
+        pointer-events: none;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="page-header">
+      <h1 id="header">Payroll</h1>
+      <button
+        id="btnPayee"
+        style="
+          margin-left: 8px;
+          background: #2563eb;
+          color: #fff;
+          border: none;
+          border-radius: 6px;
+          padding: 6px 10px;
+          font-size: 14px;
+          cursor: pointer;
+          display: none;
+        "
+      >
+        Payee
+      </button>
+      <a class="back-link" href="payroll_period_employees.html">← Back</a>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th></th>
+          <th>No</th>
+          <th>Date</th>
+          <th>Clock In</th>
+          <th>Start Break</th>
+          <th>Stop Break</th>
+          <th>Clock Out</th>
+          <th>Break (hrs)*</th>
+          <th>Reg (hrs)</th>
+          <th>OT (hrs)</th>
+          <th>Rate</th>
+          <th>OT Rate</th>
+          <th>Pay (Reg)</th>
+          <th>Pay (OT)</th>
+          <th>Total Pay</th>
+        </tr>
+      </thead>
+      <tbody id="tblBody">
+        <tr>
+          <td colspan="12" class="empty">Loading…</td>
+        </tr>
+      </tbody>
+      <tfoot id="tblFoot"></tfoot>
+    </table>
+    <div class="muted" style="margin-top: 4px">* Unpaid break hours</div>
+    <div class="bar">
+      <label
+        >Rate:
+        <input
+          id="rate"
+          type="number"
+          step="0.01"
+          min="0"
+          value="20.00"
+          inputmode="decimal"
+        />
+      </label>
+      <label
+        >OT Rate:
+        <input
+          id="ot_rate"
+          type="number"
+          step="0.01"
+          placeholder="default 1.5×"
+      /></label>
+      <button id="recalc">calculate</button>
+      <button id="exportBtn">Export (Excel/CSV)</button>
+      <button id="exportCSVBtn">Export CSV Only</button>
+    </div>
+
+    <script type="module">
+      import { $ as _$$, jfetch, toast } from "/static/js/api.js?v=1";
+      const $ = (sel) => document.querySelector(sel);
+
+      /* ========= SheetJS loader (tries CDNs, then local) ========= */
+      const SHEETJS_URLS = [
+        "https://cdn.jsdelivr.net/npm/xlsx@0.19.3/dist/xlsx.full.min.js",
+        "https://unpkg.com/xlsx@0.19.3/dist/xlsx.full.min.js",
+        "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.19.3/xlsx.full.min.js",
+      ];
+      const SHEETJS_LOCAL = "/static/vendor/xlsx/xlsx.full.min.js"; // <- host file here as fallback
+      const TE_MANUAL = "/time-entries/manual"; // ใช้สำหรับ PATCH
+      const BR_MANUAL = "/breaks/manual";
+      function loadScript(src) {
+        return new Promise((resolve, reject) => {
+          const s = document.createElement("script");
+          s.src = src;
+          s.async = true;
+          s.onload = () => resolve(true);
+          s.onerror = () => reject(new Error("load failed: " + src));
+          document.head.appendChild(s);
+        });
+      }
+
+      async function ensureSheetJS() {
+        if (window.XLSX) return window.XLSX;
+        const candidates = [...SHEETJS_URLS, SHEETJS_LOCAL];
+        for (const url of candidates) {
+          try {
+            await loadScript(url);
+            if (window.XLSX) return window.XLSX;
+          } catch (_e) {
+            /* try next */
+          }
+        }
+        return null;
+      }
+
+      /* ========= Helpers / API ========= */
+      const API_BASE = "";
+      const api = (p) => `${API_BASE}${p}`;
+      async function apiGET(path) {
+        try {
+          return await jfetch(api(path));
+        } catch (e) {
+          console.error(e);
+          toast?.(e?.message || "API error");
+          throw e;
+        }
+      }
+
+      const PP = "/pay-periods";
+      const EMP = "/employees";
+      const DEFAULT_OT_MULTIPLIER = 1.5;
+
+      const pad = (n) => String(n).padStart(2, "0");
+      const fmtDate = (v) => {
+        if (!v) return "";
+        const s = String(v);
+        // ถ้าเป็นรูป YYYY-MM-DD... ให้ตัด 10 ตัวแรกออกมาเลย (เชื่อใจ DB)
+        const m = s.match(/^(\d{4}-\d{2}-\d{2})/);
+        if (m) return m[1];
+        // กรณีอื่น ค่อย fallback format ด้วย LA TZ
+        const d = new Date(s);
+        const f = new Intl.DateTimeFormat("en-CA", {
+          timeZone: "America/Los_Angeles",
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+        });
+        return f.format(d); // yyyy-mm-dd
+      };
+      const currency = (v) =>
+        new Intl.NumberFormat("en-US", {
+          style: "currency",
+          currency: "USD",
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        }).format(Number(v ?? 0));
+      const getQS = (k) => new URL(location.href).searchParams.get(k);
+      // const utcDateKey = iso => iso ? new Date(iso).toISOString().slice(0,10) : null;
+      // 2) คีย์วันที่ของ time-entry สำหรับ group (ต้อง “ตรงวันเดียวกับ LA” เสมอ)
+      const utcDateKey = (v) => {
+        if (!v) return null;
+        const s = String(v);
+        // ถ้าสตริงเริ่มด้วย YYYY-MM-DD อยู่แล้ว ให้ใช้เลย — ปลอดภัยสุดและเร็วสุด
+        const m = s.match(/^(\d{4}-\d{2}-\d{2})/);
+        if (m) return m[1];
+
+        // fallback: แปลงด้วยโซนเวลา LA
+        const d = new Date(s);
+        const f = new Intl.DateTimeFormat("en-CA", {
+          timeZone: "America/Los_Angeles",
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+        });
+        return f.format(d); // yyyy-mm-dd
+      };
+
+      // 3) แสดงผลคอลัมน์ Date เป็น MM/DD/YYYY ตาม LA
+      function fmtMDY(v) {
+        if (!v) return "";
+        const s = String(v);
+
+        // ถ้ามาเป็น yyyy-mm-dd
+        const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (m) {
+          const yy = m[1].slice(2); // ✅ เอาแค่ 2 หลักท้าย
+          return `${m[2]}/${m[3]}/${yy}`;
+        }
+
+        // fallback (กรณีมีเวลา)
+        const d = new Date(s);
+        const parts = new Intl.DateTimeFormat("en-US", {
+          timeZone: "America/Los_Angeles",
+          year: "2-digit", // ✅ สำคัญ
+          month: "2-digit",
+          day: "2-digit",
+        }).formatToParts(d);
+
+        const mm = parts.find((p) => p.type === "month").value;
+        const dd = parts.find((p) => p.type === "day").value;
+        const yy = parts.find((p) => p.type === "year").value;
+
+        return `${mm}/${dd}/${yy}`;
+      }
+
+      // cache
+      let lastSummary = null,
+        lastBreaksByDate = {},
+        lastShiftsByDate = {};
+      let currentEmployeeId = null,
+        currentPpId = null;
+      let currentEmpName = "",
+        currentPpStart = "",
+        currentPpEnd = "";
+
+      async function safeGetPayPeriod(pp_id) {
+        try {
+          const pp = await apiGET(`${PP}/${pp_id}`);
+          if (pp) return pp;
+        } catch {}
+        const all = await apiGET(PP);
+        const found = (all || []).find((x) => String(x.id) === String(pp_id));
+        if (!found) throw new Error(`PayPeriod id=${pp_id} not found`);
+        return found;
+      }
+
+      // ----- helpers: choose week start (Sun=0 or Mon=1) -----
+      function weekKeyLocal(
+        dateISO,
+        weekStartsOn = 1 /* 1=Mon start per your use */
+      ) {
+        const d = new Date(dateISO + "T00:00:00");
+        const day = d.getDay(); // 0..6 (Sun..Sat)
+        const diff = (day - weekStartsOn + 7) % 7;
+        const weekStart = new Date(d);
+        weekStart.setDate(d.getDate() - diff);
+        const y = weekStart.getFullYear();
+        const m = String(weekStart.getMonth() + 1).padStart(2, "0");
+        const dd = String(weekStart.getDate()).padStart(2, "0");
+        return `${y}-${m}-${dd}`; // week bucket label (start date)
+      }
+
+      // ----- apply six-day rule on top of daily 8h rule -----
+      function applySixDayRule(rows, { weekStartsOn = 1 } = {}) {
+        // 1) Ensure daily >8 split is respected (if not already split upstream)
+        const normalized = rows.map((r) => {
+          const total = Number(r.reg_hours || 0) + Number(r.ot_hours || 0);
+          let reg = Number(r.reg_hours || 0);
+          let ot = Number(r.ot_hours || 0);
+          if (reg === 0 && ot === 0 && total > 0) {
+            reg = Math.min(8, total);
+            ot = Math.max(0, total - 8);
+          }
+          return { ...r, reg_hours: reg, ot_hours: ot, _total_hours: reg + ot };
+        });
+
+        // 2) Group by week, and if worked on 6 days, reclassify the lowest-hour day to OT
+        const byWeek = new Map();
+        normalized.forEach((r, i) => {
+          const wk = weekKeyLocal(r.date, weekStartsOn);
+          if (!byWeek.has(wk)) byWeek.set(wk, []);
+          byWeek.get(wk).push(i);
+        });
+
+        for (const [, idxs] of byWeek) {
+          const worked = idxs.filter((i) => normalized[i]._total_hours > 0);
+          if (worked.length >= 6) {
+            worked.sort((i1, i2) => {
+              const a = normalized[i1]._total_hours,
+                b = normalized[i2]._total_hours;
+              if (a !== b) return a - b;
+              return (
+                new Date(normalized[i1].date) - new Date(normalized[i2].date)
+              );
+            });
+            const pick = worked[0];
+            const day = normalized[pick];
+
+            // 🔶 mark for highlight
+            day._sixDayOT = true;
+
+            // move reg → OT
+            day.ot_hours =
+              Number(day.ot_hours || 0) + Number(day.reg_hours || 0);
+            day.reg_hours = 0;
+          }
+        }
+
+        normalized.forEach((r) => delete r._total_hours);
+        return normalized;
+      }
+
+      function effectiveRates() {
+        const r = Number($("#rate").value || 0);
+        const otField = $("#ot_rate").value;
+        const ot =
+          otField === "" ? r * DEFAULT_OT_MULTIPLIER : Number(otField || 0);
+        return { rate: r, otRate: ot };
+      }
+      function fmtTime(v) {
+        if (!v) return "";
+        const d = new Date(v);
+        // ใช้โซนเวลา Los Angeles เพื่อไม่ให้ข้ามวัน
+        const parts = new Intl.DateTimeFormat("en-US", {
+          timeZone: "America/Los_Angeles",
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false, // 24-hour format เช่น 18:44
+        }).formatToParts(d);
+        const hh = parts.find((p) => p.type === "hour").value;
+        const mm = parts.find((p) => p.type === "minute").value;
+        return `${hh}:${mm}`;
+      }
+      function formatShiftsCell(list) {
+        if (!list || !list.length) return "";
+        const sorted = [...list].sort(
+          (a, b) => new Date(a.start_at || 0) - new Date(b.start_at || 0)
+        );
+        return sorted
+          .map((s) => {
+            const si = fmtTime(s.start_at);
+            const so = s.end_at ? fmtTime(s.end_at) : "…";
+            return `${si}-${so}`;
+          })
+          .join("<br>");
+      }
+
+      function formatBreaksCell(list) {
+        if (!list || !list.length) return "";
+        const sorted = [...list].sort(
+          (a, b) => new Date(a.start_at || 0) - new Date(b.start_at || 0)
+        );
+        return sorted
+          .map((b) => {
+            const s = fmtTime(b.start_at);
+            const e = fmtTime(b.end_at);
+            return `${s}-${e}`;
+          })
+          .join("<br>");
+      }
+      async function apiPOST(path, body) {
+        try {
+          return await jfetch(api(path), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          });
+        } catch (e) {
+          console.error(e);
+          toast?.(e?.message || "API POST error");
+          throw e;
+        }
+      }
+      async function apiPATCH(path, body) {
+        try {
+          return await jfetch(api(path), {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          });
+        } catch (e) {
+          console.error(e);
+          toast?.(e?.message || "API PATCH error");
+          throw e;
+        }
+      }
+
+      async function renderRawWithPay(details = []) {
+        const tb = $("#tblBody");
+        tb.innerHTML = "";
+        const { rate, otRate } = effectiveRates();
+
+        // ✅ Add "➕" button beside header Action (if not already added)
+        const theadAction = document.querySelector("thead tr th:first-child");
+        if (theadAction && !document.getElementById("addBtn")) {
+          const addBtn = document.createElement("button");
+          addBtn.id = "addBtn";
+          addBtn.textContent = "➕";
+          addBtn.title = "Add new time entry";
+          Object.assign(addBtn.style, {
+            marginLeft: "6px",
+            cursor: "pointer",
+            border: "none",
+            background: "none",
+            fontSize: "1.1rem",
+            color: "#2563eb",
+          });
+          theadAction.appendChild(addBtn);
+
+          addBtn.onclick = () => {
+            const newRow = document.createElement("tr");
+            newRow.classList.add("editing");
+            newRow.innerHTML = `
+    <td class="center actions">
+      <button class="saveBtn" title="Save">💾</button>
+      <button class="cancelBtn" title="Cancel">❌</button>
+    </td>
+    <td class="num mono">–</td>
+    <td><input type="date" style="width:120px" value="${fmtDate(
+      new Date()
+    )}"></td>
+    <td><input type="time" step="60" value="08:00"></td>
+    <td><input type="time" step="60"></td>
+    <td><input type="time" step="60"></td>
+    <td><input type="time" step="60" value="17:00"></td>
+    <td colspan="8" class="muted center">New entry</td>
+  `;
+            tb.prepend(newRow);
+
+            const btnSave = newRow.querySelector(".saveBtn");
+            const btnCancel = newRow.querySelector(".cancelBtn");
+
+            btnCancel.onclick = () => newRow.remove();
+
+            btnSave.onclick = async () => {
+              const newDate = newRow.querySelector('input[type="date"]').value;
+              const [inTime, startBreak, stopBreak, outTime] = Array.from(
+                newRow.querySelectorAll('input[type="time"]')
+              ).map((x) => x.value);
+
+              if (!newDate || !inTime || !outTime) {
+                toast?.("Please fill Date, Clock In and Clock Out");
+                return;
+              }
+
+              try {
+                // ✅ POST new TimeEntry
+                const te = await apiPOST(TE_MANUAL, {
+                  employee_id: currentEmployeeId,
+                  clock_in_at: new Date(
+                    `${newDate}T${inTime}:00`
+                  ).toISOString(),
+                  clock_out_at: new Date(
+                    `${newDate}T${outTime}:00`
+                  ).toISOString(),
+                });
+
+                // ✅ POST BreakEntry (if given)
+                if (startBreak || stopBreak) {
+                  await apiPOST(BR_MANUAL, {
+                    time_entry_id: te.id,
+                    start_at: startBreak
+                      ? new Date(`${newDate}T${startBreak}:00`).toISOString()
+                      : null,
+                    end_at: stopBreak
+                      ? new Date(`${newDate}T${stopBreak}:00`).toISOString()
+                      : null,
+                  });
+                }
+
+                toast?.("Added new time entry");
+                await loadPage(true);
+              } catch (e) {
+                console.error(e);
+                toast?.(e?.message || "Add failed");
+              }
+            };
+          };
+        }
+
+        if (!details.length) {
+          tb.innerHTML = `<tr><td colspan="15" class="empty">No time entries found</td></tr>`;
+          return;
+        }
+
+        // ===== Sort old → new =====
+        details.sort(
+          (a, b) => new Date(a.clock_in_at || 0) - new Date(b.clock_in_at || 0)
+        );
+
+        let sumBreak = 0,
+          sumReg = 0,
+          sumOT = 0,
+          sumPayReg = 0,
+          sumPayOT = 0;
+        let lastWeekKey = null;
+
+        for (const [i, te] of details.entries()) {
+          const dateKey = utcDateKey(te.clock_in_at || te.clock_out_at);
+          const weekKey = weekKeyLocal(dateKey, 1);
+
+          if (lastWeekKey !== null && weekKey !== lastWeekKey) {
+            const sep = document.createElement("tr");
+            sep.innerHTML = `<td colspan="15" style="background:#f4f4f5;height:6px;border:0"></td>`;
+            tb.appendChild(sep);
+          }
+          lastWeekKey = weekKey;
+
+          const idx = i + 1;
+          const clockIn = te.clock_in_at ? fmtTime(te.clock_in_at) : "";
+          const clockOut = te.clock_out_at ? fmtTime(te.clock_out_at) : "";
+          let startBreak = "",
+            stopBreak = "",
+            breakHrs = 0;
+
+          if (Array.isArray(te.breaks) && te.breaks.length > 0) {
+            const br = te.breaks[0];
+            startBreak = br.start_at ? fmtTime(br.start_at) : "";
+            stopBreak = br.end_at ? fmtTime(br.end_at) : "";
+            if (br.start_at && br.end_at) {
+              breakHrs =
+                (new Date(br.end_at) - new Date(br.start_at)) / 3600000 || 0;
+            }
+          }
+
+          let totalHrs = 0;
+          if (te.clock_in_at && te.clock_out_at) {
+            const inT = new Date(te.clock_in_at);
+            const outT = new Date(te.clock_out_at);
+            totalHrs = (outT - inT) / 3600000 - breakHrs;
+          }
+
+          const regHrs = Number(te.reg_hours ?? Math.min(8, totalHrs));
+          const otHrs = Number(te.ot_hours ?? Math.max(0, totalHrs - 8));
+          const payReg = regHrs * rate;
+          const payOT = otHrs * otRate;
+          const totalPay = payReg + payOT;
+
+          sumBreak += breakHrs;
+          sumReg += regHrs;
+          sumOT += otHrs;
+          sumPayReg += payReg;
+          sumPayOT += payOT;
+          console.log("te._sixDayOT", te._sixDayOT);
+          const tr = document.createElement("tr");
+          if (te._sixDayOT) tr.style.backgroundColor = "#fff8c4"; // highlight six-day OT
+          tr.dataset.idx = i;
+          tr.innerHTML = `
+<td class="center actions">
+  <button class="editBtn" title="Edit">🖉</button>
+  <button class="delBtn" title="Delete">🗑️</button>
+</td>
+<td class="num mono">${idx}</td>
+<td class="mono nowrap">${fmtMDY(dateKey)}</td>
+<td class="mono">${clockIn}</td>
+<td class="mono">${startBreak}</td>
+<td class="mono">${stopBreak}</td>
+<td class="mono">${clockOut}</td>
+<td class="num mono">${breakHrs.toFixed(2)}</td>
+<td class="num mono">${regHrs.toFixed(2)}</td>
+<td class="num mono">${otHrs.toFixed(2)}</td>
+<td class="num mono">${currency(rate)}</td>
+<td class="num mono">${currency(otRate)}</td>
+<td class="num mono">${currency(payReg)}</td>
+<td class="num mono">${currency(payOT)}</td>
+<td class="num mono">${currency(totalPay)}</td>
+`;
+          tb.appendChild(tr);
+        }
+
+        // ===== footer totals =====
+        $("#tblFoot").innerHTML = `
+<tr>
+  <td colspan="7" class="num">Total</td>
+  <td class="num mono">${sumBreak.toFixed(2)}</td>
+  <td class="num mono">${sumReg.toFixed(2)}</td>
+  <td class="num mono">${sumOT.toFixed(2)}</td>
+  <td></td><td></td>
+  <td class="num mono">${currency(sumPayReg)}</td>
+  <td class="num mono">${currency(sumPayOT)}</td>
+  <td class="num mono">${currency(sumPayReg + sumPayOT)}</td>
+</tr>`;
+
+        // ===== Edit/Delete per row =====
+        tb.querySelectorAll("tr[data-idx]").forEach((tr) => {
+          const i = Number(tr.dataset.idx);
+          const te = details[i];
+          if (!te) return;
+          const cells = tr.children;
+          const btnEdit = tr.querySelector(".editBtn");
+          const btnDel = tr.querySelector(".delBtn");
+
+          btnDel.onclick = async () => {
+            if (!confirm("Delete this entry?")) return;
+            try {
+              await jfetch(`${TE_MANUAL}/${te.id}`, { method: "DELETE" });
+              toast?.("Deleted");
+              await loadPage(true);
+            } catch (e) {
+              toast?.(e?.message || "Delete failed");
+            }
+          };
+
+          btnEdit.onclick = () => {
+            if (tr.classList.contains("editing")) return;
+            tr.classList.add("editing");
+
+            const dateText = cells[2]?.textContent.trim();
+            const inText = cells[3]?.textContent.trim();
+            const startBreakText = cells[4]?.textContent.trim();
+            const stopBreakText = cells[5]?.textContent.trim();
+            const outText = cells[6]?.textContent.trim();
+
+            // replace text with inputs
+            cells[2].innerHTML = `<input type="date" value="${fmtDate(
+              dateText
+            )}" style="width:120px">`;
+            cells[3].innerHTML = `<input type="time" value="${inText}" step="60">`;
+            cells[4].innerHTML = `<input type="time" value="${startBreakText}" step="60">`;
+            cells[5].innerHTML = `<input type="time" value="${stopBreakText}" step="60">`;
+            cells[6].innerHTML = `<input type="time" value="${outText}" step="60">`;
+
+            btnEdit.textContent = "💾"; // Save
+            btnDel.textContent = "❌"; // Cancel
+
+            btnDel.onclick = () => loadPage(true);
+
+            btnEdit.onclick = async () => {
+              const newDate = cells[2].querySelector("input").value;
+              const newIn = cells[3].querySelector("input").value;
+              const newStartBr = cells[4].querySelector("input").value;
+              const newStopBr = cells[5].querySelector("input").value;
+              const newOut = cells[6].querySelector("input").value;
+
+              if (!newDate || (!newIn && !newOut)) {
+                toast?.("Please provide at least a Clock In or Clock Out time");
+                return;
+              }
+
+              try {
+                const patchTE = {};
+                if (newIn)
+                  patchTE.clock_in_at = new Date(
+                    `${newDate}T${newIn}:00`
+                  ).toISOString();
+                if (newOut)
+                  patchTE.clock_out_at = new Date(
+                    `${newDate}T${newOut}:00`
+                  ).toISOString();
+
+                if (Object.keys(patchTE).length > 0)
+                  await apiPATCH(`${TE_MANUAL}/${te.id}`, patchTE);
+
+                // ✅ Break PATCH / DELETE / CREATE
+                if (Array.isArray(te.breaks) && te.breaks.length > 0) {
+                  const br = te.breaks[0];
+                  if (!newStartBr && !newStopBr) {
+                    await jfetch(`${BR_MANUAL}/${br.id}`, { method: "DELETE" });
+                  } else {
+                    const brData = {};
+                    if (newStartBr)
+                      brData.start_at = new Date(
+                        `${newDate}T${newStartBr}:00`
+                      ).toISOString();
+                    if (newStopBr)
+                      brData.end_at = new Date(
+                        `${newDate}T${newStopBr}:00`
+                      ).toISOString();
+                    await apiPATCH(`${BR_MANUAL}/${br.id}`, brData);
+                  }
+                } else if (newStartBr || newStopBr) {
+                  const brData = {};
+                  if (newStartBr)
+                    brData.start_at = new Date(
+                      `${newDate}T${newStartBr}:00`
+                    ).toISOString();
+                  if (newStopBr)
+                    brData.end_at = new Date(
+                      `${newDate}T${newStopBr}:00`
+                    ).toISOString();
+                  await apiPOST(`${BR_MANUAL}`, {
+                    time_entry_id: te.id,
+                    ...brData,
+                  });
+                }
+
+                toast?.("Saved");
+                await loadPage(true);
+              } catch (e) {
+                console.error(e);
+                toast?.(e?.message || "Save failed");
+              }
+            };
+          };
+        });
+      }
+
+      function render(summary, breaksByDate = {}, shiftsByDate = {}) {
+        const tb = $("#tblBody");
+        tb.innerHTML = "";
+        const { rate, otRate } = effectiveRates();
+
+        let sumReg = 0,
+          sumOT = 0,
+          sumPayReg = 0,
+          sumPayOT = 0,
+          idx = 0;
+        let lastWeekKey = null;
+
+        for (const row of summary.rows || []) {
+          const weekKey = weekKeyLocal(row.date, 1); // Monday-start
+          if (lastWeekKey !== null && weekKey !== lastWeekKey) {
+            const sep = document.createElement("tr");
+            sep.innerHTML = `<td colspan="14" style="background:#f4f4f5;height:6px;border:0"></td>`;
+            tb.appendChild(sep);
+          }
+          lastWeekKey = weekKey;
+          idx += 1;
+
+          const reg = Number(row.reg_hours || 0);
+          const ot = Number(row.ot_hours || 0);
+          const payReg = reg * rate;
+          const payOT = ot * otRate;
+
+          sumReg += reg;
+          sumOT += ot;
+          sumPayReg += payReg;
+          sumPayOT += payOT;
+
+          // ===== ดึงค่า clock-in / clock-out =====
+          const shifts = shiftsByDate[row.date] || [];
+          const breaks = breaksByDate[row.date] || [];
+
+          const clockIn = shifts.length ? fmtTime(shifts[0].start_at) : "";
+          const clockOut = shifts.length
+            ? fmtTime(shifts[shifts.length - 1].end_at)
+            : "";
+
+          const startBreak = breaks.length ? fmtTime(breaks[0].start_at) : "";
+          const stopBreak = breaks.length
+            ? fmtTime(breaks[breaks.length - 1].end_at)
+            : "";
+
+          const editUrl = `employee_timesheet_edit.html?pp_id=${encodeURIComponent(
+            currentPpId
+          )}&employee_id=${encodeURIComponent(currentEmployeeId)}&date=${
+            row.date
+          }&return=${encodeURIComponent(location.href)}`;
+
+          const tr = document.createElement("tr");
+          console.log("te._sixDayOT", te._sixDayOT);
+          if (te._sixDayOT) tr.style.backgroundColor = "#fff8c4"; // highlight six-day OT
+          tr.innerHTML = `
+      <td class="num mono"><a class="link" href="${editUrl}">${idx}</a></td>
+      <td class="nowrap mono">${fmtMDY(row.date)}</td>
+      <td class="mono">${clockIn}</td>
+      <td class="mono">${startBreak}</td>
+      <td class="mono">${stopBreak}</td>
+      <td class="mono">${clockOut}</td>
+      <td class="num mono">${Number(row.unpaid_break_hours || 0).toFixed(
+        2
+      )}</td>
+      <td class="num mono">${reg.toFixed(2)}</td>
+      <td class="num mono">${ot.toFixed(2)}</td>
+      <td class="num mono">${rate ? currency(rate) : ""}</td>
+      <td class="num mono">${otRate ? currency(otRate) : ""}</td>
+      <td class="num mono">${currency(payReg)}</td>
+      <td class="num mono">${currency(payOT)}</td>
+      <td class="num mono">${currency(payReg + payOT)}</td>
+    `;
+          tb.appendChild(tr);
+        }
+
+        $("#tblFoot").innerHTML = `
+    <tr>
+      <td colspan="6" class="num">Total</td>
+      <td class="num mono">${sumReg.toFixed(2)}</td>
+      <td class="num mono">${sumOT.toFixed(2)}</td>
+      <td></td><td></td>
+      <td class="num mono">${currency(sumPayReg)}</td>
+      <td class="num mono">${currency(sumPayOT)}</td>
+      <td class="num mono">${currency(sumPayReg + sumPayOT)}</td>
+    </tr>`;
+      }
+
+      const safeFilename = (s) =>
+        String(s ?? "")
+          .normalize("NFKC")
+          .replace(/[<>:"/\\|?*\x00-\x1F]/g, "")
+          .replace(/\s+/g, "_")
+          .slice(0, 120);
+
+      /* ========= CSV fallback ========= */
+      // function exportCSV() {
+      //   const header = [
+      //     "no",
+      //     "date",
+      //     "shifts",
+      //     "breaks",
+      //     "break_unpaid_h",
+      //     "reg_h",
+      //     "ot_h",
+      //     "rate",
+      //     "ot_rate",
+      //     "pay_reg",
+      //     "pay_ot",
+      //     "pay_total",
+      //   ];
+      //   const rows = [];
+      //   let lastWeekKey = null;
+
+      //   // Add rows with week separators (blank line)
+      //   document.querySelectorAll("#tblBody tr").forEach((tr) => {
+      //     const t = tr.querySelectorAll("td");
+      //     const date = (t[1]?.innerText || "").trim();
+      //     if (date) {
+      //       const [mm, dd, yy] = date.split("/");
+      //       const iso = `${yy}-${mm}-${dd}`;
+      //       const wk = weekKeyLocal(iso, 1);
+      //       if (lastWeekKey !== null && wk !== lastWeekKey) rows.push([]); // separator
+      //       lastWeekKey = wk;
+      //     }
+      //     rows.push([
+      //       t[0]?.innerText.trim() ?? "",
+      //       date,
+      //       t[2]?.innerText.trim() ?? "",
+      //       t[3]?.innerText.trim() ?? "",
+      //       t[4]?.innerText.trim() ?? "",
+      //       t[5]?.innerText.trim() ?? "",
+      //       t[6]?.innerText.trim() ?? "",
+      //       t[7]?.innerText.trim() ?? "",
+      //       t[8]?.innerText.trim() ?? "",
+      //       t[9]?.innerText.trim() ?? "",
+      //       t[10]?.innerText.trim() ?? "",
+      //       t[11]?.innerText.trim() ?? "",
+      //     ]);
+
+      //     // rows.push([
+      //     //   t[0]?.innerText.trim() ?? "",
+      //     //   date,
+      //     //   t[2]?.innerText.trim() ?? "",
+      //     //   t[3]?.innerText.trim() ?? "",
+      //     //   t[4]?.innerText.trim() ?? "",
+      //     //   t[5]?.innerText.trim() ?? "",
+      //     //   t[6]?.innerText.trim() ?? "",
+      //     //   t[7]?.innerText.trim() ?? "",
+      //     //   t[8]?.innerText.trim() ?? "",
+      //     //   t[9]?.innerText.trim() ?? "",
+      //     //   t[10]?.innerText.trim() ?? "",
+      //     //   t[11]?.innerText.trim() ?? "",
+      //     // ]);
+      //   });
+
+      //   // Add TOTAL row as text (CSV)
+      //   rows.push([]);
+      //   rows.push([
+      //     "",
+      //     "",
+      //     "",
+      //     "",
+      //     "Total",
+      //     document.querySelector("#tblFoot td:nth-child(2)")?.innerText ?? "",
+      //     document.querySelector("#tblFoot td:nth-child(3)")?.innerText ?? "",
+      //     "",
+      //     "",
+      //     document.querySelector("#tblFoot td:nth-child(5)")?.innerText ?? "",
+      //     document.querySelector("#tblFoot td:nth-child(6)")?.innerText ?? "",
+      //     document.querySelector("#tblFoot td:nth-child(7)")?.innerText ?? "",
+      //   ]);
+
+      //   const csv = [header, ...rows]
+      //     .map((r) =>
+      //       r.map((v) => `"${String(v || "").replace(/"/g, '""')}"`).join(",")
+      //     )
+      //     .join("\n");
+      //   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      //   const url = URL.createObjectURL(blob);
+      //   const a = document.createElement("a");
+      //   a.href = url;
+      //   const fname = `${safeFilename(
+      //     currentEmpName
+      //   )}_${currentPpStart}_${currentPpEnd}.csv`;
+      //   a.download = fname;
+      //   a.click();
+      //   URL.revokeObjectURL(url);
+      // }
+      function exportCSV() {
+        const header = [
+          "no",
+          "date",
+          "clock_in",
+          "start_break",
+          "stop_break",
+          "clock_out",
+          "break_unpaid_h",
+          "reg_h",
+          "ot_h",
+          "rate",
+          "ot_rate",
+          "pay_reg",
+          "pay_ot",
+          "pay_total",
+        ];
+
+        const rows = [];
+        let lastWeekKey = null;
+
+        document.querySelectorAll("#tblBody tr").forEach((tr) => {
+          const t = tr.querySelectorAll("td");
+          if (t.length < 15) return;
+
+          // ดึงเฉพาะ td[1] ถึง td[14] (ข้าม Action)
+          const cols = [];
+          for (let i = 1; i <= 14; i++) {
+            cols.push((t[i].innerText || "").trim());
+          }
+
+          const date = cols[1];
+          if (date) {
+            const [mm, dd, yy] = date.split("/");
+            const iso = `${yy}-${mm}-${dd}`;
+            const wk = weekKeyLocal(iso, 1);
+            if (lastWeekKey !== null && wk !== lastWeekKey) rows.push([]);
+            lastWeekKey = wk;
+          }
+
+          rows.push(cols);
+        });
+
+        // --- Total row ---
+        rows.push([]);
+        rows.push([
+          "", // no
+          "", // date
+          "", // clock_in
+          "", // start_break
+          "", // stop_break
+          "", // clock_out
+          "Total", // break_unpaid_h  (G)
+
+          document.querySelector("#tblFoot td:nth-child(3)")?.innerText ?? "", // ot_h (I)
+          document.querySelector("#tblFoot td:nth-child(4)")?.innerText ?? "", // ot_h (I)
+          "", // rate (J)
+          "", // ot_rate (K)
+          // document.querySelector("#tblFoot td:nth-child(5)")?.innerText ?? "", // pay_reg (L)
+          // document.querySelector("#tblFoot td:nth-child(6)")?.innerText ?? "", // pay_ot (M)
+          document.querySelector("#tblFoot td:nth-child(7)")?.innerText ?? "", // pay_total (N)
+          document.querySelector("#tblFoot td:nth-child(8)")?.innerText ?? "", // pay_total (N)
+          document.querySelector("#tblFoot td:nth-child(9)")?.innerText ?? "", // pay_total (N)
+        ]);
+
+        // Escape + CSV output
+        const csv = [header, ...rows]
+          .map((r) =>
+            r.map((v) => `"${String(v || "").replace(/"/g, '""')}"`).join(",")
+          )
+          .join("\n");
+
+        // UTF-8 BOM for Excel
+        const BOM = "\uFEFF";
+        const blob = new Blob([BOM + csv], { type: "text/csv;charset=utf-8;" });
+
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${safeFilename(
+          currentEmpName
+        )}_${currentPpStart}_${currentPpEnd}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+
+      /* ========= Excel export (with week separators, currency formats, totals) ========= */
+      async function exportExcelOrCsv() {
+        const XLSX = await ensureSheetJS();
+        if (!XLSX) {
+          alert("Excel library not available. Exporting CSV instead.");
+          exportCSV();
+          return;
+        }
+
+        const header = [
+          "no",
+          "date",
+          "clock_in",
+          "start_break",
+          "stop_break",
+          "clock_out",
+          "break_unpaid_h",
+          "reg_h",
+          "ot_h",
+          "rate",
+          "ot_rate",
+          "pay_reg",
+          "pay_ot",
+          "pay_total",
+        ];
+        const rows = [header];
+
+        let lastWeekKey = null;
+        const bodyTrs = Array.from(document.querySelectorAll("#tblBody tr"));
+
+        for (const tr of bodyTrs) {
+          const t = Array.from(tr.querySelectorAll("td"));
+          if (t.length < 15) continue;
+          const cols = t.slice(1).map((td) => td.innerText.trim()); // ✅ skip Action column
+          if (!cols[0]) continue;
+
+          const date = cols[1];
+          let wk = null;
+          if (date) {
+            const [mm, dd, yy] = date.split("/");
+            const iso = `${yy}-${mm}-${dd}`;
+            wk = weekKeyLocal(iso, 1);
+            if (lastWeekKey !== null && wk !== lastWeekKey) rows.push([]);
+            lastWeekKey = wk;
+          }
+          rows.push(cols);
+        }
+
+        // ➕ เพิ่มแถวว่าง + แถว Total (ใส่สูตรทีหลัง)
+        rows.push([]);
+        rows.push([
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "", // "Total" จะใส่ทีหลัง
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+        ]);
+
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.aoa_to_sheet(rows);
+        // ===== Center header row =====
+        const range = XLSX.utils.decode_range(ws["!ref"]);
+        for (let c = range.s.c; c <= range.e.c; c++) {
+          const cellAddr = XLSX.utils.encode_cell({ r: 0, c }); // r=0 คือ header row
+          const cell = ws[cellAddr];
+          if (cell) {
+            cell.s = {
+              alignment: { horizontal: "center", vertical: "center" },
+              font: { bold: true },
+              fill: { fgColor: { rgb: "F2F2F2" } }, // พื้นหลังเทาอ่อน
+            };
+          }
+        }
+        // ปรับความกว้างคอลัมน์
+        ws["!cols"] = [
+          { wch: 4 }, // no
+          { wch: 10 }, // date
+          { wch: 10 }, // clock_in
+          { wch: 10 }, // start_break
+          { wch: 10 }, // stop_break
+          { wch: 10 }, // clock_out
+          { wch: 12 }, // break_unpaid_h
+          { wch: 10 }, // reg_h
+          { wch: 10 }, // ot_h
+          { wch: 10 }, // rate
+          { wch: 10 }, // ot_rate
+          { wch: 12 }, // pay_reg
+          { wch: 12 }, // pay_ot
+          { wch: 12 }, // pay_total
+        ];
+
+        // === ใส่สูตร SUM ให้แถว Total ===
+        // === ใส่ค่า Total แบบคำนวณล่วงหน้า (ไม่ใช้สูตร) ===
+        // === ใส่ค่า Total แบบคำนวณล่วงหน้า (ไม่ใช้สูตร) ===
+        // === ใส่ค่า Total แบบคำนวณล่วงหน้า (ไม่ใช้สูตร) ===
+        const ref = XLSX.utils.decode_range(ws["!ref"]);
+        const totalRow = ref.e.r;
+        const firstDataRow = 2;
+        const lastDataRow = totalRow - 1; // exclude Total row itself
+
+        // helper
+        const excelCol = (c) => XLSX.utils.encode_col(c);
+        const getCellValue = (r, c) => {
+          const cell = ws[XLSX.utils.encode_cell({ r, c })];
+          if (!cell || cell.v === undefined || cell.v === null) return 0;
+          let val = String(cell.v).replace(/[^0-9.\-]/g, ""); // remove $, commas
+          const num = parseFloat(val);
+          return isNaN(num) ? 0 : num;
+        };
+
+        // mark Total label
+        ws[XLSX.utils.encode_cell({ r: totalRow, c: 6 })] = {
+          t: "s",
+          v: "Total",
+        };
+
+        // sum helper
+        function sumColumn(c) {
+          let sum = 0;
+          for (let r = firstDataRow - 1; r < lastDataRow; r++) {
+            sum += getCellValue(r, c);
+          }
+          return sum;
+        }
+
+        // 🕒 sum reg + OT hours
+        for (const c of [7, 8]) {
+          ws[XLSX.utils.encode_cell({ r: totalRow, c })] = {
+            t: "n",
+            v: sumColumn(c),
+            z: "0.00",
+          };
+        }
+
+        // 💵 sum pay columns (pay_reg L=11, pay_ot M=12, pay_total N=13)
+        for (const c of [11, 12, 13]) {
+          ws[XLSX.utils.encode_cell({ r: totalRow, c })] = {
+            t: "n",
+            v: sumColumn(c),
+            z: "$#,##0.00",
+          };
+        }
+
+        ws["!ref"] = XLSX.utils.encode_range({
+          s: { r: 0, c: 0 },
+          e: { r: totalRow, c: 13 },
+        });
+
+        XLSX.utils.book_append_sheet(wb, ws, "Timesheet");
+        const fname = `${safeFilename(
+          currentEmpName
+        )}_${currentPpStart}_${currentPpEnd}.xlsx`;
+        XLSX.writeFile(wb, fname);
+      }
+
+      /* ========= Page load ========= */
+      // ✅ Global flags สำหรับ toggle payee
+      let showingPayee = false;
+      let baseEmployeeId = null;
+      let lastAdjustedRows = [];
+      async function loadPage(fetchFromApi = true) {
+        const pp_id = getQS("pp_id");
+        const employee_id = getQS("employee_id");
+        currentPpId = pp_id;
+        currentEmployeeId = employee_id;
+
+        if (!pp_id || !employee_id) {
+          $(
+            "#tblBody"
+          ).innerHTML = `<tr><td colspan="12" class="empty">pp_id and employee_id are required</td></tr>`;
+          return;
+        }
+
+        let pp;
+        try {
+          pp = await safeGetPayPeriod(pp_id);
+        } catch (e) {
+          $(
+            "#tblBody"
+          ).innerHTML = `<tr><td colspan="12" class="empty">${e.message}</td></tr>`;
+          return;
+        }
+
+        let emp = null;
+        try {
+          emp = await apiGET(`${EMP}/${employee_id}`);
+          console.log("SERVER EMPLOYEE RESPONSE:", emp);
+        } catch {}
+
+        document.getElementById("header").textContent = `Payroll — ${
+          emp?.name ?? "Emp #" + employee_id
+        } (${fmtMDY(pp.start_at)} → ${fmtMDY(pp.end_at)})`;
+
+        currentEmpName = emp?.name ?? `Emp_${employee_id}`;
+        currentPpStart = fmtDate(pp.start_at);
+        currentPpEnd = fmtDate(pp.end_at);
+
+        /* ================== 🔘 PAYEE BUTTON ================== */
+        const btnPayee = document.getElementById("btnPayee");
+        const samePerson =
+          emp?.payroll_emp_id && Number(emp.payroll_emp_id) === Number(emp.id);
+        console.log(
+          "Same person check:",
+          emp?.payroll_emp_id,
+          emp?.id,
+          samePerson
+        );
+        if ((emp?.payroll_emp || emp?.payroll_emp_id) && !samePerson) {
+          btnPayee.style.display = "inline-block";
+          console.log("Emp has payee:", emp.payroll_emp, emp.payroll_emp_id);
+
+          // ปรับชื่อปุ่มให้เหมาะสม
+          btnPayee.textContent = showingPayee ? "Return" : "Payee";
+
+          btnPayee.onclick = async () => {
+            try {
+              if (!showingPayee) {
+                baseEmployeeId = emp.id;
+                const payee = emp.payroll_emp
+                  ? emp.payroll_emp // ใช้ object ที่มาด้วยเลย
+                  : await apiGET(`${EMP}/${emp.payroll_emp_id}`); // fallback ถ้าไม่มี
+
+                if (!payee) {
+                  toast?.("Payee not found");
+                  return;
+                }
+
+                currentEmployeeId = payee.id;
+                showingPayee = true;
+                btnPayee.textContent = "Return";
+                document.getElementById("header").textContent = `Payroll — ${
+                  payee.name
+                } (${fmtMDY(pp.start_at)} → ${fmtMDY(pp.end_at)})`;
+                toast?.(`Switched to Payee: ${payee.name}`);
+
+                const [rawDetails] = await Promise.all([
+                  apiGET(
+                    `/payroll/time-entries/by-employee?employee_id=${payee.id}&pp_id=${pp_id}`
+                  ),
+                ]);
+
+                // 🟢 1. Preprocess to compute daily hours
+                const normalized = rawDetails.map((te) => {
+                  const date = utcDateKey(te.clock_in_at || te.clock_out_at);
+                  let breakHrs = 0;
+                  if (Array.isArray(te.breaks) && te.breaks.length > 0) {
+                    const br = te.breaks[0];
+                    if (br.start_at && br.end_at) {
+                      breakHrs =
+                        (new Date(br.end_at) - new Date(br.start_at)) / 3600000;
+                    }
+                  }
+                  const inT = te.clock_in_at ? new Date(te.clock_in_at) : null;
+                  const outT = te.clock_out_at
+                    ? new Date(te.clock_out_at)
+                    : null;
+                  const total =
+                    inT && outT ? (outT - inT) / 3600000 - breakHrs : 0;
+                  return {
+                    ...te,
+                    date,
+                    reg_hours: Math.min(8, total),
+                    ot_hours: Math.max(0, total - 8),
+                    total_hours: total,
+                  };
+                });
+
+                // 🟢 2. Apply six-day OT rule
+                const adjusted = applySixDayRule(normalized, {
+                  weekStartsOn: 1,
+                });
+
+                // 🟢 3. Render
+                renderRawWithPay(adjusted);
+
+                // 🧭 ถ้า payee มีลูกทีม → สร้างปุ่ม Dependents
+                const headerDiv = document.querySelector(".page-header");
+                const oldDepsBtn = document.getElementById("btnDeps");
+                if (oldDepsBtn) oldDepsBtn.remove();
+
+                const payeeFull = await apiGET(`${EMP}/${payee.id}`);
+                console.log("PAYEE FULL:", payeeFull);
+                console.log("emp:", emp);
+
+                const isSamePerson =
+                  Number(payeeFull.id) === Number(emp.id) ||
+                  String(payeeFull.emp_code) === String(emp.emp_code) ||
+                  Number(emp.payroll_emp_id) === Number(emp.id);
+
+                if (
+                  Array.isArray(payeeFull?.payroll_dependents) &&
+                  payeeFull.payroll_dependents.length > 0 &&
+                  !isSamePerson
+                ) {
+                  // ✅ สร้างข้อความ HTML ที่ขึ้นบรรทัดได้
+                  const listText = payeeFull.payroll_dependents
+                    .map((d) => `• ${d.emp_code} — ${d.name}`)
+                    .join("<br>");
+
+                  // ✅ แสดงทั้งหมดใน toast เดียว พร้อมขึ้นบรรทัด
+                  toast?.(
+                    `<div style="font-size:15px;line-height:1.4em;">` +
+                      `Dependents under ${payeeFull.name}:<br>${listText}</div>`
+                  );
+                }
+              } else {
+                // เมื่อกด Return กลับมาที่พนักงานเดิม
+                showingPayee = false;
+                btnPayee.textContent = "Payee";
+                currentEmployeeId = baseEmployeeId;
+                toast?.("Returned to employee");
+
+                // ✅ ลบ dependents section ถ้ามี
+                const oldSection = document.getElementById("dependentsList");
+                if (oldSection) oldSection.remove();
+
+                await loadPage(true);
+              }
+            } catch (e) {
+              toast?.(e?.message || "Load payee failed");
+            }
+          };
+        } else {
+          btnPayee.style.display = "none";
+        }
+
+        /* ================== 🧭 Dependents Button (หัวหน้า payroll) ================== */
+        const headerDiv = document.querySelector(".page-header");
+        const oldDepsBtn = document.getElementById("btnDeps");
+        if (oldDepsBtn) oldDepsBtn.remove();
+
+        if (
+          Array.isArray(emp?.payroll_dependents) &&
+          (emp.payroll_dependents.length > 0) & !samePerson
+        ) {
+          const btnDeps = document.createElement("button");
+          btnDeps.id = "btnDeps";
+          btnDeps.textContent = "Dependents";
+          Object.assign(btnDeps.style, {
+            marginLeft: "6px",
+            background: "#10b981",
+            color: "#fff",
+            border: "none",
+            borderRadius: "6px",
+            padding: "6px 10px",
+            fontSize: "14px",
+            cursor: "pointer",
+          });
+          headerDiv.insertBefore(btnDeps, document.querySelector(".back-link"));
+
+          btnDeps.onclick = () => {
+            const list = emp.payroll_dependents
+              .map((d) => `• ${d.emp_code} — ${d.name}`)
+              .join("\n");
+            alert(`Dependents under ${emp.name}:\n\n${list}`);
+          };
+        }
+
+        /* ================== ✅ โหลcsvดข้อมูล timesheet ================== */
+        if (fetchFromApi) {
+          const [rawDetails] = await Promise.all([
+            apiGET(
+              `/payroll/time-entries/by-employee?employee_id=${employee_id}&pp_id=${pp_id}`
+            ),
+          ]);
+
+          // 🟢 1. Preprocess to calculate daily reg/OT first
+          const normalized = rawDetails.map((te) => {
+            const date = utcDateKey(te.clock_in_at || te.clock_out_at);
+            let breakHrs = 0;
+            if (Array.isArray(te.breaks) && te.breaks.length > 0) {
+              const br = te.breaks[0];
+              if (br.start_at && br.end_at) {
+                breakHrs =
+                  (new Date(br.end_at) - new Date(br.start_at)) / 3600000;
+              }
+            }
+            const inT = te.clock_in_at ? new Date(te.clock_in_at) : null;
+            const outT = te.clock_out_at ? new Date(te.clock_out_at) : null;
+            const total = inT && outT ? (outT - inT) / 3600000 - breakHrs : 0;
+            return {
+              ...te,
+              date,
+              reg_hours: Math.min(8, total),
+              ot_hours: Math.max(0, total - 8),
+              total_hours: total,
+            };
+          });
+
+          // 🟢 2. Apply six-day rule (weekly lowest-day OT)
+          const adjusted = applySixDayRule(normalized, { weekStartsOn: 1 });
+          lastAdjustedRows = adjusted; // ← เก็บไว้ใช้ตอน Calculate
+          renderRawWithPay(adjusted);
+        }
+      }
+
+      /* ========= Wire up ========= */
+
+      document.getElementById("rate").addEventListener("input", () => {
+        const r = Number(document.getElementById("rate").value || 0);
+        const ot = document.getElementById("ot_rate");
+        if (ot.value === "" || Number(ot.value) === 0) {
+          ot.placeholder = r ? (r * 1.5).toFixed(2) : "default 1.5×";
+        }
+      });
+
+      document.getElementById("recalc").addEventListener("click", () => {
+        if (lastAdjustedRows.length) {
+          renderRawWithPay(lastAdjustedRows);
+        }
+      });
+
+      document
+        .getElementById("exportBtn")
+        // .addEventListener("click", exportExcelOrCsv);
+        .addEventListener("click", exportExcelOrCsv);
+
+      document
+        .getElementById("exportCSVBtn")
+        .addEventListener("click", exportCSV);
+      document.addEventListener("DOMContentLoaded", () => loadPage(true));
+    </script>
+  </body>
+</html>

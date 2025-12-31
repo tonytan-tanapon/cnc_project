@@ -20,8 +20,8 @@ from sqlalchemy.orm import Session, sessionmaker
 # ---------- CONFIG ----------
 LA_TZ = ZoneInfo("America/Los_Angeles")
 DATABASE_URL = "postgresql+psycopg2://postgres:1234@localhost:5432/mydb"
-# CSV_FILE = Path(r"C:\Users\TPSERVER\dev\cnc_project\database_import\import_material.csv")
-CSV_FILE = Path(r"C:\Users\TPSERVER\dev\cnc_project\database_import\import_material_mini.csv")
+CSV_FILE = Path(r"C:\Users\TPSERVER\dev\cnc_project\database_import\import_material.csv")
+# CSV_FILE = Path(r"C:\Users\TPSERVER\dev\cnc_project\database_import\import_material_mini.csv")
 # CSV_FILE = Path(r"C:\Users\TPSERVER\dev\cnc_project\database_import\import_material_all.csv")
 CSV_ENCODING = "utf-8-sig"
 
@@ -120,47 +120,21 @@ def parse_po_qty(raw_text):
 # ================= UPSERTS ===========================
 # =====================================================
 
-from datetime import date
-from sqlalchemy import select
-
 def upsert_supplier(db, name):
-    code = name.strip().upper()
-
-    s = db.scalar(
-        select(Supplier).where(Supplier.code == code)
-    )
-
+    code = name.upper()
+    s = db.scalar(select(Supplier).where(Supplier.code == code))
     if s:
-        # ✅ UPDATE existing
-        s.name = name or s.name
-        s.is_material_supplier = True
         return s
-
-    # ✅ INSERT new
-    s = Supplier(
-        code=code,
-        name=name,
-        is_material_supplier=True,
-    )
+    s = Supplier(code=code, name=name, is_material_supplier=True)
     db.add(s)
     db.flush()
     return s
 
 
-
 def upsert_material_po(db, supplier, po_no, order_date):
-    mpo = db.scalar(
-        select(MaterialPO).where(MaterialPO.mat_po_no == po_no)
-    )
-
+    mpo = db.scalar(select(MaterialPO).where(MaterialPO.mat_po_no == po_no))
     if mpo:
-        # ✅ UPDATE existing PO
-        mpo.supplier_id = supplier.id
-        mpo.order_date = order_date or mpo.order_date or date.today()
-        mpo.status = mpo.status or "open"
         return mpo
-
-    # ✅ INSERT new PO
     mpo = MaterialPO(
         mat_po_no=po_no,
         supplier_id=supplier.id,
@@ -172,38 +146,19 @@ def upsert_material_po(db, supplier, po_no, order_date):
     return mpo
 
 
-
 def upsert_raw_material(db, type_, spec, size, uom):
     code = " ".join(x for x in (type_, spec, size) if x).upper()
-
-    rm = db.scalar(
-        select(RawMaterial).where(RawMaterial.code == code)
-    )
-
+    rm = db.scalar(select(RawMaterial).where(RawMaterial.code == code))
     if rm:
-        # ✅ UPDATE existing row
-        rm.type = type_ or rm.type
-        rm.spec = spec or rm.spec
-        rm.size_text = size or rm.size_text
-        rm.uom = uom or rm.uom
-        rm.name = rm.name or code   # optional safety
         return rm
-
-    # ✅ INSERT new row
-    rm = RawMaterial(
-        code=code,
-        name=code,
-        type=type_,
-        spec=spec,
-        size_text=size,
-        uom=uom,
-    )
+    
+    rm = RawMaterial(code=code, name=code, type=type_, spec=spec, size_text=size, uom = uom)
     db.add(rm)
     db.flush()
     return rm
 
 
-def upsert_material_po_line(db, mpo, part_no, rm, qty, size, length):
+def upsert_material_po_line(db, mpo, part_no, rm, qty,size,length):
     line = db.scalar(
         select(MaterialPOLine).where(
             MaterialPOLine.po_id == mpo.id,
@@ -211,25 +166,16 @@ def upsert_material_po_line(db, mpo, part_no, rm, qty, size, length):
             MaterialPOLine.material_id == rm.id,
         )
     )
-
     if line:
-        # ✅ UPDATE existing line
-        if qty is not None:
-            line.qty_ordered = qty
-        if size:
-            line.size = size
-        if length:
-            line.length_text = length
         return line
 
-    # ✅ INSERT new line
     line = MaterialPOLine(
         po_id=mpo.id,
         part_no=part_no,
         material_id=rm.id,
-        qty_ordered=qty if qty is not None else Decimal(0),
-        size=size,
-        length_text=length,
+        qty_ordered=qty or Decimal(0),
+        size = size,
+        length_text = length
     )
     db.add(line)
     db.flush()
@@ -240,16 +186,9 @@ def upsert_material_po_line(db, mpo, part_no, rm, qty, size, length):
 # ============== RAW BATCH (RECEIVING) ================
 # =====================================================
 
-def upsert_raw_batch(
-    db,
-    batch_no,
-    rm,
-    mpo,
-    line,
-    heat_no,
-    length_text,
-    weight,
-):
+def upsert_raw_batch(db, batch_no,rm, mpo, line, heat_no, length_text, weight):
+    #batch_no = heat_no or f"HT-{rm.id}-{mpo.id}"
+
     rb = db.scalar(
         select(RawBatch).where(
             RawBatch.material_id == rm.id,
@@ -258,25 +197,16 @@ def upsert_raw_batch(
     )
 
     if rb:
-        # ✅ Update references (safe)
-        rb.po_id = rb.po_id or mpo.id
-        rb.material_po_line_id = rb.material_po_line_id or line.id
-
-        # ✅ Update metadata
-        if heat_no:
-            rb.mill_heat_no = heat_no
-        if length_text:
-            rb.length_text = length_text
-
-        # ✅ Accumulate weight ONLY if provided
-        if weight is not None:
+        if weight:
             rb.qty_received = (rb.qty_received or Decimal(0)) + weight
             rb.weight = (rb.weight or Decimal(0)) + weight
+
+        if length_text:
+            rb.length_text = length_text
 
         db.flush()
         return rb
 
-    # ✅ INSERT new batch
     rb = RawBatch(
         material_id=rm.id,
         po_id=mpo.id,
@@ -284,7 +214,7 @@ def upsert_raw_batch(
         batch_no=batch_no,
         mill_heat_no=heat_no,
         length_text=length_text,
-        weight=weight or Decimal(0),
+        weight=weight,
         qty_received=weight or Decimal(0),
     )
     db.add(rb)
@@ -299,19 +229,14 @@ def upsert_part_material(db, part_id, raw_material_id):
             PartMaterial.raw_material_id == raw_material_id,
         )
     )
+    if pm:
+        return pm
 
-    if not pm:
-        pm = PartMaterial(
-            part_id=part_id,
-            raw_material_id=raw_material_id,
-        )
-        db.add(pm)
-
-    # future fields go here
-    # pm.is_active = True
-
+    pm = PartMaterial(part_id=part_id, raw_material_id=raw_material_id)
+    db.add(pm)
     db.flush()
     return pm
+
 
 # =====================================================
 # ============ LOT MATERIAL USE =======================
@@ -335,27 +260,13 @@ def get_remaining_batch_qty(db, rb):
 
 
 def insert_lot_material_use(db, lot, rb, qty, note=None):
-    if not qty or qty <= 0:
-        return None
-
+    
     remaining = get_remaining_batch_qty(db, rb)
+    # print(remaining)
     if remaining <= 0:
         return None
 
-    use_qty = min(Decimal(qty), Decimal(remaining))
-
-    # ✅ Prevent duplicate import (same lot + batch + qty + note)
-    existing = db.scalar(
-        select(LotMaterialUse)
-        .where(
-            LotMaterialUse.lot_id == lot.id,
-            LotMaterialUse.batch_id == rb.id,
-            LotMaterialUse.qty == use_qty,
-            LotMaterialUse.note == note,
-        )
-    )
-    if existing:
-        return existing
+    use_qty = min(qty, remaining)
 
     lmu = LotMaterialUse(
         lot_id=lot.id,
@@ -369,6 +280,7 @@ def insert_lot_material_use(db, lot, rb, qty, note=None):
     db.flush()
     return lmu
 
+
 # =====================================================
 # =================== MAIN ============================
 # =====================================================
@@ -378,19 +290,17 @@ def main():
         with open(CSV_FILE, encoding=CSV_ENCODING, newline="", errors="ignore") as f:
             reader = csv.DictReader(f)
             count = 0
-           
-          
+
             for row in reader:
-               
-               
                 company = normalize(row.get("Company"))
                 vendor_po = normalize(row.get("Vendor PO"))
-                print(vendor_po)
+          
                 part_no = normalize(row.get("Part no."))
                 size = row.get("Size")
                 lenght = row.get("Length")
 
-                
+                if not company or not vendor_po:
+                    continue
                 
                 ## 1. suppliers Table
                 supplier = upsert_supplier(db, company)
@@ -403,7 +313,7 @@ def main():
                     normalize(row.get("Type")),
                     normalize(row.get("Spec.") or row.get("Spec")),
                     normalize(row.get("Size")),
-                    'feet'
+                    'foot'
                 )
 
                 # Materail PO

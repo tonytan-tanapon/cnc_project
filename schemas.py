@@ -926,11 +926,42 @@ class DetailRow(BaseModel):
         # strings -> try ISO
         return datetime.fromisoformat(str(v)).date()
     
+# schemas/time_leave.py
+from pydantic import BaseModel
 from datetime import datetime
+from decimal import Decimal
 from typing import Optional
-from pydantic import BaseModel, ConfigDict
+
+class TimeLeaveBase(BaseModel):
+    employee_id: int
+    leave_type: str
+    start_at: datetime
+    end_at: datetime
+    hours: Optional[Decimal] = None
+    is_paid: bool = True
+    status: str = "approved"
+    notes: Optional[str] = None
 
 
+class TimeLeaveCreate(TimeLeaveBase):
+    pass
+
+
+class TimeLeaveUpdate(BaseModel):
+    leave_type: Optional[str]
+    start_at: Optional[datetime]
+    end_at: Optional[datetime]
+    hours: Optional[Decimal]
+    is_paid: Optional[bool]
+    status: Optional[str]
+    notes: Optional[str]
+
+
+class TimeLeaveOut(TimeLeaveBase):
+    id: int
+
+    class Config:
+        from_attributes = True
 # # ============================================================
 # # 🧭 CustomerShipment
 # # ============================================================
