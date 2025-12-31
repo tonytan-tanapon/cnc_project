@@ -19,9 +19,23 @@ from schemas import (
 
 router = APIRouter(prefix="/leaves", tags=["Time Leaves"])
 
-def calc_hours(start_at, end_at) -> float:
-    delta: timedelta = end_at - start_at
+def calc_hours(start_at, end_at, leave_type: str) -> float:
+    if leave_type == "vacation":
+        hours = 0
+        d = start_at.date()
+        end_d = end_at.date()
+
+        while d <= end_d:
+            if d.weekday() < 5:  # Mon–Fri
+                hours += 8
+            d += timedelta(days=1)
+
+        return float(hours)
+
+    # non-vacation → real hours
+    delta = end_at - start_at
     return round(delta.total_seconds() / 3600, 2)
+
 
 
 def has_overlap(
@@ -60,7 +74,11 @@ def create_leave(
             detail="Leave overlaps with existing leave",
         )
 
-    hours = data.hours or calc_hours(data.start_at, data.end_at)
+    hours = calc_hours(
+    data.start_at,
+    data.end_at,
+    data.leave_type
+)
 
     leave = TimeLeave(
         employee_id=data.employee_id,
@@ -149,8 +167,12 @@ def update_leave(
     for field, value in data.dict(exclude_unset=True).items():
         setattr(leave, field, value)
 
-    if data.start_at or data.end_at:
-        leave.hours = calc_hours(start_at, end_at)
+    if data.start_at or data.end_at or data.leave_type:
+        leave.hours = calc_hours(
+            start_at,
+            end_at,
+            leave.leave_type
+        )
 
     db.commit()
     db.refresh(leave)

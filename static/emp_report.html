@@ -661,7 +661,7 @@
         sumOT += otHrs;
         sumPayReg += payReg;
         sumPayOT += payOT;
-        console.log("te._sixDayOT", te._sixDayOT);
+      
         const tr = document.createElement("tr");
         if (te._sixDayOT) tr.style.backgroundColor = "#fff8c4"; // highlight six-day OT
         tr.dataset.idx = i;
@@ -867,7 +867,7 @@
           }&return=${encodeURIComponent(location.href)}`;
 
         const tr = document.createElement("tr");
-        console.log("te._sixDayOT", te._sixDayOT);
+     
         if (te._sixDayOT) tr.style.backgroundColor = "#fff8c4"; // highlight six-day OT
         tr.innerHTML = `
       <td class="num mono"><a class="link" href="${editUrl}">${idx}</a></td>
@@ -1277,10 +1277,10 @@
         pp = await safeGetPayPeriod(pp_id);
         currentPpStart = fmtDate(pp.start_at);
         currentPpEnd   = fmtDate(pp.end_at);
-        console.log("main ",currentPpStart)
+      
 
          const leaveSection = document.getElementById("leaveSection");
-         console.log("leaveSection",leaveSection)
+    
         leaveSection.dataset.ppStart = currentPpStart;
         leaveSection.dataset.ppEnd = currentPpEnd;
       } catch (e) {
@@ -1309,12 +1309,7 @@
       const btnPayee = document.getElementById("btnPayee");
       const samePerson =
         emp?.payroll_emp_id && Number(emp.payroll_emp_id) === Number(emp.id);
-      console.log(
-        "Same person check:",
-        emp?.payroll_emp_id,
-        emp?.id,
-        samePerson
-      );
+      
       if ((emp?.payroll_emp || emp?.payroll_emp_id) && !samePerson) {
         btnPayee.style.display = "inline-block";
         console.log("Emp has payee:", emp.payroll_emp, emp.payroll_emp_id);
@@ -1540,31 +1535,27 @@
   <hr style="margin:40px 0" />
 
 
-   <h2 style="margin-bottom:10px">
+  <h2 style="margin-bottom:10px">
   Time Leave
   <button
     id="toggleLeaveBtn"
     style="
       margin-left:12px;
+      padding:4px 10px;
       font-size:13px;
-      padding:3px 8px;
       border-radius:6px;
       border:1px solid #d1d5db;
-      background:#f9fafb;
+      background:#05b348;
       cursor:pointer;
     "
   >
     Show all
   </button>
-
-  <span
-    id="leaveTotalHours"
-    style="margin-left:12px;font-size:14px;color:#374151"
-  >
-    (Total: 0.00 hrs)
-  </span>
+  <span id="leaveTypeTotals" style="margin-left:8px;color:#6b7280;"></span>
+  <!-- <span id="leaveTotalHours" style="margin-left:10px;color:#6b7280;"></span> -->
 </h2>
 
+<!-- <div id="leaveTypeTotals" style="margin-bottom:10px;"></div> -->
 
 
    

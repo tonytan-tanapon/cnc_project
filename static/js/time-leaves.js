@@ -29,21 +29,57 @@ const jfetch = (url, opt = {}) =>
     return r.json();
   });
 
-const fmtDT = (v) => {
+function fmtDTLocal(v) {
   if (!v) return "";
-  return new Date(v).toISOString().slice(0, 16);
-};
+  const d = new Date(v);
+
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mi = String(d.getMinutes()).padStart(2, "0");
+
+  return `${yyyy}-${mm}-${dd}T${hh}:${mi}`; // ✅ local time
+}
 
 const fmtHours = (h) =>
   h === null || h === undefined ? "" : Number(h).toFixed(2);
 
-function calcHours(fromISO, toISO) {
+
+function calcHours(fromISO, toISO, leaveType = "") {
   if (!fromISO || !toISO) return "";
-  const s = new Date(fromISO);
-  const e = new Date(toISO);
-  if (e <= s) return "";
-  return ((e - s) / 3600000).toFixed(2);
+
+  const start = new Date(fromISO);
+  const end   = new Date(toISO);
+
+  if (end <= start) return "";
+
+  // ✅ Vacation = workdays × 8 hrs
+  if (leaveType === "vacation") {
+    let hours = 0;
+
+    const d = new Date(start);
+    d.setHours(0, 0, 0, 0);
+
+    const endDate = new Date(end);
+    endDate.setHours(0, 0, 0, 0);
+
+    while (d <= endDate) {
+      const day = d.getDay(); // 0=Sun, 6=Sat
+      if (day !== 0 && day !== 6) {
+        hours += 8;
+      }
+      d.setDate(d.getDate() + 1);
+    }
+
+    return hours.toFixed(2);
+  }
+
+  // ✅ Other leave types = exact hours
+  return ((end - start) / 3600000).toFixed(2);
 }
+
+
 function overlapsPeriod(leaveFrom, leaveTo, ps, pe) {
   if (!ps || !pe) return false;
 
@@ -61,6 +97,24 @@ async function loadLeaves() {
   if (!employeeId) return;
 
   const leaves = await jfetch(`/api/v1/leaves?employee_id=${employeeId}`);
+
+
+  // ✅ calculate YEAR totals by type
+  const typeTotals = calcLeaveTypeTotals(leaves, payrollYear);
+
+  // ✅ render
+  const totalsEl = document.getElementById("leaveTypeTotals");
+ 
+  if (totalsEl) {
+    totalsEl.innerHTML = Object.entries(typeTotals)
+      .map(
+        ([type, hrs]) =>
+          `<strong>${type}</strong>: ${hrs.toFixed(2)} hrs`
+      )
+      .join(" &nbsp; | &nbsp; ");
+  }
+
+
   renderTimeLeaves(leaves);
 }
 
@@ -105,8 +159,27 @@ function renderTimeLeaves(leaves) {
 
   const leaveSection = document.getElementById("leaveSection");
   const payrollStart = leaveSection?.dataset.ppStart;
-  const payrollEnd   = leaveSection?.dataset.ppEnd;
+  const payrollEnd = leaveSection?.dataset.ppEnd;
 
+  const thAction = document.querySelector("#leaveSection thead th:first-child");
+  if (thAction && !thAction.querySelector(".leaveAddBtn")) {
+    const btn = document.createElement("button");
+    btn.className = "leaveAddBtn";
+    btn.textContent = "➕";
+    btn.title = "Add Time Leave";
+
+    Object.assign(btn.style, {
+      border: "none",
+      background: "none",
+      cursor: "pointer",
+      fontSize: "1.1rem",
+      color: "#2563eb",
+      marginLeft: "6px",
+    });
+
+    btn.onclick = addLeaveRow;
+    thAction.appendChild(btn);
+  }
   const payrollYear = payrollStart
     ? new Date(payrollStart).getFullYear()
     : new Date().getFullYear();
@@ -171,6 +244,22 @@ function renderTimeLeaves(leaves) {
         : `(${payrollYear}: ${yearlyTotal.toFixed(2)} hrs)`;
   }
 }
+function calcLeaveTypeTotals(leaves, year) {
+  const totals = {};
+  
+  leaves.forEach((lv) => {
+    if (!lv.start_at) return;
+
+    // ✅ only count leaves in the selected year
+    if (new Date(lv.start_at).getFullYear() !== year) return;
+
+    const type = lv.leave_type || "unknown";
+    
+    totals[type] = (totals[type] || 0) + Number(lv.hours || 0);
+  });
+
+  return totals;
+}
 
 function isSameYear(dateISO, year) {
   return new Date(dateISO).getFullYear() === year;
@@ -229,15 +318,21 @@ function addLeaveRow() {
   const fromInput = tr.children[3].querySelector("input");
   const toInput = tr.children[4].querySelector("input");
   const hoursCell = tr.children[5];
-
+  const leaveTypeSelect = tr.children[2].querySelector("select");
   fromInput.value = defaultWorkTime(8, 0);
   toInput.value = defaultWorkTime(16, 0);
 
-  const updateHours = () =>
-    (hoursCell.textContent = calcHours(fromInput.value, toInput.value));
+  const updateHours = () => {
+  hoursCell.textContent = calcHours(
+    fromInput.value,
+    toInput.value,
+    leaveTypeSelect.value
+  );
+};
 
-  fromInput.onchange = updateHours;
-  toInput.onchange = updateHours;
+fromInput.onchange = updateHours;
+toInput.onchange = updateHours;
+leaveTypeSelect.onchange = updateHours;
 
   tr.querySelector(".cancelBtn").onclick = () => tr.remove();
 
@@ -307,8 +402,8 @@ function wireLeaveRow(tr, lv) {
   `;
 
     /* ===== From / To ===== */
-    cells[3].innerHTML = `<input type="datetime-local" value="${fmtDT(lv.start_at)}">`;
-    cells[4].innerHTML = `<input type="datetime-local" value="${fmtDT(lv.end_at)}">`;
+    cells[3].innerHTML = `<input type="datetime-local" value="${fmtDTLocal(lv.start_at)}">`;
+cells[4].innerHTML = `<input type="datetime-local" value="${fmtDTLocal(lv.end_at)}">`;
 
     /* ===== Paid ===== */
     cells[6].innerHTML = `
@@ -332,9 +427,9 @@ function wireLeaveRow(tr, lv) {
 
     const fromInput = cells[3].querySelector("input");
     const toInput = cells[4].querySelector("input");
-
+    const leaveTypeSelect = cells[2].querySelector("select");
     function updateHours() {
-      cells[5].textContent = calcHours(fromInput.value, toInput.value);
+      cells[5].textContent = calcHours(fromInput.value, toInput.value,leaveTypeSelect.value);
     }
     fromInput.onchange = updateHours;
     toInput.onchange = updateHours;
