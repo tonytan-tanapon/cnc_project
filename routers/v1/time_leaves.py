@@ -8,7 +8,9 @@ from pydantic import BaseModel
 from datetime import datetime
 from decimal import Decimal
 from typing import Optional
+from zoneinfo import ZoneInfo
 
+LOCAL_TZ = ZoneInfo("America/Los_Angeles")
 from database import get_db
 from models import TimeLeave
 from schemas import (
@@ -20,10 +22,14 @@ from schemas import (
 router = APIRouter(prefix="/leaves", tags=["Time Leaves"])
 
 def calc_hours(start_at, end_at, leave_type: str) -> float:
-    if leave_type == "vacation":
+    # convert UTC → local time
+    start_local = start_at.astimezone(LOCAL_TZ)
+    end_local   = end_at.astimezone(LOCAL_TZ)
+
+    if leave_type in ("vacation", "holiday"):
         hours = 0
-        d = start_at.date()
-        end_d = end_at.date()
+        d = start_local.date()
+        end_d = end_local.date()
 
         while d <= end_d:
             if d.weekday() < 5:  # Mon–Fri
@@ -32,11 +38,9 @@ def calc_hours(start_at, end_at, leave_type: str) -> float:
 
         return float(hours)
 
-    # non-vacation → real hours
+    # other leave types = real hours
     delta = end_at - start_at
     return round(delta.total_seconds() / 3600, 2)
-
-
 
 def has_overlap(
     db: Session,
@@ -56,36 +60,30 @@ def has_overlap(
 
     return db.query(q.exists()).scalar()
 
-
 @router.post("", response_model=TimeLeaveOut)
 def create_leave(
     data: TimeLeaveCreate,
     db: Session = Depends(get_db),
 ):
     if data.end_at <= data.start_at:
-        raise HTTPException(
-            status_code=400,
-            detail="end_at must be after start_at",
-        )
+        raise HTTPException(400, "end_at must be after start_at")
 
     if has_overlap(db, data.employee_id, data.start_at, data.end_at):
-        raise HTTPException(
-            status_code=409,
-            detail="Leave overlaps with existing leave",
-        )
-
+        raise HTTPException(409, "Leave overlaps with existing leave")
+    print(data)
+    # ✅ ALWAYS calculate on server
     hours = calc_hours(
-    data.start_at,
-    data.end_at,
-    data.leave_type
-)
+        data.start_at,
+        data.end_at,
+        data.leave_type
+    )
 
     leave = TimeLeave(
         employee_id=data.employee_id,
         leave_type=data.leave_type,
         start_at=data.start_at,
         end_at=data.end_at,
-        hours=hours,
+        hours=hours,          # 👈 server truth
         is_paid=data.is_paid,
         status=data.status,
         notes=data.notes,
@@ -95,6 +93,7 @@ def create_leave(
     db.commit()
     db.refresh(leave)
     return leave
+
 
 
 from sqlalchemy import asc, desc

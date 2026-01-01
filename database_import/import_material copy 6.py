@@ -215,7 +215,7 @@ def upsert_material_po_line(db, mpo, part_no, rm, qty, size, length):
             MaterialPOLine.material_id == rm.id,
         )
     )
-    # print("\t", part_no, qty, size, length)
+    print("\t", part_no, qty, size, length)
     if line:
         # ✅ UPDATE existing line
         if qty is not None:
@@ -264,7 +264,7 @@ def upsert_raw_batch(
     if rb:
         # ✅ Update references (safe)
         rb.po_id = rb.po_id or mpo.id
-        rb.material_po_line_id = line.id
+        rb.material_po_line_id = rb.material_po_line_id or line.id
 
         # ✅ Update metadata
         if heat_no:
@@ -339,7 +339,7 @@ def get_remaining_batch_qty(db, rb):
 
 
 def insert_lot_material_use(db, lot, rb, qty, note=None):
-   
+    print(qty)
     if not qty or qty <= 0:
         return None
 
@@ -389,13 +389,13 @@ def main():
                 
                 
                 company = normalize(row.get("Company"))
-                vendor_po = normalize(row.get("Vendor PO")) or normalize(row.get("Heat lot"))
+                vendor_po = normalize(row.get("Vendor PO"))
               
                 part_no = normalize(row.get("Part no."))
                 size = row.get("Size")
                 lenght = row.get("Length")
 
-                
+                print(vendor_po)
                 
                 ## 1. suppliers Table
                 supplier = upsert_supplier(db, company)
@@ -416,10 +416,7 @@ def main():
                 po_items = parse_po_qty(row.get("PO#, Qty"))
                 
                 for it in po_items:
-                    
-                    if not part_no:
-                        print("⚠️ SKIP row: missing Part no.")
-                        continue
+               
                     part_item = part_no.split(" ")
 
                     for pp_no in part_item:
@@ -452,7 +449,7 @@ def main():
                             )
 
                             lot = get_lot_by_po(db, it["po"])
-                       
+                            print(lot)
                             if not lot:
                                 # print(f"❌ LOT NOT FOUND for PO {it['po']}")
                                 continue

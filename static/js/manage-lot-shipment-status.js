@@ -195,46 +195,98 @@ function makeColumns() {
 
     /* ===== DAYS LEFT (PO LEVEL) ===== */
     {
-      title: "Left",
-      field: "days_left",
-      width: 90,
-      hozAlign: "center",
-      sorter: "number",
-      formatter: (cell) => {
-        const r = cell.getRow().getData();
+  title: "Left",
+  field: "days_left",
+  width: 90,
+  hozAlign: "center",
+  sorter: "number",
+  formatter: (cell) => {
+    const r = cell.getRow().getData();
+    const days = cell.getValue();
 
-        if (r.po_remaining_qty === 0) {
-          return `<span style="
-            background:#10b981;
-            color:white;
-            padding:4px 10px;
-            border-radius:999px;
-            font-weight:600;">
-            Completed
-          </span>`;
-        }
+    // ---- normalize status ----
+    const lotStatus = String(r.lot_status ?? "").toLowerCase();
 
-        const days = cell.getValue();
-        if (days == null) return "";
-
-        const color =
-          days < 0 ? "#ef4444" :
-            days <= 3 ? "#f59e0b" :
-              "#10b981";
-
-        const text =
-          days < 0 ? `${Math.abs(days)}d OD` : `${days}d left`;
-
-        return `<span style="
-          background:${color};
+    // 1️⃣ PO completed
+    // 1️⃣ PO completed (highest priority)
+    if (r.po_remaining_qty === 0) {
+      return `
+        <span title="PO Completed" style="
+          display:inline-flex;
+          align-items:center;
+          justify-content:center;
+          background:#10b981;
           color:white;
-          padding:4px 8px;
-          border-radius:8px;">
-          ${text}
-        </span>`;
-      },
-    },
+          width:34px;
+          height:24px;
+          border-radius:999px;
+          font-weight:700;
+        ">
+          ✔
+        </span>
+      `;
+    }
 
+    // 2️⃣ Lot completed
+    if (lotStatus === "completed") {
+       if (r.po_remaining_qty > 0) {
+      return `
+        <span title="PO remain" style="
+          display:inline-flex;
+          align-items:center;
+          justify-content:center;
+          background:#10b981;
+          color:white;
+          width:34px;
+          height:24px;
+          border-radius:999px;
+          font-weight:700;
+        ">
+          X
+        </span>
+      `;
+    }
+      return `
+        <span title="Lot Completed" style="
+          display:inline-flex;
+          align-items:center;
+          justify-content:center;
+          background:#9ca3af;
+          color:white;
+          width:34px;
+          height:24px;
+          border-radius:999px;
+          font-weight:700;
+        ">
+          O
+        </span>
+      `;
+    }
+    // ✓
+    // 3️⃣ Normal due logic
+    if (days == null) return "";
+
+    const color =
+      days < 0 ? "#ef4444" :
+      days <= 3 ? "#f59e0b" :
+      "#10b981";
+
+    const text =
+      days < 0 ? `${Math.abs(days)}d OD` : `${days}d left`;
+
+    return `<span style="
+      background:${color};
+      color:white;
+      padding:4px 8px;
+      border-radius:8px;
+      font-weight:600;
+    ">
+      ${text}
+    </span>`;
+  },
+}
+
+,
     /* ===== PO QTY ===== */
 
     //  {

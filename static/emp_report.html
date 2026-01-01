@@ -154,6 +154,17 @@
     .actions button i {
       pointer-events: none;
     }
+
+
+    .cell-alert {
+  background-color: #fee2e2; /* light red */
+  color: #991b1b;
+  font-weight: 600;
+}
+
+.cell-alert-border {
+  border: 2px solid #dc2626;
+}
   </style>
 </head>
 
@@ -194,11 +205,12 @@
         <th>Pay (Reg)</th>
         <th>Pay (OT)</th>
         <th>Total Pay</th>
+        <th>Note</th>
       </tr>
     </thead>
     <tbody id="tblBody">
       <tr>
-        <td colspan="12" class="empty">Loading…</td>
+        <td colspan="13" class="empty">Loading…</td>
       </tr>
     </tbody>
     <tfoot id="tblFoot"></tfoot>
@@ -429,7 +441,14 @@
       normalized.forEach((r) => delete r._total_hours);
       return normalized;
     }
-
+    function shouldHighlightRow({ breakHrs, otHrs }) {
+     
+      return (
+        breakHrs > 0 && breakHrs < (10 / 60) || // < 10 min
+        breakHrs > 1 ||                         // > 1 hour
+        otHrs > 2                               // OT > 2 hrs
+      );
+    }
     function effectiveRates() {
       const r = Number($("#rate").value || 0);
       const otField = $("#ot_rate").value;
@@ -542,7 +561,7 @@
     <td><input type="time" step="60" value="08:00"></td>
     <td><input type="time" step="60"></td>
     <td><input type="time" step="60"></td>
-    <td><input type="time" step="60" value="17:00"></td>
+    <td><input type="time" step="60" value="16:00"></td>
     <td colspan="8" class="muted center">New entry</td>
   `;
           tb.prepend(newRow);
@@ -616,6 +635,7 @@
       let lastWeekKey = null;
 
       for (const [i, te] of details.entries()) {
+        console.log(i, te)
         const dateKey = utcDateKey(te.clock_in_at || te.clock_out_at);
         const weekKey = weekKeyLocal(dateKey, 1);
 
@@ -650,20 +670,41 @@
           totalHrs = (outT - inT) / 3600000 - breakHrs;
         }
 
+
+
         const regHrs = Number(te.reg_hours ?? Math.min(8, totalHrs));
         const otHrs = Number(te.ot_hours ?? Math.max(0, totalHrs - 8));
         const payReg = regHrs * rate;
         const payOT = otHrs * otRate;
         const totalPay = payReg + payOT;
+        const notes = te.notes;
 
         sumBreak += breakHrs;
         sumReg += regHrs;
         sumOT += otHrs;
         sumPayReg += payReg;
         sumPayOT += payOT;
-      
+
+        const highlight = shouldHighlightRow({
+          breakHrs,
+          otHrs,
+        });
+        console.log("Hight")
+        console.log(breakHrs, otHrs, highlight)
         const tr = document.createElement("tr");
+        if (highlight) {
+          tr.style.backgroundColor = "#fee2e2"; // light red
+          tr.style.borderLeft = "4px solid red"; // strong red indicator
+        }
+
         if (te._sixDayOT) tr.style.backgroundColor = "#fff8c4"; // highlight six-day OT
+
+        const breakAlert =
+  (breakHrs > 0 && breakHrs < 10 / 60) || breakHrs > 1;
+
+const otAlert = otHrs > 2;
+
+
         tr.dataset.idx = i;
         tr.innerHTML = `
 <td class="center actions">
@@ -672,18 +713,33 @@
 </td>
 <td class="num mono">${idx}</td>
 <td class="mono nowrap">${fmtMDY(dateKey)}</td>
-<td class="mono">${clockIn}</td>
-<td class="mono">${startBreak}</td>
-<td class="mono">${stopBreak}</td>
-<td class="mono">${clockOut}</td>
-<td class="num mono">${breakHrs.toFixed(2)}</td>
+<td class="num mono ${otAlert ? "cell-alert cell-alert-border" : ""}"
+    title="${otAlert ? "OT exceeds 2 hours" : ""}">${clockIn}</td>
+<td class="num mono ${breakAlert ? "cell-alert cell-alert-border" : ""}"
+    title="${breakAlert ? "Invalid break duration" : ""}">${startBreak}</td>
+<td class="num mono ${breakAlert ? "cell-alert cell-alert-border" : ""}"
+    title="${breakAlert ? "Invalid break duration" : ""}">${stopBreak}</td>
+<td class="num mono ${otAlert ? "cell-alert cell-alert-border" : ""}"
+    title="${otAlert ? "OT exceeds 2 hours" : ""}">${clockOut}</td>
+
+<td class="num mono ${breakAlert ? "cell-alert cell-alert-border" : ""}"
+    title="${breakAlert ? "Invalid break duration" : ""}">
+  ${breakHrs.toFixed(2)}
+</td>
+
 <td class="num mono">${regHrs.toFixed(2)}</td>
-<td class="num mono">${otHrs.toFixed(2)}</td>
+
+<td class="num mono ${otAlert ? "cell-alert cell-alert-border" : ""}"
+    title="${otAlert ? "OT exceeds 2 hours" : ""}">
+  ${otHrs.toFixed(2)}
+</td>
+
 <td class="num mono">${currency(rate)}</td>
 <td class="num mono">${currency(otRate)}</td>
 <td class="num mono">${currency(payReg)}</td>
 <td class="num mono">${currency(payOT)}</td>
 <td class="num mono">${currency(totalPay)}</td>
+<td class="left">${te.notes ?? ""}</td>
 `;
         tb.appendChild(tr);
       }
@@ -730,6 +786,7 @@
           const startBreakText = cells[4]?.textContent.trim();
           const stopBreakText = cells[5]?.textContent.trim();
           const outText = cells[6]?.textContent.trim();
+          const noteText = cells[15]?.textContent.trim() || "";
 
           // replace text with inputs
           cells[2].innerHTML = `<input type="date" value="${fmtDate(
@@ -739,7 +796,13 @@
           cells[4].innerHTML = `<input type="time" value="${startBreakText}" step="60">`;
           cells[5].innerHTML = `<input type="time" value="${stopBreakText}" step="60">`;
           cells[6].innerHTML = `<input type="time" value="${outText}" step="60">`;
-
+          cells[15].innerHTML = `
+  <input
+    type="text"
+    value="${noteText.replace(/"/g, "&quot;")}"
+    style="width:100%"
+  >
+`;
           btnEdit.textContent = "💾"; // Save
           btnDel.textContent = "❌"; // Cancel
 
@@ -759,6 +822,8 @@
 
             try {
               const patchTE = {};
+              const newNote = cells[15].querySelector("input")?.value ?? "";
+              patchTE.notes = newNote;
               if (newIn)
                 patchTE.clock_in_at = new Date(
                   `${newDate}T${newIn}:00`
@@ -867,7 +932,7 @@
           }&return=${encodeURIComponent(location.href)}`;
 
         const tr = document.createElement("tr");
-     
+
         if (te._sixDayOT) tr.style.backgroundColor = "#fff8c4"; // highlight six-day OT
         tr.innerHTML = `
       <td class="num mono"><a class="link" href="${editUrl}">${idx}</a></td>
@@ -1276,11 +1341,11 @@
       try {
         pp = await safeGetPayPeriod(pp_id);
         currentPpStart = fmtDate(pp.start_at);
-        currentPpEnd   = fmtDate(pp.end_at);
-      
+        currentPpEnd = fmtDate(pp.end_at);
 
-         const leaveSection = document.getElementById("leaveSection");
-    
+
+        const leaveSection = document.getElementById("leaveSection");
+
         leaveSection.dataset.ppStart = currentPpStart;
         leaveSection.dataset.ppEnd = currentPpEnd;
       } catch (e) {
@@ -1303,13 +1368,13 @@
       currentPpStart = fmtDate(pp.start_at);
       currentPpEnd = fmtDate(pp.end_at);
 
-     
+
 
       /* ================== 🔘 PAYEE BUTTON ================== */
       const btnPayee = document.getElementById("btnPayee");
       const samePerson =
         emp?.payroll_emp_id && Number(emp.payroll_emp_id) === Number(emp.id);
-      
+
       if ((emp?.payroll_emp || emp?.payroll_emp_id) && !samePerson) {
         btnPayee.style.display = "inline-block";
         console.log("Emp has payee:", emp.payroll_emp, emp.payroll_emp_id);
@@ -1498,7 +1563,7 @@
       }
 
 
-      
+
     }
 
     /* ========= Wire up ========= */
@@ -1531,15 +1596,13 @@
 
   <!-- Time leave -->
 
-  
+
   <hr style="margin:40px 0" />
 
 
   <h2 style="margin-bottom:10px">
-  Time Leave
-  <button
-    id="toggleLeaveBtn"
-    style="
+    Time Leave
+    <button id="toggleLeaveBtn" style="
       margin-left:12px;
       padding:4px 10px;
       font-size:13px;
@@ -1547,46 +1610,41 @@
       border:1px solid #d1d5db;
       background:#05b348;
       cursor:pointer;
-    "
-  >
-    Show all
-  </button>
-  <span id="leaveTypeTotals" style="margin-left:8px;color:#6b7280;"></span>
-  <!-- <span id="leaveTotalHours" style="margin-left:10px;color:#6b7280;"></span> -->
-</h2>
+    ">
+      Show all
+    </button>
+    <span id="leaveTypeTotals" style="margin-left:8px;color:#6b7280;"></span>
+    <!-- <span id="leaveTotalHours" style="margin-left:10px;color:#6b7280;"></span> -->
+  </h2>
 
-<!-- <div id="leaveTypeTotals" style="margin-bottom:10px;"></div> -->
-
-
-   
-<div
-  id="leaveSection"
-  data-pp-start=""
-  data-pp-end=""
->
-<table>
-  <thead>
-    <tr>
-      <th></th>
-      <th>No</th>
-      <th>Type</th>
-      <th>From</th>
-      <th>To</th>
-      <th>Hours</th>
-      <th>Paid</th>
-      <th>Status</th>
-      <th class="left">Notes</th>
-    </tr>
-  </thead>
-  <tbody id="leaveTblBody">
-    <tr>
-      <td colspan="9" class="empty">Loading…</td>
-    </tr>
-  </tbody>
-</table>
+  <!-- <div id="leaveTypeTotals" style="margin-bottom:10px;"></div> -->
 
 
- <script type="module" src="/static/js/time-leaves.js"></script>
+
+  <div id="leaveSection" data-pp-start="" data-pp-end="">
+    <table>
+      <thead>
+        <tr>
+          <th></th>
+          <th>No</th>
+          <th>Type</th>
+          <th>From</th>
+          <th>To</th>
+          <th>Hours</th>
+          <th>Paid</th>
+          <th>Status</th>
+          <th class="left">Notes</th>
+        </tr>
+      </thead>
+      <tbody id="leaveTblBody">
+        <tr>
+          <td colspan="9" class="empty">Loading…</td>
+        </tr>
+      </tbody>
+    </table>
+
+
+    <script type="module" src="/static/js/time-leaves.js"></script>
 
 </body>
 

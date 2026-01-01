@@ -50,12 +50,12 @@ function calcHours(fromISO, toISO, leaveType = "") {
   if (!fromISO || !toISO) return "";
 
   const start = new Date(fromISO);
-  const end   = new Date(toISO);
+  const end = new Date(toISO);
 
   if (end <= start) return "";
 
   // ✅ Vacation = workdays × 8 hrs
-  if (leaveType === "vacation") {
+  if (leaveType === "vacation" || leaveType === "holiday") {
     let hours = 0;
 
     const d = new Date(start);
@@ -74,6 +74,7 @@ function calcHours(fromISO, toISO, leaveType = "") {
 
     return hours.toFixed(2);
   }
+
 
   // ✅ Other leave types = exact hours
   return ((end - start) / 3600000).toFixed(2);
@@ -104,7 +105,7 @@ async function loadLeaves() {
 
   // ✅ render
   const totalsEl = document.getElementById("leaveTypeTotals");
- 
+
   if (totalsEl) {
     totalsEl.innerHTML = Object.entries(typeTotals)
       .map(
@@ -246,7 +247,7 @@ function renderTimeLeaves(leaves) {
 }
 function calcLeaveTypeTotals(leaves, year) {
   const totals = {};
-  
+
   leaves.forEach((lv) => {
     if (!lv.start_at) return;
 
@@ -254,7 +255,7 @@ function calcLeaveTypeTotals(leaves, year) {
     if (new Date(lv.start_at).getFullYear() !== year) return;
 
     const type = lv.leave_type || "unknown";
-    
+
     totals[type] = (totals[type] || 0) + Number(lv.hours || 0);
   });
 
@@ -287,6 +288,7 @@ function addLeaveRow() {
     <option value="sick">Sick</option>
     <option value="personal">Personal</option>
     <option value="unpaid">Unpaid</option>
+    <option value="holiday">Holiday</option>
   </select>
 </td>
 
@@ -323,16 +325,16 @@ function addLeaveRow() {
   toInput.value = defaultWorkTime(16, 0);
 
   const updateHours = () => {
-  hoursCell.textContent = calcHours(
-    fromInput.value,
-    toInput.value,
-    leaveTypeSelect.value
-  );
-};
+    hoursCell.textContent = calcHours(
+      fromInput.value,
+      toInput.value,
+      leaveTypeSelect.value
+    );
+  };
 
-fromInput.onchange = updateHours;
-toInput.onchange = updateHours;
-leaveTypeSelect.onchange = updateHours;
+  fromInput.onchange = updateHours;
+  toInput.onchange = updateHours;
+  leaveTypeSelect.onchange = updateHours;
 
   tr.querySelector(".cancelBtn").onclick = () => tr.remove();
 
@@ -341,7 +343,7 @@ leaveTypeSelect.onchange = updateHours;
       toast("From / To required");
       return;
     }
-
+    console.log(hoursCell.textContent)
     await jfetch("/api/v1/leaves", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -393,17 +395,18 @@ function wireLeaveRow(tr, lv) {
 
     /* ===== Leave Type ===== */
     cells[2].innerHTML = `
-    <select>
-      <option value="vacation" ${lv.leave_type === "vacation" ? "selected" : ""}>Vacation</option>
-      <option value="sick" ${lv.leave_type === "sick" ? "selected" : ""}>Sick</option>
-      <option value="personal" ${lv.leave_type === "personal" ? "selected" : ""}>Personal</option>
-      <option value="unpaid" ${lv.leave_type === "unpaid" ? "selected" : ""}>Unpaid</option>
-    </select>
-  `;
+<select>
+  <option value="vacation" ${lv.leave_type === "vacation" ? "selected" : ""}>Vacation</option>
+  <option value="sick" ${lv.leave_type === "sick" ? "selected" : ""}>Sick</option>
+  <option value="personal" ${lv.leave_type === "personal" ? "selected" : ""}>Personal</option>
+  <option value="unpaid" ${lv.leave_type === "unpaid" ? "selected" : ""}>Unpaid</option>
+  <option value="holiday" ${lv.leave_type === "holiday" ? "selected" : ""}>Holiday</option>
+</select>
+`;
 
     /* ===== From / To ===== */
     cells[3].innerHTML = `<input type="datetime-local" value="${fmtDTLocal(lv.start_at)}">`;
-cells[4].innerHTML = `<input type="datetime-local" value="${fmtDTLocal(lv.end_at)}">`;
+    cells[4].innerHTML = `<input type="datetime-local" value="${fmtDTLocal(lv.end_at)}">`;
 
     /* ===== Paid ===== */
     cells[6].innerHTML = `
@@ -429,7 +432,7 @@ cells[4].innerHTML = `<input type="datetime-local" value="${fmtDTLocal(lv.end_at
     const toInput = cells[4].querySelector("input");
     const leaveTypeSelect = cells[2].querySelector("select");
     function updateHours() {
-      cells[5].textContent = calcHours(fromInput.value, toInput.value,leaveTypeSelect.value);
+      cells[5].textContent = calcHours(fromInput.value, toInput.value, leaveTypeSelect.value);
     }
     fromInput.onchange = updateHours;
     toInput.onchange = updateHours;
