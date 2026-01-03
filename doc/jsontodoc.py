@@ -14,6 +14,15 @@ def clone_row(table, row_idx):
     table._tbl.insert(row_idx + 1, new_row)
     return table.rows[row_idx + 1]
 
+def print_row(row, row_idx=None):
+    if row_idx is not None:
+        print(f"Row {row_idx}:")
+    else:
+        print("Row:")
+
+    for i, cell in enumerate(row.cells):
+        text = cell.text.replace("\n", "\\n")
+        print(f"  Cell {i}: {text}")
 
 # --------------------------------------------------
 # Helper: find row containing specific text
@@ -87,9 +96,9 @@ def generate_traveler(template_path, json_path, output_path):
 
         print(f"Inserting step {step['step_code']} after M2 at row {insert_at}" , m2_row_idx)
 
-        
+        print_row(step_table.rows[3], 3)
       
-        new_row = clone_row(step_table, m2_row_idx )
+        new_row = clone_row(step_table, 3 )
         i+=1
         # Column 0 = OP code
         new_row.cells[0].text = step["step_code"]
