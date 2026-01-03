@@ -1,47 +1,99 @@
 {
-   
   "lot": {
-    "part_no": "1909-69-1",
+    "part_no": "1960-27-1",
+    "rev": "B",
     "lot_no": "L16492",
-    "po_no": "P128900",
-    "due_date": "06/12/24",
-    "planned_qty": 100
+    "po_no": "P130055",
+    "due_date": "08/15/24",
+    "planned_qty": 20,
+    "part_name": "NUT LOCK",
+    "material_detail": "CRES 300 SERIES PER QQ-S-763, QQ-S-764"
   },
   "traveler": {
-    "customer_code": "AF6182"
+    "customer_code": "AF6182",
+    "risk": "GREEN",
+    "traveler_no": "L16492"
   },
   "steps": [
     {
+      "order": 1,
       "step_code": "M1",
       "step_type": "material",
-      "material_size": "Ø13/16",
-      "total_length": "2.5",
-      "supplier": "ABC METAL",
-      "po": "PO7788",
-      "ht": "H900"
+      "step_name": "**MATERIAL SIZE: **Ø13/16 OR BIGGER OR HEX 11/16",
+      "notes": "**TOTAL LENGTH: ______________________**\nSUPPLIER:\nPO#\nHT#\n",
+      "qa_required": false
     },
     {
+      "order": 2,
       "step_code": "M2",
       "step_type": "material",
-      "material_size": "______________",
-      "total_length": "______________",
-      "supplier": "______________",
-      "po": "______________",
-      "ht": "______________"
+      "step_name": "**MATERIAL SIZE: ______________________**",
+      "notes": "**TOTAL LENGTH: ______________________**\nSUPPLIER:\nPO#\nHT#\n",
+      "qa_required": false
     },
     {
+      "order": 3,
       "step_code": "010",
       "step_type": "process",
-      "step_name": "LATHE OP #1",
-      "notes": "- CUT MATERIAL\n- TURN OD",
-      "qa_required": true
+      "step_name": "**LATHE OP #1**",
+      "notes": "-FACE CUT AND TURN O.D. TO Ø0.812.\n-DRILL, BORE AND I.D. THREAD TO 0.4372-32 UN-2B.\n-CUT OFF 0.130-0.140.\n**-QA TO APPROVE**** AND STAMP**** FA 1 PC ON ****THE ****INSPECTION SHEET ****FOR ****OP #010.**\n**-INSPECT AND RECORD PER AQL 1% OR 1 IN EVERY 10 ****PCS.**\n",
+      "qa_required": false
     },
     {
+      "order": 4,
       "step_code": "020",
       "step_type": "process",
-      "step_name": "LATHE OP #2",
-      "notes": "- Final ins\n- Taxxx",
-      "qa_required": true
+      "step_name": "**MILLING**** OP #2**",
+      "notes": "-CLAMP PART ON FIXTURE.\n-DRILL 3X Ø0.045-0.050.\n-CUT HEX 11/16 (0.687 ±0.005).\n**-QA TO APPROVE**** AND STAMP**** FA 1 PC ON ****THE ****INSPECTION SHEET ****FOR ****OP #0****2****0.**\n**-INSPECT AND RECORD PER AQL 1% OR 1 IN EVERY 10 ****PCS.**\n",
+      "qa_required": false
+    },
+    {
+      "order": 5,
+      "step_code": "030",
+      "step_type": "process",
+      "step_name": "**DEBURR PROCESSING**",
+      "notes": "-BREAK SHARP EDGES 0.005-0.015.\n",
+      "qa_required": false
+    },
+    {
+      "order": 6,
+      "step_code": "040",
+      "step_type": "process",
+      "step_name": "**OUTSIDE PROCESSING**",
+      "notes": "-PASSIVATE PER MIL-S-5002.\n",
+      "qa_required": false
+    },
+    {
+      "order": 7,
+      "step_code": "050",
+      "step_type": "process",
+      "step_name": "**FINAL INSPECTION**",
+      "notes": "QA TO PERFORM C=0, AQL=1.0%, LEVEL II, SINGLE SAMPLING INSPECTION PER WI# 7.4.3.\n",
+      "qa_required": false
+    },
+    {
+      "order": 8,
+      "step_code": "060",
+      "step_type": "process",
+      "step_name": "**PUT PART IN EGG CRATE AND BAG WITH TAG INDIVIDUALLY. WATCH FOR FOD.  **PUT IN THE BOX & APPLY LABEL ON THE BOX.",
+      "notes": "",
+      "qa_required": false
+    },
+    {
+      "order": 9,
+      "step_code": "070",
+      "step_type": "process",
+      "step_name": "**PREPARE SHIPPING DOC AND SHIP PER P.O.**",
+      "notes": "PREPARE PACKING DOC. AND SHIP TO CUSTOMER PER CUSTOMER INSTRUCTIONS. WATCH FOR FOD.\n",
+      "qa_required": false
+    },
+    {
+      "order": 10,
+      "step_code": "080",
+      "step_type": "process",
+      "step_name": "**PERFORM \"CONFIGURATION AUDIT\" FOR PART NUMBER, REV, COUNT INTEGRITY, OPERATION SIGN-OFF AND RELATED CONFIGURATION ITEMS.**** **",
+      "notes": "",
+      "qa_required": false
     }
   ]
 }

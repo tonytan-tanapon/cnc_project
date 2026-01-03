@@ -1,0 +1,78 @@
+{
+   
+  "lot": {
+    "part_no": "1909-69-1",
+    "lot_no": "L16492",
+    "po_no": "P128900",
+    "due_date": "06/12/24",
+    
+    "planned_qty": 100,
+    "material_detail": "Ø13/16 × 2.5  |  ABC METAL | H900"
+  },
+  
+  "traveler": {
+    "customer_code": "AF6182"
+  },
+  "steps": [
+    {
+      "step_code": "M1",
+      "step_type": "material",
+      "material_size": "Ø13/16",
+      "total_length": "2.5",
+      "supplier": "ABC METAL",
+      "po": "PO7788",
+      "ht": "H900"
+    },
+    {
+      "step_code": "M2",
+      "step_type": "material",
+      "material_size": "______________",
+      "total_length": "______________",
+      "supplier": "______________",
+      "po": "______________",
+      "ht": "______________"
+    },
+    {
+      "step_code": "010",
+      "step_type": "process",
+      "step_name": "LATHE OP #1",
+      "notes": "- CUT MATERIAL\n- TURN OD",
+      "qa_required": true
+    },
+    {
+      "step_code": "020",
+      "step_type": "process",
+      "step_name": "LATHE OP #2",
+      "notes": "- Final ins\n- Taxxx",
+      "qa_required": true
+    },{
+      "step_code": "020",
+      "step_type": "process",
+      "step_name": "LATHE OP #2",
+      "notes": "- Final ins\n- Taxxx",
+      "qa_required": true
+    },
+    {
+      "step_code": "020",
+      "step_type": "process",
+      "step_name": "LATHE OP #2",
+      "notes": "- Final ins\n- Taxxx",
+      "qa_required": true
+    },
+    {
+      "step_code": "020",
+      "step_type": "process",
+      "step_name": "LATHE OP #2",
+      "notes": "- Final ins\n- Taxxx",
+      "qa_required": true
+    },
+    {
+      "step_code": "060",
+      "step_type": "process",
+      "step_name": "LATHE OP #2",
+      "notes": "- Final ins\n- Taxxx",
+      "qa_required": true
+    }
+
+  ]
+}
