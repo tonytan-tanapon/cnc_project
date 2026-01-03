@@ -739,8 +739,8 @@ function initTable() {
               }
 
               window.location.href =
-                `/static/traveler-detail.html?id=${encodeURIComponent(
-                  data.traveler_id
+                `/static/traveler-detail.html?lot_id=${encodeURIComponent(
+                  lotId
                 )}`;
 
             } else if (action === "materials") {

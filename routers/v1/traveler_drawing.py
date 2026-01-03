@@ -93,6 +93,7 @@ def build_drawing_batch(traveler_id: int, db: Session = Depends(get_db)):
     year = datetime.now().year
     # Z:\Topnotch Group\Public\AS9100\Shop Traveler\Control Drawing for Production\SA8884
     folder = f"Z:/Topnotch Group/Public/AS9100/Shop Traveler/Control Drawing for Production/{cus_code}/"
+    folder2 = f"Z:/Public/AS9100/Shop Traveler/Control Drawing for Production/{cus_code}/"
     # folder = f"Z:/Topnotch Group/Public/{year}/Drawing Diagram {year}/{cus_code}"
 
     # prefix = f"{part_no} {rev}"
@@ -106,6 +107,18 @@ def build_drawing_batch(traveler_id: int, db: Session = Depends(get_db)):
     # pdf_path = os.path.join(folder, latest) if latest else None
     # print(f"Searching in folder: {folder}")
     # print(f"Latest PDF: {pdf_path}")
+    # bat = [
+    #     "@echo off",
+    #     f"echo Lot: {lot_no}",
+    #     f"echo Part: {part_no}",
+    #     f"echo Rev: {rev}",
+    #     f"echo Customer: {cus_code}",
+    #     "",
+         
+    #     f'start "" "{folder}"',
+
+    # ]
+
     bat = [
         "@echo off",
         f"echo Lot: {lot_no}",
@@ -113,10 +126,45 @@ def build_drawing_batch(traveler_id: int, db: Session = Depends(get_db)):
         f"echo Rev: {rev}",
         f"echo Customer: {cus_code}",
         "",
-         
-        f'start "" "{folder}"',
 
+        # ---- Variables ----
+        f"set PART={part_no}",
+        f"set REV={rev or ''}",
+        "",
+
+        # ---- Folder candidates ----
+        f'set PATH1=Z:\\Public\\AS9100\\Shop Traveler\\Control Drawing for Production\\{cus_code}',
+        f'set PATH2=Z:\\Topnotch Group\\Public\\AS9100\\Shop Traveler\\Control Drawing for Production\\{cus_code}',
+        "",
+
+        # ---- Try open PDF ----
+        'set FOUND=0',
+        'for %%P in ("%PATH1%" "%PATH2%") do (',
+        '  if exist "%%~P" (',
+        '    for %%F in ("%%~P\\%PART% %REV%*.pdf") do (',
+        '      echo Opening %%F',
+        '      start "" "%%F"',
+        '      set FOUND=1',
+        '      goto :EOF',
+        '    )',
+        '  )',
+        ')',
+        "",
+
+        # ---- Fallback: open folder ----
+        'if "%FOUND%"=="0" (',
+        '  echo PDF not found. Opening folder...',
+        '  if exist "%PATH1%" (',
+        '    start "" "%PATH1%"',
+        '  ) else if exist "%PATH2%" (',
+        '    start "" "%PATH2%"',
+        '  ) else (',
+        '    echo Folder not found.',
+        '    pause',
+        '  )',
+        ')',
     ]
+
 
     # if pdf_path:
     
@@ -175,8 +223,53 @@ def build_drawing_batch(traveler_id: int, db: Session = Depends(get_db)):
         f"echo Rev: {rev}",
         f"echo Customer: {cus_code}",
         "",
-        f'start "" "{folder}"',
+
+        # ---- Variables ----
+        f"set LOT={lot_no}",
+        f"set PART={part_no}",
+        f"set REV={rev or ''}",
+        "",
+
+        # ---- Base paths ----
+        f'set BASE1=Z:\\Public\\AS9100\\Shop Traveler\\SHOP TRAVELER\\{cus_code}',
+        f'set BASE2=Z:\\Topnotch Group\\Public\\AS9100\\Shop Traveler\\SHOP TRAVELER\\{cus_code}',
+        "",
+
+        # ---- Subfolder candidates (with & without rev) ----
+        'set SUB1=%PART% %REV%',
+        'set SUB2=%PART%',
+        "",
+
+        # ---- Try open file ----
+        'set FOUND=0',
+        'for %%B in ("%BASE1%" "%BASE2%") do (',
+        '  for %%S in ("%SUB1%" "%SUB2%") do (',
+        '    if exist "%%~B\\%%~S" (',
+        '      for %%F in ("%%~B\\%%~S\\%LOT%*.doc*") do (',
+        '        echo Opening %%F',
+        '        start "" "%%F"',
+        '        set FOUND=1',
+        '        goto :EOF',
+        '      )',
+        '    )',
+        '  )',
+        ')',
+        "",
+
+        # ---- Fallback: open folder ----
+        'if "%FOUND%"=="0" (',
+        '  echo File not found. Opening folder...',
+        '  if exist "%BASE1%" (',
+        '    start "" "%BASE1%"',
+        '  ) else if exist "%BASE2%" (',
+        '    start "" "%BASE2%"',
+        '  ) else (',
+        '    echo Folder not found.',
+        '    pause',
+        '  )',
+        ')',
     ]
+
 
     # if pdf_path:
         
@@ -234,9 +327,56 @@ def build_inspection_batch(traveler_id: int, db: Session = Depends(get_db)):
         f"echo Rev: {rev}",
         f"echo Customer: {cus_code}",
         "",
-       
-         f'start "" "{folder}"',
+
+        # ---- Variables ----
+        f"set LOT={lot_no}",
+        f"set PART={part_no}",
+        f"set REV={rev or ''}",
+        "",
+
+        # ---- Base path candidates ----
+        f"set BASE1=Z:\\Public\\AS9100\\Shop Traveler\\INSPECT WIP Report\\{cus_code}",
+        f"set BASE2=Z:\\Topnotch Group\\Public\\AS9100\\Shop Traveler\\INSPECT WIP Report\\{cus_code}",
+        "",
+
+        # ---- Build subfolder candidates ----
+        'set SUB1=%PART% %REV%',
+        'set SUB2=%PART%',
+        "",
+
+        # ---- Try open file first ----
+        'set FOUND=0',
+        'for %%B in ("%BASE1%" "%BASE2%") do (',
+        '  for %%S in ("%SUB1%" "%SUB2%") do (',
+        '    if exist "%%~B\\%%~S" (',
+        '      for %%F in ("%%~B\\%%~S\\%LOT%*.doc*") do (',
+        '        echo Opening file: %%F',
+        '        start "" "%%F"',
+        '        set FOUND=1',
+        '        goto :EOF',
+        '      )',
+        '    )',
+        '  )',
+        ')',
+        "",
+
+        # ---- If file not found, open folder ----
+        'if "%FOUND%"=="0" (',
+        '  echo File not found. Opening folder...',
+        '  if exist "%BASE1%" (',
+        '    start "" "%BASE1%"',
+        '  ) else if exist "%BASE2%" (',
+        '    start "" "%BASE2%"',
+        '  ) else (',
+        '    echo Folder not found.',
+        '    pause',
+        '  )',
+        ')',
     ]
+
+
+
+
     print(bat)
     filename = f"inspection_{lot_no}.bat"
     tmp = os.path.join(tempfile.gettempdir(), filename)
