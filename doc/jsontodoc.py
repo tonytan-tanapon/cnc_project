@@ -87,26 +87,9 @@ def generate_traveler(template_path, json_path, output_path):
 
         print(f"Inserting step {step['step_code']} after M2 at row {insert_at}" , m2_row_idx)
 
-        at= 0
         
-        for i, row in enumerate(step_table.rows):
-                text = "\n".join(cell.text for cell in row.cells)
-                # print("text:", text )
-                if text.strip().startswith("M2"):
-                    m2_row_idx = i
-                    print("Found M2 row at", i)
-
-                if "step['step_code']" in text:
-                    step_table = table
-                    at = 1
-                    print("Found OP template row")
-
-        if at is not None:
-            break
-        print("at", at)
-        if at is not None:
-            break
-        new_row = clone_row(step_table, at )
+      
+        new_row = clone_row(step_table, m2_row_idx )
         i+=1
         # Column 0 = OP code
         new_row.cells[0].text = step["step_code"]
