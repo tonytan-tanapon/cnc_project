@@ -89,15 +89,12 @@ def iter_all_text_with_bold(doc: Document):
                 for p in cell.paragraphs:
                     if p.text.strip():
                         yield paragraph_to_bold_markdown(p)
-
 def iter_header_text(doc: Document):
-
     for section in doc.sections:
-        
-        header = section.header       
+        header = section.header
+
         # header paragraphs
         for p in header.paragraphs:
-            
             if p.text.strip():
                 yield clean(paragraph_to_bold_markdown(p))
 
@@ -106,10 +103,8 @@ def iter_header_text(doc: Document):
             for row in table.rows:
                 for cell in row.cells:
                     for p in cell.paragraphs:
-                        # print(  p.text)
                         if p.text.strip():
                             yield clean(paragraph_to_bold_markdown(p))
-
 def parse_header_lines(lines, data):
     for line in lines:
         raw = strip_md(line)
@@ -132,9 +127,9 @@ def parse_header_lines(lines, data):
         elif m := DUE_RE.search(raw):
             data["lot"]["due_date"] = m.group(1)
 
-        elif m := CUSTOMER_RE.search(raw):            
+        elif m := CUSTOMER_RE.search(raw):
+            
             data["traveler"]["customer_code"] = m.group(1)
-           
 
        
 
@@ -169,9 +164,9 @@ def parse_docx(path: str) -> dict:
     ensure_docx(path)
 
     doc = Document(path)
-    header_lines = list(iter_header_text(doc))   
+    header_lines = list(iter_header_text(doc))
     body_lines = list(iter_all_text_with_bold(doc))
-    
+
     data = {
         "lot": {},
         "traveler": {},
@@ -180,6 +175,9 @@ def parse_docx(path: str) -> dict:
    
     # ✅ parse real header ก่อน
     parse_header_lines(header_lines, data)
+
+
+    
 
     current_step = None
     step_order = 0
@@ -194,12 +192,15 @@ def parse_docx(path: str) -> dict:
         if m := JOB_RE.search(raw_line):
             data["lot"]["lot_no"] = m.group(1)
            
+
         elif m := PART_RE.search(raw_line):
             data["lot"]["part_no"] = m.group(1)
             
+
         elif m := REV_RE.search(raw_line):
             data["lot"]["rev"] = m.group(1)
             
+
         elif m := PO_RE.search(raw_line):
             data["lot"]["po_no"] = m.group(1)
 
@@ -214,14 +215,11 @@ def parse_docx(path: str) -> dict:
 
         elif m := RISK_RE.search(raw_line):
             data["traveler"]["risk"] = m.group(1)
-
         elif m := MAT_RE.search(raw_line):
             # print("Found MATERIAL in header:", m.group(1))
             data["lot"]["material_detail"] = m.group(1)
-
         elif m := PART_NAME_RE.search(raw_line):
             data["lot"]["part_name"] = m.group(1)
-            
         elif m := NOTE_RE.search(raw_line):
             data["lot"]["note"] = m.group(1)
      
@@ -290,7 +288,7 @@ if __name__ == "__main__":
     part_no = result["lot"].get("part_no","UNKNOWN")
     part_rev = result["lot"].get("rev","-")
     lot_no = result["lot"].get("lot_no","UNKNOWN")  
-
+    
     output_json = path / f"{part_no}_{part_rev}_{lot_no}.json"
 
     with open(output_json, "w", encoding="utf-8") as f:
