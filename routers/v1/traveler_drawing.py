@@ -92,8 +92,8 @@ def build_drawing_batch(traveler_id: int, db: Session = Depends(get_db)):
 
     year = datetime.now().year
     # Z:\Topnotch Group\Public\AS9100\Shop Traveler\Control Drawing for Production\SA8884
-    folder = f"Z:/Topnotch Group/Public/AS9100/Shop Traveler/Control Drawing for Production/{cus_code}/"
-    folder2 = f"Z:/Public/AS9100/Shop Traveler/Control Drawing for Production/{cus_code}/"
+    # folder = f"Z:/Topnotch Group/Public/AS9100/Shop Traveler/Control Drawing for Production/{cus_code}/"
+    # folder2 = f"Z:/Public/AS9100/Shop Traveler/Control Drawing for Production/{cus_code}/"
     # folder = f"Z:/Topnotch Group/Public/{year}/Drawing Diagram {year}/{cus_code}"
 
     # prefix = f"{part_no} {rev}"
@@ -118,7 +118,7 @@ def build_drawing_batch(traveler_id: int, db: Session = Depends(get_db)):
     #     f'start "" "{folder}"',
 
     # ]
-
+    print(f"Building .bat for drawing open...")
     bat = [
         "@echo off",
         f"echo Lot: {lot_no}",
@@ -164,8 +164,7 @@ def build_drawing_batch(traveler_id: int, db: Session = Depends(get_db)):
         '  )',
         ')',
     ]
-
-
+   
     # if pdf_path:
     
     #     bat.append(f'start "" "{folder}"')
