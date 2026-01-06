@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session, sessionmaker
 # ---------- CONFIG ----------
 LA_TZ = ZoneInfo("America/Los_Angeles")
 DATABASE_URL = "postgresql+psycopg2://postgres:1234@localhost:5432/mydb"
-# CSV_FILE = Path(r"C:\Users\TPSERVER\dev\cnc_project\database_import\import_material.csv")
+CSV_FILE = Path(r"C:\Users\TPSERVER\dev\cnc_project\database_import\import_material.csv")
 CSV_FILE = Path(r"C:\Users\TPSERVER\dev\cnc_project\database_import\import_material_mini.csv")
 # CSV_FILE = Path(r"C:\Users\TPSERVER\dev\cnc_project\database_import\import_material_all.csv")
 CSV_ENCODING = "utf-8-sig"

@@ -960,7 +960,7 @@ function initTable() {
       ,
       {
         title: "Shipped<br>Date",
-        field: "shipped_at_list",
+        field: "lot_shipped_at",
         minWidth: 100,
         headerSort: true,
         formatter: (cell) => {
@@ -986,21 +986,49 @@ function initTable() {
       },
 
       {
-        title: "Tracking no.",
-        field: "tracking_no_list",
-        minWidth: 120,
-        maxWidth: 250,          // ⭐ คุมไม่ให้กว้างเกิน
+  title: "Tracking no.",
+  field: "lot_tracking_no",
+  minWidth: 120,
+  maxWidth: 250,
+  headerSort: true,
+  cssClass: "cell-wrap",
+
+  formatter: (cell) => {
+    const v = cell.getValue();
+    if (!v) return "";
+
+    return String(v)
+      .split(",")
+      .map(s => s.trim())
+      .map(tracking => {
+        // UPS tracking (ตัวเลข/ตัวอักษรยาว 18 ตัว เช่น 1Z...)
+        if (tracking.startsWith("1Z")) {
+          return `
+            <a
+              href="https://www.ups.com/WebTracking/processInputRequest?tracknum=${encodeURIComponent(tracking)}&loc=en_US"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="link"
+            >
+              ${tracking}
+            </a>
+          `;
+        }
+
+        // non-UPS
+        return tracking;
+      })
+      .join("<br>");
+  },
+},
+
+      {
+        title: "Materaials<br>PO",
+        field: "batch_no_list",
+        minWidth: 150,
+        maxWidth: 250,
         headerSort: true,
         cssClass: "cell-wrap",
-
-        formatter: (cell) => {
-          const v = cell.getValue();
-          if (!v) return "";
-          return v
-            .split(",")
-            .map(s => s.trim())
-            .join("<br>");
-        },
       },
       {
         title: "Note",
