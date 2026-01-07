@@ -673,6 +673,88 @@ class ShopTravelerStep(Base):
             traveler.status = "done"
 
         db.commit()
+
+
+from sqlalchemy import (
+    Column, Integer, String, Boolean, DateTime, ForeignKey,
+    Text, Index, UniqueConstraint
+)
+from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
+
+
+class TravelerTemplate(Base):
+    __tablename__ = "traveler_templates"
+
+    id = Column(Integer, primary_key=True)
+
+    # ผูกกับ part / rev
+    part_id = Column(Integer, ForeignKey("parts.id"), nullable=False, index=True)
+    part_revision_id = Column(Integer, ForeignKey("part_revisions.id"), nullable=True, index=True)
+
+    template_name = Column(String, nullable=False)
+    version = Column(Integer, nullable=False, default=1)
+
+    is_active = Column(Boolean, nullable=False, default=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    created_by_id = Column(Integer, ForeignKey("employees.id"), nullable=True)
+
+    note = Column(Text, nullable=True)
+
+    # relationships
+    steps = relationship(
+        "TravelerTemplateStep",
+        back_populates="template",
+        cascade="all, delete-orphan",
+        order_by="TravelerTemplateStep.seq",
+    )
+
+    created_by = relationship("Employee", foreign_keys=[created_by_id])
+
+    __table_args__ = (
+        UniqueConstraint(
+            "part_id", "part_revision_id", "version",
+            name="uq_template_part_rev_version"
+        ),
+        Index("ix_traveler_templates_active", "is_active"),
+    )
+
+    def __repr__(self):
+        return f"<TravelerTemplate(part_id={self.part_id}, version={self.version})>"
+
+
+class TravelerTemplateStep(Base):
+    __tablename__ = "traveler_template_steps"
+
+    id = Column(Integer, primary_key=True)
+    template_id = Column(
+        Integer,
+        ForeignKey("traveler_templates.id"),
+        nullable=False,
+        index=True,
+    )
+
+    seq = Column(Integer, nullable=False)
+    step_code = Column(String, nullable=True)
+    step_name = Column(String, nullable=False)
+    station = Column(String, nullable=True)
+
+    qa_required = Column(Boolean, default=False, nullable=False)
+    default_uom = Column(String, nullable=False, default="pcs")
+
+    note = Column(Text, nullable=True)
+
+    template = relationship("TravelerTemplate", back_populates="steps")
+
+    __table_args__ = (
+        UniqueConstraint("template_id", "seq", name="uq_template_seq"),
+        Index("ix_template_steps_station", "station"),
+    )
+
+    def __repr__(self):
+        return f"<TravelerTemplateStep(template_id={self.template_id}, seq={self.seq})>"
+
 # =========================================
 # ============ Subcontracting =============
 # =========================================

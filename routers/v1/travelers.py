@@ -115,6 +115,22 @@ def list_travelers(
     rows = query.order_by(ShopTraveler.id.desc()).all()
     return [to_row_out(t) for t in rows]
 # ---------- GET ----------
+@router.get("/by-lot-code/{lot_no}", response_model=ShopTravelerRowOut)
+def get_traveler_by_lot_no(lot_no: str, db: Session = Depends(get_db)):
+    """
+    ดึง Traveler เดี่ยว พร้อม eager load lot
+    """
+    t = (
+        db.query(ShopTraveler)
+          .options(selectinload(ShopTraveler.lot))
+          .join(ProductionLot)
+          .filter(ProductionLot.lot_no == lot_no)
+          .first()
+    )
+    if not t:
+        raise HTTPException(404, "Traveler not found")
+    return to_row_out(t)
+
 @router.get("/{traveler_id}", response_model=ShopTravelerRowOut)
 def get_traveler(traveler_id: int, db: Session = Depends(get_db)):
     """
@@ -129,6 +145,8 @@ def get_traveler(traveler_id: int, db: Session = Depends(get_db)):
     if not t:
         raise HTTPException(404, "Traveler not found")
     return to_row_out(t)
+
+
 
 
 

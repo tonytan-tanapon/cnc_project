@@ -7,28 +7,48 @@ const btnGo = document.getElementById("btnGo");
 const scanInput = document.getElementById("scanInput");
 const result = document.getElementById("result");
 
-
 let scanTimer = null;
+let traver_id = null;
+let traveler_no = null;
 
+async function verifyLot(code) {
+  // ✅ MOCK verification logic
+  // In real app, replace with server call or real logic
+  const data = await jfetch(
+    api(`/travelers/by-lot-code/${encodeURIComponent(code)}`)
+  );
+  console.log("Fetched lot data:", data);
 
+  if (data && data.id) traveler_no = data.traveler_no;
+  return true;
+  return false; // only "1234" is valid
+}
 async function verifyPin(pin) {
   // ✅ MOCK verification logic
   // In real app, replace with server call or real logic
   const data = await jfetch(
-          api(`/employees/by-code/${encodeURIComponent(pin)}`)
-        );
-  console.log("Fetched employee data:", data);  
+    api(`/employees/by-code/${encodeURIComponent(pin)}`)
+  );
+  console.log("Fetched employee data:", data);
 
-  if (data && data.id) return true; 
+  if (data && data.id) return true;
   return false; // only "1234" is valid
 }
 // ✅ ONE function used by BOTH manual + scan
 async function handleCode(value, source = "scan") {
+  // verifyLot(code)
   const code = (value || "").trim();
+
   if (!code) return;
 
   console.log(`✅ handleCode (${source}):`, code);
   result.textContent = `${source.toUpperCase()}: ${code}`;
+  //check Lot no
+  const isLotValid = await verifyLot(code);
+  if (!isLotValid) {
+    alert("❌ Invalid Lot Number. Please re-enter.");
+    return handleCode(code, source); // 🔁 retry
+  }
 
   // 🔐 Ask for PIN
   const pin = await showPinPad();
@@ -51,51 +71,50 @@ async function handleCode(value, source = "scan") {
   }
 
   // 🎯 SUCCESS
-//   alert(`✅ Access granted\nCode: ${code}`);
+  //   alert(`✅ Access granted\nCode: ${code}`);
 
   // 👉 REAL ACTION
-  location.href = `/static/ui-traveler.html?traveler_no=${encodeURIComponent(code)}&traveler_step=${encodeURIComponent(0)}&traveler_emp=${encodeURIComponent(pin)}`;
-
+  location.href = `/static/ui-traveler.html?traveler_no=${encodeURIComponent(
+    traveler_no
+  )}&seq=${encodeURIComponent(0)}&traveler_emp=${encodeURIComponent(pin)}`;
 }
-
 
 // Default focus = scanner
 window.addEventListener("DOMContentLoaded", () => {
-    scanInput.focus();
+  scanInput.focus();
 });
 
 // Click outside manual -> refocus scan
 document.addEventListener("click", (e) => {
-    if (e.target === manualInput || e.target === btnGo) return;
-    scanInput.focus({ preventScroll: true });
+  if (e.target === manualInput || e.target === btnGo) return;
+  scanInput.focus({ preventScroll: true });
 });
 
 // Manual: Go button
 btnGo.addEventListener("click", async () => {
-    await handleCode(manualInput.value, "manual");
-    manualInput.value = "";
-    scanInput.focus({ preventScroll: true });
+  await handleCode(manualInput.value, "manual");
+  manualInput.value = "";
+  scanInput.focus({ preventScroll: true });
 });
 
 // Manual: press Enter = same as Go
 manualInput.addEventListener("keydown", async (e) => {
-    if (e.key === "Enter") {
-        e.preventDefault();
-        btnGo.click();
-    }
+  if (e.key === "Enter") {
+    e.preventDefault();
+    btnGo.click();
+  }
 });
 
 // Scan: auto trigger after scan finishes typing
 scanInput.addEventListener("input", () => {
-    clearTimeout(scanTimer);
-    scanTimer = setTimeout(async () => {
-        const value = scanInput.value;
-        scanInput.value = "";
-        await handleCode(value, "scan");
-        scanInput.focus({ preventScroll: true });
-    }, 150);
+  clearTimeout(scanTimer);
+  scanTimer = setTimeout(async () => {
+    const value = scanInput.value;
+    scanInput.value = "";
+    await handleCode(value, "scan");
+    scanInput.focus({ preventScroll: true });
+  }, 150);
 });
-
 
 /////////////////
 let pinValue = "";
@@ -139,15 +158,16 @@ function pressPin(n) {
   if (pinValue.length === 4) {
     setTimeout(() => {
       pinResolve(pinValue);
-  
+
       hidePinPad();
     }, 150);
   }
 }
 
 function updatePinDisplay() {
-  document.getElementById("pinDisplay").textContent =
-    pinValue.padEnd(4, "-").replace(/./g, "•");
+  document.getElementById("pinDisplay").textContent = pinValue
+    .padEnd(4, "-")
+    .replace(/./g, "•");
 }
 
 // Clear

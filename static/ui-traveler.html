@@ -311,60 +311,130 @@
       font-weight: 600;
       color: var(--muted);
     }
+
+
+    /* ===== Main Layout ===== */
+.layout {
+  display: flex;
+  height: 100vh;
+  gap: 16px;
+}
+
+/* ===== OP LIST (LEFT) ===== */
+.op-list {
+  width: 50px;                 /* แนะนำให้กว้างขึ้นนิด */
+  /* height: 500px; */
+  background: #ffffff;          /* ✅ พื้นหลังขาว */
+  color: #111827;               /* ✅ ตัวอักษรดำ */
+  padding: 12px;
+  margin: 1px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  border-right: 1px solid #e5e7eb; /* เส้นแบ่งเบา ๆ */
+}
+
+/* OP item */
+.op-item {
+  background: #ffffff;          /* ขาว */
+  color: #111827;               /* ดำ */
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+  box-shadow: #11182733 0px 1px 2px 0px; /* เงาบาง ๆ */
+  border: 1px solid #e5e7eb;     /* กรอบบาง */
+}
+
+/* hover */
+.op-item:hover {
+  background: #f3f4f6;          /* เทาอ่อน */
+}
+
+/* active */
+.op-item.active {
+  background: #2563eb;          /* น้ำเงิน */
+  color: #ffffff;               /* ขาว */
+  /* border-color: #2563eb; */
+  box-shadow: inset 4px 0 0 #93c5fd;
+}
+
+
+/* ===== Right panel tweak ===== */
+.wrap {
+  flex: 1;
+  max-width: none;
+  margin: 0;
+  overflow-y: auto;
+}
   </style>
 </head>
 
 <body>
-  <div class="op_list" id="op_list">OP list</div>
+  <body>
+
+  <!-- ===== MAIN LAYOUT ===== -->
+  <div class="layout">
+
+    <!-- ===== LEFT : OP LIST ===== -->
+    <aside class="op-list" id="op_list">
+      <!-- ❗ JS จะ inject OP item ที่นี่ -->
+    </aside>
+
+    <!-- ===== RIGHT : OPERATION PANEL (ของเดิม) ===== -->
+    <main class="wrap">
+
+      <div class="note">
+        <div class="note-header">
+          <div class="op" id="opCode"></div>
+          <div class="lot_no" id="lot_no"></div>
+          <div class="part_no" id="part_no"></div>
+          <div class="op_status" id="op_status"></div>
+          <div class="manchine" id="machinename"></div>
+          <div class="operator" id="operatorName"></div>
+        </div>
+
+        <div class="title" id="opName"></div>
+      </div>
+
+      <div class="action-inputs">
+        <div class="action-box" data-type="receive">
+          <div class="action-title">Receive</div>
+          <div class="action-value">
+            <div class="qty-display" id="receiveQty">0</div>
+            <div class="uom" id="receive_uom">Pcs</div>
+          </div>
+        </div>
+
+        <div class="action-box" data-type="accept">
+          <div class="action-title">Accept</div>
+          <div class="action-value">
+            <div class="qty-display" id="acceptQty">0</div>
+            <div class="uom" id="accept_uom">Pcs</div>
+          </div>
+        </div>
+
+        <div class="action-box" data-type="reject">
+          <div class="action-title">Reject</div>
+          <div class="action-value">
+            <div class="qty-display" id="rejectQty">0</div>
+            <div class="uom" id="reject_uom">Pcs</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="remarks">
+        <label for="remarkInput">Remarks</label>
+        <textarea id="remarkInput" placeholder="Add notes..."></textarea>
+      </div>
+
+      <button class="confirm-btn" id="btnConfirm">Confirm</button>
+
+    </main>
   </div>
-  <div class="wrap">
-    <div class="note">
-      <div class="note-header">
-        <div class="op" id="opCode"></div>
-        <div class="op_status" id="op_status"></div>
-        <div class="manchine" id="machinename"></div>
-        <div class="operator" id="operatorName"></div>
-      </div>
-      <div class="title" id="opName"></div>
-      <!-- <div class="muted" id="opDesc"></div> -->
-    </div>
 
-    <div class="action-inputs">
-      <div class="action-box" data-type="receive">
-        <div class="action-title">Receive</div>
-        <div class="action-value">
-          <div class="qty-display" id="receiveQty">0</div>
-          <div class="uom" id="receive_uom">Pcs</div>
-        </div>
-      </div>
-
-      <div class="action-box" data-type="accept">
-        <div class="action-title">Accept</div>
-        <div class="action-value">
-          <div class="qty-display" id="acceptQty">0</div>
-          <div class="uom" id="accept_uom">Pcs</div>
-        </div>
-      </div>
-
-      <div class="action-box" data-type="reject">
-        <div class="action-title">Reject</div>
-        <div class="action-value">
-          <div class="qty-display" id="rejectQty">0</div>
-          <div class="uom" id="reject_uom">Pcs</div>
-        </div>
-      </div>
-
-    </div>
-
-    <div class="remarks">
-      <label for="remarkInput">Remarks</label>
-      <textarea id="remarkInput" placeholder="Add notes..."></textarea>
-    </div>
-
-    <button class="confirm-btn" id="btnConfirm">Confirm</button>
-    <!-- <button class="prev-btn" id="btnConfirm">Prev</button>
-    <button class="next-btn" id="btnConfirm">Next</button> -->
-  </div>
 
   <!-- Keypad -->
   <div class="keypad-overlay" id="keypad">

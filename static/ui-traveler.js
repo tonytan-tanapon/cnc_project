@@ -8,7 +8,6 @@ let currentUOM = "pcs";
 let originalValue = null;
 let manualRejectEdit = false; // tracks if user manually edits reject
 
-
 const travelerNo = new URLSearchParams(location.search).get("traveler_no");
 const travelerStep = new URLSearchParams(location.search).get("traveler_step");
 const travelerEmp = new URLSearchParams(location.search).get("traveler_emp");
@@ -27,7 +26,6 @@ function showKeypad(target, type) {
   activeTarget = target;
   activeType = type;
 
-
   // ✅ Update visible label at top of keypad
   const labelEl = document.querySelector("#keypadTypeLabel");
   if (labelEl) {
@@ -35,20 +33,19 @@ function showKeypad(target, type) {
       type === "receive"
         ? "Receive"
         : type === "accept"
-          ? "Accept"
-          : type === "reject"
-            ? "Reject"
-            : "";
+        ? "Accept"
+        : type === "reject"
+        ? "Reject"
+        : "";
     labelEl.style.color =
       type === "receive"
         ? "#2563eb"
         : type === "accept"
-          ? "#16a34a"
-          : type === "reject"
-            ? "#dc2626"
-            : "#111";
+        ? "#16a34a"
+        : type === "reject"
+        ? "#dc2626"
+        : "#111";
   }
-
 
   document.querySelector("#keypad").style.display = "flex";
   document.querySelector("#uomLabel").textContent = `${currentUOM}`;
@@ -97,8 +94,6 @@ function hideKeypad(cancel = false) {
     updateDisplay(originalValue);
   }
 
-
-
   activeTarget = null;
   activeType = null;
   originalValue = null;
@@ -120,7 +115,7 @@ function toastCenter(message, success = true, duration = 1500) {
   // ✅ Style (bottom-centered)
   Object.assign(div.style, {
     position: "fixed",
-    bottom: "40px",              // move to bottom
+    bottom: "40px", // move to bottom
     left: "50%",
     transform: "translateX(-50%)",
     background: success ? "rgba(46, 204, 113, 0.9)" : "rgba(231, 76, 60, 0.9)",
@@ -152,12 +147,12 @@ function toastCenter(message, success = true, duration = 1500) {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-
-
   // ===== UNIT SELECTION =====
   document.querySelectorAll(".unit-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
-      document.querySelectorAll(".unit-btn").forEach((b) => b.classList.remove("active"));
+      document
+        .querySelectorAll(".unit-btn")
+        .forEach((b) => b.classList.remove("active"));
       btn.classList.add("active");
       currentUOM = btn.dataset.uom;
       document.querySelector("#uomLabel").textContent = `${currentUOM}`;
@@ -167,7 +162,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // ✅ Default to PCS
   document.querySelector('.unit-btn[data-uom="pcs"]').classList.add("active");
-
 
   // ✅ Only show custom keypad (no keyboard)
   document.querySelectorAll(".action-box").forEach((box) => {
@@ -260,9 +254,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     try {
       const travelerStep = new URLSearchParams(location.search).get("seq");
-      const qs = travelerStep !== null ? `?seq=${encodeURIComponent(travelerStep)}` : "";
+      const qs =
+        travelerStep !== null ? `?seq=${encodeURIComponent(travelerStep)}` : "";
       const data = await jfetch(`/api/v1/travelers/by_no/${travelerNo}${qs}`);
-
 
       const stepId = data?.active_step?.id;
       console.log("Active step ID:", stepId);
@@ -284,7 +278,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  document.querySelector(".close-btn").addEventListener("click", () => hideKeypad(true));
+  document
+    .querySelector(".close-btn")
+    .addEventListener("click", () => hideKeypad(true));
 
   // ===== CONFIRM BUTTON =====
   document.querySelector("#btnConfirm").addEventListener("click", async () => {
@@ -298,24 +294,34 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    const operator_code = new URLSearchParams(location.search).get("traveler_emp");
+    const operator_code = new URLSearchParams(location.search).get(
+      "traveler_emp"
+    );
 
-    console.log("✅ CONFIRM clicked", qty_receive, qty_accept, qty_reject, remark, operator_code, op_status);
+    console.log(
+      "✅ CONFIRM clicked",
+      qty_receive,
+      qty_accept,
+      qty_reject,
+      remark,
+      operator_code,
+      op_status
+    );
     const payload = {
       qty_receive,
       qty_accept,
       qty_reject,
       remark,
-      status: "passed",        // ✅ ตรง backend
+      status: "passed", // ✅ ตรง backend
       operator_code,
     };
     console.log("✅ CONFIRM payload:", payload);
     // Save ST step
     try {
       const travelerStep = new URLSearchParams(location.search).get("seq");
-      const qs = travelerStep !== null ? `?seq=${encodeURIComponent(travelerStep)}` : "";
+      const qs =
+        travelerStep !== null ? `?seq=${encodeURIComponent(travelerStep)}` : "";
       const data = await jfetch(`/api/v1/travelers/by_no/${travelerNo}${qs}`);
-
 
       const stepId = data?.active_step?.id;
       console.log("Active step ID:", stepId);
@@ -335,8 +341,6 @@ document.addEventListener("DOMContentLoaded", () => {
       console.error("❌ PATCH error", err);
       toastCenter(err.message || "Auto-update failed", false);
     }
-
-
   });
 
   // Load first data
@@ -355,9 +359,9 @@ document.querySelector("#remarkInput").addEventListener("input", () => {
 
     try {
       const travelerStep = new URLSearchParams(location.search).get("seq");
-      const qs = travelerStep !== null ? `?seq=${encodeURIComponent(travelerStep)}` : "";
+      const qs =
+        travelerStep !== null ? `?seq=${encodeURIComponent(travelerStep)}` : "";
       const data = await jfetch(`/api/v1/travelers/by_no/${travelerNo}${qs}`);
-
 
       const stepId = data?.active_step?.id;
       console.log("Active step ID for remark save:", stepId);
@@ -383,10 +387,10 @@ document.querySelector("#remarkInput").addEventListener("input", () => {
 async function loadOperation() {
   try {
     const travelerStep = new URLSearchParams(location.search).get("seq");
-    const qs = travelerStep !== null ? `?seq=${encodeURIComponent(travelerStep)}` : "";
+    const qs =
+      travelerStep !== null ? `?seq=${encodeURIComponent(travelerStep)}` : "";
     const data = await jfetch(`/api/v1/travelers/by_no/${travelerNo}${qs}`);
     console.log("Loaded traveler data:", data);
-
 
     if (!data) return;
 
@@ -406,27 +410,57 @@ async function loadOperation() {
     const step_list = data.steps || [];
     const opListEl = document.querySelector("#op_list");
 
+    // SET OP LIST
+    // Set OP header
     opListEl.innerHTML = ""; // clear ก่อน
 
-    step_list.forEach(step => {
-      const a = document.createElement("a");
+    const div = document.createElement("div");
+    div.className = "op-item header";
+    div.innerHTML = `<div style="font-weight:700;">OP</div>`;
+    opListEl.appendChild(div);
 
-      a.href = `/static/ui-traveler.html?traveler_no=${encodeURIComponent(data.traveler_no)}&seq=${encodeURIComponent(step.seq)}&traveler_emp=${encodeURIComponent(travelerEmp)}`;
-      a.textContent = `#${step.seq}`;
-      a.style.marginRight = "8px";
-      a.style.fontWeight = "600";
-      a.style.textDecoration = "none";
-      a.style.color = "#2563eb";
+    // Set OP items
+    step_list.forEach((step) => {
+      const div = document.createElement("div");
+      div.className = "op-item";
+      div.style.borderLeft = `6px solid ${statusColor(step.status)}`;
+      // active step
+      if (step.seq == travelerStep) {
+        div.classList.add("active");
+      }
 
-      // เปิดแท็บใหม่ (ถ้าต้องการ)
-      // a.target = "_blank";
+      div.innerHTML = `
+        <div style="font-weight:700;">${step.seq}</div>
+      
+      `;
 
-      opListEl.appendChild(a);
+      div.onclick = () => {
+        location.href = `/static/ui-traveler.html?traveler_no=${encodeURIComponent(
+          data.traveler_no
+        )}&seq=${encodeURIComponent(
+          step.seq
+        )}&traveler_emp=${encodeURIComponent(travelerEmp)}`;
+      };
+
+      opListEl.appendChild(div);
     });
 
-
     document.querySelector("#opCode").textContent = opLabel;
-    document.querySelector("#op_status").textContent = op_status;
+
+    const opStatusEl = document.querySelector("#op_status");
+    opStatusEl.textContent = op_status;
+
+    // pill style
+    opStatusEl.style.display = "inline-block";
+    opStatusEl.style.padding = "6px 14px";
+    opStatusEl.style.borderRadius = "999px"; // ✅ ขอบมนสุด
+    opStatusEl.style.fontWeight = "700";
+    opStatusEl.style.fontSize = "14px";
+
+    // color by status
+    opStatusEl.style.backgroundColor = statusColor(op_status);
+    opStatusEl.style.color = "#fff";
+
     document.querySelector("#opName").textContent = step.step_name || "-";
     // document.querySelector("#opDesc").textContent = step.step_note || "";
     document.querySelector("#operatorName").textContent = "Operator: " + opText;
@@ -437,13 +471,21 @@ async function loadOperation() {
     document.querySelector("#rejectQty").textContent = step.qty_reject ?? 0;
     document.querySelector("#remarkInput").value =
       step.remark || step.step_note || "";
-
   } catch (err) {
     console.error("❌ loadOperation failed", err);
     toast(err.message || "Load failed", false);
   }
 }
-
+function statusColor(status) {
+  return (
+    {
+      passed: "#10b981",
+      pending: "#6b7280",
+      in_process: "#f59e0b",
+      rejected: "#ef4444",
+    }[status] || "#6b7280"
+  );
+}
 /* ===== SCANNER INPUT HANDLING ===== */
 let typingTimer;
 const doneTypingInterval = 200;
@@ -494,11 +536,7 @@ async function handleInput() {
       input.value = "";
       input.focus({ preventScroll: true });
       return; // stop further traveler logic
-    }
-    else {
-
-
-
+    } else {
       // === CASE 2: Operator / Traveler scan (existing logic) ===
       try {
         const traveler = await jfetch(`/api/v1/travelers/by_no/${travelerNo}`);
