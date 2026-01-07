@@ -64,8 +64,9 @@ async function searchLots(term) {
 
 async function searchEmployees(term) {
   const q = (term || "").trim();
-  const url = `/employees/keyset?limit=10${q ? `&q=${encodeURIComponent(q)}` : ""
-    }`;
+  const url = `/employees/keyset?limit=10${
+    q ? `&q=${encodeURIComponent(q)}` : ""
+  }`;
   try {
     const res = await jfetch(url);
     const items = Array.isArray(res) ? res : res.items || [];
@@ -125,11 +126,9 @@ function ensureHeaderButtons() {
 
   wrap.append(btnHdrSave, btnHdrCancel, btnGetQR);
 
-
   // ✅ ใช้วิธี append หลัง h2 โดยตรงแทน
   const titleRow = sub.parentElement;
   titleRow.appendChild(wrap);
-
 
   console.log("✅ Header buttons added");
 }
@@ -215,7 +214,7 @@ async function fillTraveler(t) {
 
   $("status").value = t.status ?? "";
   $("notes").value = t.notes ?? "";
-  console.log(t);
+  console.log("t", t);
   $("t_sub").textContent = `#${t.traveler_no}`;
   document.title = `Traveler · #${t.id}`;
   markHeaderDirty(false);
@@ -305,10 +304,10 @@ function statusBadge(s) {
     st === "running" || st === "in_progress"
       ? "blue"
       : st === "passed"
-        ? "green"
-        : st === "failed"
-          ? "red"
-          : "gray";
+      ? "green"
+      : st === "failed"
+      ? "red"
+      : "gray";
   const label =
     {
       running: "Running",
@@ -405,7 +404,7 @@ function autosaveStepRow(row, { immediate = false } = {}) {
         setTimeout(() => {
           try {
             stepsTable.redraw(true);
-          } catch { }
+          } catch {}
         }, 0);
       });
     return;
@@ -441,14 +440,14 @@ function autosaveStepRow(row, { immediate = false } = {}) {
             (x) => Number(x.id) === Number(dd.id)
           );
           if (found) row.update(normalizeStep(found));
-        } catch { }
+        } catch {}
         toast(e?.message || "Save failed", false);
       })
       .finally(() =>
         setTimeout(() => {
           try {
             stepsTable.redraw(true);
-          } catch { }
+          } catch {}
         }, 0)
       );
   };
@@ -560,8 +559,6 @@ function stationAutocompleteEditor(cell, onRendered, success, cancel) {
   return input;
 }
 
-
-
 function operatorAutocompleteEditor(cell, onRendered, success, cancel) {
   const input = document.createElement("input");
   input.type = "text";
@@ -613,7 +610,7 @@ function initStepsTable() {
     if (!ready || !holder.offsetWidth) return;
     try {
       stepsTable.redraw(true);
-    } catch { }
+    } catch {}
   };
 
   stepsTable = new Tabulator(holder, {
@@ -791,6 +788,43 @@ function initStepsTable() {
     row.getElement().classList.add("is-dirty");
   });
 
+  const btnAddTemplate = document.getElementById("btnAddTemplate");
+
+  btnAddTemplate.addEventListener("click", async () => {
+    // const qs = new URLSearchParams(location.search);
+    // const travelerId = qs.get("id");
+
+    if (!travelerId) {
+      alert("Traveler ID not found");
+      return;
+    }
+    console.log("Applying template to traveler ID:", travelerId);
+    const templateId = 1;
+    try {
+      const res = await fetch(
+        `/api/v1/travelers/apply-template/${encodeURIComponent(
+          travelerId
+        )}?template_id=${encodeURIComponent(templateId)}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (!res.ok) {
+        throw new Error(await res.text());
+      }
+
+      // alert("Template applied successfully");
+      location.reload();
+    } catch (err) {
+      console.error(err);
+      // alert("Failed to apply template");
+    }
+  });
+
   stepsTable.on("cellEdited", (cell) => {
     const row = cell.getRow();
     setDirtyClass(row, true);
@@ -861,7 +895,6 @@ function makeBlankStep(seq) {
   };
 }
 
-
 async function downloadDrawingBatch() {
   try {
     const res = await fetch(`/api/v1/traveler_drawing/drawing/${travelerId}`, {
@@ -889,9 +922,12 @@ async function downloadDrawingBatch() {
 
 async function downloadTravelerBatch() {
   try {
-    const res = await fetch(`/api/v1/traveler_drawing/traveletdoc/${travelerId}`, {
-      method: "POST",
-    });
+    const res = await fetch(
+      `/api/v1/traveler_drawing/traveletdoc/${travelerId}`,
+      {
+        method: "POST",
+      }
+    );
 
     if (!res.ok) {
       const txt = await res.text().catch(() => "");
@@ -914,9 +950,12 @@ async function downloadTravelerBatch() {
 
 async function downloadInspectionBatch() {
   try {
-    const res = await fetch(`/api/v1/traveler_drawing/inspection/${travelerId}`, {
-      method: "POST",
-    });
+    const res = await fetch(
+      `/api/v1/traveler_drawing/inspection/${travelerId}`,
+      {
+        method: "POST",
+      }
+    );
 
     if (!res.ok) {
       const txt = await res.text().catch(() => "");
@@ -954,11 +993,6 @@ async function downloadInspectionBatch() {
 //   a.download = `inspection_${travelerId}.bat`;
 //   a.click();
 // }
-
-
-
-
-
 
 /* ---------- QR Code Popup ---------- */
 
@@ -1002,16 +1036,14 @@ function printTravelerQR(travelerNo, qrLink) {
     <body style="text-align:center; font-family:sans-serif;">
       <h2>Traveler ${travelerNo}</h2>
       <img src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(
-    qrLink
-  )}" alt="QR">
+        qrLink
+      )}" alt="QR">
       <p style="margin-top:10px;font-size:14px;">${qrLink}</p>
       <script>window.onload = () => { window.print(); }</script>
     </body></html>
   `);
   w.document.close();
 }
-
-
 
 function makeLotLinks(lotId) {
   if (!lotId) return;
@@ -1029,12 +1061,16 @@ function makeLotLinks(lotId) {
     },
     {
       id: "material_link",
-      href: `/static/manage-lot-materials.html?lot_id=${encodeURIComponent(lotId)}`,
+      href: `/static/manage-lot-materials.html?lot_id=${encodeURIComponent(
+        lotId
+      )}`,
       title: "Materials",
     },
     {
       id: "shippment_link",
-      href: `/static/manage-lot-shippments.html?lot_id=${encodeURIComponent(lotId)}`,
+      href: `/static/manage-lot-shippments.html?lot_id=${encodeURIComponent(
+        lotId
+      )}`,
       title: "Shipment",
     },
   ];

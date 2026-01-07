@@ -6,7 +6,7 @@ from typing import List, Optional
 from datetime import date
 
 from database import get_db
-from models import ShopTraveler, ProductionLot, Employee
+from models import ShopTraveler, ProductionLot, Employee, TravelerTemplate
 from pydantic import BaseModel, ConfigDict
 from utils.code_generator import next_code_yearly
 from sqlalchemy import (
@@ -594,3 +594,71 @@ def update_traveler_step(step_id: int, payload: TravelerStepUpdate, db: Session 
         "step_note": step.step_note,
         "operator_id": step.operator_id,
     }
+
+def apply_template_to_traveler(
+    db: Session,
+    traveler_id: int,
+    template_id: int,
+    applied_by_id: int | None = None,
+):
+    traveler = (
+        db.query(ShopTraveler)
+        .filter(ShopTraveler.id == traveler_id)
+        .first()
+    )
+
+    if not traveler:
+        raise ValueError("Traveler not found")
+
+    # 🔒 ป้องกัน apply ซ้ำ
+    if traveler.steps:
+        raise ValueError("Traveler already has steps")
+
+    template = (
+        db.query(TravelerTemplate)
+        .filter(TravelerTemplate.id == template_id)
+        .filter(TravelerTemplate.is_active.is_(True))
+        .first()
+    )
+
+    if not template:
+        raise ValueError("Template not found or inactive")
+
+    # ตั้ง step แรก
+    traveler.current_step_seq = template.steps[0].seq if template.steps else None
+    traveler.status = "open"
+
+    for step in template.steps:
+        db.add(
+            ShopTravelerStep(
+                traveler_id=traveler.id,
+                seq=step.seq,
+                step_code=step.step_code,
+                step_name=step.step_name,
+                station=step.station,
+                qa_required=step.qa_required,
+                uom=step.default_uom,
+                status="pending",
+            )
+        )
+
+    db.commit()
+    return traveler
+
+@router.post("/apply-template/{traveler_id}")
+def apply_template(
+    traveler_id: int,
+    template_id: int = Query(...),
+    db: Session = Depends(get_db),
+    
+):
+    print("Applied template to traveler:", traveler_id )
+    traveler = apply_template_to_traveler(
+        db=db,
+        traveler_id=traveler_id,
+        template_id=template_id,
+        applied_by_id=None,
+    )
+    
+    # return {"ok": True, "traveler_id": traveler.id}
+    return {"ok": True}
