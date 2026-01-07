@@ -89,7 +89,12 @@
       cursor: pointer;
     }
 
-  
+    .action-label {
+      font-weight: 600;
+      text-align: center;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e5e7eb;
+    }
 
     .qty-display {
       font-size: 22px;
@@ -132,9 +137,7 @@
       font-weight: 600;
       cursor: pointer;
     }
-
-    .prev-btn,
-    .next-btn {
+    .prev-btn, .next-btn {
       background: #6b7280;
       color: white;
       border: none;
@@ -246,112 +249,86 @@
     }
 
 
-    .pad-container {
-      display: flex;
-      justify-content: center;
-      align-items: flex-start;
-      gap: var(--gap);
-      width: 100%;
-      max-width: 600px;
-    }
+.pad-container {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: var(--gap);
+  width: 100%;
+  max-width: 600px;
+}
 
-    .pad {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: var(--gap);
-      flex-shrink: 0;
-    }
+.pad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--gap);
+  flex-shrink: 0;
+}
 
-    .unit-select {
-      display: flex;
-      flex-direction: column;
-      justify-content: flex-start;
-      gap: 10px;
-    }
+.unit-select {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 10px;
+}
 
-    .unit-btn {
-      background: #e5e7eb;
-      border: 2px solid transparent;
-      border-radius: var(--radius);
-      height: 60px;
-      width: 100px;
-      font-weight: 700;
-      font-size: 16px;
-      cursor: pointer;
-      transition: 0.2s;
-    }
+.unit-btn {
+  background: #e5e7eb;
+  border: 2px solid transparent;
+  border-radius: var(--radius);
+  height: 60px;
+  width: 100px;
+  font-weight: 700;
+  font-size: 16px;
+  cursor: pointer;
+  transition: 0.2s;
+}
 
-    .unit-btn.active {
-      background: var(--primary);
-      color: #fff;
-      border-color: var(--primary-hover);
-    }
+.unit-btn.active {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary-hover);
+}
 
-    /* ===== Action layout fix ===== */
-
-    .action-box {
-      align-items: center;
-    }
-
-    .action-title {
-      font-weight: 700;
-      font-size: 16px;
-      text-align: center;
-    }
-
-    .action-value {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 10px;
-    }
-
-    .uom {
-      font-size: 14px;
-      font-weight: 600;
-      color: var(--muted);
+    #scannerInput {
+      position: fixed;
+      top: 0;
+      left: 0;
+      opacity: 0;
+      height: 1px;
+      width: 1px;
+      z-index: -1;
     }
   </style>
 </head>
 
 <body>
-  <div class="op_list" id="op_list">OP list</div>
-  </div>
   <div class="wrap">
     <div class="note">
       <div class="note-header">
         <div class="op" id="opCode"></div>
-        <div class="op_status" id="op_status"></div>
         <div class="manchine" id="machinename"></div>
         <div class="operator" id="operatorName"></div>
       </div>
       <div class="title" id="opName"></div>
-      <!-- <div class="muted" id="opDesc"></div> -->
+      <div class="muted" id="opDesc"></div>
     </div>
 
     <div class="action-inputs">
       <div class="action-box" data-type="receive">
-        <div class="action-title">Receive</div>
-        <div class="action-value">
-          <div class="qty-display" id="receiveQty">0</div>
-          <div class="uom" id="receive_uom">Pcs</div>
-        </div>
+        <div class="action-label">Receive</div>
+        <div class="qty-display" id="receiveQty">0</div>
+        <div class="action-label" id="receive_uom">Pcs</div>
       </div>
-
       <div class="action-box" data-type="accept">
-        <div class="action-title">Accept</div>
-        <div class="action-value">
-          <div class="qty-display" id="acceptQty">0</div>
-          <div class="uom" id="accept_uom">Pcs</div>
-        </div>
+        <div class="action-label">Accept</div>
+        <div class="qty-display" id="acceptQty">0</div>
+        <div class="action-label" id="accept_uom">Pcs</div>
       </div>
-
       <div class="action-box" data-type="reject">
-        <div class="action-title">Reject</div>
-        <div class="action-value">
-          <div class="qty-display" id="rejectQty">0</div>
-          <div class="uom" id="reject_uom">Pcs</div>
-        </div>
+        <div class="action-label">Reject</div>
+        <div class="qty-display" id="rejectQty">0</div>
+        <div class="action-label" id="reject_uom">Pcs</div>
       </div>
 
     </div>
@@ -362,8 +339,8 @@
     </div>
 
     <button class="confirm-btn" id="btnConfirm">Confirm</button>
-    <!-- <button class="prev-btn" id="btnConfirm">Prev</button>
-    <button class="next-btn" id="btnConfirm">Next</button> -->
+     <button class="prev-btn" id="btnConfirm">Prev</button>
+      <button class="next-btn" id="btnConfirm">Next</button>
   </div>
 
   <!-- Keypad -->
@@ -380,35 +357,36 @@
     </div>
 
     <div class="pad-container">
-      <!-- ✅ Number pad on LEFT -->
-      <div class="pad">
-        <button class="key">7</button>
-        <button class="key">8</button>
-        <button class="key">9</button>
-        <button class="key">4</button>
-        <button class="key">5</button>
-        <button class="key">6</button>
-        <button class="key">1</button>
-        <button class="key">2</button>
-        <button class="key">3</button>
-        <button class="key">0</button>
-        <button class="key-wide">Clear</button>
-      </div>
-
-      <!-- ✅ Unit selector on RIGHT -->
-      <div class="unit-select">
-        <button class="unit-btn" data-uom="pcs">PCS</button>
-        <button class="unit-btn" data-uom="inch">INCH</button>
-        <button class="unit-btn" data-uom="mm">MM</button>
-      </div>
-    </div>
-
-    <div class="pad-footer">
-      <button class="ok-btn">OK</button>
-      <button class="close-btn">Close</button>
-    </div>
+  <!-- ✅ Number pad on LEFT -->
+  <div class="pad">
+    <button class="key">7</button>
+    <button class="key">8</button>
+    <button class="key">9</button>
+    <button class="key">4</button>
+    <button class="key">5</button>
+    <button class="key">6</button>
+    <button class="key">1</button>
+    <button class="key">2</button>
+    <button class="key">3</button>
+    <button class="key">0</button>
+    <button class="key-wide">Clear</button>
   </div>
 
+  <!-- ✅ Unit selector on RIGHT -->
+  <div class="unit-select">
+    <button class="unit-btn" data-uom="pcs">PCS</button>
+    <button class="unit-btn" data-uom="inch">INCH</button>
+    <button class="unit-btn" data-uom="mm">MM</button>
+  </div>
+</div>
+
+<div class="pad-footer">
+  <button class="ok-btn">OK</button>
+  <button class="close-btn">Close</button>
+</div>
+  </div>
+
+  <input type="text" id="scannerInput" oninput="handleInput()" autofocus />
   <script type="module" src="/static/ui-traveler.js"></script>
   </script>
 

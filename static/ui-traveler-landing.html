@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>QR Scan</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <style>
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #f8fafc;
+            margin: 0;
+            padding: 0;
+        }
+
+        .container {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        h1 {
+            margin-bottom: 10px;
+            font-size: 28px;
+            font-weight: 800;
+        }
+
+        p {
+            margin-bottom: 24px;
+            color: #64748b;
+            font-size: 16px;
+        }
+
+        input {
+            width: 100%;
+            max-width: 420px;
+            font-size: 26px;
+            padding: 16px 18px;
+            border-radius: 12px;
+            border: 2px solid #cbd5f5;
+            outline: none;
+            text-align: center;
+        }
+
+        input:focus {
+            border-color: #2563eb;
+            box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.15);
+        }
+
+        .result {
+            margin-top: 20px;
+            font-size: 20px;
+            font-weight: 700;
+            color: #16a34a;
+            word-break: break-all;
+        }
+
+        .hint {
+            margin-top: 12px;
+            font-size: 14px;
+            color: #94a3b8;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>Production Process</h1>
+        <p>Enter manually (Go) or scan QR</p>
+
+        <!-- Manual -->
+        <div style="display:flex; gap:10px; align-items:center; margin-bottom:12px;">
+            <input id="manualInput" type="text" placeholder="Enter manually..."
+                style="flex:1; padding:10px; font-size:16px;" />
+            <button id="btnGo" style="padding:10px 16px; font-size:16px; cursor:pointer;">
+                Go
+            </button>
+        </div>
+
+        <!-- Scanner (CSS-hidden but focusable) -->
+        <input id="scanInput" type="text" placeholder="Scan QR..." autocomplete="off" inputmode="none"
+            style="position:absolute; left:-9999px; opacity:0;" />
+
+        <div id="result" class="result"></div>
+        <div class="hint">Ready</div>
+    </div>
+
+    <!-- PIN PAD MODAL -->
+    <div id="pinOverlay" style="
+  display:none;
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,0.55);
+  z-index:9999;
+  align-items:center;
+  justify-content:center;
+">
+
+        <div style="
+    background:#fff;
+    width:320px;
+    border-radius:14px;
+    padding:20px;
+    text-align:center;
+  ">
+
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <h3 style="margin:0;">Enter PIN</h3>
+                <button id="pinClose" style="font-size:20px;">✕</button>
+            </div>
+
+            <div id="pinDisplay" style="
+      margin:16px 0;
+      font-size:32px;
+      letter-spacing:10px;
+      font-weight:800;
+    ">----</div>
+
+            <div id="pinKeys" style="
+      display:grid;
+      grid-template-columns:repeat(3, 1fr);
+      gap:10px;
+    ">
+                <!-- numbers injected by JS -->
+            </div>
+
+            <button id="pinClear" style="
+      margin-top:12px;
+      width:100%;
+      padding:10px;
+      font-size:16px;
+    ">Clear</button>
+
+        </div>
+    </div>
+    <script type="module" src="/static/ui-traveler-landing.js"></script>
+
+</body>
+
+</html>

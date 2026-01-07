@@ -130,6 +130,8 @@ def get_traveler(traveler_id: int, db: Session = Depends(get_db)):
         raise HTTPException(404, "Traveler not found")
     return to_row_out(t)
 
+
+
 # ---------- UPDATE ----------
 @router.put("/{traveler_id}", response_model=ShopTravelerRowOut)
 def update_traveler(traveler_id: int, payload: ShopTravelerUpdate, db: Session = Depends(get_db)):
@@ -260,13 +262,19 @@ def record_step(traveler_id: int, payload: dict, db: Session = Depends(get_db)):
     return {"message": "✅ Step completed successfully"}
 
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import joinedload
+from fastapi import Depends, HTTPException
+from sqlalchemy.orm import Session
+
+
+
 @router.get("/by_no/{traveler_no}")
-def get_traveler_by_no(traveler_no: str, db: Session = Depends(get_db)):
+def get_traveler_by_no(traveler_no: str, seq: int | None = Query(None), db: Session = Depends(get_db)):
     """
     ดึงข้อมูล Traveler ตามหมายเลข traveler_no
     พร้อม steps ทั้งหมด และ step ปัจจุบัน (active)
     """
-    print("str",traveler_no)
+    print("str",traveler_no, seq)
     traveler = (
         db.query(ShopTraveler)
         .options(
@@ -278,16 +286,40 @@ def get_traveler_by_no(traveler_no: str, db: Session = Depends(get_db)):
 
     if not traveler:
         raise HTTPException(status_code=404, detail="Traveler not found")
+    
+    # ---------- หา step ----------
+    if seq is not None:
+        # ✅ CASE: client ระบุ seq
+        print("Seq provided:", seq)
+        step = (
+            db.query(ShopTravelerStep)
+            .filter(ShopTravelerStep.traveler_id == traveler.id)
+            .filter(ShopTravelerStep.seq == seq)
+            .first()
+        )
 
-    # ✅ หา step ปัจจุบัน (ตัวแรกที่ยังไม่ผ่าน)
-    active_step = (
-        db.query(ShopTravelerStep)
-        .filter(ShopTravelerStep.traveler_id == traveler.id)
-        .filter(ShopTravelerStep.status.notin_(["passed", "failed", "skipped"]))
-        .order_by(ShopTravelerStep.seq)
-        .first()
-    )
-
+        if not step:
+            print("Step not found for seq:", seq)
+            step = (
+                db.query(ShopTravelerStep)
+                .filter(ShopTravelerStep.traveler_id == traveler.id)
+                .filter(ShopTravelerStep.status.notin_(["passed", "failed", "skipped"]))
+                .order_by(ShopTravelerStep.seq)
+                .first()
+            )
+    else:
+        print("No seq provided, finding active step")
+        # ✅ CASE: default -> active step
+        step = (
+            db.query(ShopTravelerStep)
+            .filter(ShopTravelerStep.traveler_id == traveler.id)
+            .filter(ShopTravelerStep.status.notin_(["passed", "failed", "skipped"]))
+            .order_by(ShopTravelerStep.seq)
+            .first()
+        )
+    active_step = step
+    print("Step selected:", step)
+   
     return {
         "id": traveler.id,
         "traveler_no": traveler.traveler_no,
@@ -316,6 +348,7 @@ def get_traveler_by_no(traveler_no: str, db: Session = Depends(get_db)):
                 "qty_receive": s.qty_receive,
                 "qty_accept": s.qty_accept,
                 "qty_reject": s.qty_reject,
+                "machine": s.machine_id,
                 "operator": {
                     "id": s.operator.id if s.operator else None,
                     "emp_code": s.operator.emp_code if s.operator else None,
@@ -324,16 +357,21 @@ def get_traveler_by_no(traveler_no: str, db: Session = Depends(get_db)):
             for s in sorted(traveler.steps, key=lambda x: x.seq or 0)
         ],
     }
-@router.get("/by_no/{traveler_no}")
-def get_traveler_by_no(traveler_no: str, db: Session = Depends(get_db)):
+
+
+@router.get("/by-no/{traveler_no}/steps")
+def get_traveler_steps_by_no(
+    traveler_no: str,
+    db: Session = Depends(get_db)
+):
     """
-    ดึงข้อมูล Traveler ตามหมายเลข traveler_no
-    พร้อม steps ทั้งหมด และ step ปัจจุบัน (active)
+    ดึง Traveler ตาม traveler_no พร้อม steps ทั้งหมด
     """
     traveler = (
         db.query(ShopTraveler)
         .options(
-            joinedload(ShopTraveler.steps).joinedload(ShopTravelerStep.operator)
+            joinedload(ShopTraveler.steps)
+            .joinedload(ShopTravelerStep.operator)
         )
         .filter(ShopTraveler.traveler_no == traveler_no)
         .first()
@@ -342,43 +380,20 @@ def get_traveler_by_no(traveler_no: str, db: Session = Depends(get_db)):
     if not traveler:
         raise HTTPException(status_code=404, detail="Traveler not found")
 
-    # ✅ หา step ปัจจุบัน (ยังไม่ผ่าน)
-    active_step = (
-        db.query(ShopTravelerStep)
-        .filter(ShopTravelerStep.traveler_id == traveler.id)
-        .filter(ShopTravelerStep.status.notin_(["passed", "failed", "skipped"]))
-        .order_by(ShopTravelerStep.seq)
-        .first()
-    )
-
-    def fmt_station(s):
-        """สร้างชื่อ station เช่น OP#10 ถ้า station ว่าง"""
-        return s.station or f"OP#{s.seq}" if s else None
-
     return {
-        "id": traveler.id,
+        "traveler_id": traveler.id,
         "traveler_no": traveler.traveler_no,
         "lot_id": traveler.lot_id,
         "status": traveler.status,
-        "notes": traveler.notes,
-        "active_step": {
-            "id": active_step.id if active_step else None,
-            "seq": active_step.seq if active_step else None,
-            "station": fmt_station(active_step),
-            "step_name": active_step.step_name if active_step else None,
-            "step_note": active_step.step_note if active_step else None,
-            "operator_name": (
-                active_step.operator.emp_code if active_step and active_step.operator else None
-            ),
-            "status": active_step.status if active_step else None,
-        } if active_step else None,
         "steps": [
             {
                 "id": s.id,
                 "seq": s.seq,
-                "station": fmt_station(s),
+                "station": s.station,
                 "step_name": s.step_name,
+                "step_note": s.step_note,
                 "status": s.status,
+                "uom": s.uom,
                 "qty_receive": s.qty_receive,
                 "qty_accept": s.qty_accept,
                 "qty_reject": s.qty_reject,
@@ -390,7 +405,72 @@ def get_traveler_by_no(traveler_no: str, db: Session = Depends(get_db)):
             for s in sorted(traveler.steps, key=lambda x: x.seq or 0)
         ],
     }
+# @router.get("/by_no/{traveler_no}")
+# def get_traveler_by_no(traveler_no: str, db: Session = Depends(get_db)):
+#     """
+#     ดึงข้อมูล Traveler ตามหมายเลข traveler_no
+#     พร้อม steps ทั้งหมด และ step ปัจจุบัน (active)
+#     """
+#     traveler = (
+#         db.query(ShopTraveler)
+#         .options(
+#             joinedload(ShopTraveler.steps).joinedload(ShopTravelerStep.operator)
+#         )
+#         .filter(ShopTraveler.traveler_no == traveler_no)
+#         .first()
+#     )
 
+#     if not traveler:
+#         raise HTTPException(status_code=404, detail="Traveler not found")
+
+#     # ✅ หา step ปัจจุบัน (ยังไม่ผ่าน)
+#     active_step = (
+#         db.query(ShopTravelerStep)
+#         .filter(ShopTravelerStep.traveler_id == traveler.id)
+#         .filter(ShopTravelerStep.status.notin_(["passed", "failed", "skipped"]))
+#         .order_by(ShopTravelerStep.seq)
+#         .first()
+#     )
+
+#     def fmt_station(s):
+#         """สร้างชื่อ station เช่น OP#10 ถ้า station ว่าง"""
+#         return s.station or f"OP#{s.seq}" if s else None
+
+#     return {
+#         "id": traveler.id,
+#         "traveler_no": traveler.traveler_no,
+#         "lot_id": traveler.lot_id,
+#         "status": traveler.status,
+#         "notes": traveler.notes,
+#         "active_step": {
+#             "id": active_step.id if active_step else None,
+#             "seq": active_step.seq if active_step else None,
+#             "station": fmt_station(active_step),
+#             "step_name": active_step.step_name if active_step else None,
+#             "step_note": active_step.step_note if active_step else None,
+#             "operator_name": (
+#                 active_step.operator.emp_code if active_step and active_step.operator else None
+#             ),
+#             "status": active_step.status if active_step else None,
+#         } if active_step else None,
+#         "steps": [
+#             {
+#                 "id": s.id,
+#                 "seq": s.seq,
+#                 "station": fmt_station(s),
+#                 "step_name": s.step_name,
+#                 "status": s.status,
+#                 "qty_receive": s.qty_receive,
+#                 "qty_accept": s.qty_accept,
+#                 "qty_reject": s.qty_reject,
+#                 "operator": {
+#                     "id": s.operator.id if s.operator else None,
+#                     "emp_code": s.operator.emp_code if s.operator else None,
+#                 },
+#             }
+#             for s in sorted(traveler.steps, key=lambda x: x.seq or 0)
+#         ],
+#     }
 
 @router.post("/by_no/{traveler_no}/record")
 def record_traveler_operation(

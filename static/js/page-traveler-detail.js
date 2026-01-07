@@ -64,9 +64,8 @@ async function searchLots(term) {
 
 async function searchEmployees(term) {
   const q = (term || "").trim();
-  const url = `/employees/keyset?limit=10${
-    q ? `&q=${encodeURIComponent(q)}` : ""
-  }`;
+  const url = `/employees/keyset?limit=10${q ? `&q=${encodeURIComponent(q)}` : ""
+    }`;
   try {
     const res = await jfetch(url);
     const items = Array.isArray(res) ? res : res.items || [];
@@ -126,9 +125,11 @@ function ensureHeaderButtons() {
 
   wrap.append(btnHdrSave, btnHdrCancel, btnGetQR);
 
+
   // ✅ ใช้วิธี append หลัง h2 โดยตรงแทน
   const titleRow = sub.parentElement;
   titleRow.appendChild(wrap);
+
 
   console.log("✅ Header buttons added");
 }
@@ -304,10 +305,10 @@ function statusBadge(s) {
     st === "running" || st === "in_progress"
       ? "blue"
       : st === "passed"
-      ? "green"
-      : st === "failed"
-      ? "red"
-      : "gray";
+        ? "green"
+        : st === "failed"
+          ? "red"
+          : "gray";
   const label =
     {
       running: "Running",
@@ -404,7 +405,7 @@ function autosaveStepRow(row, { immediate = false } = {}) {
         setTimeout(() => {
           try {
             stepsTable.redraw(true);
-          } catch {}
+          } catch { }
         }, 0);
       });
     return;
@@ -440,14 +441,14 @@ function autosaveStepRow(row, { immediate = false } = {}) {
             (x) => Number(x.id) === Number(dd.id)
           );
           if (found) row.update(normalizeStep(found));
-        } catch {}
+        } catch { }
         toast(e?.message || "Save failed", false);
       })
       .finally(() =>
         setTimeout(() => {
           try {
             stepsTable.redraw(true);
-          } catch {}
+          } catch { }
         }, 0)
       );
   };
@@ -612,7 +613,7 @@ function initStepsTable() {
     if (!ready || !holder.offsetWidth) return;
     try {
       stepsTable.redraw(true);
-    } catch {}
+    } catch { }
   };
 
   stepsTable = new Tabulator(holder, {
@@ -622,6 +623,34 @@ function initStepsTable() {
     reactiveData: true,
     index: "id",
     columns: [
+      {
+        title: "APP",
+        width: 80,
+        hozAlign: "center",
+        headerSort: false,
+
+        formatter: (cell) => {
+          const row = cell.getRow().getData();
+          const seq = row.seq;
+
+          const travelerNo = originalTraveler?.traveler_no || travelerId;
+          if (!travelerNo || seq == null) return "";
+
+          const baseUrl = `${location.protocol}//${location.host}`;
+          const url =
+            `${baseUrl}/static/ui-traveler.html` +
+            `?traveler_no=${encodeURIComponent(travelerNo)}` +
+            `&seq=${encodeURIComponent(seq)}`;
+
+          return `
+                <a href="${url}" target="_blank" rel="noopener"
+                  style="text-decoration:none;font-weight:600;">
+                  ${seq}
+                </a>
+              `;
+        },
+      },
+
       {
         title: "#OP",
         field: "seq",
@@ -845,7 +874,7 @@ async function downloadDrawingBatch() {
       toast("Download failed");
       return;
     }
-    console.log(res); 
+    console.log(res);
     const blob = await res.blob();
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
@@ -973,8 +1002,8 @@ function printTravelerQR(travelerNo, qrLink) {
     <body style="text-align:center; font-family:sans-serif;">
       <h2>Traveler ${travelerNo}</h2>
       <img src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(
-        qrLink
-      )}" alt="QR">
+    qrLink
+  )}" alt="QR">
       <p style="margin-top:10px;font-size:14px;">${qrLink}</p>
       <script>window.onload = () => { window.print(); }</script>
     </body></html>
@@ -1037,7 +1066,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   ensureHeaderButtons();
   wireHeaderDirtyOnly();
   initHeaderAutocomplete();
- // ---> Add Drawing diagram batch download
+  // ---> Add Drawing diagram batch download
   $("btnDrawing").addEventListener("click", downloadDrawingBatch);
   $("btnTraveler").addEventListener("click", downloadTravelerBatch);
   $("btnInspection").addEventListener("click", downloadInspectionBatch);
@@ -1068,5 +1097,5 @@ document.addEventListener("DOMContentLoaded", async () => {
   initStepsTable();
   await loadTraveler();
   await reloadSteps();
-   makeLotLinks(lotId);
+  makeLotLinks(lotId);
 });

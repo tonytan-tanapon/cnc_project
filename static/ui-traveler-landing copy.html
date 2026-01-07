@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Time Clock</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<style>
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
+    background: #f3f4f6;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+  }
+
+  .panel {
+    background: #fff;
+    width: 360px;
+    padding: 20px;
+    border-radius: 14px;
+    box-shadow: 0 10px 30px rgba(0,0,0,.1);
+    text-align: center;
+  }
+
+  h1 { margin: 0 0 10px; }
+
+  input {
+    width: 100%;
+    padding: 14px;
+    font-size: 18px;
+    margin-top: 12px;
+    border-radius: 10px;
+    border: 2px solid #e5e7eb;
+  }
+
+  button {
+    width: 100%;
+    margin-top: 12px;
+    padding: 14px;
+    font-size: 18px;
+    border-radius: 10px;
+    border: none;
+    background: #2563eb;
+    color: white;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  /* PIN MODAL */
+  .modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.4);
+    display: none;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .modal.active {
+    display: flex;
+  }
+
+  .pin-box {
+    background: #fff;
+    padding: 20px;
+    width: 320px;
+    border-radius: 14px;
+    text-align: center;
+  }
+
+  .dots {
+    display: flex;
+    justify-content: center;
+    gap: 14px;
+    margin: 14px 0;
+  }
+
+  .dot {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 2px solid #111;
+  }
+
+  .dot.filled {
+    background: #111;
+  }
+
+  .keypad {
+    display: grid;
+  
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+  }
+
+  .key {
+    padding: 16px 0;
+    font-size: 20px;
+    font-weight: 700;
+    border-radius: 10px;
+    border: 2px solid #e5e7eb;
+    background: #fff;
+  }
+
+  .msg {
+    min-height: 20px;
+    font-weight: 700;
+    margin-top: 10px;
+    color: #dc2626;
+  }
+</style>
+</head>
+
+<body>
+
+<div class="panel">
+  <h1>Time Clock</h1>
+  <p>Scan badge or enter ID</p>
+
+  <!-- MANUAL -->
+  <input id="manualInput" placeholder="Enter Employee ID">
+
+  <button id="goBtn">Go</button>
+
+  <!-- HIDDEN SCAN INPUT -->
+  <input id="scanInput" autofocus style="opacity:0;height:0;">
+</div>
+
+<!-- PIN MODAL -->
+<div id="pinModal" class="modal">
+  <div class="pin-box">
+    <h2>Enter PIN</h2>
+
+    <div id="dots" class="dots"></div>
+
+    <div class="keypad" id="pinPad"></div>
+
+    <div id="pinMsg" class="msg"></div>
+  </div>
+</div>
+
+<script>
+/* =========================
+   STATE
+========================= */
+let employeeId = null;
+let pin = "";
+
+/* =========================
+   ELEMENTS
+========================= */
+const scanInput = document.getElementById("scanInput");
+const manualInput = document.getElementById("manualInput");
+const pinModal = document.getElementById("pinModal");
+const dotsEl = document.getElementById("dots");
+const pinMsg = document.getElementById("pinMsg");
+const pinPad = document.getElementById("pinPad");
+
+/* =========================
+   SCAN HANDLER
+========================= */
+scanInput.addEventListener("input", () => {
+  const v = scanInput.value.trim();
+  if (v) {
+    startPinFlow(v);
+    scanInput.value = "";
+  }
+});
+
+/* =========================
+   MANUAL GO
+========================= */
+document.getElementById("goBtn").onclick = () => {
+  const v = manualInput.value.trim();
+  if (!v) return;
+  startPinFlow(v);
+};
+
+/* =========================
+   START PIN FLOW
+========================= */
+function startPinFlow(id) {
+  employeeId = id;
+  pin = "";
+  pinMsg.textContent = "";
+  renderDots();
+  openPin();
+}
+
+/* =========================
+   PIN UI
+========================= */
+function openPin() {
+  pinModal.classList.add("active");
+}
+
+function closePin() {
+  pinModal.classList.remove("active");
+}
+
+/* =========================
+   RENDER DOTS
+========================= */
+function renderDots() {
+  dotsEl.innerHTML = "";
+  for (let i = 0; i < 4; i++) {
+    const d = document.createElement("div");
+    d.className = "dot" + (i < pin.length ? " filled" : "");
+    dotsEl.appendChild(d);
+  }
+}
+
+/* =========================
+   PIN KEYPAD
+========================= */
+const keys = ["1","2","3","4","5","6","7","8","9","⌫","0","Clear"];
+
+keys.forEach(k => {
+  const b = document.createElement("button");
+  b.className = "key";
+  b.textContent = k;
+  b.onclick = () => pressKey(k);
+  pinPad.appendChild(b);
+});
+
+function pressKey(k) {
+  pinMsg.textContent = "";
+
+  if (!isNaN(k)) {
+    if (pin.length < 4) pin += k;
+  } else if (k === "⌫") {
+    pin = pin.slice(0, -1);
+  } else {
+    pin = "";
+  }
+
+  renderDots();
+
+  if (pin.length === 4) verifyPin();
+}
+
+/* =========================
+   VERIFY WITH DATABASE
+========================= */
+async function verifyPin() {
+  try {
+    const ok = await checkWithDatabase(employeeId, pin);
+
+    if (!ok) {
+      pinMsg.textContent = "Invalid PIN";
+      pin = "";
+      renderDots();
+      return;
+    }
+
+    closePin();
+    alert("✅ VERIFIED — DO ACTION (Clock In / Next Page)");
+
+  } catch {
+    pinMsg.textContent = "System error";
+  }
+}
+
+/* =========================
+   REAL BACKEND CALL (replace)
+========================= */
+async function checkWithDatabase(id, pin) {
+  // 🔴 REPLACE THIS with REAL API
+  // Example:
+  // return fetch(`/api/check-pin`, { method:"POST", body: JSON.stringify({id, pin}) })
+
+  await new Promise(r => setTimeout(r, 300));
+
+  // DEMO RULE:
+  return id === "1001" && pin === "1234";
+}
+
+/* =========================
+   KEEP SCAN INPUT FOCUSED
+========================= */
+setInterval(() => {
+  scanInput.focus();
+}, 500);
+</script>
+
+</body>
+</html>

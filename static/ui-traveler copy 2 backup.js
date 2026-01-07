@@ -2,17 +2,12 @@
 import { jfetch, toast } from "/static/js/api.js";
 
 let firstLoad = true;
+const travelerNo = new URLSearchParams(location.search).get("traveler_no");
 let activeTarget = null;
 let activeType = null;
 let currentUOM = "pcs";
 let originalValue = null;
 let manualRejectEdit = false; // tracks if user manually edits reject
-
-
-const travelerNo = new URLSearchParams(location.search).get("traveler_no");
-const travelerStep = new URLSearchParams(location.search).get("traveler_step");
-const travelerEmp = new URLSearchParams(location.search).get("traveler_emp");
-console.log("Traveler No:", travelerNo, travelerStep, travelerEmp);
 
 /* ===== KEYPAD CONTROL ===== */
 function showKeypad(target, type) {
@@ -28,26 +23,26 @@ function showKeypad(target, type) {
   activeType = type;
 
 
-  // ✅ Update visible label at top of keypad
+ // ✅ Update visible label at top of keypad
   const labelEl = document.querySelector("#keypadTypeLabel");
   if (labelEl) {
-    labelEl.textContent =
-      type === "receive"
-        ? "Receive"
-        : type === "accept"
-          ? "Accept"
-          : type === "reject"
-            ? "Reject"
-            : "";
-    labelEl.style.color =
-      type === "receive"
-        ? "#2563eb"
-        : type === "accept"
-          ? "#16a34a"
-          : type === "reject"
-            ? "#dc2626"
-            : "#111";
-  }
+  labelEl.textContent =
+    type === "receive"
+      ? "Receive"
+      : type === "accept"
+      ? "Accept"
+      : type === "reject"
+      ? "Reject"
+      : "";
+  labelEl.style.color =
+    type === "receive"
+      ? "#2563eb"
+      : type === "accept"
+      ? "#16a34a"
+      : type === "reject"
+      ? "#dc2626"
+      : "#111";
+}
 
 
   document.querySelector("#keypad").style.display = "flex";
@@ -97,7 +92,7 @@ function hideKeypad(cancel = false) {
     updateDisplay(originalValue);
   }
 
-
+ 
 
   activeTarget = null;
   activeType = null;
@@ -150,24 +145,31 @@ function toastCenter(message, success = true, duration = 1500) {
     setTimeout(() => div.remove(), 300);
   }, duration);
 }
-
 document.addEventListener("DOMContentLoaded", () => {
-
-
-  // ===== UNIT SELECTION =====
-  document.querySelectorAll(".unit-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      document.querySelectorAll(".unit-btn").forEach((b) => b.classList.remove("active"));
-      btn.classList.add("active");
-      currentUOM = btn.dataset.uom;
-      document.querySelector("#uomLabel").textContent = `${currentUOM}`;
-      // toastCenter(`📏 Unit set to ${currentUOM}`, true);
-    });
+// ===== UNIT SELECTION =====
+document.querySelectorAll(".unit-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".unit-btn").forEach((b) => b.classList.remove("active"));
+    btn.classList.add("active");
+    currentUOM = btn.dataset.uom;
+    document.querySelector("#uomLabel").textContent = `${currentUOM}`;
+    // toastCenter(`📏 Unit set to ${currentUOM}`, true);
   });
+});
 
-  // ✅ Default to PCS
-  document.querySelector('.unit-btn[data-uom="pcs"]').classList.add("active");
+// ✅ Default to PCS
+document.querySelector('.unit-btn[data-uom="pcs"]').classList.add("active");
 
+  /// ===== AUTO-FOCUS SCANNER INPUT =====
+  document.addEventListener("click", (e) => {
+  const scannerInput = document.getElementById("scannerInput");
+  if (!scannerInput) return;
+
+  // only refocus if click is NOT inside an input, textarea, or keypad
+  if (!e.target.closest("input, textarea, #keypad")) {
+    scannerInput.focus({ preventScroll: true });
+  }
+});
 
   // ✅ Only show custom keypad (no keyboard)
   document.querySelectorAll(".action-box").forEach((box) => {
@@ -259,13 +261,8 @@ document.addEventListener("DOMContentLoaded", () => {
     console.log("🔢 Sending payload:", payload);
 
     try {
-      const travelerStep = new URLSearchParams(location.search).get("seq");
-      const qs = travelerStep !== null ? `?seq=${encodeURIComponent(travelerStep)}` : "";
-      const data = await jfetch(`/api/v1/travelers/by_no/${travelerNo}${qs}`);
-
-
-      const stepId = data?.active_step?.id;
-      console.log("Active step ID:", stepId);
+      const travelerData = await jfetch(`/api/v1/travelers/by_no/${travelerNo}`);
+      const stepId = travelerData?.active_step?.id;
       if (!stepId) {
         toastCenter("No active step found", false);
         return;
@@ -298,45 +295,20 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    const operator_code = new URLSearchParams(location.search).get("traveler_emp");
+    const payload = { qty_receive, qty_accept, qty_reject, remark };
 
-    console.log("✅ CONFIRM clicked", qty_receive, qty_accept, qty_reject, remark, operator_code, op_status);
-    const payload = {
-      qty_receive,
-      qty_accept,
-      qty_reject,
-      remark,
-      status: "passed",        // ✅ ตรง backend
-      operator_code,
-    };
-    console.log("✅ CONFIRM payload:", payload);
-    // Save ST step
     try {
-      const travelerStep = new URLSearchParams(location.search).get("seq");
-      const qs = travelerStep !== null ? `?seq=${encodeURIComponent(travelerStep)}` : "";
-      const data = await jfetch(`/api/v1/travelers/by_no/${travelerNo}${qs}`);
-
-
-      const stepId = data?.active_step?.id;
-      console.log("Active step ID:", stepId);
-      if (!stepId) {
-        toastCenter("No active step found", false);
-        return;
-      }
-      await jfetch(`/api/v1/travelers/traveler_steps/${stepId}`, {
-        method: "PATCH",
+      const resp = await jfetch(`/api/v1/travelers/by_no/${travelerNo}/record`, {
+        method: "POST",
         body: JSON.stringify(payload),
       });
-
-      toastCenter(`💾 Updated ${activeType} = ${currentUOM}`, true);
-      setTimeout(loadOperation, 600);
-      hideKeypad();
+      console.log("✅ CONFIRM record:", resp);
+      toast("✅ Step marked as PASSED");
+      await loadOperation();
     } catch (err) {
-      console.error("❌ PATCH error", err);
-      toastCenter(err.message || "Auto-update failed", false);
+      console.error("❌ CONFIRM error", err);
+      toast(err.message || "Save failed", false);
     }
-
-
   });
 
   // Load first data
@@ -354,13 +326,8 @@ document.querySelector("#remarkInput").addEventListener("input", () => {
     if (!remark) return;
 
     try {
-      const travelerStep = new URLSearchParams(location.search).get("seq");
-      const qs = travelerStep !== null ? `?seq=${encodeURIComponent(travelerStep)}` : "";
-      const data = await jfetch(`/api/v1/travelers/by_no/${travelerNo}${qs}`);
-
-
-      const stepId = data?.active_step?.id;
-      console.log("Active step ID for remark save:", stepId);
+      const travelerData = await jfetch(`/api/v1/travelers/by_no/${travelerNo}`);
+      const stepId = travelerData?.active_step?.id;
       if (!stepId) {
         toast("No active step found", false);
         return;
@@ -382,16 +349,11 @@ document.querySelector("#remarkInput").addEventListener("input", () => {
 /* ===== LOAD CURRENT STEP ===== */
 async function loadOperation() {
   try {
-    const travelerStep = new URLSearchParams(location.search).get("seq");
-    const qs = travelerStep !== null ? `?seq=${encodeURIComponent(travelerStep)}` : "";
-    const data = await jfetch(`/api/v1/travelers/by_no/${travelerNo}${qs}`);
-    console.log("Loaded traveler data:", data);
-
-
+    const data = await jfetch(`/api/v1/travelers/by_no/${travelerNo}`);
+    console.log("travelerData", data);
     if (!data) return;
 
     let step = data.active_step || {};
-    console.log("Active step:", data.steps);
     if (data.steps && step.id) {
       const full = data.steps.find((s) => s.id === step.id);
       if (full) step = { ...step, ...full };
@@ -400,37 +362,11 @@ async function loadOperation() {
     currentUOM = step.uom || "pcs";
     const opText = step.operator_emp_code || step.operator_name || "—";
     const opLabel = step.seq ? `OP#${step.seq}` : "-";
-    const op_status = step.status || "Pending";
-    const machine = step.machine_id || "—";
-
-    const step_list = data.steps || [];
-    const opListEl = document.querySelector("#op_list");
-
-    opListEl.innerHTML = ""; // clear ก่อน
-
-    step_list.forEach(step => {
-      const a = document.createElement("a");
-
-      a.href = `/static/ui-traveler.html?traveler_no=${encodeURIComponent(data.traveler_no)}&seq=${encodeURIComponent(step.seq)}&traveler_emp=${encodeURIComponent(travelerEmp)}`;
-      a.textContent = `#${step.seq}`;
-      a.style.marginRight = "8px";
-      a.style.fontWeight = "600";
-      a.style.textDecoration = "none";
-      a.style.color = "#2563eb";
-
-      // เปิดแท็บใหม่ (ถ้าต้องการ)
-      // a.target = "_blank";
-
-      opListEl.appendChild(a);
-    });
-
 
     document.querySelector("#opCode").textContent = opLabel;
-    document.querySelector("#op_status").textContent = op_status;
     document.querySelector("#opName").textContent = step.step_name || "-";
-    // document.querySelector("#opDesc").textContent = step.step_note || "";
+    document.querySelector("#opDesc").textContent = step.step_note || "";
     document.querySelector("#operatorName").textContent = "Operator: " + opText;
-    document.querySelector("#machinename").textContent = "Machine: " + machine;
 
     document.querySelector("#receiveQty").textContent = step.qty_receive ?? 0;
     document.querySelector("#acceptQty").textContent = step.qty_accept ?? 0;
@@ -438,6 +374,27 @@ async function loadOperation() {
     document.querySelector("#remarkInput").value =
       step.remark || step.step_note || "";
 
+    if (!data.active_step) {
+      const wrap = document.querySelector(".wrap");
+      wrap.innerHTML = `
+        <div style="
+          display:flex;
+          flex-direction:column;
+          align-items:center;
+          justify-content:center;
+          height:70vh;
+          background:#f9fafb;
+          border-radius:8px;
+          text-align:center;
+        ">
+          <div style="font-size:72px;">🎉</div>
+          <div style="font-size:26px; font-weight:700; margin-top:10px; color:#111;">
+            Traveler <span style="color:#2563eb;">${travelerNo}</span> Completed !!
+          </div>
+        </div>`;
+      toast("🎉 Traveler is fully completed!", true);
+      return;
+    }
   } catch (err) {
     console.error("❌ loadOperation failed", err);
     toast(err.message || "Load failed", false);
@@ -457,7 +414,7 @@ async function handleInput() {
 
     console.log("📥 Scanned:", value);
 
-    // === CASE 1: Machine QR code ===
+     // === CASE 1: Machine QR code ===
     // Example: prefix your QR with "MC:" or detect machine code pattern
     if (value.startsWith("m") || value.startsWith("cnc")) {
       // just show machine code directly, or fetch from API
@@ -477,7 +434,7 @@ async function handleInput() {
       input.focus({ preventScroll: true });
       return; // stop further traveler logic
     }
-    if (value.startsWith("e") || value.startsWith("E")) {
+     if (value.startsWith("e") || value.startsWith("E")) {
       // just show machine code directly, or fetch from API
       document.getElementById("machinename").textContent = value;
       toastCenter(`Employee selected: ${value}`, true);
@@ -495,32 +452,32 @@ async function handleInput() {
       input.focus({ preventScroll: true });
       return; // stop further traveler logic
     }
-    else {
+    else{
 
 
-
-      // === CASE 2: Operator / Traveler scan (existing logic) ===
-      try {
-        const traveler = await jfetch(`/api/v1/travelers/by_no/${travelerNo}`);
-        const activeStep = traveler?.active_step;
-        if (!activeStep || !activeStep.id) {
-          toast("⚠️ No active step found");
-          return;
-        }
-
-        const stepId = activeStep.id;
-        await jfetch(`/api/v1/travelers/traveler_steps/${stepId}`, {
-          method: "PATCH",
-          body: JSON.stringify({ operator_code: value }),
-        });
-
-        toastCenter(`🖥️ Operator selected: ${value}`, true);
-        await loadOperation();
-      } catch (err) {
-        console.error("❌ Operator scan update failed:", err);
-        toastCenter("Failed to update operator", false);
+   
+// === CASE 2: Operator / Traveler scan (existing logic) ===
+    try {
+      const traveler = await jfetch(`/api/v1/travelers/by_no/${travelerNo}`);
+      const activeStep = traveler?.active_step;
+      if (!activeStep || !activeStep.id) {
+        toast("⚠️ No active step found");
+        return;
       }
+
+      const stepId = activeStep.id;
+      await jfetch(`/api/v1/travelers/traveler_steps/${stepId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ operator_code: value }),
+      });
+
+      toastCenter(`🖥️ Operator selected: ${value}`, true);
+      await loadOperation();
+    } catch (err) {
+      console.error("❌ Operator scan update failed:", err);
+      toastCenter("Failed to update operator", false);
     }
+ }
     input.value = "";
     input.focus();
   }, doneTypingInterval);
