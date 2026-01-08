@@ -64,9 +64,8 @@ async function searchLots(term) {
 
 async function searchEmployees(term) {
   const q = (term || "").trim();
-  const url = `/employees/keyset?limit=10${
-    q ? `&q=${encodeURIComponent(q)}` : ""
-  }`;
+  const url = `/employees/keyset?limit=10${q ? `&q=${encodeURIComponent(q)}` : ""
+    }`;
   try {
     const res = await jfetch(url);
     const items = Array.isArray(res) ? res : res.items || [];
@@ -304,10 +303,10 @@ function statusBadge(s) {
     st === "running" || st === "in_progress"
       ? "blue"
       : st === "passed"
-      ? "green"
-      : st === "failed"
-      ? "red"
-      : "gray";
+        ? "green"
+        : st === "failed"
+          ? "red"
+          : "gray";
   const label =
     {
       running: "Running",
@@ -404,7 +403,7 @@ function autosaveStepRow(row, { immediate = false } = {}) {
         setTimeout(() => {
           try {
             stepsTable.redraw(true);
-          } catch {}
+          } catch { }
         }, 0);
       });
     return;
@@ -440,14 +439,14 @@ function autosaveStepRow(row, { immediate = false } = {}) {
             (x) => Number(x.id) === Number(dd.id)
           );
           if (found) row.update(normalizeStep(found));
-        } catch {}
+        } catch { }
         toast(e?.message || "Save failed", false);
       })
       .finally(() =>
         setTimeout(() => {
           try {
             stepsTable.redraw(true);
-          } catch {}
+          } catch { }
         }, 0)
       );
   };
@@ -610,7 +609,7 @@ function initStepsTable() {
     if (!ready || !holder.offsetWidth) return;
     try {
       stepsTable.redraw(true);
-    } catch {}
+    } catch { }
   };
 
   stepsTable = new Tabulator(holder, {
@@ -649,12 +648,19 @@ function initStepsTable() {
       },
 
       {
-        title: "#OP",
+        title: "#Seq",
         field: "seq",
         width: 80,
         hozAlign: "center",
         editor: "number",
         editorParams: { step: 1 },
+      },
+
+      { title: "OP", 
+        field: "step_code", 
+        width: 120, 
+        hozAlign: "center",
+        editor: "input" 
       },
 
       { title: "Step Name", field: "step_name", width: 220, editor: "input" },
@@ -707,7 +713,7 @@ function initStepsTable() {
         },
       },
       { title: "Note", field: "step_note", width: 240, editor: "input" },
-      { title: "Code", field: "step_code", width: 120, editor: "input" },
+      
       {
         title: "Operator",
         field: "operator_id",
@@ -791,25 +797,30 @@ function initStepsTable() {
   const btnAddTemplate = document.getElementById("btnAddTemplate");
 
   btnAddTemplate.addEventListener("click", async () => {
-    // const qs = new URLSearchParams(location.search);
-    // const travelerId = qs.get("id");
-
     if (!travelerId) {
       alert("Traveler ID not found");
       return;
     }
-    console.log("Applying template to traveler ID:", travelerId);
-    const templateId = 1;
+    console.log("Applying template to travelerId:", travelerId);
     try {
+      // // 1️⃣ ขอ template active จาก backend
+      const tmpl = await jfetch(
+        `/api/v1/travelers/traveler-templates/active?traveler_id=${encodeURIComponent(
+          travelerId
+        )}`
+      );
+
+      const templateId = tmpl.id;
+      console.log("Using templateId:", templateId);
+
+      // 2️⃣ apply template
       const res = await fetch(
         `/api/v1/travelers/apply-template/${encodeURIComponent(
           travelerId
         )}?template_id=${encodeURIComponent(templateId)}`,
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
         }
       );
 
@@ -817,13 +828,14 @@ function initStepsTable() {
         throw new Error(await res.text());
       }
 
-      // alert("Template applied successfully");
+      toast("Template applied");
       location.reload();
     } catch (err) {
       console.error(err);
-      // alert("Failed to apply template");
+      toast(err?.message || "Failed to apply template", false);
     }
   });
+
 
   stepsTable.on("cellEdited", (cell) => {
     const row = cell.getRow();
@@ -976,6 +988,74 @@ async function downloadInspectionBatch() {
   }
 }
 
+async function exportTraveler() {
+  console.log("Export traveler", travelerId);
+
+  try {
+    const res = await fetch(
+      `/api/v1/traveler_drawing/export_traveletdoc/${travelerId}`,
+      { method: "POST" }
+    );
+
+    // ❌ backend error
+    if (!res.ok) {
+      let msg = "Export failed";
+      try {
+        const err = await res.json();
+        msg = err.detail || msg;
+      } catch (_) {}
+      alert(msg);
+      return;
+    }
+
+    // ✅ get filename from header (if provided)
+    let filename = `traveler_${travelerId}.docx`;
+    const disposition = res.headers.get("Content-Disposition");
+    if (disposition) {
+      const match = disposition.match(/filename="?([^"]+)"?/);
+      if (match) filename = match[1];
+    }
+
+    // ✅ download blob
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+
+    // cleanup
+    a.remove();
+    URL.revokeObjectURL(url);
+
+    console.log("Export completed:", filename);
+
+  } catch (err) {
+    console.error("Export error", err);
+    alert("Unexpected error while exporting traveler");
+  }
+}
+
+async function exportInspection() {   
+  // const res = await fetch(        
+  //   `/api/v1/traveler_drawing/export_inspection/${travelerId}`, { 
+
+  //     method: "POST",    
+  //   }  
+  // );    
+  // if (!res.ok) {     
+  //   const err = await res.json();    
+  //   alert(err.detail || "File not found");     
+  //   return;   
+  // } 
+  // const blob = await res.blob();   
+  // const a = document.createElement("a");  
+  // a.href = URL.createObjectURL(blob);         
+  // a.download = `export_inspection_${travelerId}.zip`;  
+  // a.click(); 
+} 
 // async function downloadInspection() {
 //   const res = await fetch(`/traveler_drawing/inspection/${travelerId}`, {
 //     method: "POST",
@@ -1036,8 +1116,8 @@ function printTravelerQR(travelerNo, qrLink) {
     <body style="text-align:center; font-family:sans-serif;">
       <h2>Traveler ${travelerNo}</h2>
       <img src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(
-        qrLink
-      )}" alt="QR">
+    qrLink
+  )}" alt="QR">
       <p style="margin-top:10px;font-size:14px;">${qrLink}</p>
       <script>window.onload = () => { window.print(); }</script>
     </body></html>
@@ -1106,6 +1186,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("btnDrawing").addEventListener("click", downloadDrawingBatch);
   $("btnTraveler").addEventListener("click", downloadTravelerBatch);
   $("btnInspection").addEventListener("click", downloadInspectionBatch);
+  $("btnExportTraveler").addEventListener("click", exportTraveler);
+  $("btnExportInspection").addEventListener("click", exportInspection);
   // Add Step (seq +10 เริ่ม 10)
   // $("btnAddStep")?.addEventListener("click", async () => {
   //   if (!travelerId) {

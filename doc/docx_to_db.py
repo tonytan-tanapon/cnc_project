@@ -3,7 +3,26 @@ from pathlib import Path
 import re
 import json
 from zipfile import ZipFile, BadZipFile
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.exc import IntegrityError
+import datetime
+import  sys, os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+# ---------- Import models ----------
+from models import (
+    Customer,
+    Part,
+    PartRevision,
+    TravelerTemplate, TravelerTemplateStep,
+)
+  
+
+DATABASE_URL = "postgresql+psycopg2://postgres:1234@100.88.56.126:5432/mydb"
+
+engine = create_engine(DATABASE_URL, future=True)
+SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
 # -----------------------------
 # Regex patterns
@@ -273,28 +292,217 @@ def parse_docx(path: str) -> dict:
 
     return data
 
+import datetime
+def get_part_and_revision(db, part_no: str, rev: str | None):
+    part = db.query(Part).filter(Part.part_no == part_no).first()
+    if not part:
+        raise ValueError(f"Part not found: {part_no}")
+
+    part_rev = None
+    if rev:
+        part_rev = (
+            db.query(PartRevision)
+            .filter(
+                PartRevision.part_id == part.id,
+                PartRevision.rev == rev,
+            )
+            .first()
+        )
+
+    return part, part_rev
+
+from sqlalchemy import func
+def activate_latest_template(db, part_id: int, part_revision_id: int | None):
+    # หา version ล่าสุด
+    latest_version = (
+        db.query(func.max(TravelerTemplate.version))
+        .filter(
+            TravelerTemplate.part_id == part_id,
+            TravelerTemplate.part_revision_id == part_revision_id,
+        )
+        .scalar()
+    )
+
+    if latest_version is None:
+        return
+
+    # ปิดทั้งหมด
+    db.query(TravelerTemplate)\
+      .filter(
+          TravelerTemplate.part_id == part_id,
+          TravelerTemplate.part_revision_id == part_revision_id,
+      )\
+      .update({TravelerTemplate.is_active: False}, synchronize_session=False)
+
+    # เปิดเฉพาะ version ล่าสุด
+    db.query(TravelerTemplate)\
+      .filter(
+          TravelerTemplate.part_id == part_id,
+          TravelerTemplate.part_revision_id == part_revision_id,
+          TravelerTemplate.version == latest_version,
+      )\
+      .update({TravelerTemplate.is_active: True}, synchronize_session=False)
+def date_to_version(date_str: str) -> int:
+    # "10-06-25" -> 100625
+    return int(date_str.replace("-", ""))
+
+def update_database(result, date_create):
+    import datetime
+    from sqlalchemy import func
+    from sqlalchemy.exc import IntegrityError
+
+    db = SessionLocal()
+    try:
+        part_no = result["lot"].get("part_no", "UNKNOWN")
+        part_rev_code = result["lot"].get("rev")
+
+        version_str = date_create or datetime.datetime.now().strftime("%m-%d-%y")
+        version = version_str.replace("-", "")  # string "081122"
+        
+        # -----------------------------
+        # Resolve part / rev
+        # -----------------------------
+        part, part_rev = get_part_and_revision(db, part_no, part_rev_code)
+
+        # -----------------------------
+        # 🔍 CHECK: part + rev + version exists ?
+        # -----------------------------
+        exists = (
+            db.query(TravelerTemplate.id)
+            .filter(
+                TravelerTemplate.part_id == part.id,
+                TravelerTemplate.part_revision_id == (part_rev.id if part_rev else None),
+                TravelerTemplate.version == version,
+            )
+            .first()
+        )
+
+        if exists:
+            print(
+                f"⏭️ SKIP: Template already exists "
+                f"(part={part_no}, rev={part_rev_code}, version={version_str})"
+            )
+            return  # ✅ EXIT — ไม่ทำอะไรต่อ
+
+        # -----------------------------
+        # Create new template
+        # -----------------------------
+        template = TravelerTemplate(
+            part_id=part.id,
+            part_revision_id=part_rev.id if part_rev else None,
+            template_name=f"{part.part_no} REV {part_rev_code or '-'}",
+            version=version,
+            is_active=True,
+            note=f"Imported from DOCX ({version_str})",
+        )
+        db.add(template)
+        db.flush()
+
+        # -----------------------------
+        # Insert template steps
+        # -----------------------------
+        for step in result.get("steps", []):
+            db.add(
+                TravelerTemplateStep(
+                    template_id=template.id,
+                    seq=int(step["order"]),
+                    step_code=step.get("step_code"),
+                    step_name=step.get("step_name"),
+                    step_detail=step.get("notes"),
+                    station=step.get("step_type"),
+                    qa_required=bool(step.get("qa_required", False)),
+                )
+            )
+
+        # -----------------------------
+        # Activate latest date only
+        # -----------------------------
+        activate_latest_template(
+            db,
+            part_id=part.id,
+            part_revision_id=part_rev.id if part_rev else None,
+        )
+
+        db.commit()
+        print(f"✅ Imported new template: {part_no} REV {part_rev_code} {version_str}")
+
+    except IntegrityError as e:
+        db.rollback()
+        raise RuntimeError(f"DB integrity error: {e}")
+
+    except Exception:
+        db.rollback()
+        raise
+
+    finally:
+        db.close()
+
+    print("✅ Done updating database.")
 
 # -----------------------------
 # CLI runner
 # -----------------------------
+
 if __name__ == "__main__":
     import json
+    import re
     from pathlib import Path
 
-    # path = Path(r"C:\Users\Tanapon\Documents\GitHub\cnc\doc")
-    path =Path(r"C:\Users\TPSERVER\dev\cnc_project\doc")
-    template_path = path / "L16492.docx"
-    
+    path = Path(r"C:\Users\TPSERVER\Desktop\ST convert\st_blank")
 
-    result = parse_docx(template_path)
-    part_no = result["lot"].get("part_no","UNKNOWN")
-    part_rev = result["lot"].get("rev","-")
-    lot_no = result["lot"].get("lot_no","UNKNOWN")  
+    # loop ทุกไฟล์ docx ในโฟลเดอร์
+    for template_path in path.glob("*.docx"):
+        filename = template_path.name
+        print(f"\n📄 Processing: {filename}")
 
-    output_json = path / f"{part_no}_{part_rev}_{lot_no}.json"
+        # -----------------------------
+        # Extract date from filename
+        # -----------------------------
+        stem = template_path.stem
+        m = re.search(r"\d{2}-\d{2}-\d{2}", stem)
+        date_create = m.group(0) if m else None
 
-    with open(output_json, "w", encoding="utf-8") as f:
-        json.dump(result, f, indent=2, ensure_ascii=False)
+        print("📅 Date create:", date_create)
 
-    print(f"✅ Saved parsed data to: {output_json}")
+        try:
+            # -----------------------------
+            # Parse DOCX
+            # -----------------------------
+            result = parse_docx(template_path)
+
+            # -----------------------------
+            # Update database
+            # -----------------------------
+            update_database(result, date_create)
+
+        except Exception as e:
+            print(f"❌ ERROR processing {filename}: {e}")
+
+# if __name__ == "__main__":
+#     import json
+#     from pathlib import Path
+
+#     # path = Path(r"C:\Users\Tanapon\Documents\GitHub\cnc\doc")
+#     path =Path(r"C:\Users\TPSERVER\Desktop\ST convert\st_blank")
+#     filename = "AF6182_5185-49-1_B_5185-49-1_B_Version_B_5185-49-1 B 08-11-22  Version B Blank.docx"
+#     filename = "AF6182_5185-49-1_B_5185-49-1_B_Version__NC_5185-49-1 B Blank 06-27-17 Rev. NC.docx"
+#     # filename = "AF6182_5185-49-1_B_5185-49-1_B_Version__NC_5185-49-1 B Blank 05-11-17 Rev. NC.docx"
+#     filename = "AF6182_5185-49-1_B_5185-49-1_B_Rev_A_Ship from lot  Rev A 11-10-17 Blank.docx"
+#     filename = "AF6182_5185-49-1_B_5185-49-1_B_Rev_A_5185-49-1 B 12-19-17 Version A Blank.docx"
+#     template_path = path / filename
+
+#     stem = Path(filename).stem
+#     # 👉 "L16492 10-06-25 Blank"
+
+#     # ดึง pattern วันที่ MM-DD-YY
+#     m = re.search(r"\d{2}-\d{2}-\d{2}", stem)
+
+#     date_create = m.group(0) if m else None
+#     result = parse_docx(template_path)
+#     part_no = result["lot"].get("part_no","UNKNOWN")
+#     part_rev = result["lot"].get("rev","-")
+#     lot_no = result["lot"].get("lot_no","UNKNOWN")  
+
+#     update_database(result,date_create)
+   
 

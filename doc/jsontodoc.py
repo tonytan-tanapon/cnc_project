@@ -209,8 +209,7 @@ def generate_traveler(template_path, json_path, output_path):
     insert_at = m2_row_idx  + 1
     
     # print("Inserting process steps after row", insert_at, "which is M2", m2_row_idx   )
-    for step in data["steps"]:
-       
+    for step in data["steps"]:       
         if step.get("step_type") != "process":
             continue
 

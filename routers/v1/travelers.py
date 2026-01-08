@@ -92,6 +92,44 @@ def create_traveler(payload: ShopTravelerCreate, db: Session = Depends(get_db)):
     return to_row_out(t)
 
 # ---------- LIST ----------
+
+
+@router.get("/traveler-templates/active")
+def get_active_template(
+    traveler_id: int | None = None,
+    part_id: int | None = None,
+    part_revision_id: int | None = None,
+    db: Session = Depends(get_db),
+):
+    print("Get active template for traveler_id:", traveler_id, "part_id:", part_id, "part_revision_id:", part_revision_id)
+    if traveler_id:
+        traveler = db.get(ShopTraveler, traveler_id)
+        if not traveler:
+            raise HTTPException(404, "Traveler not found")
+
+        lot = traveler.lot
+        part_id = lot.part_id
+        part_revision_id = lot.part_revision_id
+
+    tmpl = (
+        db.query(TravelerTemplate)
+        .filter(
+            TravelerTemplate.part_id == part_id,
+            TravelerTemplate.part_revision_id == part_revision_id,
+            TravelerTemplate.is_active.is_(True),
+        )
+        .first()
+    )
+
+    if not tmpl:
+        raise HTTPException(404, "No active template found")
+
+    return {
+        "id": tmpl.id,
+        "template_name": tmpl.template_name,
+        "version": tmpl.version,
+    }
+
 @router.get("", response_model=List[ShopTravelerRowOut])
 def list_travelers(
     q: Optional[str] = Query(None, description="ค้นหา lot_code / lot_no"),
@@ -601,33 +639,45 @@ def apply_template_to_traveler(
     template_id: int,
     applied_by_id: int | None = None,
 ):
-    traveler = (
-        db.query(ShopTraveler)
-        .filter(ShopTraveler.id == traveler_id)
-        .first()
-    )
-
+    traveler = db.get(ShopTraveler, traveler_id)
     if not traveler:
         raise ValueError("Traveler not found")
 
-    # 🔒 ป้องกัน apply ซ้ำ
-    if traveler.steps:
-        raise ValueError("Traveler already has steps")
+    # 🔒 ป้องกัน replace หลังเริ่มงาน
+    started_steps = (
+        db.query(ShopTravelerStep)
+        .filter(
+            ShopTravelerStep.traveler_id == traveler_id,
+            ShopTravelerStep.status != "pending",
+        )
+        .count()
+    )
+
+    if started_steps > 0:
+        raise ValueError("Cannot replace steps after production started")
 
     template = (
         db.query(TravelerTemplate)
-        .filter(TravelerTemplate.id == template_id)
-        .filter(TravelerTemplate.is_active.is_(True))
+        .filter(
+            TravelerTemplate.id == template_id,
+            TravelerTemplate.is_active.is_(True),
+        )
         .first()
     )
 
     if not template:
         raise ValueError("Template not found or inactive")
 
-    # ตั้ง step แรก
-    traveler.current_step_seq = template.steps[0].seq if template.steps else None
-    traveler.status = "open"
+    # 1️⃣ ลบ step เดิมทั้งหมด
+    (
+        db.query(ShopTravelerStep)
+        .filter(ShopTravelerStep.traveler_id == traveler.id)
+        .delete(synchronize_session=False)
+    )
 
+    db.flush()
+
+    # 2️⃣ ใส่ step ใหม่ทั้งหมด
     for step in template.steps:
         db.add(
             ShopTravelerStep(
@@ -637,13 +687,17 @@ def apply_template_to_traveler(
                 step_name=step.step_name,
                 station=step.station,
                 qa_required=step.qa_required,
-                uom=step.default_uom,
                 status="pending",
             )
         )
 
+    # 3️⃣ reset traveler state
+    traveler.current_step_seq = template.steps[0].seq if template.steps else None
+    traveler.status = "open"
+
     db.commit()
     return traveler
+
 
 @router.post("/apply-template/{traveler_id}")
 def apply_template(
@@ -652,7 +706,7 @@ def apply_template(
     db: Session = Depends(get_db),
     
 ):
-    print("Applied template to traveler:", traveler_id )
+    print("Applied template to traveler:", traveler_id, template_id )
     traveler = apply_template_to_traveler(
         db=db,
         traveler_id=traveler_id,
@@ -662,3 +716,4 @@ def apply_template(
     
     # return {"ok": True, "traveler_id": traveler.id}
     return {"ok": True}
+

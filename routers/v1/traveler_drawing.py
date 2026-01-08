@@ -184,7 +184,7 @@ def build_drawing_batch(traveler_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/traveletdoc/{traveler_id}")
-def build_drawing_batch(traveler_id: int, db: Session = Depends(get_db)):
+def build_traveler_doc_batch(traveler_id: int, db: Session = Depends(get_db)):
 
     print(f"Building drawing batch for traveler {traveler_id}")
     data = get_traveler_full(traveler_id, db)
@@ -384,3 +384,93 @@ def build_inspection_batch(traveler_id: int, db: Session = Depends(get_db)):
         f.write("\r\n".join(bat))
 
     return FileResponse(tmp, filename=filename)
+    
+def build_traveler_data_from_db(traveler: ShopTraveler) -> dict:
+    lot = traveler.lot
+    po = lot.po
+    customer = po.customer if po else None
+
+    return {
+        "lot": {
+            "part_no": lot.part.part_no,
+            "lot_no": lot.lot_no,
+            "po_no": po.po_number if po else "",
+            "due_date": (
+                lot.lot_due_date.strftime("%Y-%m-%d")
+                if lot.lot_due_date else ""
+            ),
+            "planned_qty": lot.planned_qty or 0,
+            "material_detail": lot.note or "",
+        },
+        "traveler": {
+            "traveler_no": traveler.traveler_no,
+            "customer_code": customer.code if customer else "",
+            "status": traveler.status,
+        },
+        "steps": [
+            {
+                "seq": s.seq,
+                "step_code": s.step_code or "",
+                "step_type": s.station or "",   # material / process / inspect
+                "step_name": s.step_name or "",
+                "notes": s.step_detail or "",
+                "qa_required": bool(s.qa_required),
+                "qty_receive": float(s.qty_receive or 0),
+                "qty_accept": float(s.qty_accept or 0),
+                "qty_reject": float(s.qty_reject or 0),
+                "step_note": s.step_note or "",
+                "uom": s.uom or "pcs",
+            }
+            for s in traveler.steps
+        ],
+    }
+
+from services.traveler_docx import generate_traveler_from_db
+
+
+from tempfile import TemporaryDirectory
+from pathlib import Path
+import logging
+
+from pathlib import Path
+from tempfile import NamedTemporaryFile
+from fastapi.responses import FileResponse
+
+@router.post("/export_traveletdoc/{traveler_id}")
+def export_traveletdoc(traveler_id: int, db: Session = Depends(get_db)):
+
+    traveler = db.get(ShopTraveler, traveler_id)
+    if not traveler:
+        raise HTTPException(404, "Traveler not found")
+
+    data = build_traveler_data_from_db(traveler)
+
+    # 🔹 BASE DIR = project root
+    BASE_DIR = Path(__file__).resolve().parents[2]
+
+    # 🔹 TEMPLATE PATH (สำคัญมาก)
+    template_path = BASE_DIR / "templates" / "shop_templete.docx"
+    print("Template path:", template_path)
+
+    if not template_path.exists():
+        raise HTTPException(500, f"Template not found: {template_path}")
+
+    # 🔹 Temp output file
+    tmp_file = NamedTemporaryFile(suffix=".docx", delete=False)
+    tmp_path = Path(tmp_file.name)
+    tmp_file.close()
+
+    # 🔹 Generate DOCX
+    generate_traveler_from_db(
+        template_path=template_path,
+        data=data,
+        output_path=tmp_path,
+    )
+
+    print("Generated file exists:", tmp_path.exists())
+
+    return FileResponse(
+        tmp_path,
+        filename=f"traveler_{traveler.traveler_no}.docx",
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    )

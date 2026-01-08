@@ -616,7 +616,8 @@ class ShopTravelerStep(Base):
 
     seq = Column(Integer, nullable=False)
     step_code = Column(String, nullable=True)
-    step_name = Column(String, nullable=False)
+    step_name = Column(String, nullable=True)
+    step_detail = Column(String, nullable=True)
     station = Column(String, nullable=True)
 
     status = Column(String, nullable=False, default="pending")
@@ -633,6 +634,7 @@ class ShopTravelerStep(Base):
     qty_receive = Column(Numeric(18, 3), nullable=False, default=0)
     qty_accept  = Column(Numeric(18, 3), nullable=False, default=0)
     qty_reject  = Column(Numeric(18, 3), nullable=False, default=0)
+    qty_rework  = Column(Numeric(18, 3), nullable=True, default=0)
 
     # 👇 ใหม่
     step_note = Column(Text, nullable=True)
@@ -641,6 +643,7 @@ class ShopTravelerStep(Base):
     traveler = relationship("ShopTraveler", back_populates="steps")
     operator = relationship("Employee", foreign_keys=[operator_id])
     machine  = relationship("Machine", back_populates="step_assignments")
+    inspections = relationship("QAInspection",back_populates="step",cascade="all, delete-orphan",)
 
     __table_args__ = (
         UniqueConstraint("traveler_id", "seq", name="uq_traveler_seq"),
@@ -691,9 +694,10 @@ class TravelerTemplate(Base):
     # ผูกกับ part / rev
     part_id = Column(Integer, ForeignKey("parts.id"), nullable=False, index=True)
     part_revision_id = Column(Integer, ForeignKey("part_revisions.id"), nullable=True, index=True)
+    customer_id = Column(Integer, ForeignKey("customers.id"), nullable=True, index=True)    
 
     template_name = Column(String, nullable=False)
-    version = Column(Integer, nullable=False, default=1)
+    version = Column(String, nullable=False, default=1)
 
     is_active = Column(Boolean, nullable=False, default=True)
 
@@ -737,11 +741,12 @@ class TravelerTemplateStep(Base):
 
     seq = Column(Integer, nullable=False)
     step_code = Column(String, nullable=True)
-    step_name = Column(String, nullable=False)
+    step_name = Column(String, nullable=True)
+    step_detail = Column(Text, nullable=True)
     station = Column(String, nullable=True)
 
     qa_required = Column(Boolean, default=False, nullable=False)
-    default_uom = Column(String, nullable=False, default="pcs")
+    
 
     note = Column(Text, nullable=True)
 
@@ -754,6 +759,123 @@ class TravelerTemplateStep(Base):
 
     def __repr__(self):
         return f"<TravelerTemplateStep(template_id={self.template_id}, seq={self.seq})>"
+
+
+class QAInspection(Base):
+    __tablename__ = "qa_inspections"
+
+    id = Column(Integer, primary_key=True)
+
+    traveler_step_id = Column(
+        Integer,
+        ForeignKey("shop_traveler_steps.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    inspection_date = Column(Date, nullable=False, server_default=func.current_date())
+    inspector_id = Column(Integer, ForeignKey("employees.id"), nullable=True)
+
+    status = Column(String, nullable=False, default="open")  
+    # open / passed / failed / rework
+
+    remarks = Column(Text, nullable=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    # relationships
+    step = relationship("ShopTravelerStep", back_populates="inspections")
+    inspector = relationship("Employee")
+    items = relationship(
+        "QAInspectionItem",
+        back_populates="inspection",
+        cascade="all, delete-orphan",
+        order_by="QAInspectionItem.seq",
+    )
+
+class QAInspectionItem(Base):
+    __tablename__ = "qa_inspection_items"
+
+    id = Column(Integer, primary_key=True)
+
+    inspection_id = Column(
+        Integer,
+        ForeignKey("qa_inspections.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    seq = Column(Integer, nullable=False)  # ลำดับแถวในฟอร์ม
+    bb_no = Column(String, nullable=True)  # B/B #
+    dimension = Column(String, nullable=True)
+    tqw = Column(String, nullable=True)    # Tolerance / Tool / Whatever you define
+    fa = Column(Boolean, nullable=True)    # First Article (✓)
+    actual_value = Column(String, nullable=True)
+
+    result = Column(String, nullable=True)  # pass / fail
+    notes = Column(Text, nullable=True)
+    emp_id = Column(Integer, ForeignKey("employees.id"), nullable=True) 
+    qa_time_stamp = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    
+
+    inspection = relationship("QAInspection", back_populates="items")    
+    employee = relationship("Employee")
+    __table_args__ = (
+    UniqueConstraint("inspection_id", "seq", name="uq_inspection_seq"),
+)
+    
+class QAInspectionTemplate(Base):
+    __tablename__ = "qa_inspection_templates"
+
+    id = Column(Integer, primary_key=True)
+
+    part_id = Column(Integer, ForeignKey("parts.id"), nullable=False, index=True)
+    rev_id = Column(Integer, ForeignKey("part_revisions.id"), nullable=True, index=True)
+
+    step_code = Column(String, nullable=True)  
+    # optional: ใช้เฉพาะ step (เช่น INSPECT / FINAL)
+
+    name = Column(String, nullable=False)  
+    # เช่น "IN-PROCESS INSPECTION", "FINAL INSPECTION"
+
+    active = Column(Boolean, nullable=False, default=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    part = relationship("Part")
+    revision = relationship("PartRevision")
+    items = relationship(
+        "QAInspectionTemplateItem",
+        back_populates="template",
+        cascade="all, delete-orphan",
+        order_by="QAInspectionTemplateItem.seq",
+    )
+
+class QAInspectionTemplateItem(Base):
+    __tablename__ = "qa_inspection_template_items"
+
+    id = Column(Integer, primary_key=True)
+
+    template_id = Column(
+        Integer,
+        ForeignKey("qa_inspection_templates.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    seq = Column(Integer, nullable=False)
+    bb_no = Column(String, nullable=True)
+    dimension = Column(String, nullable=False)
+   
+
+    template = relationship("QAInspectionTemplate", back_populates="items")
+
+    __table_args__ = (
+        UniqueConstraint("template_id", "seq", name="uq_qa_template_seq"),
+    )
+
+
 
 # =========================================
 # ============ Subcontracting =============
