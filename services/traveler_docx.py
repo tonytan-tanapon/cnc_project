@@ -7,7 +7,16 @@ from pathlib import Path
 # ==================================================
 # Helpers
 # ==================================================
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.enum.table import WD_CELL_VERTICAL_ALIGNMENT
 
+def center_cell(cell):
+    # แนวตั้ง (vertical center)
+    cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
+
+    # แนวนอน (horizontal center)
+    for p in cell.paragraphs:
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
 def clone_row(table, row_idx):
     row = table.rows[row_idx]
     new_row = copy.deepcopy(row._tr)
@@ -81,7 +90,10 @@ def replace_body_fuzzy(doc, mapping):
                     for k, v in mapping.items():
                         replace_placeholder_fuzzy(p, k, v)
 
-
+def safe_text(v):
+    if v is None:
+        return ""
+    return str(v)
 # ==================================================
 # MAIN GENERATOR (DB-BASED)
 # ==================================================
@@ -137,45 +149,59 @@ def generate_traveler_from_db(template_path, data: dict, output_path):
     # --------------------------------------------------
     step_table = None
     m2_row_idx = None
+    op_row_idx  = None
 
+    
     for table in doc.tables:
         for i, row in enumerate(table.rows):
             text = "\n".join(cell.text for cell in row.cells)
 
-            if text.strip().startswith("{op}"):
+            if "{RR}" in text.strip():
                 m2_row_idx = i
 
             if "{op}" in text:
                 step_table = table
+                op_row_idx = i
 
-        if step_table or m2_row_idx is not None:
+        if step_table  is not None and m2_row_idx is not None and op_row_idx is not None:
             break
 
-    if step_table is None or m2_row_idx is None:
-        raise RuntimeError("Cannot find M2 row or {op} template row")
+    if step_table is None or step_table is None  or op_row_idx is None:
+        raise RuntimeError("Cannot find M2 or {OP} row")
 
     # --------------------------------------------------
     # INSERT PROCESS STEPS AFTER M2
     # --------------------------------------------------
-
-    
     insert_at = m2_row_idx +1
-    print(m2_row_idx,step_table,insert_at )
+
+
     for step in data["steps"]:
-        if step.get("step_type") != "process":
-            continue
+        # if step.get("step_type") != "process":
+        #     continue
 
         new_row = clone_row(step_table, insert_at)
 
         # OP code
-        new_row.cells[0].text = step["step_code"]
+        new_row.cells[0].text = safe_text(step["step_code"])
+        
+        new_row.cells[2].text =  safe_text(step["qty_receive"])
+        new_row.cells[3].text =  safe_text(step["qty_receive"])
+        new_row.cells[4].text =  safe_text(step["step_note"])
+        new_row.cells[5].text =  safe_text(step["qty_accept"])
+        new_row.cells[6].text =  safe_text(step["qty_reject"])
+        new_row.cells[7].text =  safe_text(step["qa_required"])
+       
+        
+        # 👉 จัด cell ให้อยู่ตรงกลาง
+        for idx in [0, 2, 3, 5, 6, 7]:
+            center_cell(new_row.cells[idx])
 
         cell = new_row.cells[1]
         cell.text = ""
 
         # Step name
         p_name = cell.paragraphs[0]
-        add_text_with_bold(p_name, step["step_name"])
+        add_text_with_bold(p_name, step["step_name"] + "\n"+step["step_detail"])
 
         # Notes
         if step.get("notes"):
@@ -184,16 +210,22 @@ def generate_traveler_from_db(template_path, data: dict, output_path):
 
         insert_at += 1
 
-    # --------------------------------------------------
-    # REMOVE {op} TEMPLATE ROW
-    # --------------------------------------------------
-    # for table in doc.tables:
-    #     for row in table.rows:
-    #         if "{op}" in "\n".join(c.text for c in row.cells):
-    #             table._tbl.remove(row._tr)
-    #             break
+    # # --------------------------------------------------
+    # # REMOVE {op} TEMPLATE ROW
+    # # --------------------------------------------------
+    for table in doc.tables:
+        for row in table.rows:
+            if "{op}" in "\n".join(c.text for c in row.cells):
+                table._tbl.remove(row._tr)
+                break
 
-    # --------------------------------------------------
-    # SAVE
-    # --------------------------------------------------
+    for table in doc.tables:
+        for row in table.rows:
+            if "{RR}" in "\n".join(c.text for c in row.cells):
+                table._tbl.remove(row._tr)
+                break
+
+    # # --------------------------------------------------
+    # # SAVE
+    # # --------------------------------------------------
     doc.save(str(output_path))

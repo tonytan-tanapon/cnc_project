@@ -688,6 +688,7 @@ def apply_template_to_traveler(
                 station=step.station,
                 qa_required=step.qa_required,
                 status="pending",
+                step_detail=step.step_detail,
             )
         )
 

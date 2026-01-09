@@ -64,8 +64,9 @@ async function searchLots(term) {
 
 async function searchEmployees(term) {
   const q = (term || "").trim();
-  const url = `/employees/keyset?limit=10${q ? `&q=${encodeURIComponent(q)}` : ""
-    }`;
+  const url = `/employees/keyset?limit=10${
+    q ? `&q=${encodeURIComponent(q)}` : ""
+  }`;
   try {
     const res = await jfetch(url);
     const items = Array.isArray(res) ? res : res.items || [];
@@ -303,10 +304,10 @@ function statusBadge(s) {
     st === "running" || st === "in_progress"
       ? "blue"
       : st === "passed"
-        ? "green"
-        : st === "failed"
-          ? "red"
-          : "gray";
+      ? "green"
+      : st === "failed"
+      ? "red"
+      : "gray";
   const label =
     {
       running: "Running",
@@ -338,6 +339,7 @@ function normalizeStep(row) {
     seq: row.seq ?? 1,
     station: row.station ?? "",
     step_name: row.step_name ?? "",
+    step_detail: row.step_detail ?? "",
     step_code: row.step_code ?? "",
     operator_id: row.operator_id ?? null,
     status: row.status ?? "pending",
@@ -403,7 +405,7 @@ function autosaveStepRow(row, { immediate = false } = {}) {
         setTimeout(() => {
           try {
             stepsTable.redraw(true);
-          } catch { }
+          } catch {}
         }, 0);
       });
     return;
@@ -439,14 +441,14 @@ function autosaveStepRow(row, { immediate = false } = {}) {
             (x) => Number(x.id) === Number(dd.id)
           );
           if (found) row.update(normalizeStep(found));
-        } catch { }
+        } catch {}
         toast(e?.message || "Save failed", false);
       })
       .finally(() =>
         setTimeout(() => {
           try {
             stepsTable.redraw(true);
-          } catch { }
+          } catch {}
         }, 0)
       );
   };
@@ -609,7 +611,7 @@ function initStepsTable() {
     if (!ready || !holder.offsetWidth) return;
     try {
       stepsTable.redraw(true);
-    } catch { }
+    } catch {}
   };
 
   stepsTable = new Tabulator(holder, {
@@ -656,14 +658,21 @@ function initStepsTable() {
         editorParams: { step: 1 },
       },
 
-      { title: "OP", 
-        field: "step_code", 
-        width: 120, 
+      {
+        title: "OP",
+        field: "step_code",
+        width: 120,
         hozAlign: "center",
-        editor: "input" 
+        editor: "input",
       },
 
       { title: "Step Name", field: "step_name", width: 220, editor: "input" },
+      {
+        title: "Step Detail",
+        field: "step_detail",
+        width: 220,
+        editor: "input",
+      },
       {
         title: "Status",
         field: "status",
@@ -713,7 +722,7 @@ function initStepsTable() {
         },
       },
       { title: "Note", field: "step_note", width: 240, editor: "input" },
-      
+
       {
         title: "Operator",
         field: "operator_id",
@@ -774,6 +783,7 @@ function initStepsTable() {
     const newRow = {
       seq: nextSeq,
       step_name: "",
+      step_detail: "",
       status: "Pending",
       qty_receive: 0,
       qty_accept: 0,
@@ -836,7 +846,6 @@ function initStepsTable() {
     }
   });
 
-
   stepsTable.on("cellEdited", (cell) => {
     const row = cell.getRow();
     setDirtyClass(row, true);
@@ -877,6 +886,7 @@ async function reloadSteps() {
     const rows = await jfetch(
       `/traveler-steps?traveler_id=${encodeURIComponent(travelerId)}`
     );
+    console.log("traveler step", rows);
     stepsTable?.setData((rows || []).map(normalizeStep));
   } catch {
     stepsTable?.setData([]);
@@ -1031,31 +1041,29 @@ async function exportTraveler() {
     URL.revokeObjectURL(url);
 
     console.log("Export completed:", filename);
-
   } catch (err) {
     console.error("Export error", err);
     alert("Unexpected error while exporting traveler");
   }
 }
 
-async function exportInspection() {   
-  // const res = await fetch(        
-  //   `/api/v1/traveler_drawing/export_inspection/${travelerId}`, { 
-
-  //     method: "POST",    
-  //   }  
-  // );    
-  // if (!res.ok) {     
-  //   const err = await res.json();    
-  //   alert(err.detail || "File not found");     
-  //   return;   
-  // } 
-  // const blob = await res.blob();   
-  // const a = document.createElement("a");  
-  // a.href = URL.createObjectURL(blob);         
-  // a.download = `export_inspection_${travelerId}.zip`;  
-  // a.click(); 
-} 
+async function exportInspection() {
+  // const res = await fetch(
+  //   `/api/v1/traveler_drawing/export_inspection/${travelerId}`, {
+  //     method: "POST",
+  //   }
+  // );
+  // if (!res.ok) {
+  //   const err = await res.json();
+  //   alert(err.detail || "File not found");
+  //   return;
+  // }
+  // const blob = await res.blob();
+  // const a = document.createElement("a");
+  // a.href = URL.createObjectURL(blob);
+  // a.download = `export_inspection_${travelerId}.zip`;
+  // a.click();
+}
 // async function downloadInspection() {
 //   const res = await fetch(`/traveler_drawing/inspection/${travelerId}`, {
 //     method: "POST",
@@ -1116,8 +1124,8 @@ function printTravelerQR(travelerNo, qrLink) {
     <body style="text-align:center; font-family:sans-serif;">
       <h2>Traveler ${travelerNo}</h2>
       <img src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(
-    qrLink
-  )}" alt="QR">
+        qrLink
+      )}" alt="QR">
       <p style="margin-top:10px;font-size:14px;">${qrLink}</p>
       <script>window.onload = () => { window.print(); }</script>
     </body></html>

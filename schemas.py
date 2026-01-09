@@ -536,6 +536,7 @@ class ShopTravelerStepOut(BaseModel):
     seq: int
     step_code: Optional[str] = None
     step_name: str
+    step_detail: str
     station: Optional[str] = None
     operator_id: Optional[int] = None
     qa_required: bool

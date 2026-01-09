@@ -413,7 +413,8 @@ def build_traveler_data_from_db(traveler: ShopTraveler) -> dict:
                 "step_code": s.step_code or "",
                 "step_type": s.station or "",   # material / process / inspect
                 "step_name": s.step_name or "",
-                "notes": s.step_detail or "",
+                "step_detail": s.step_detail or "",
+               
                 "qa_required": bool(s.qa_required),
                 "qty_receive": float(s.qty_receive or 0),
                 "qty_accept": float(s.qty_accept or 0),
