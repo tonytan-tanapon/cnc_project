@@ -361,6 +361,7 @@ function buildStepPayload(d) {
   if (d.seq != null) p.seq = Number(d.seq);
   if (d.station != null) p.station = strOrNull(d.station);
   if (d.step_name != null) p.step_name = strOrNull(d.step_name);
+  if (d.step_detail != null) p.step_detail = strOrNull(d.step_detail);
   if (d.step_code != null) p.step_code = strOrNull(d.step_code);
   if (d.operator_id != null) p.operator_id = numOrNull(d.operator_id);
   if (d.qa_required != null) p.qa_required = !!d.qa_required;
@@ -368,6 +369,8 @@ function buildStepPayload(d) {
   if (d.qty_accept != null) p.qty_accept = Number(d.qty_accept) || 0;
   if (d.qty_reject != null) p.qty_reject = Number(d.qty_reject) || 0;
   if (d.step_note != null) p.step_note = String(d.step_note); // 👈 เพิ่ม
+
+  console.log(p)
   return p;
 }
 

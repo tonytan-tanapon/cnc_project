@@ -521,6 +521,7 @@ class ShopTravelerStepUpdate(BaseModel):
     seq: Optional[int] = None
     step_code: Optional[str] = None
     step_name: Optional[str] = None
+    step_detail: Optional[str]   # 👈 ต้องมี
     station: Optional[str] = None
     operator_id: Optional[int] = None
     qa_required: Optional[bool] = None
