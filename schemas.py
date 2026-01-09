@@ -513,6 +513,7 @@ class ShopTravelerStepCreate(BaseModel):
     qty_reject: Optional[Decimal] = None
     status: Optional[str] = None
     step_note: Optional[str] = None        # 👈 ใหม่
+    step_detail: Optional[str] = ""
 
 
 # ---------------- Update ----------------
@@ -536,7 +537,7 @@ class ShopTravelerStepOut(BaseModel):
     seq: int
     step_code: Optional[str] = None
     step_name: str
-    step_detail: str
+    step_detail: Optional[str] = ""   # ✅ FIX
     station: Optional[str] = None
     operator_id: Optional[int] = None
     qa_required: bool

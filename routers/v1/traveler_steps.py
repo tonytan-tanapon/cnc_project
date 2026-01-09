@@ -49,6 +49,7 @@ def create_traveler_step(payload: ShopTravelerStepCreate, db: Session = Depends(
     qty_accept=payload.qty_accept or 0,
     qty_reject=payload.qty_reject or 0,
     step_note=payload.step_note,          # 👈 ใหม่
+    step_detail=payload.step_detail or "",  
 )
     db.add(s)
     db.commit()
