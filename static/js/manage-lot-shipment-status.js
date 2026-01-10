@@ -61,7 +61,9 @@ function makeColumns() {
           d.po_number ? `PO#${d.po_number}` : null,
           d.part_no ? `Part#${d.part_no}` : null,
           d.lot_no ? `${d.lot_no}` : null,
-        ].filter(Boolean).join(",");
+        ]
+          .filter(Boolean)
+          .join(",");
         copyWithFeedback(e.target, text, "Copied summary");
       },
     },
@@ -136,15 +138,17 @@ function makeColumns() {
         const label = `${d.part_no ?? ""}${rev}`;
         return `
           <div style="display:flex;gap:6px;align-items:center;">
-            ${d.part_id
-            ? `<a class="link"
-                    href="/static/manage-part-detail.html
-                    ?part_id=${d.part_id}
-                    &part_revision_id=${d.part_revision_id ?? ""}
-                    &customer_id=${d.customer_id ?? ""}">
-                    ${label}
+            ${
+              d.part_id
+                ? `<a class="link"
+                    href="/static/manage-part-detail.html?part_id=${
+                      d.part_id
+                    }&part_revision_id=${
+                    d.part_revision_id ?? ""
+                  }&customer_id=${d.customer_id ?? ""}">${label}
                  </a>`
-            : `<span>${label}</span>`}
+                : `<span>${label}</span>`
+            }
             <span class="copy-part" style="cursor:pointer;">📋</span>
           </div>
         `;
@@ -195,22 +199,22 @@ function makeColumns() {
 
     /* ===== DAYS LEFT (PO LEVEL) ===== */
     {
-  title: "Left",
-  field: "days_left",
-  width: 90,
-  hozAlign: "center",
-  sorter: "number",
-  formatter: (cell) => {
-    const r = cell.getRow().getData();
-    const days = cell.getValue();
+      title: "Left",
+      field: "days_left",
+      width: 90,
+      hozAlign: "center",
+      sorter: "number",
+      formatter: (cell) => {
+        const r = cell.getRow().getData();
+        const days = cell.getValue();
 
-    // ---- normalize status ----
-    const lotStatus = String(r.lot_status ?? "").toLowerCase();
+        // ---- normalize status ----
+        const lotStatus = String(r.lot_status ?? "").toLowerCase();
 
-    // 1️⃣ PO completed
-    // 1️⃣ PO completed (highest priority)
-    if (r.po_remaining_qty === 0) {
-      return `
+        // 1️⃣ PO completed
+        // 1️⃣ PO completed (highest priority)
+        if (r.po_remaining_qty === 0) {
+          return `
         <span title="PO Completed" style="
           display:inline-flex;
           align-items:center;
@@ -225,12 +229,12 @@ function makeColumns() {
           ✔
         </span>
       `;
-    }
+        }
 
-    // 2️⃣ Lot completed
-    if (lotStatus === "completed") {
-       if (r.po_remaining_qty > 0) {
-      return `
+        // 2️⃣ Lot completed
+        if (lotStatus === "completed") {
+          if (r.po_remaining_qty > 0) {
+            return `
         <span title="PO remain" style="
           display:inline-flex;
           align-items:center;
@@ -245,8 +249,8 @@ function makeColumns() {
           X
         </span>
       `;
-    }
-      return `
+          }
+          return `
         <span title="Lot Completed" style="
           display:inline-flex;
           align-items:center;
@@ -261,20 +265,16 @@ function makeColumns() {
           O
         </span>
       `;
-    }
-    // ✓
-    // 3️⃣ Normal due logic
-    if (days == null) return "";
+        }
+        // ✓
+        // 3️⃣ Normal due logic
+        if (days == null) return "";
 
-    const color =
-      days < 0 ? "#ef4444" :
-      days <= 3 ? "#f59e0b" :
-      "#10b981";
+        const color = days < 0 ? "#ef4444" : days <= 3 ? "#f59e0b" : "#10b981";
 
-    const text =
-      days < 0 ? `${Math.abs(days)}d OD` : `${days}d left`;
+        const text = days < 0 ? `${Math.abs(days)}d OD` : `${days}d left`;
 
-    return `<span style="
+        return `<span style="
       background:${color};
       color:white;
       padding:4px 8px;
@@ -283,10 +283,9 @@ function makeColumns() {
     ">
       ${text}
     </span>`;
-  },
-}
+      },
+    },
 
-,
     /* ===== PO QTY ===== */
 
     //  {
@@ -298,21 +297,21 @@ function makeColumns() {
     //       http://100.88.56.126:9000/static/manage-lot-shippments.html?lot_id=2
     //     },
 
-   {
-  title: "Ship",
-  width: 150,
-  field: "lot_shipped_qty",
-  hozAlign: "center",
-  headerHozAlign: "center",
+    {
+      title: "Ship",
+      width: 150,
+      field: "lot_shipped_qty",
+      hozAlign: "center",
+      headerHozAlign: "center",
 
-  formatter: (cell) => {
-    const r = cell.getRow().getData();
-    const lotId = r.lot_id;
-    const shipped = r.lot_shipped_qty ?? 0;
+      formatter: (cell) => {
+        const r = cell.getRow().getData();
+        const lotId = r.lot_id;
+        const shipped = r.lot_shipped_qty ?? 0;
 
-    if (!lotId) return shipped;
+        if (!lotId) return shipped;
 
-    return `
+        return `
       <div style="
         display:flex;
         align-items:center;
@@ -325,7 +324,9 @@ function makeColumns() {
         </span>
          <!-- Materials -->
         <a
-          href="/static/manage-lot-materials.html?lot_id=${encodeURIComponent(lotId)}"
+          href="/static/manage-lot-materials.html?lot_id=${encodeURIComponent(
+            lotId
+          )}"
           title="Materials"
           style="text-decoration:none;"
           target="_blank"
@@ -334,7 +335,9 @@ function makeColumns() {
         </a>
         <!-- Traveler -->
         <a
-          href="/static/traveler-detail.html?lot_id=${encodeURIComponent(lotId)}"
+          href="/static/traveler-detail.html?lot_id=${encodeURIComponent(
+            lotId
+          )}"
           title="Traveler"
           style="text-decoration:none;"
           target="_blank"
@@ -346,7 +349,9 @@ function makeColumns() {
 
         <!-- Shipment -->
         <a
-          href="/static/manage-lot-shippments.html?lot_id=${encodeURIComponent(lotId)}"
+          href="/static/manage-lot-shippments.html?lot_id=${encodeURIComponent(
+            lotId
+          )}"
           title="Shipment"
           style="text-decoration:none;"
           target="_blank"
@@ -355,9 +360,8 @@ function makeColumns() {
         </a>
       </div>
     `;
-  },
-}
-,
+      },
+    },
     // {
     //   title: "Ship",
     //   width: 110,
@@ -379,7 +383,7 @@ function makeColumns() {
     //            target="_blank"
     //            title="Open shipment"
     //            style="text-decoration:none; font-size:14px;">
-    //            📦 
+    //            📦
     //         </a>
     //       </div>
     //     `;
@@ -394,18 +398,17 @@ function makeColumns() {
 
         const shipped = r.po_shipped_total ?? 0;
         const total = r.po_qty_total ?? 0;
-        const remain = r.po_remaining_qty ?? (total - shipped);
+        const remain = r.po_remaining_qty ?? total - shipped;
 
         // สีตามสถานะ
         let bg = "#6b7280"; // gray
-        if (shipped === 0) bg = "#ef4444";              // not shipped
-        else if (remain > 0) bg = "#f59e0b";            // partial
-        else if (remain === 0) bg = "#10b981";          // complete
-        else bg = "#7c3aed";                             // overship
+        if (shipped === 0) bg = "#ef4444"; // not shipped
+        else if (remain > 0) bg = "#f59e0b"; // partial
+        else if (remain === 0) bg = "#10b981"; // complete
+        else bg = "#7c3aed"; // overship
 
         // format remain
-        const remText =
-          remain < 0 ? `-${Math.abs(remain)}` : remain;
+        const remText = remain < 0 ? `-${Math.abs(remain)}` : remain;
 
         return `
       <span style="
@@ -505,7 +508,6 @@ function makeColumns() {
           });
 
           toast("Lot status updated", true);
-
         } catch (err) {
           toast("Update failed", false);
           // rollback
@@ -513,9 +515,7 @@ function makeColumns() {
           console.error(err);
         }
       },
-    }
-    ,
-
+    },
     /* ===== LAST SHIPPED ===== */
     {
       title: "Shipped Date",
@@ -538,11 +538,12 @@ function applyFilter() {
   table.clearFilter(true);
 
   if (q) {
-    table.addFilter((d) =>
-      d.part_no?.toLowerCase().includes(q) ||
-      d.lot_no?.toLowerCase().includes(q) ||
-      d.customer_name?.toLowerCase().includes(q) ||
-      d.po_number?.toLowerCase().includes(q)
+    table.addFilter(
+      (d) =>
+        d.part_no?.toLowerCase().includes(q) ||
+        d.lot_no?.toLowerCase().includes(q) ||
+        d.customer_name?.toLowerCase().includes(q) ||
+        d.po_number?.toLowerCase().includes(q)
     );
   }
 
@@ -565,7 +566,7 @@ async function loadData() {
   els[UI.reload].disabled = true;
   try {
     const res = await jfetch(API_URL);
-    console.log(res)
+    console.log(res);
     table.setData(res);
     applyFilter();
     toast("Data loaded");
