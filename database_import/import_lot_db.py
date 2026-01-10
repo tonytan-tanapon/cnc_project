@@ -8,6 +8,8 @@ CSV import / upsert script (updated for CNC schema 2025):
 - Auto-generates Lot Number if missing in CSV (AUTO-YYYYMMDD-####)
 """
 
+# python doc/docx_to_db.py
+
 from __future__ import annotations
 import csv, sys, os
 from decimal import Decimal
@@ -182,7 +184,7 @@ def get_or_upsert_lot(
             po_id=po_line.po_id,
             po_line_id=po_line.id,
             planned_qty=int(qty or 0),
-            planned_ship_qty=int(qty or 0),
+            planned_ship_qty=int(planned_ship_qty or 0),
             lot_due_date=lot_due_date,
             started_at=(datetime.combine(start_date, time.min) if start_date else None),
             created_at=(datetime.combine(created_date, time.min) if created_date else None),
@@ -205,6 +207,11 @@ def get_or_upsert_lot(
             lot.planned_qty = int(qty); changed = True
         if lot.lot_due_date != lot_due_date:
             lot.lot_due_date = lot_due_date; changed = True
+        if planned_ship_qty is not None:
+            new_val = int(planned_ship_qty)
+            if lot.planned_ship_qty != new_val:
+                lot.planned_ship_qty = new_val
+                changed = True
         if changed:
             db.flush()
     return lot
@@ -508,7 +515,8 @@ def main():
                     if qty_ship is not None and qty_ship > 0:
                         lot_qty = qty_ship
                 
-               
+                if lot_no =="L16890":
+                    print(lot_no,qty_po)
                 # --- Lot ---
                 lot = get_or_upsert_lot(
                     db=db,
@@ -521,7 +529,7 @@ def main():
                     note=need_remark,
                     fair_note=fair_no,
                     lot_po_date=created_at,
-                    planned_ship_qty = qty_ship
+                    planned_ship_qty = qty_po
                 )
                 # print(lot_no,qty_po,qty_ship, lot_qty)
                 get_or_upsert_traveler(db, lot, lot_qty)
