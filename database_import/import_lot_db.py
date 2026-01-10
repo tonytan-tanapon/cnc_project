@@ -171,6 +171,7 @@ def get_or_upsert_lot(
     note: Optional[str],
     fair_note: Optional[str],
     lot_po_date=Optional[date],
+    planned_ship_qty =  Optional[Decimal],
 ):
     lot = db.execute(select(ProductionLot).where(ProductionLot.lot_no == lot_no)).scalar_one_or_none()
     if not lot:
@@ -181,6 +182,7 @@ def get_or_upsert_lot(
             po_id=po_line.po_id,
             po_line_id=po_line.id,
             planned_qty=int(qty or 0),
+            planned_ship_qty=int(qty or 0),
             lot_due_date=lot_due_date,
             started_at=(datetime.combine(start_date, time.min) if start_date else None),
             created_at=(datetime.combine(created_date, time.min) if created_date else None),
@@ -518,7 +520,8 @@ def main():
                     created_date=(due_date - timedelta(days=60)) if due_date else None,
                     note=need_remark,
                     fair_note=fair_no,
-                    lot_po_date=created_at
+                    lot_po_date=created_at,
+                    planned_ship_qty = qty_ship
                 )
                 # print(lot_no,qty_po,qty_ship, lot_qty)
                 get_or_upsert_traveler(db, lot, lot_qty)
