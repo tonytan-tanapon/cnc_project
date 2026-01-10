@@ -296,7 +296,11 @@ function makeColumns() {
 
     //       http://100.88.56.126:9000/static/manage-lot-shippments.html?lot_id=2
     //     },
-
+    {
+      title: "LOT<br>QTY",
+      width: 80,
+      field: "lot_planned_ship_qty",
+    },
     {
       title: "Ship",
       width: 150,
