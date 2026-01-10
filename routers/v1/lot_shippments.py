@@ -624,11 +624,13 @@ def download_cofc(shipment_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Shipment has no shipment items")
 
     # 🟦 ใช้ item แรกเป็นข้อมูลสำหรับ CofC
+    
     item = shipment.items[0]
+    
     lot = item.lot
     part = lot.part if lot else None
     revision = lot.part_revision if lot else None
-
+    print(">>", revision)
     lot_no = lot.lot_no if lot else ""
     qty = int(item.qty or 0)
     part_no = part.part_no if part else ""

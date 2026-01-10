@@ -592,9 +592,7 @@ function partAutocompleteEditor(cell, onRendered, success, cancel) {
           revision_text: "",
         });
         setDirtyClass(row, true);
-        // await autosaveRow(row, { immediate: true });
-// just mark dirty, don't save
-setDirtyClass(row, true);
+        await autosaveRow(row, { immediate: true });
 
         // ✅ ดึง revision ปัจจุบัน
         try {
@@ -611,10 +609,7 @@ setDirtyClass(row, true);
 
           
             // ✅ รอ 0.5 วิ แล้วบันทึก revision ไป backend
-            // setTimeout(() => autosaveRow(row, { immediate: true }), 500);
-            // just mark dirty, don't save
-setDirtyClass(row, true);
-
+            setTimeout(() => autosaveRow(row, { immediate: true }), 500);
             toast(`Auto-selected current revision: ${current.rev}`);
           } else {
             toast("No current revision found", false);
@@ -671,8 +666,7 @@ function revisionAutocompleteEditor(cell, onRendered, success, cancel) {
       setTimeout(() => {
         row.update({ revision_id: it.id, revision_text: it.rev });
         setDirtyClass(row, true);
-        // autosaveRow(row);
-        setDirtyClass(row, true);
+        autosaveRow(row);
       }, 0);
     },
     minChars: 0,
@@ -1027,27 +1021,18 @@ function initLinesTable() {
   headerSort: false,
 
   formatter: () => `
-  <div>
-    <button class="btn-mini btn-primary" data-act="save">Save</button>
-    <button class="btn-mini btn-danger" data-act="del">Delete</button>
-  </div>
-`,
+    <div>
+      <button class="btn-mini btn-danger" data-act="del">Delete</button>
+    </div>
+  `,
 
- cellClick: async (e, cell) => {
-  const row = cell.getRow();
-  const act = e.target.closest("button")?.dataset?.act;
+  cellClick: async (e, cell) => {
+    const btn = e.target.closest("button[data-act='del']");
+    if (!btn) return;
 
-  if (act === "save") {
-    await autosaveRow(row, { immediate: true });
-    toast("Line saved");
-    return;
-  }
-
-  if (act === "del") {
+    const row = cell.getRow();
     await deleteLine(row);
-  }
-},
-
+  },
 }
 
       // {
@@ -1104,9 +1089,12 @@ function initLinesTable() {
 
   // AUTOSAVE on cell edit (debounced per-row)
   linesTable.on("cellEdited", (cell) => {
-  const row = cell.getRow();
-  setDirtyClass(row, true); // just mark dirty, no save
-})
+    const row = cell.getRow();
+    setDirtyClass(row, true);
+    setTimeout(() => {
+      autosaveRow(row);
+    }, 0);
+  });
 
   linesTable.on("tableBuilt", () => {
     ready = true;

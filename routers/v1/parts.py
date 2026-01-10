@@ -11,7 +11,11 @@ from models import Part, PartRevision
 from utils.code_generator import next_code
 
 parts_router = APIRouter(prefix="/parts", tags=["parts"])
-
+class RevMini(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    rev: str
+    is_current: bool
 @parts_router.get("/next-code")
 def get_next_part_code(prefix: str = "P", width: int = 5, db: Session = Depends(get_db)):
     return {"next_code": next_code(db, Part, "part_no", prefix=prefix, width=width)}
@@ -318,7 +322,7 @@ def delete_part(part_id: int, db: Session = Depends(get_db)):
     return None
 
 # ---------- Revisions ----------
-@parts_router.get("/{part_id}/revisions", response_model=List[RevOut])
+@parts_router.get("/{part_id}/revisions", response_model=List[RevMini])
 def list_revisions(part_id: int, db: Session = Depends(get_db)):
     if not db.query(Part).get(part_id):
         raise HTTPException(404, "Part not found")
@@ -328,7 +332,8 @@ def list_revisions(part_id: int, db: Session = Depends(get_db)):
         .order_by(PartRevision.rev)
         .all()
     )
-    return [RevOut.model_validate(r) for r in rows]
+    return [{"id": r.id, "rev": r.rev, "is_current": r.is_current} for r in rows]
+
 
 class RevCreate(BaseModel):
     rev: str

@@ -7,7 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from database import get_db
-from models import POLine, ProductionLot, ShopTraveler
+from models import POLine, ProductionLot, ShopTraveler,PartRevision
 
 # พยายามใช้ atomic generator (แนะนำให้มี utils/sequencer.py + ตาราง doc_counters)
 try:
@@ -21,7 +21,7 @@ router = APIRouter(prefix="/po-lines", tags=["po-lines"])
 class LotTravelerCreateIn(BaseModel):
     planned_qty: int | None = None
     lot_due_date: date | None = None
-
+    part_revision_id: int | str | None = None
 
 class LotTravelerOut(BaseModel):
     lot_id: int
@@ -52,6 +52,7 @@ def create_lot_and_traveler(
     payload: LotTravelerCreateIn | None = None,
     db: Session = Depends(get_db),
 ):
+   
     pl = db.get(POLine, po_line_id)
     if not pl:
         raise HTTPException(status_code=404, detail="PO line not found")
@@ -67,6 +68,31 @@ def create_lot_and_traveler(
         else (pl.due_date.date() if pl.due_date else None)
     )
 
+    rev_id = None
+
+    if payload and payload.part_revision_id:
+        if isinstance(payload.part_revision_id, int):
+            rev_id = payload.part_revision_id
+        else:
+            # payload is like "A"
+            rev = db.execute(
+                select(PartRevision.id)
+                .where(
+                    PartRevision.part_id == pl.part_id,
+                    PartRevision.rev == payload.part_revision_id
+                )
+            ).scalar_one_or_none()
+
+            if not rev:
+                raise HTTPException(
+                    400,
+                    f"Revision '{payload.part_revision_id}' not found for this part"
+                )
+
+            rev_id = rev
+    else:
+        rev_id = pl.revision_id
+    print(rev_id)
     try:
         lot_no = next_code_yearly(db, "")
         traveler_no = next_code_yearly(db, "T")
@@ -74,7 +100,7 @@ def create_lot_and_traveler(
         lot = ProductionLot(
             lot_no=lot_no,
             part_id=pl.part_id,
-            part_revision_id=pl.revision_id,
+            part_revision_id = rev_id,
             po_id=pl.po_id,
             po_line_id=pl.id,
             planned_qty=planned_qty,
