@@ -481,6 +481,8 @@ class ProductionLot(Base):
     po_line_id = Column(Integer, ForeignKey("po_lines.id"), nullable=True, index=True)
 
     planned_qty = Column(Integer, nullable=False, default=0)
+    planned_ship_qty = Column(Integer, nullable=True, default=0)
+
     started_at = Column(DateTime(timezone=True), nullable=True)
     finished_at = Column(DateTime(timezone=True), nullable=True)
     lot_po_date = Column(DateTime(timezone=True), nullable=True)
