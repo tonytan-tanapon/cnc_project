@@ -1150,7 +1150,7 @@ function makeLotLinks(lotId) {
       href: `/static/traveler-detail.html?lot_id=${encodeURIComponent(lotId)}`,
       title: "Traveler",
     },
-     {
+    {
       id: "inspection_link",
       href: `/static/travelerQA-detail.html?lot_id=${encodeURIComponent(lotId)}`,
       title: "Traveler",
