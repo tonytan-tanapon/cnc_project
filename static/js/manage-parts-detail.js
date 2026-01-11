@@ -133,9 +133,9 @@ function renderMaterials() {
     return ac !== 0
       ? ac
       : (a.name || "").localeCompare(b.name || "", undefined, {
-        numeric: true,
-        sensitivity: "base",
-      });
+          numeric: true,
+          sensitivity: "base",
+        });
   });
 
   for (const m of rows) {
@@ -345,8 +345,9 @@ function renderFilters() {
   for (const p of mprocs) {
     const l = document.createElement("label");
     l.className = "chip";
-    l.innerHTML = `<input type="checkbox" data-id="${p.id
-      }" data-kind="process"><span>${safeText(p.name)}</span>`;
+    l.innerHTML = `<input type="checkbox" data-id="${
+      p.id
+    }" data-kind="process"><span>${safeText(p.name)}</span>`;
     elMproc.appendChild(l);
   }
 
@@ -355,8 +356,9 @@ function renderFilters() {
   for (const f of lookups.finishes) {
     const l = document.createElement("label");
     l.className = "chip";
-    l.innerHTML = `<input type="checkbox" data-id="${f.id
-      }" data-kind="finish"><span>${safeText(f.name)}</span>`;
+    l.innerHTML = `<input type="checkbox" data-id="${
+      f.id
+    }" data-kind="finish"><span>${safeText(f.name)}</span>`;
     elChem.appendChild(l);
   }
 
@@ -554,7 +556,6 @@ function toDateOnly(v) {
   return null;
 }
 
-
 // ---- Tabulator
 function initTable() {
   if (!tableMount) return;
@@ -583,12 +584,12 @@ function initTable() {
 
           // สีประกอบ (optional แต่ช่วยอ่านเร็ว)
           const colorMap = {
-            complete: "#10b981",        // green
-            process: "#f59e0b",         // orange
+            complete: "#10b981", // green
+            process: "#f59e0b", // orange
             in_process: "#f59e0b",
-            "not start": "#6b7280",     // gray
+            "not start": "#6b7280", // gray
             not_started: "#6b7280",
-            hold: "#ef4444",            // red
+            hold: "#ef4444", // red
             cancel: "#ef4444",
             canceled: "#ef4444",
             cancelled: "#ef4444",
@@ -612,7 +613,6 @@ function initTable() {
     `;
         },
       },
-
 
       {
         title: "Lot",
@@ -683,7 +683,7 @@ function initTable() {
         formatter: (cell) => {
           const r = cell.getRow().getData();
           const lotId = r.lot_id;
-          const rev = r.revision_code
+          const rev = r.revision_code;
           const qty = fmtQty(r.lot_qty);
 
           if (!lotId) return qty ?? "—";
@@ -738,16 +738,14 @@ function initTable() {
                 return;
               }
 
-              window.location.href =
-                `/static/traveler-detail.html?lot_id=${encodeURIComponent(
-                  lotId
-                )}`;
-
+              window.location.href = `/static/traveler-detail.html?lot_id=${encodeURIComponent(
+                lotId
+              )}`;
             } else if (action === "materials") {
-              window.location.href =
-                `/static/manage-lot-materials.html?lot_id=${encodeURIComponent(lotId)}`;
+              window.location.href = `/static/manage-lot-materials.html?lot_id=${encodeURIComponent(
+                lotId
+              )}`;
             }
-
           } catch (err) {
             toast("⚠️ Action failed", false);
             console.error(err);
@@ -782,45 +780,12 @@ function initTable() {
         },
       },
 
-    //   {
-    //     title: "Ship/PO(Rem)",
-    //     width: 170,
-    //     hozAlign: "center",
-    //     formatter: (cell) => {
-    //       const r = cell.getRow().getData();
+      {
+        title: "LOT<br>QTY",
+        width: 80,
+        field: "lot_planned_ship_qty",
+      },
 
-    //       const shipped = r.po_shipped_total ?? 0;
-    //       const total = r.po_qty_total ?? 0;
-    //       const remain = r.po_remaining_qty ?? (total - shipped);
-
-    //       // สีตามสถานะ
-    //       let bg = "#6b7280"; // gray
-    //       if (shipped === 0) bg = "#ef4444";              // not shipped
-    //       else if (remain > 0) bg = "#f59e0b";            // partial
-    //       else if (remain === 0) bg = "#10b981";          // complete
-    //       else bg = "#7c3aed";                             // overship
-
-    //       // format remain
-    //       const remText =
-    //         remain < 0 ? `-${Math.abs(remain)}` : remain;
-
-    //       return `
-    //   <span style="
-    //     background:${bg};
-    //     color:white;
-    //     padding:4px 10px;
-    //     border-radius:8px;
-    //     font-weight:600;
-    //     display:inline-block;
-    //     min-width:120px;
-    //     text-align:center;
-    //   ">
-    //     ${shipped} / ${total} (${remText})
-    //   </span>
-    // `;
-    //     },
-    //   },
-    
       {
         title: "PO(Rem)<br>QTY",
         field: "po_qty_total",
@@ -832,18 +797,17 @@ function initTable() {
 
           const shipped = r.po_shipped_total ?? 0;
           const total = r.po_qty_total ?? 0;
-          const remain = r.po_remaining_qty ?? (total - shipped);
+          const remain = r.po_remaining_qty ?? total - shipped;
 
           // สีตามสถานะ
           let bg = "#6b7280"; // gray
-          if (shipped === 0) bg = "#ef4444";              // not shipped
-          else if (remain > 0) bg = "#f59e0b";            // partial
-          else if (remain === 0) bg = "#10b981";          // complete
-          else bg = "#7c3aed";                             // overship
+          if (shipped === 0) bg = "#ef4444"; // not shipped
+          else if (remain > 0) bg = "#f59e0b"; // partial
+          else if (remain === 0) bg = "#10b981"; // complete
+          else bg = "#7c3aed"; // overship
 
           // format remain
-          const remText =
-            remain < 0 ? `-${Math.abs(remain)}` : remain;
+          const remText = remain < 0 ? `-${Math.abs(remain)}` : remain;
 
           return `
       <span style="
@@ -883,7 +847,7 @@ function initTable() {
           const dueDate = toDateOnly(r.po_due_date);
           const today = toDateOnly(new Date());
 
-          console.log(dueDate, today)
+          console.log(dueDate, today);
           let bg = "#e5e7eb";
           let color = "#111827";
           let title = "No status";
@@ -927,8 +891,6 @@ function initTable() {
         },
       },
 
-
-
       {
         title: "Ship<br>QTY",
         width: 110,
@@ -955,9 +917,8 @@ function initTable() {
         </a>
       </div>
     `;
-        }
-      }
-      ,
+        },
+      },
       {
         title: "Shipped<br>Date",
         field: "lot_shipped_at",
@@ -970,11 +931,10 @@ function initTable() {
           // backend ส่งมาเป็น "YYYY-MM-DD, YYYY-MM-DD"
           return v
             .split(",")
-            .map(s => fmtDateMMDDYY(s.trim()))
+            .map((s) => fmtDateMMDDYY(s.trim()))
             .join("<br>");
         },
       },
-
 
       // placeholders...
       {
@@ -982,30 +942,31 @@ function initTable() {
         field: "fair_note",
         minWidth: 50,
         headerSort: false,
-
       },
 
       {
-  title: "Tracking no.",
-  field: "lot_tracking_no",
-  minWidth: 120,
-  maxWidth: 250,
-  headerSort: true,
-  cssClass: "cell-wrap",
+        title: "Tracking no.",
+        field: "lot_tracking_no",
+        minWidth: 120,
+        maxWidth: 250,
+        headerSort: true,
+        cssClass: "cell-wrap",
 
-  formatter: (cell) => {
-    const v = cell.getValue();
-    if (!v) return "";
+        formatter: (cell) => {
+          const v = cell.getValue();
+          if (!v) return "";
 
-    return String(v)
-      .split(",")
-      .map(s => s.trim())
-      .map(tracking => {
-        // UPS tracking (ตัวเลข/ตัวอักษรยาว 18 ตัว เช่น 1Z...)
-        if (tracking.startsWith("1Z")) {
-          return `
+          return String(v)
+            .split(",")
+            .map((s) => s.trim())
+            .map((tracking) => {
+              // UPS tracking (ตัวเลข/ตัวอักษรยาว 18 ตัว เช่น 1Z...)
+              if (tracking.startsWith("1Z")) {
+                return `
             <a
-              href="https://www.ups.com/WebTracking/processInputRequest?tracknum=${encodeURIComponent(tracking)}&loc=en_US"
+              href="https://www.ups.com/WebTracking/processInputRequest?tracknum=${encodeURIComponent(
+                tracking
+              )}&loc=en_US"
               target="_blank"
               rel="noopener noreferrer"
               class="link"
@@ -1013,14 +974,14 @@ function initTable() {
               ${tracking}
             </a>
           `;
-        }
+              }
 
-        // non-UPS
-        return tracking;
-      })
-      .join("<br>");
-  },
-},
+              // non-UPS
+              return tracking;
+            })
+            .join("<br>");
+        },
+      },
 
       {
         title: "Materaials<br>PO",
@@ -1038,9 +999,6 @@ function initTable() {
         headerSort: true,
         cssClass: "cell-wrap",
       },
-
-
-
     ],
   });
 }
@@ -1079,14 +1037,13 @@ function fillHeaderMeta(meta) {
 //   // fillHeaderMeta(meta);
 //   // table?.setData(items);
 
-
 //   applyFiltersToTable();
 // }
 async function loadData() {
-  const { meta } = await fetchDetail();   // header meta
-  const lots = await fetchLotsByPart();   // lot ของ part นี้
-  console.log("LOTS", lots)
-  allRows = lots;                         // ✅ ตัวแปรที่ประกาศไว้
+  const { meta } = await fetchDetail(); // header meta
+  const lots = await fetchLotsByPart(); // lot ของ part นี้
+  console.log("LOTS", lots);
+  allRows = lots; // ✅ ตัวแปรที่ประกาศไว้
   fillHeaderMeta(meta);
 
   table?.setData(lots);
