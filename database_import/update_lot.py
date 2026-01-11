@@ -41,6 +41,10 @@ def update_to_database(part_name, row):
     
     good_sotck = row[21]
     
+    # ✅ เช็คเฉพาะ L17335
+    # if lot_no == "L17335":
+    #     print("DEBUG L17335 -> qty_ship:", qty_ship)
+
 
     lot_data[lot_no]    = {
         "part_name": part_name,
@@ -99,7 +103,6 @@ def process_all_files_parallel(folder, output_file):
                     # print(part_name,row[1:10])
                     update_to_database(part_name, row)
                     all_rows.append(row)
-    
     
 
    

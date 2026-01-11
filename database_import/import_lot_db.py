@@ -38,8 +38,9 @@ from models import (
 
 # ---------- CONFIG ----------
 
-SOURCE_LOT = r"C:\Data Base & Inventory Stock\data"
-DEST_LOT = r"C:\Data Base & Inventory Stock\data\lot_export.csv"
+# SOURCE_LOT = r"C:\Data Base & Inventory Stock\data"
+SOURCE_LOT = r"Z:\Topnotch Group\Public\Data Base & Inventory Stock\Data"
+DEST_LOT = r"Z:\Topnotch Group\Public\Testing APP\updatelot\lot_export.csv"
 
 
 DATABASE_URL = "postgresql+psycopg2://postgres:1234@localhost:5432/mydb"
@@ -401,9 +402,15 @@ def main():
                 fair_no = pick(row, "FAIR#", "FAIR No")
                 invoice_no = pick(row, "Invoice#", "Invoice No.")
                 residual_inv = parse_int(pick(row, "Residual Inv", "Residual Invoice"))
-                ship_date = parse_date(pick(row, "Ship Date", "Shipped Date"))              # ship create date
+                ship_date = parse_date(pick(row, "Ship Date", "Shipped Date")) or all_lots.get(lot_no, {}).get("ship_date")          # ship create date
               
-                qty_ship = parse_int(parse_int(pick(row, "Qty Shipped")))                   # ship qty
+                # qty_ship = parse_int(parse_int(pick(row, "Qty Shipped"))) or all_lots.get(lot_no, {}).get("qty_ship", None)                  # ship qty
+                raw_qty_ship = pick(row, "Qty Shipped")
+                csv_qty = parse_int(raw_qty_ship)
+
+                excel_qty = parse_int(all_lots.get(lot_no, {}).get("qty_ship"))
+
+                qty_ship = csv_qty if csv_qty is not None else excel_qty
 
                      
                 # --- Part ---
@@ -515,8 +522,8 @@ def main():
                     if qty_ship is not None and qty_ship > 0:
                         lot_qty = qty_ship
                 
-                if lot_no =="L16890":
-                    print(lot_no,qty_po)
+                # if lot_no =="L17335":
+                #     print(lot_no,"qty po:",qty_po,"ship: ",qty_ship,"db ship:",all_lots.get(lot_no, {}).get("qty_ship", None),)
                 # --- Lot ---
                 lot = get_or_upsert_lot(
                     db=db,
@@ -547,8 +554,10 @@ def main():
                 #####
                 # lot_back = lot.id  # from customer_shipment.lot_id
                 # # --- Shipment ---
+
+                print("L17335",qty_ship, ship_date)
                 if qty_ship and ship_date:
-                   
+                    print("L17335 in")
                     # Find or create shipment header (per PO + ship_date)
                     # print(  all_lots.get(lot_no, {}).get("part_name", None), lot_no,  all_lots.get(lot_no, {}).get("ship_date", None),)
                     if True:
