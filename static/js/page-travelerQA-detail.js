@@ -176,15 +176,16 @@ function initQATable() {
   layout: "fitColumns",
   height: "100%",
   reactiveData: true,
-
-  rowStyled: function (row) {
+  
+  rowFormatter: function (row) {
+    
     const data = row.getData();
     const op = data.op_no;
-
+    console.log(data,op)
     if (!op) return;
 
     const cls = getOpColor(op);
-
+    console.log(cls)
     const el = row.getElement();
     el.classList.remove("op-group-a", "op-group-b"); // reset
     el.classList.add(cls);
