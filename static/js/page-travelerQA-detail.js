@@ -9,6 +9,20 @@ let currentInspection = null;
 let qaTable = null;
 
 /* ---------- Helpers ---------- */
+
+const opColorMap = new Map();   // เก็บว่า OP ไหนใช้สีอะไร
+let opColorIndex = 0;
+
+const OP_COLORS = ["op-group-a", "op-group-b"]; // 2 สี
+
+function getOpColor(op) {
+  if (!opColorMap.has(op)) {
+    opColorMap.set(op, OP_COLORS[opColorIndex % OP_COLORS.length]);
+    opColorIndex++;
+  }
+  return opColorMap.get(op);
+}
+
 const escapeHtml = (s) =>
   String(s ?? "")
     .replaceAll("&", "&amp;")
@@ -107,12 +121,15 @@ async function loadInspection() {
 async function loadInspectionItems() {
   if (!currentInspection?.id) return;
 
+  opColorMap.clear();     // 👈 reset map
+  opColorIndex = 0;      // 👈 reset index
+
   const rows = await jfetch(
     `/qa-inspections/${currentInspection.id}/items`
   );
+
   qaTable.setData(rows || []);
 }
-
 /* ---------- Autocomplete ---------- */
 async function searchEmployees(term) {
   const q = (term || "").trim();
@@ -156,11 +173,22 @@ function initQATable() {
   if (!holder) return;
 
   qaTable = new Tabulator(holder, {
-    layout: "fitColumns",
-    height: "calc(100vh - 300px)",
-    index: "id",
-    reactiveData: true,
-    placeholder: "No inspection data",
+  layout: "fitColumns",
+  height: "100%",
+  reactiveData: true,
+
+  rowStyled: function (row) {
+    const data = row.getData();
+    const op = data.op_no;
+
+    if (!op) return;
+
+    const cls = getOpColor(op);
+
+    const el = row.getElement();
+    el.classList.remove("op-group-a", "op-group-b"); // reset
+    el.classList.add(cls);
+  },
 
     columns: [
       { title: "Seq", field: "seq", width: 80, editor: "number" },
@@ -302,7 +330,6 @@ function initAddRowButton() {
     row.getCell("op_no")?.edit();
   });
 }
-
 
 async function btnAddTemplate() {
   if (!currentInspection?.id) {
