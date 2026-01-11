@@ -1203,7 +1203,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("btnTraveler").addEventListener("click", downloadTravelerBatch);
   $("btnInspection").addEventListener("click", downloadInspectionBatch);
   $("btnExportTraveler").addEventListener("click", exportTraveler);
-  $("btnExportInspection").addEventListener("click", exportInspection);
+  // $("btnExportInspection").addEventListener("click", exportInspection);
   // Add Step (seq +10 เริ่ม 10)
   // $("btnAddStep")?.addEventListener("click", async () => {
   //   if (!travelerId) {

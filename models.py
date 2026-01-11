@@ -645,7 +645,7 @@ class ShopTravelerStep(Base):
     traveler = relationship("ShopTraveler", back_populates="steps")
     operator = relationship("Employee", foreign_keys=[operator_id])
     machine  = relationship("Machine", back_populates="step_assignments")
-    inspections = relationship("QAInspection",back_populates="step",cascade="all, delete-orphan",)
+   
 
     __table_args__ = (
         UniqueConstraint("traveler_id", "seq", name="uq_traveler_seq"),
@@ -767,14 +767,14 @@ class QAInspection(Base):
     __tablename__ = "qa_inspections"
 
     id = Column(Integer, primary_key=True)
-
-    traveler_step_id = Column(
+    
+    
+    lot_id = Column(
         Integer,
-        ForeignKey("shop_traveler_steps.id", ondelete="CASCADE"),
+        ForeignKey("production_lots.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-
     inspection_date = Column(Date, nullable=False, server_default=func.current_date())
     inspector_id = Column(Integer, ForeignKey("employees.id"), nullable=True)
 
@@ -787,7 +787,8 @@ class QAInspection(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     # relationships
-    step = relationship("ShopTravelerStep", back_populates="inspections")
+    lot = relationship("ProductionLot")
+   
     inspector = relationship("Employee")
     items = relationship(
         "QAInspectionItem",
@@ -809,6 +810,7 @@ class QAInspectionItem(Base):
     )
 
     seq = Column(Integer, nullable=False)  # ลำดับแถวในฟอร์ม
+    op_no = Column(String, nullable=True)
     bb_no = Column(String, nullable=True)  # B/B #
     dimension = Column(String, nullable=True)
     tqw = Column(String, nullable=True)    # Tolerance / Tool / Whatever you define
@@ -867,6 +869,7 @@ class QAInspectionTemplateItem(Base):
     )
 
     seq = Column(Integer, nullable=False)
+    op_no = Column(String)
     bb_no = Column(String, nullable=True)
     dimension = Column(String, nullable=False)
    

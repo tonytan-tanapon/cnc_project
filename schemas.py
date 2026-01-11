@@ -965,6 +965,82 @@ class TimeLeaveOut(TimeLeaveBase):
 
     class Config:
         from_attributes = True
+
+
+from pydantic import BaseModel
+from typing import Optional
+from datetime import date, datetime
+
+# =========================
+# QAInspection (Header)
+# =========================
+
+class QAInspectionCreate(BaseModel):
+    lot_id: int
+    inspector_id: Optional[int] = None
+    remarks: Optional[str] = None
+
+
+class QAInspectionOut(BaseModel):
+    id: int
+    lot_id: int
+    inspection_date: date
+    inspector_id: Optional[int]
+    status: str
+    remarks: Optional[str]
+
+    class Config:
+        from_attributes = True
+
+
+# =========================
+# QAInspectionItem (Rows)
+# =========================
+
+class QAInspectionItemCreate(BaseModel):
+    seq: int
+    op_no: Optional[str] = None
+    bb_no: Optional[str] = None
+    dimension: Optional[str] = None
+    tqw: Optional[str] = None
+    fa: Optional[bool] = None
+    actual_value: Optional[str] = None
+    result: Optional[str] = None
+    notes: Optional[str] = None
+    emp_id: Optional[int] = None
+
+
+class QAInspectionItemUpdate(BaseModel):
+    seq: Optional[int] = None
+    op_no: Optional[str] = None
+    bb_no: Optional[str] = None
+    dimension: Optional[str] = None
+    tqw: Optional[str] = None
+    fa: Optional[bool] = None
+    actual_value: Optional[str] = None
+    result: Optional[str] = None
+    notes: Optional[str] = None
+    emp_id: Optional[int] = None
+
+
+class QAInspectionItemOut(BaseModel):
+    id: int
+    inspection_id: int
+    seq: int
+    op_no: Optional[str]
+    bb_no: Optional[str]
+    dimension: Optional[str]
+    tqw: Optional[str]
+    fa: Optional[bool]
+    actual_value: Optional[str]
+    result: Optional[str]
+    notes: Optional[str]
+    emp_id: Optional[int]
+    qa_time_stamp: datetime
+
+    class Config:
+        from_attributes = True
+
 # # ============================================================
 # # 🧭 CustomerShipment
 # # ============================================================
@@ -1029,3 +1105,5 @@ class TimeLeaveOut(TimeLeaveBase):
 #     lot_code: Optional[str] = None
 
 #     model_config = ConfigDict(from_attributes=True)
+
+

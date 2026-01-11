@@ -1,363 +1,199 @@
 <!DOCTYPE html>
 <html lang="th">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Traveler · Topnotch – MFG</title>
 
-    <!-- Global styles -->
-    <link rel="stylesheet" href="/static/css/app.css" />
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>QA Inspection · Topnotch</title>
 
-    <!-- Tabulator -->
-    <link
-      rel="stylesheet"
-      href="/static/vendor/tabulator/tabulator_modern.min.css"
-    />
-    <script src="/static/vendor/tabulator/tabulator.min.js"></script>
+  <!-- Global styles -->
+  <link rel="stylesheet" href="/static/css/app.css" />
 
-    <style>
-      /* ===== Edge layout (เหมือนหน้า POS) ===== */
-      .main--edge {
-        padding: 0;
-        height: 100vh;
-        overflow: hidden;
-      }
-      .panel--edge {
-        margin: 0;
-        border-radius: 0;
-        border-left-width: 0;
-        border-right-width: 0;
-      }
-      #travPanel {
-        display: flex;
-        flex-direction: column;
-        height: 100%;
-        min-height: 0;
-      }
+  <!-- Tabulator -->
+  <link rel="stylesheet" href="/static/vendor/tabulator/tabulator_modern.min.css" />
+  <script src="/static/vendor/tabulator/tabulator.min.js"></script>
 
-      /* header */
-      .header {
-        display: grid;
-        grid-template-columns: repeat(12, 1fr);
-        gap: 8px;
-        padding: 8px 0;
-        border-bottom: 1px solid #e5e7eb;
-      }
-      .col-3 {
-        grid-column: span 3;
-      }
-      .col-4 {
-        grid-column: span 4;
-      }
-      .col-6 {
-        grid-column: span 6;
-      }
-      .col-12 {
-        grid-column: span 12;
-      }
-      .header .field {
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-      }
-      .header input,
-      .header textarea {
-        height: 36px;
-        padding: 0 12px;
-      }
-      .header textarea {
-        height: auto;
-        padding: 8px 12px;
-      }
-      .muted {
-        opacity: 0.65;
-      }
+  <style>
+    .main--edge {
+      padding: 0;
+      height: 100vh;
+      overflow: hidden;
+    }
 
-      /* list toolbar */
-      .list-topbar {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        height: 44px;
-        padding: 0;
-        border-bottom: 1px solid #e5e7eb;
-      }
-      .list-topbar .title {
-        font-weight: 600;
-        padding: 0 8px;
-      }
-      #btnAddStep {
-        margin-left: auto;
-        height: 36px;
-        border-radius: 0;
-      }
+    .panel--edge {
+      margin: 0;
+      border-radius: 0;
+      border-left-width: 0;
+      border-right-width: 0;
+    }
 
-      #steps_wrap {
-        flex: 1 1 auto;
-        min-height: 0;
-        overflow: auto;
-        margin-bottom: 50px; /* 👈 เพิ่มพื้นที่ให้เห็นปุ่ม */
-      }
-      #steps_wrap .tabulator {
-        height: 100% !important;
-        border: 0;
-      }
-      #steps_wrap .tabulator .tabulator-row:hover {
-        background: #fafafa;
-      }
+    #qaPanel {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      min-height: 0;
+    }
 
-      /* small UI helpers */
-      .btn-mini {
-        font: inherit;
-        padding: 6px 10px;
-        border-radius: 8px;
-        border: 1px solid #e5e7eb;
-        background: #f8fafc;
-        cursor: pointer;
-      }
-      .btn-mini:hover {
-        background: #f1f5f9;
-      }
-      .btn-danger {
-        background: #ef4444;
-        color: #fff;
-        border-color: #dc2626;
-      }
-      .hdr-actions {
-        display: flex;
-        gap: 8px;
-        align-items: center;
-      }
-      .tabulator-row.is-dirty {
-        background: #fff7ed;
-      }
+    .header {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 8px;
+      padding: 8px 0;
+      border-bottom: 1px solid #e5e7eb;
+    }
 
-      /* status badges */
-      .badge {
-        padding: 2px 6px;
-        border-radius: 6px;
-        font-size: 12px;
-        color: #fff;
-      }
-      .badge.blue {
-        background: #2563eb;
-      }
-      .badge.green {
-        background: #16a34a;
-      }
-      .badge.red {
-        background: #b91c1c;
-      }
-      .badge.gray {
-        background: #6b7280;
-      }
+    .col-3 {
+      grid-column: span 3;
+    }
 
-      #steps_wrap {
-        flex: 1 1 auto;
-        min-height: 0;
-        overflow: auto;
-        border-bottom: 1px solid #e5e7eb;
-      }
+    .col-12 {
+      grid-column: span 12;
+    }
 
-      #steps_footer {
-        text-align: left; /* 👈 ปรับจาก right เป็น left */
-        padding: 8px 0 12px;
-        background: #fff;
-        border-top: 1px solid #e5e7eb;
-        position: sticky;
-        bottom: 0;
-        z-index: 10;
-      }
+    .header .field {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
 
-      #btnAddStep {
-        margin-left: 4px; /* 👈 เพิ่มระยะห่างจากขอบนิดหน่อย */
-        height: 34px;
-        font-weight: 500;
-      }
+    .header input {
+      height: 36px;
+      padding: 0 12px;
+    }
 
-      .quick-links a {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        padding: 6px 12px;
-        border-radius: 8px;
-        background: #f3f4f6;
-        font-weight: 600;
-      }
+    .list-topbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      height: 44px;
+      border-bottom: 1px solid #e5e7eb;
+    }
 
-      .quick-links a:hover {
-        background: #e5e7eb;
-      }
-    </style>
-  </head>
-  <body>
-    <div class="app">
-      <!-- ========== SIDEBAR NAV ========== -->
-      <aside class="sidebar">
-        <div id="navSlot" data-nav-slot></div>
-      </aside>
+    #btnAddRow {
+      margin-left: auto;
+      height: 34px;
+    }
 
-      <!-- ========== MAIN AREA ========== -->
-      <main class="main">
-        <section class="quick-links">
-          <div id="lot_link">🧾 LOT</div>
-          <div id="material_link">🔩 Material</div>
-          <div id="traveler_link">🧾 Traveler</div>
-          <div id="inspection_link">🧾 Inspection</div>
-          <div id="shippment_link">📦 Shipment</div>
-        </section>
+    #qa_wrap {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow: auto;
+    }
 
-        <section class="panel panel--edge" id="travPanel">
-          <!-- Title row -->
-          <div
-            style="
+    #qa_wrap .tabulator {
+      height: 100% !important;
+      border: 0;
+    }
+
+    .btn-mini {
+      font: inherit;
+      padding: 6px 10px;
+      border-radius: 8px;
+      border: 1px solid #e5e7eb;
+      background: #f8fafc;
+      cursor: pointer;
+    }
+
+    .btn-mini:hover {
+      background: #f1f5f9;
+    }
+
+    .err {
+      color: #b91c1c;
+      font-size: 14px;
+      margin-top: 6px;
+    }
+
+    #btnAddStep {
+      margin-left: 4px;
+      /* 👈 เพิ่มระยะห่างจากขอบนิดหน่อย */
+      height: 34px;
+      font-weight: 500;
+    }
+
+    .quick-links a {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 8px;
+      background: #f3f4f6;
+      font-weight: 600;
+    }
+
+    .quick-links a:hover {
+      background: #e5e7eb;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+    <!-- ========== SIDEBAR NAV ========== -->
+    <aside class="sidebar">
+      <div id="navSlot" data-nav-slot></div>
+    </aside>
+
+    <!-- ========== MAIN AREA ========== -->
+    <main class="main main--edge">
+      <section class="quick-links">
+        <div id="lot_link">🧾 LOT</div>
+        <div id="material_link">🔩 Material</div>
+        <div id="traveler_link">🧾 Traveler</div>
+        <div id="inspection_link">🧾 Inspection</div>
+        <div id="shippment_link">📦 Shipment</div>
+      </section>
+      <section class="panel panel--edge" id="qaPanel">
+        <!-- Title -->
+        <div style="
               display: flex;
               align-items: center;
               gap: 8px;
               padding: 8px 0 6px 0;
-            "
-          >
-            <h2 style="margin: 0">🧾 Traveler:</h2>
-            <h2 id="t_sub">(loading…)</h2>
-          </div>
-
-          <!-- Header -->
-          <div class="header">
-            <div class="field col-3">
-              <label>Lot</label>
-              <input id="lot_id" placeholder="ค้นหา lot…" />
-            </div>
-            <div class="field col-3">
-              <label>Created by (Emp)</label>
-              <input id="created_by_id" placeholder="ค้นหา emp…" />
-            </div>
-            <div class="field col-3">
-              <label>Status</label>
-              <input id="status" placeholder="open / in_progress / closed" />
-            </div>
-            <div class="field col-12">
-              <label>Notes</label>
-              <textarea id="notes" rows="2" placeholder="Notes…"></textarea>
-            </div>
-            <div class="col-12">
-              <div id="t_hint" class="muted" aria-live="polite"></div>
-              <div id="errorBox" class="err" style="display: none"></div>
-            </div>
-          </div>
-
-          <!-- Steps topbar -->
-          <div class="">
-            <!-- <div class="title">Steps</div> -->
-            <button id="btnDrawing" class="btn-mini">Drawing diagram</button>
-            <button id="btnTraveler" class="btn-mini">Shop traveler</button>
-            <button id="btnInspection" class="btn-mini">Inspection</button>
-          </div>
-          <!-- Steps topbar -->
-          <div class="list-topbar">
-            <!-- <div class="title">Steps</div> -->
-            <button id="btnAddStep" class="btn-mini">+ Add Step</button>
-
-            <button id="btnAddTemplate" class="btn-mini">Use template</button>
-
-            <button id="btnExportTraveler" class="btn-mini">Export Traveler</button>
-            <button id="btnExportInspection" class="btn-mini">Export Inspection</button>
-          </div>
-
-          <!-- Steps table mount -->
-          <div id="steps_wrap">
-            <div id="steps_table"></div>
-          </div>
-          <!-- Add Step button just below table -->
-          <!-- <div id="steps_footer"> -->
-          <!-- <button id="btnAddStep" class="btn-mini">＋ Add Step</button> -->
-          <!-- </div> -->
-          <!-- Add Step button below table -->
-        </section>
-      </main>
-    </div>
-
-    <!-- Toast -->
-    <div class="toast" id="toast" role="status" aria-live="polite">
-      <span id="toastText"></span>
-    </div>
-
-    <!-- Navbar loader -->
-    <script type="module" src="/static/js/nav-loader.js"></script>
-
-    <!-- QRCode library (global variable) -->
-    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
-    <!-- Page script -->
-    <script
-      type="module"
-      src="/static/js/page-travelerQA-detail.js?v=12"
-    ></script>
-
-    <!-- ===== QR Code Modal ===== -->
-    <style>
-      .qr-modal {
-        position: fixed;
-        inset: 0;
-        background: rgba(0, 0, 0, 0.45);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        z-index: 1000;
-      }
-      .qr-box {
-        background: #fff;
-        padding: 24px 28px;
-        border-radius: 10px;
-        text-align: center;
-        box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
-        width: 280px;
-        max-width: 90%;
-      }
-      .qr-box h3 {
-        margin-top: 0;
-        margin-bottom: 10px;
-        font-size: 16px;
-      }
-      #qrCode {
-        margin: 10px auto;
-      }
-      .qr-text {
-        font-size: 13px;
-        color: #555;
-        margin-bottom: 10px;
-        word-break: break-all;
-      }
-      .qr-btns {
-        display: flex;
-        justify-content: center;
-        gap: 10px;
-      }
-      .qr-btns button {
-        border: none;
-        border-radius: 6px;
-        padding: 6px 12px;
-        font-size: 13px;
-        cursor: pointer;
-      }
-      #qrPrintBtn {
-        background: #2563eb;
-        color: #fff;
-      }
-      #qrCloseBtn {
-        background: #9ca3af;
-        color: #fff;
-      }
-    </style>
-
-    <div id="qrModal" class="qr-modal" style="display: none">
-      <div class="qr-box">
-        <h3>Traveler QR Code</h3>
-        <div id="qrCode"></div>
-        <div id="qrText" class="qr-text"></div>
-        <div class="qr-btns">
-          <button id="qrPrintBtn">🖨️ Print QR</button>
-          <button id="qrCloseBtn">Close</button>
+            ">
+          <h2 style="margin: 0">🧪 QA Inspection:</h2>
+          <h2 id="inspectionTitle">(loading…)</h2>
         </div>
-      </div>
-    </div>
-  </body>
+
+        <!-- Header -->
+        <div class="header">
+          <div class="field col-3">
+            <label>Inspector (Emp)</label>
+            <input id="inspector_id" placeholder="ค้นหา emp…" />
+          </div>
+
+          <div class="col-12">
+            <div id="errorBox" class="err" style="display: none"></div>
+          </div>
+        </div>
+
+        <!-- Toolbar -->
+        <div class="list-topbar">
+          <button id="btnAddRow" class="btn-mini">+ Add Row</button>
+          <button id="btnAddTemplate" class="btn-mini">Use template</button>
+
+            <!-- <button id="btnExportTraveler" class="btn-mini">Export Traveler</button> -->
+            <button id="btnExportInspection" class="btn-mini">Export Inspection</button>
+        </div>
+
+        <!-- QA Table -->
+        <div id="qa_wrap">
+          <div id="qa_table"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast" role="status" aria-live="polite">
+    <span id="toastText"></span>
+  </div>
+
+  <!-- Navbar loader -->
+  <script type="module" src="/static/js/nav-loader.js"></script>
+
+  <!-- Page script -->
+  <script type="module" src="/static/js/page-travelerQA-detail.js?v=1"></script>
+</body>
+
 </html>

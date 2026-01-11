@@ -283,7 +283,9 @@ def import_docx_to_qc_template(docx_path):
 
         seq = 1
         for row in rows:
+            op = row.get("Op#")   # 👈 ดึง OP จากระดับบน
             for b in row.get("Bubble", []):
+               
                 bb = b.get("bb")
                 dim = b.get("dimension")
 
@@ -293,6 +295,7 @@ def import_docx_to_qc_template(docx_path):
                 item = QAInspectionTemplateItem(
                     template_id=template.id,
                     seq=seq,
+                    op_no=op,
                     bb_no=bb,
                     dimension=dim
                 )
