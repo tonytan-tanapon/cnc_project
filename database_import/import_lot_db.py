@@ -174,6 +174,7 @@ def get_or_upsert_lot(
     note: Optional[str],
     fair_note: Optional[str],
     lot_po_date=Optional[date],
+    lot_po_duedate= Optional[date],
     planned_ship_qty =  Optional[Decimal],
 ):
     lot = db.execute(select(ProductionLot).where(ProductionLot.lot_no == lot_no)).scalar_one_or_none()
@@ -189,6 +190,7 @@ def get_or_upsert_lot(
             lot_due_date=lot_due_date,
             started_at=(datetime.combine(start_date, time.min) if start_date else None),
             created_at=(datetime.combine(created_date, time.min) if created_date else None),
+            lot_po_duedate = (datetime.combine(created_date, time.min) if lot_po_duedate else None), 
             status="in_process",
             note=(note.strip() if note else None),
             fair_note=(fair_note.strip() if fair_note else None),
@@ -531,12 +533,15 @@ def main():
                     po_line=line,
                     qty=lot_qty,    # plan qty
                     lot_due_date=(due_date - timedelta(days=30)) if due_date else None,
+                    
                     start_date=(due_date - timedelta(days=60)) if due_date else None,
                     created_date=(due_date - timedelta(days=60)) if due_date else None,
                     note=need_remark,
                     fair_note=fair_no,
                     lot_po_date=created_at,
-                    planned_ship_qty = qty_po
+
+                    lot_po_duedate= due_date,
+                    planned_ship_qty = excel_qty # ship QTY
                 )
                 # print(lot_no,qty_po,qty_ship, lot_qty)
                 get_or_upsert_traveler(db, lot, lot_qty)
@@ -555,9 +560,9 @@ def main():
                 # lot_back = lot.id  # from customer_shipment.lot_id
                 # # --- Shipment ---
 
-                print("L17335",qty_ship, ship_date)
+                # print("L17335",qty_ship, ship_date)
                 if qty_ship and ship_date:
-                    print("L17335 in")
+                    # print("L17335 in")
                     # Find or create shipment header (per PO + ship_date)
                     # print(  all_lots.get(lot_no, {}).get("part_name", None), lot_no,  all_lots.get(lot_no, {}).get("ship_date", None),)
                     if True:

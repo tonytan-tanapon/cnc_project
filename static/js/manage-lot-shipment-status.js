@@ -182,10 +182,25 @@ function makeColumns() {
       },
     },
 
-    /* ===== DUE DATE ===== */
+    // /* ===== DUE DATE ===== */
+    // {
+    //   title: "Due",
+    //   field: "po_line_due_date",
+    //   width: 90,
+    //   formatter: (cell) => {
+    //     const v = cell.getValue();
+    //     if (!v) return "";
+    //     const d = new Date(v);
+    //     return `${String(d.getMonth() + 1).padStart(2, "0")}/
+    //             ${String(d.getDate()).padStart(2, "0")}/
+    //             ${String(d.getFullYear()).slice(-2)}`;
+    //   },
+    // },
+
+
     {
       title: "Due",
-      field: "po_line_due_date",
+      field: "lot_po_duedate",
       width: 90,
       formatter: (cell) => {
         const v = cell.getValue();
@@ -197,10 +212,11 @@ function makeColumns() {
       },
     },
 
+    
     /* ===== DAYS LEFT (PO LEVEL) ===== */
     {
       title: "Left",
-      field: "days_left",
+      field: "lot_po_days_left",
       width: 90,
       hozAlign: "center",
       sorter: "number",
@@ -286,21 +302,34 @@ function makeColumns() {
       },
     },
 
-    /* ===== PO QTY ===== */
 
-    //  {
-    //       title: "Ship",
-    //       width: 90,
+   {
+  title: "QTY",
+  width: 80,
+  field: "lot_planned_ship_qty",
+  hozAlign: "center",
+  headerHozAlign: "center",
+  editor: "number",        // ✅ inline edit
+  editorParams: {
+    min: 0,
+    step: 1,
+  },
+  cellEdited: async (cell) => {
+  const d = cell.getRow().getData();
 
-    //       formatter: (cell) => cell.getRow().getData().lot_shipped_qty ?? 0,
+  await fetch(`/api/v1/lots/${d.lot_id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      planned_ship_qty: d.lot_planned_ship_qty,   // ✅ correct field
+    }),
+  });
 
-    //       http://100.88.56.126:9000/static/manage-lot-shippments.html?lot_id=2
-    //     },
-    {
-      title: "LOT<br>QTY",
-      width: 80,
-      field: "lot_planned_ship_qty",
-    },
+  toast("Quantity updated", true);
+}
+},
+
+    
     {
       title: "Ship",
       width: 150,

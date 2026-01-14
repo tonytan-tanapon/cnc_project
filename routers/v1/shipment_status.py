@@ -12,7 +12,8 @@ def get_shipment_status(
     db: Session = Depends(get_db),
     customer: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
-    order_by: Optional[str] = Query("lot_po_date"),
+    order_by: Optional[str] = Query("lot_po_duedate"),
+
 ):
     allowed_order = {
         "lot_po_date",
@@ -24,7 +25,7 @@ def get_shipment_status(
         "days_left",
     }
 
-    order_col = order_by if order_by in allowed_order else "lot_po_date"
+    order_col = order_by if order_by in allowed_order else "lot_po_duedate"
 
     conditions = []
     params = {}
@@ -70,15 +71,15 @@ def get_po_shipment_status(
 
     # Allowed sorting columns
     allowed_order = {
-        "po_number",
-        "customer_name",
-        "total_ordered",
-        "total_shipped",
-        "total_remaining",
-        "po_shipment_status",
-        "shipped_percent",
-        "last_ship_date",
-    }
+    "lot_po_date",
+    "lot_po_duedate",     # ✅ new
+    "lot_days_left",     # ✅ new
+    "po_number",
+    "lot_no",
+    "customer_name",
+    "lot_shipment_status",
+    "lot_last_ship_date",
+}
 
     order_col = order_by if order_by in allowed_order else "po_number"
 

@@ -359,10 +359,12 @@ class ProductionLotUpdate(BaseModel):
     part_revision_id: Optional[int] = None
     po_id: Optional[int] = None
     lot_due_date : Optional[datetime] = None
+    planned_ship_qty: Optional[int] = None   # ✅ ADD THIS
     planned_qty: Optional[int] = None
     started_at: Optional[datetime] = None
     finished_at: Optional[datetime] = None
     status: Optional[str] = None
+    note: Optional[str] = None
 
 class PartTiny(BaseModel):
     model_config = ConfigDict(from_attributes=True)

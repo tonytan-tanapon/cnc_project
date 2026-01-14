@@ -480,14 +480,19 @@ class ProductionLot(Base):
     po_id = Column(Integer, ForeignKey("purchase_orders.id"), nullable=True, index=True)
     po_line_id = Column(Integer, ForeignKey("po_lines.id"), nullable=True, index=True)
 
-    planned_qty = Column(Integer, nullable=False, default=0)
-    planned_ship_qty = Column(Integer, nullable=True, default=0)
+    planned_qty = Column(Integer, nullable=False, default=0)  # lot plan qty
+    planned_ship_qty = Column(Integer, nullable=True, default=0) #lot po qty ************* add
 
-    started_at = Column(DateTime(timezone=True), nullable=True)
-    finished_at = Column(DateTime(timezone=True), nullable=True)
-    lot_po_date = Column(DateTime(timezone=True), nullable=True)
-    lot_due_date = Column(DateTime(timezone=True), nullable=True)    
-    created_at = Column(DateTime(timezone=True), nullable=True)
+    lot_po_qty = Column(Integer, nullable=True, default=0) #lot po qty
+
+    started_at = Column(DateTime(timezone=True), nullable=True)  #lot production start date 
+    finished_at = Column(DateTime(timezone=True), nullable=True) #lot production finish date
+    lot_due_date = Column(DateTime(timezone=True), nullable=True)   # lot production duedate 
+
+    lot_po_date = Column(DateTime(timezone=True), nullable=True) #lot po date 
+    lot_po_duedate = Column(DateTime(timezone=True), nullable=True) #lot po due date ************* add
+    
+    created_at = Column(DateTime(timezone=True), nullable=True)  #lot create date
     status = Column(String, nullable=False, default="in_process")
     note =  Column(String,  nullable=True)
     
