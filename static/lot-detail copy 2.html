@@ -181,9 +181,60 @@
   <div id="shippment_link">📦 Shipment</div>
 </section>
 
+        <!-- ===== LOT HEADER ===== -->
+        <div class="lot-info">
+          <h2 id="lot_no">📄 Lot Detail</h2>
+
+          <div>
+            <b>Planned Qty:</b>
+            <input
+              id="plannedQtyInput"
+              type="number"
+              min="0"
+              step="1"
+              style="width: 80px"
+            />
+
+            &nbsp;&nbsp;
+            <b>Finished Qty:</b> <span id="finishedQty"></span>
+            &nbsp;&nbsp;
+            <b>Status:</b> <span id="lotStatus"></span>
+            &nbsp;&nbsp;
+            <b>Due Date:</b>
+            <input id="dueDateInput" type="date" style="width: 150px" />
+            &nbsp;
+            <button
+              id="btnSavePlanned"
+              class="success"
+              style="margin-left: 4px; display: none"
+            >
+              💾 Save
+            </button>
+            <button
+              id="btnCancelPlanned"
+              class="secondary"
+              style="display: none"
+            >
+              ✖ Cancel
+            </button>
+          </div>
+
+          <div class="progress">
+            <div id="progressBar" class="progress-bar"></div>
+          </div>
+          <div id="progressLabel" class="progress-label"></div>
+        </div>
+
         
-         <div>Search</div><input>
-        <!-- ===== Lot ===== -->
+        <!-- ===== TOOLBAR ===== -->
+        <!-- <div class="toolbar">
+          <button id="btnViewMaterials" class="warning">🧱 Materials</button>
+          <button id="btnViewTravelers" class="success">👷 Travelers</button>
+          <button id="btnViewShipments" class="secondary">🚚 Shipments</button>
+          <button id="btnRefresh" class="success">🔄 Refresh</button>
+        </div> -->
+         
+        <!-- ===== MATERIALS ===== -->
         <section class="panel">
           <h3>🧱 Lot Usage</h3>
           <div class="table-wrap">
@@ -193,6 +244,26 @@
 </div>
         </section>
 
+
+        <!-- ===== MATERIALS ===== -->
+        <section class="panel">
+          <h3>🧱 Material Usage</h3>
+          <div id="materialTable" class="table-wrap"></div>
+        </section>
+
+        <!-- ===== TRAVELERS ===== -->
+        <section class="panel">
+          <h3>👷 Travelers</h3>
+          <div id="travelerTable" class="table-wrap"></div>
+        </section>
+
+        <!-- ===== SHIPMENTS ===== -->
+        <section class="panel">
+          <h3>🚚 Shipments</h3>
+          <div id="shipmentTable" class="table-wrap"></div>
+        </section>
+      </main>
+    </div>
 
     <div class="toast" id="toast"><span id="toastText"></span></div>
 

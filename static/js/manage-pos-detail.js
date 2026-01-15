@@ -883,7 +883,7 @@ function initLinesTable() {
                 (l) => `
               <span style="white-space: nowrap;">
                 <a class="link"
-                   href="/static/edit-lot.html?lot_id=${encodeURIComponent(l.id)}"
+                   href="/static/lot-detail.html?lot_id=${encodeURIComponent(l.id)}"
                    title="Open materials for ${safe(l.lot_no)}">
                   ${safe(l.lot_no)}
                 </a>

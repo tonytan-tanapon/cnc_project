@@ -16,6 +16,7 @@ def list_lot_summary(
     q: str | None = None,
 
     # ⭐ filters ใหม่
+    lot_id: int | None = None,
     part_id: int | None = None,
     revision_id: int | None = None,
     customer_id: int | None = None,
@@ -40,6 +41,11 @@ def list_lot_summary(
             )
         """)
         params["q"] = f"%{q}%"
+
+    # 🎯 filter ตาม lot จริง ๆ
+    if lot_id is not None:
+        where.append("lot_id = :lot_id")
+        params["lot_id"] = lot_id
 
     # 🎯 filter ตาม lot จริง ๆ
     if part_id is not None:

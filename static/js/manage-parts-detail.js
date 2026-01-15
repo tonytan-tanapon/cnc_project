@@ -981,7 +981,7 @@ function initTable() {
 
           if (!d.lot_id) return shipped;
 
-          const url = `http://100.88.56.126:9000/static/manage-lot-shippments.html?lot_id=${d.lot_id}`;
+          const url = `/static/manage-lot-shippments.html?lot_id=${d.lot_id}`;
 
           return `
       <div style="display:flex; align-items:center; gap:6px; justify-content:center;">

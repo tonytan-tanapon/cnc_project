@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Suppliers</title>
+
+    <!-- Tabulator -->
+    <link
+      href="https://unpkg.com/tabulator-tables@6.2.0/dist/css/tabulator.min.css"
+      rel="stylesheet"
+    />
+    <script src="https://unpkg.com/tabulator-tables@6.2.0/dist/js/tabulator.min.js"></script>
+
+    <!-- Styles -->
+    <style>
+      body {
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial;
+        margin: 0;
+        padding: 20px;
+        background: #f8fafc;
+      }
+
+      h1 {
+        margin: 0 0 16px;
+        font-size: 24px;
+        font-weight: 700;
+      }
+
+      #controls {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 10px;
+      }
+
+      input[type="text"] {
+        flex: 1;
+        padding: 8px 10px;
+        font-size: 15px;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+      }
+
+      button {
+        padding: 8px 14px;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 600;
+      }
+
+      #addRowBtn {
+        background: #111827;
+        color: white;
+      }
+
+      #addRowBtn:hover {
+        background: #1f2937;
+      }
+
+      #table {
+        background: #fff;
+        border-radius: 10px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+        overflow: hidden;
+      }
+
+      .actions {
+        display: flex;
+        justify-content: center;
+        gap: 4px;
+      }
+
+      .btn-save,
+      .btn-delete {
+        padding: 4px 8px;
+        border-radius: 5px;
+        border: none;
+        color: white;
+        cursor: pointer;
+        font-size: 13px;
+      }
+
+      .btn-save {
+        background: #22c55e;
+      }
+
+      .btn-delete {
+        background: #ef4444;
+      }
+
+      .btn-save:hover {
+        background: #16a34a;
+      }
+
+      .btn-delete:hover {
+        background: #dc2626;
+      }
+    </style>
+  </head>
+
+  <body>
+    <h1>Suppliers</h1>
+
+    <div id="controls">
+      <input id="searchBox" type="text" placeholder="Search suppliers..." />
+      <button id="addRowBtn" type="button">+ Add</button>
+    </div>
+
+    <div id="table"></div>
+
+    <!-- Scripts -->
+    <script type="module">
+      import { initDynamicTable } from "/static/js/dynamic-table.js";
+      import { jfetch, toast } from "/static/js/api.js";
+
+      const config = {
+        title: "Suppliers",
+        apiBase: "/api/v1/suppliers/suppliers",
+        apiPage: "/api/v1/suppliers/page",
+        apiKeyset: "/api/v1/suppliers/keyset",
+        apiLookup: "/api/v1/suppliers/lookup",
+        apiNextCode: "/api/v1/suppliers/next-code",
+        apiSearch: "/api/v1/suppliers/search",
+        columns: [
+          { title: "Code", field: "code", editor: "input", width: 120 },
+          { title: "Name", field: "name", editor: "input", width: 200 },
+          { title: "Contact", field: "contact", editor: "input", width: 160 },
+          { title: "Email", field: "email", editor: "input", width: 220 },
+          { title: "Phone", field: "phone", editor: "input", width: 140 },
+          { title: "Address", field: "address", editor: "input", widthGrow: 3 },
+          {
+            title: "Payment Terms",
+            field: "payment_terms",
+            editor: "input",
+            width: 160,
+          },
+        ],
+      };
+
+      const table = initDynamicTable(config);
+
+      // === Search ===
+      const searchBox = document.getElementById("searchBox");
+      let debounceTimer;
+      searchBox.addEventListener("input", (e) => {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(async () => {
+          const q = e.target.value.trim();
+          try {
+            if (!q) {
+              // ถ้าไม่มีข้อความค้นหา -> โหลดข้อมูลเริ่มต้นใหม่
+              table.clearData(); // ✅ ปลอดภัยกว่า setData()
+              window._activeTable?.clearHistory?.();
+              window._activeTable?.setSort("id", "desc");
+              return;
+            }
+
+            const res = await jfetch(
+              `${config.apiSearch}?q=${encodeURIComponent(q)}`
+            );
+            const items = Array.isArray(res.items) ? res.items : res;
+            if (Array.isArray(items)) {
+              table.clearData(); // ✅ กัน loop ซ้ำ
+              table.addData(items);
+            } else {
+              toast("No results", false);
+            }
+          } catch (err) {
+            toast("Search failed: " + err.message, false);
+          }
+        }, 300);
+      });
+
+      // === Add Row ===
+      document.getElementById("addRowBtn").addEventListener("click", () => {
+        window.addNewRow();
+      });
+    </script>
+  </body>
+</html>
