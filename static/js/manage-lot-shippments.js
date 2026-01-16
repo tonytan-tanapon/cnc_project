@@ -163,7 +163,7 @@ function initPartTable() {
 async function loadPartInventory() {
   try {
     const data = await jfetch(ENDPOINTS.partInventory);
-
+    console.log("av df dsf",data)
     // ✅ กรองเฉพาะ Available > 0
     const filtered = data.filter((row) => row.available_qty > 0);
 

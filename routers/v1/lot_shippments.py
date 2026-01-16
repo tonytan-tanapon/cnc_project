@@ -46,16 +46,25 @@ def get_part_inventory_data(db: Session, lot_id: int):
         .subquery()
     )
 
+    sub_last_step = (
+    db.query(
+        ShopTravelerStep.traveler_id,
+        func.max(ShopTravelerStep.seq).label("max_seq"),
+    )
+    .group_by(ShopTravelerStep.traveler_id)
+    .subquery()
+    )
+
     finished_qty = (
         db.query(func.coalesce(func.sum(ShopTravelerStep.qty_accept), 0))
         .join(
-            sub_max_seq,
-            (ShopTravelerStep.traveler_id == sub_max_seq.c.traveler_id)
-            & (ShopTravelerStep.seq == sub_max_seq.c.max_seq),
+            sub_last_step,
+            (ShopTravelerStep.traveler_id == sub_last_step.c.traveler_id) &
+            (ShopTravelerStep.seq == sub_last_step.c.max_seq)
         )
         .join(ShopTraveler, ShopTraveler.id == ShopTravelerStep.traveler_id)
         .filter(ShopTraveler.lot_id == lot.id)
-        .filter(ShopTravelerStep.status.in_(["passed", "completed"]))
+        .filter(ShopTravelerStep.status == "passed")   # ✅ only LAST step must be passed
         .scalar()
         or 0
     )

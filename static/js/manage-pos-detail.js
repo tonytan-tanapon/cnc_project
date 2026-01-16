@@ -204,6 +204,7 @@ function toggleRowEdit(row, on = true) {
 
 /* ---------- Header Save/Cancel (manual) ---------- */
 function getHeaderDraft() {
+  
   return {
     po_number: (elPoNumber.value ?? "").trim(),
     customer_id: selectedCustomer?.id ?? null,
@@ -221,10 +222,13 @@ async function saveHeaderManual() {
     toast("Select Customer !!", false);
     return;
   }
+
+  console.log("test",draft)
   try {
     isSubmitting = true;
     setBusy(true);
     if (!initial?.id) {
+        console.log("post")
       const created = await jfetch(`/pos`, {
         method: "POST",
         body: JSON.stringify(draft),
@@ -245,7 +249,7 @@ async function saveHeaderManual() {
         patch.description = draft.description;
 
       if (Object.keys(patch).length) {
-  s
+        console.log("patch",initial.id,patch)
         await jfetch(`/pos/${encodeURIComponent(initial.id)}`, {
           method: "PATCH",
           body: JSON.stringify(patch),
@@ -782,11 +786,7 @@ function initLinesTable() {
 
           if (!pid) return safe(String(pno || ""));
 
-          const href = `/static/manage-part-detail.html?part_id=${encodeURIComponent(
-            pid
-          )}
-          
-          ${custId ? `&customer_id=${encodeURIComponent(custId)}` : ""}`;
+          const href = `/static/manage-part-detail.html?part_id=${encodeURIComponent(pid)}${custId ? `&customer_id=${encodeURIComponent(custId)}` : ""}`;
 
           return `<a class="link" href="${href}" >${safe(String(pno))}</a>`;
         },
