@@ -174,10 +174,13 @@ def get_employee_by_code(emp_code: str, db: Session = Depends(get_db)):
 def update_employee(emp_id: int, payload: EmployeeUpdate, db: Session = Depends(get_db)):
     print(payload.dict())
     e = db.get(Employee, emp_id)
+    print("id", e)
     if not e:
         raise HTTPException(404, "Employee not found")
     for k, v in payload.dict(exclude_unset=True).items():
+        print(e,k,v)
         setattr(e, k, v)
+    print("commit")
     db.commit()
     db.refresh(e)
     return e

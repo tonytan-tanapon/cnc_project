@@ -8,7 +8,7 @@ from . import (
     part_materials,report_materials, po_lines,
     reports_due_date_monitor,lots_browse, shipment_status,customer_shipments,
     lot_materials,inventory,lot_shippments,lot_summary,
-    traveler_drawing, time_leaves,qa_inspections,
+    traveler_drawing, time_leaves,qa_inspections,qr,
 
 
 
@@ -35,7 +35,7 @@ api_v1.include_router(traveler_steps.router)
 
 
 api_v1.include_router(traveler_drawing.router)
-# api_v1.include_router(suppliers.router)
+api_v1.include_router(suppliers.router)
 
 
 
@@ -74,5 +74,7 @@ api_v1.include_router(lot_shippments.router)
 api_v1.include_router(shipment_status.router)
 api_v1.include_router(time_leaves.router)
 api_v1.include_router(qa_inspections.router)
+
+api_v1.include_router(qr.router)
 
 __all__ = ["api_v1"]

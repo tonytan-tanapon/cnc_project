@@ -388,9 +388,13 @@ def get_traveler_by_no(traveler_no: str, seq: int | None = Query(None), db: Sess
             "station": active_step.station if active_step else None,
             "step_name": active_step.step_name if active_step else None,
             "step_note": active_step.step_note if active_step else None,
-            "operator_name": (
-                active_step.operator.emp_code if active_step and active_step.operator else None
-            ),
+            "operator": {
+            "id": active_step.operator.id if active_step and active_step.operator else None,
+            "emp_code": active_step.operator.emp_code if active_step and active_step.operator else None,
+            "emp_op": active_step.operator.emp_op if active_step and active_step.operator else None,
+            "nickname": active_step.operator.nickname if active_step and active_step.operator else None,
+        },
+
             "status": active_step.status if active_step else None,
         } if active_step else None,
         "steps": [
@@ -408,6 +412,8 @@ def get_traveler_by_no(traveler_no: str, seq: int | None = Query(None), db: Sess
                 "operator": {
                     "id": s.operator.id if s.operator else None,
                     "emp_code": s.operator.emp_code if s.operator else None,
+                    "emp_op": s.operator.emp_op if s.operator else None,
+                    "nickname": s.operator.nickname if s.operator else None,
                 },
             }
             for s in sorted(traveler.steps, key=lambda x: x.seq or 0)

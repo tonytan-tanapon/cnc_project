@@ -85,7 +85,6 @@ async function fetchCustomers(term) {
     try {
       const res = await jfetch(`/customers/keyset?limit=10`);
       const items = Array.isArray(res) ? res : res.items ?? [];
-     
       return items.map((x) => ({
         id: x.id ?? x.customer_id ?? x.customerId,
         code: x.code ?? "",
@@ -357,8 +356,6 @@ async function autosaveCell(cell, opts = {}) {
         try {
           const fresh = await jfetch(ENDPOINTS.byId(d.id));
           const norm = normalizeRow(fresh);
-
-          
           row.update({ ...norm });
         } catch {}
       }
@@ -410,7 +407,7 @@ function initTable() {
   table.on("tableBuilt", () => {
     isBuilt = true;
     requestAnimationFrame(() => table.redraw(true));
-    bindIntersectionLoader(); // after table DOM exists
+    // bindIntersectionLoader(); // after table DOM exists
   });
 
   // Tab / Shift+Tab
@@ -550,7 +547,6 @@ async function loadKeyset(keyword = "", afterId = null) {
     usp.set("limit", String(PAGED_PER_PAGE));
 
     const res = await jfetch(ENDPOINTS.keyset(usp.toString()));
-     console.log(res)
     if (mySeq !== ksSeq) return; // stale
 
     const items = Array.isArray(res) ? res : res.items ?? [];

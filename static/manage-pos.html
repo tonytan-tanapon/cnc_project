@@ -99,14 +99,16 @@
         padding: 0 8px;
         font-size: 13px;
       }
-      #listBody {
-        flex: 1;
-        overflow: auto;
-      }
-      #listBody .tabulator {
-        height: 100% !important;
-        border: 0;
-      }
+      #listPanel {
+  flex: 1;
+  min-height: 0;   /* ✅ REQUIRED for flex scrolling */
+}
+
+#listBody {
+  flex: 1;
+  min-height: 0;   /* ✅ REQUIRED */
+  overflow: hidden;
+}
     </style>
   </head>
 

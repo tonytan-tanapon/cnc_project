@@ -53,6 +53,7 @@ async function searchMaterials(term) {
   if (!q) return [];
   try {
     const res = await jfetch(`/materials?q=${encodeURIComponent(q)}&page=1&per_page=10`);
+    
     const items = Array.isArray(res) ? res : (res.items ?? []);
     return items.map(x => ({
       id: x.id ?? x.material_id ?? x.materialId,
@@ -65,6 +66,8 @@ async function searchMaterials(term) {
     try {
       const res2 = await jfetch(`/materials/keyset?q=${encodeURIComponent(q)}&limit=10`);
       const items2 = Array.isArray(res2) ? res2 : (res2.items ?? []);
+
+      console.log(res2)
       return items2.map(x => ({
         id: x.id ?? x.material_id ?? x.materialId,
         code: x.code ?? '',
@@ -224,6 +227,7 @@ async function loadBatch() {
   setBusy(true);
   try {
     const b = await jfetch(`/batches/${encodeURIComponent(batchId)}`);
+    console.log(b)
     initial = b;
     fillForm(b);
   } catch (e) {

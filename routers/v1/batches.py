@@ -89,10 +89,11 @@ def create_batch(payload: RawBatchCreate, db: Session = Depends(get_db)):
 # ---------- LIST (OFFSET) ----------
 @router.get("", response_model=BatchPage)
 def list_batches(
-    q: Optional[str] = Query(None, description="Search by batch/material (ILIKE)"),
-    material_id: Optional[int] = Query(None, description="Filter by material_id"),
+    q: Optional[str] = Query(None),
+    material_id: Optional[int] = Query(None),
     page: int = Query(1, ge=1),
-    per_page: int = Query(20, ge=1, le=100),
+    per_page: int = Query(20, ge=1, le=1000),
+    all: Optional[bool] = Query(False),
     db: Session = Depends(get_db),
 ):
     qry = db.query(RawBatch)
@@ -124,11 +125,18 @@ def list_batches(
             ))
 
     total = qry.count()
-    items = (qry.order_by(RawBatch.id.desc())
-                .offset((page - 1) * per_page)
-                .limit(per_page)
-                .all())
-    pages = (total + per_page - 1) // per_page if per_page else 1
+
+    if all:
+        items = qry.order_by(RawBatch.id.desc()).all()
+        pages = 1
+    else:
+        items = (
+            qry.order_by(RawBatch.id.desc())
+            .offset((page - 1) * per_page)
+            .limit(per_page)
+            .all()
+        )
+        pages = (total + per_page - 1) // per_page
 
     return {
         "items": items,

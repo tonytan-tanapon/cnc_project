@@ -17,32 +17,46 @@ def get_parts():
 
 @router.get("/materials")
 def get_materials(db: Session = Depends(get_db)):
-    print("inventory")
-    # Query: Material + Batch + Remaining Qty
+    qty_available = (
+        RawBatch.qty_received - func.coalesce(func.sum(LotMaterialUse.qty), 0)
+    )
+
     stmt = (
         select(
+            RawBatch.id.label("id"),
             RawMaterial.code,
             RawMaterial.name,
+            RawMaterial.uom,
             RawBatch.batch_no,
             RawBatch.qty_received,
-            (RawBatch.qty_received - func.coalesce(func.sum(LotMaterialUse.qty), 0)).label("qty_available"),
+            qty_available.label("qty_available"),
         )
         .join(RawBatch, RawBatch.material_id == RawMaterial.id)
         .outerjoin(LotMaterialUse, LotMaterialUse.batch_id == RawBatch.id)
-        .group_by(RawMaterial.code, RawMaterial.name, RawBatch.batch_no, RawBatch.qty_received)
+        .group_by(
+            RawBatch.id,
+            RawMaterial.code,
+            RawMaterial.name,
+            RawMaterial.uom,
+            RawBatch.batch_no,
+            RawBatch.qty_received,
+        )
+        .having(qty_available > 0)        # ✅ FILTER HERE
         .order_by(RawMaterial.code, RawBatch.batch_no)
     )
 
     results = db.execute(stmt).all()
 
-    # Convert to dict
     return [
         {
+            "id": r.id,
             "code": r.code,
             "name": r.name,
             "batch_no": r.batch_no,
+            "qty_received": float(r.qty_received),
             "qty_available": float(r.qty_available),
-            "status": "OK" if r.qty_available > 0 else "Need Reorder",
+            "qty_uom": r.uom,
+            "status": "OK",
         }
         for r in results
     ]

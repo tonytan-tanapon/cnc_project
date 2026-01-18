@@ -1,17 +1,13 @@
-// /static/js/page-parts.js — AUTOSAVE + Tab nav + Undo/Redo + Delete
+// /static/js/page-parts.js — AUTOSAVE + Tab nav + Undo/Redo + Delete only
 import { $, jfetch, showToast as toast } from "./api.js";
-
-/* ===== CONFIG ===== */
-const ENDPOINTS = { base: "/parts" };
-const PAGED_PER_PAGE = 200;
 
 const UI = { q: "_q", add: "_add", table: "listBody" };
 const DETAIL_PAGE = "./part-detail.html";
 const partDetail = (id) => `${DETAIL_PAGE}?id=${encodeURIComponent(id)}`;
 
 /* ===== AUTOSAVE GUARDS ===== */
-const createInFlight = new WeakSet();
-const patchTimers = new Map();
+const createInFlight = new WeakSet(); // rows creating (POST)
+const patchTimers = new Map(); // row -> timeout (debounced PATCH)
 const PATCH_DEBOUNCE_MS = 350;
 
 /* ===== STATE ===== */
@@ -20,7 +16,6 @@ let table = null;
 
 /* ===== HELPERS ===== */
 const trim = (v) => (v == null ? "" : String(v).trim());
-
 const safe = (s) =>
   String(s ?? "")
     .replaceAll("&", "&amp;")
@@ -28,7 +23,6 @@ const safe = (s) =>
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
-
 const fmtDate = (v) => {
   if (!v) return "";
   const d = new Date(v);
@@ -62,8 +56,10 @@ function normalizeRow(p) {
 }
 
 function buildPayload(row) {
+  // ถ้า part_no ว่าง ให้ส่ง null เพื่อให้ backend autogen (ถ้ารองรับ)
+  const part_no = trim(row.part_no) || null;
   return {
-    part_no: trim(row.part_no) || null,
+    part_no,
     name: trim(row.name) || null,
     description: row.description ? trim(row.description) : "",
     uom: row.uom ? trim(row.uom) : null,
@@ -72,21 +68,28 @@ function buildPayload(row) {
 }
 
 function requiredReady(row) {
+  // บังคับอย่างน้อยต้องมี name
   return !!trim(row.name);
 }
 
-/* ===== COLUMNS ===== */
+/* ===== Columns ===== */
 function makeColumns() {
   return [
+    
+
+    // แยกคอลัมน์ View ออกมาเพื่อยังมีลิงก์ไปหน้า detail
     {
       title: "View",
+      field: "_view",
       width: 90,
-      hozAlign: "center",
       headerSort: false,
+      hozAlign: "center",
       formatter: (cell) => {
         const id = cell.getRow()?.getData()?.id;
         if (!id) return `<span class="muted">—</span>`;
-        return `<a class="view-link" href="${partDetail(id)}">View</a>`;
+        return `<a class="view-link" href="${partDetail(
+          id
+        )}" title="Open detail">View</a>`;
       },
       cellClick: (e) => {
         const a = e.target.closest("a.view-link");
@@ -95,7 +98,6 @@ function makeColumns() {
     },
 
     { title: "Part No.", field: "part_no", width: 160, editor: "input" },
-
     {
       title: "Name",
       field: "name",
@@ -107,13 +109,13 @@ function makeColumns() {
     {
       title: "Revisions",
       field: "revisions",
-      minWidth: 220,
       headerSort: false,
+      minWidth: 220,
       formatter: (cell) => renderRevisionsInline(cell.getValue()),
+      // read-only
     },
 
     { title: "UoM", field: "uom", width: 90, editor: "input" },
-
     {
       title: "Description",
       field: "description",
@@ -135,26 +137,29 @@ function makeColumns() {
       title: "Created",
       field: "created_at",
       width: 180,
+      headerSort: true,
       formatter: (c) => fmtDate(c.getValue()),
     },
 
     {
       title: "Actions",
+      field: "_actions",
       width: 120,
       hozAlign: "center",
       headerSort: false,
       cssClass: "actions-cell",
       formatter: () =>
         `<button class="btn-small btn-danger" data-act="del">Delete</button>`,
-      cellClick: (e, cell) => {
+      cellClick: async (e, cell) => {
         const btn = e.target.closest("button[data-act='del']");
-        if (btn) deleteRow(cell.getRow());
+        if (!btn) return;
+        deleteRow(cell.getRow());
       },
     },
   ];
 }
 
-/* ===== TAB NAV ===== */
+/* ===== Tab / Shift+Tab navigation while editing ===== */
 function getEditableFieldsLive(tab) {
   return tab
     .getColumns(true)
@@ -162,43 +167,45 @@ function getEditableFieldsLive(tab) {
     .filter((c) => c.field && c.def && !!c.def.editor)
     .map((c) => c.field);
 }
-
-function focusSiblingEditable(cell, dir) {
+function focusSiblingEditable(cell, dir /* +1 or -1 */) {
   const row = cell.getRow();
   const tab = row.getTable();
   const fields = getEditableFieldsLive(tab);
-
   const curField = cell.getField();
-  const curIdx = fields.indexOf(curField);
-  if (curIdx === -1) return;
-
+  const curFieldIdx = fields.indexOf(curField);
+  if (curFieldIdx === -1) return;
   const rows = tab.getRows();
-  const rowIdx = rows.indexOf(row);
+  const curRowIdx = rows.indexOf(row);
 
-  let nextFieldIdx = curIdx + dir;
-  let nextRowIdx = rowIdx;
-
+  let nextFieldIdx = curFieldIdx + dir;
+  let nextRowIdx = curRowIdx;
   if (nextFieldIdx >= fields.length) {
     nextFieldIdx = 0;
-    nextRowIdx = Math.min(rowIdx + 1, rows.length - 1);
+    nextRowIdx = Math.min(curRowIdx + 1, rows.length - 1);
   } else if (nextFieldIdx < 0) {
     nextFieldIdx = fields.length - 1;
-    nextRowIdx = Math.max(rowIdx - 1, 0);
+    nextRowIdx = Math.max(curRowIdx - 1, 0);
   }
 
-  const targetCell = rows[nextRowIdx]?.getCell(fields[nextFieldIdx]);
+  const targetRow = rows[nextRowIdx];
+  if (!targetRow) return;
+  const targetField = fields[nextFieldIdx];
+  const targetCell = targetRow.getCell(targetField);
   if (!targetCell) return;
 
   targetCell.edit(true);
-  const input = targetCell.getElement()?.querySelector("input");
+  const el = targetCell.getElement();
+  const input =
+    el && el.querySelector("input, textarea, [contenteditable='true']");
   if (input) {
     const v = input.value;
     input.focus();
-    input.setSelectionRange(v.length, v.length);
+    if (typeof v === "string") input.setSelectionRange(v.length, v.length);
   }
 }
 
 /* ===== AUTOSAVE ===== */
+// pass { fromHistory: true, revert: () => table.undo()/redo() } when needed
 async function autosaveCell(cell, opts = {}) {
   const { fromHistory = false, revert } = opts;
 
@@ -208,31 +215,32 @@ async function autosaveCell(cell, opts = {}) {
   const newVal = cell.getValue();
   const oldVal = fromHistory ? undefined : cell.getOldValue();
 
+  // Rule: name required
   if (fld === "name" && !trim(newVal)) {
     toast("Name required", false);
     if (!fromHistory) cell.setValue(oldVal, true);
-    else revert?.();
+    else if (typeof revert === "function") revert();
     return;
   }
 
   const payload = buildPayload(d);
 
-  // CREATE
+  // CREATE: first time only when required fields present
   if (!d.id) {
-    if (!requiredReady(d)) return;
+    if (!requiredReady(d)) return; // wait until name filled
     if (createInFlight.has(row)) return;
-
     createInFlight.add(row);
     try {
-      const created = await jfetch(ENDPOINTS.base, {
+      const created = await jfetch("/parts", {
         method: "POST",
         body: JSON.stringify(payload),
       });
-      row.update(normalizeRow(created));
-      toast(`Part "${created.part_no || created.name}" created`);
+      const norm = normalizeRow(created || d);
+      row.update({ ...norm });
+      toast(`Part "${norm.part_no || norm.name}" created`);
     } catch (e) {
       if (!fromHistory && oldVal !== undefined) cell.setValue(oldVal, true);
-      else revert?.();
+      else if (typeof revert === "function") revert();
       toast(e?.message || "Create failed", false);
     } finally {
       createInFlight.delete(row);
@@ -240,42 +248,44 @@ async function autosaveCell(cell, opts = {}) {
     return;
   }
 
-  // UPDATE (debounced)
+  // UPDATE: debounced
   if (patchTimers.has(row)) clearTimeout(patchTimers.get(row));
-
   const t = setTimeout(async () => {
     patchTimers.delete(row);
     try {
-      const updated = await jfetch(
-        `${ENDPOINTS.base}/${encodeURIComponent(d.id)}`,
-        {
-          method: "PATCH",
-          body: JSON.stringify(payload),
-        }
-      );
-      row.update(normalizeRow(updated));
-      toast(`Saved "${updated.part_no || updated.name}"`);
+      const updated = await jfetch(`/parts/${encodeURIComponent(d.id)}`, {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+      });
+      const norm = normalizeRow(updated || d);
+      row.update({ ...d, ...norm, id: norm.id ?? d.id });
+      toast(`Saved "${norm.part_no || norm.name}"`);
     } catch (e) {
       if (!fromHistory && oldVal !== undefined) cell.setValue(oldVal, true);
-      else revert?.();
+      else if (typeof revert === "function") revert();
       toast(e?.message || "Save failed", false);
     }
   }, PATCH_DEBOUNCE_MS);
-
   patchTimers.set(row, t);
 }
 
 /* ===== DELETE ===== */
 async function deleteRow(row) {
   const d = row.getData();
-  if (!d.id) return row.delete();
-
-  if (!confirm(`Delete "${d.part_no || d.name}"?`)) return;
-
+  if (!d.id) {
+    row.delete();
+    return;
+  }
+  if (
+    !confirm(
+      `Delete this part "${
+        d.part_no || d.name || d.id
+      }"?\nThis action cannot be undone.`
+    )
+  )
+    return;
   try {
-    await jfetch(`${ENDPOINTS.base}/${encodeURIComponent(d.id)}`, {
-      method: "DELETE",
-    });
+    await jfetch(`/parts/${encodeURIComponent(d.id)}`, { method: "DELETE" });
     row.delete();
     toast("Deleted");
   } catch (e) {
@@ -283,11 +293,12 @@ async function deleteRow(row) {
   }
 }
 
-/* ===== TABLE INIT ===== */
+/* ===== TABLE ===== */
 function initTable() {
   table = new Tabulator(`#${UI.table}`, {
     layout: "fitColumns",
-    height: "100%",          // ✅ same technique as Materials page
+    height: "100%",
+    data: [],
     columns: makeColumns(),
     placeholder: "No parts",
     reactiveData: true,
@@ -296,76 +307,144 @@ function initTable() {
     selectableRows: 1,
   });
 
+  table.on("tableBuilt", () => {
+    requestAnimationFrame(() => table.redraw(true));
+  });
+
+  // Tab / Shift+Tab
   table.on("cellEditing", (cell) => {
     setTimeout(() => {
-      const input = cell
-        .getElement()
-        ?.querySelector("input, textarea, [contenteditable]");
+      const el = cell.getElement();
+      const input =
+        el && el.querySelector("input, textarea, [contenteditable='true']");
       if (!input) return;
-
       const handler = (e) => {
         if (e.key === "Tab") {
           e.preventDefault();
+          e.stopPropagation();
+          if (typeof e.stopImmediatePropagation === "function")
+            e.stopImmediatePropagation();
           focusSiblingEditable(cell, e.shiftKey ? -1 : +1);
         }
       };
-
       input.addEventListener("keydown", handler);
-      input.addEventListener("blur", () =>
-        input.removeEventListener("keydown", handler)
+      input.addEventListener(
+        "blur",
+        () => input.removeEventListener("keydown", handler),
+        { once: true }
       );
     }, 0);
   });
 
+  // Autosave hooks
   table.on("cellEdited", (cell) => autosaveCell(cell));
-
   table.on("historyUndo", (action, component) => {
-    if (action === "cellEdit")
-      autosaveCell(component, { fromHistory: true, revert: () => table.redo() });
+    if (
+      action === "cellEdit" &&
+      component &&
+      typeof component.getRow === "function"
+    ) {
+      autosaveCell(component, {
+        fromHistory: true,
+        revert: () => table.redo(),
+      });
+    }
+  });
+  table.on("historyRedo", (action, component) => {
+    if (
+      action === "cellEdit" &&
+      component &&
+      typeof component.getRow === "function"
+    ) {
+      autosaveCell(component, {
+        fromHistory: true,
+        revert: () => table.undo(),
+      });
+    }
   });
 
-  table.on("historyRedo", (action, component) => {
-    if (action === "cellEdit")
-      autosaveCell(component, { fromHistory: true, revert: () => table.undo() });
+  // Global keys
+  document.addEventListener("keydown", (e) => {
+    const mod = e.ctrlKey || e.metaKey;
+    if (mod && e.key.toLowerCase() === "z") {
+      e.preventDefault();
+      e.shiftKey ? table.redo() : table.undo();
+      return;
+    }
+    if (mod && e.key.toLowerCase() === "y") {
+      e.preventDefault();
+      table.redo();
+      return;
+    }
+    if (e.key === "Delete") {
+      const sel = table.getSelectedRows?.();
+      if (sel && sel[0]) deleteRow(sel[0]);
+    }
   });
 }
 
-/* ===== FETCH ===== */
+/* ===== FETCH ALL HELPERS ===== */
+// พยายาม all=1 ก่อน ถ้า backend รองรับ จะได้เร็ว
+async function tryFetchAllParam(keyword = "") {
+  const usp = new URLSearchParams();
+  usp.set("all", "1");
+  usp.set("include", "revisions");
+  if (keyword) usp.set("q", keyword);
+  const res = await jfetch(`/parts?${usp.toString()}`);
+  const items = Array.isArray(res) ? res : res?.items ?? res?.data ?? [];
+  const total = res?.total ?? items.length;
+  return { items, total, pages: res?.pages ?? 1 };
+}
+
+const PAGED_PER_PAGE = 200;
 async function fetchAllByPaging(keyword = "") {
+  const perPage = PAGED_PER_PAGE;
   let page = 1;
   const all = [];
-
   while (true) {
-    const usp = new URLSearchParams({
-      page,
-      page_size: PAGED_PER_PAGE,
-      include: "revisions",
-    });
+    const usp = new URLSearchParams();
+    usp.set("page", String(page));
+    usp.set("page_size", String(perPage));
+    usp.set("include", "revisions");
     if (keyword) usp.set("q", keyword);
-
-    const res = await jfetch(`${ENDPOINTS.base}?${usp}`);
-    const items = res?.items ?? [];
-    console.log(items)
-
-    if (!items.length) break;
+    const res = await jfetch(`/parts?${usp.toString()}`);
+    const items = Array.isArray(res) ? res : res?.items ?? res?.data ?? [];
+    if (!items?.length) break;
     all.push(...items);
-
-    if (items.length < PAGED_PER_PAGE) break;
-    page++;
+    const pages = res?.pages;
+    if (pages && page >= pages) break;
+    if (!pages && items.length < perPage) break;
+    page += 1;
   }
-
   return all;
 }
 
-/* ===== LOAD ===== */
+/* ===== LOAD ALL ===== */
 async function loadAll(keyword = "") {
   try {
-    const records = await fetchAllByPaging(keyword);
-    table.setData(records.map(normalizeRow));
-    table.redraw(true);
-  } catch {
+    let records = [];
+
+    let ok = false;
+    try {
+      const { items, total, pages } = await tryFetchAllParam(keyword);
+      records = items;
+      if (records.length < (total || records.length) || (pages && pages > 1)) {
+        records = await fetchAllByPaging(keyword);
+      }
+      ok = true;
+    } catch {
+      // ถ้า backend ไม่รองรับ all=1 → ถอยไปใช้ paging
+    }
+    if (!ok) {
+      records = await fetchAllByPaging(keyword);
+    }
+
+    table?.setData(records.map(normalizeRow));
+    table?.redraw(true);
+  } catch (e) {
     toast("Load failed", false);
-    table.setData([]);
+    table?.setData([]);
+    table?.redraw(true);
   }
 }
 
@@ -379,28 +458,28 @@ function bindSearch() {
     t = setTimeout(() => loadAll(box.value), 300);
   });
 }
-
 function bindAdd() {
   const btn = els[UI.add];
   if (!btn) return;
   btn.addEventListener("click", async () => {
     const row = await table.addRow(
       {
-        part_no: "",
+        part_no: "", // เว้นว่างได้ → backend autogen
         name: "",
         uom: "ea",
         description: "",
         status: "active",
+        created_at: null,
         revisions: [],
       },
       true
     );
-    row.getCell("name")?.edit(true);
+    row.getCell("name")?.edit(true); // กระตุ้น POST
   });
 }
 
 /* ===== BOOT ===== */
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
   Object.values(UI).forEach((id) => (els[id] = $(id)));
   initTable();
   bindSearch();

@@ -120,6 +120,9 @@ class EmployeeBase(BaseModel):  # ← เดิมคุณ inherit จาก AP
 class EmployeeCreate(BaseModel):
     emp_code: Optional[str] = None
     name: str
+    lastname: Optional[str] = None
+    nickname: Optional[str] = None
+    emp_op: Optional[str] = None
     position: Optional[str] = None
     department: Optional[str] = None
     email: Optional[str] = None
@@ -140,6 +143,10 @@ class EmployeeUpdate(BaseModel):
     status: Optional[str] = None
     payroll_emp_id: Optional[int] = None
 
+    emp_op: Optional[str] = None       # ✅ ADD
+    nickname: Optional[str] = None     # ✅ ADD
+    lastname: Optional[str] = None     # ✅ ADD
+
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -151,6 +158,10 @@ class EmployeeOut(EmployeeBase):
     payroll_emp_id: Optional[int] = None
     payroll_emp: Optional[EmployeeMiniOut] = None
     payroll_dependents: List[EmployeeMiniOut] = []
+    name: Optional[str] = None
+    lastname: Optional[str] = None
+    nickname: Optional[str] = None
+    emp_op: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -331,9 +342,18 @@ class RawBatchUpdate(BaseModel):
             return None
         return Decimal(str(v))
 
-class RawBatchOut(RawBatchBase):
+class RawBatchOut(BaseModel):
     id: int
-    
+    batch_no: str
+    material: Optional[RawMaterialOut]
+    supplier: Optional[SupplierOut]
+    qty_received: Optional[Decimal]
+    mill_heat_no: Optional[str]
+    weight: Optional[Decimal]
+    # weight_uom: Optional[str]
+    length : Optional[Decimal]
+    length_uom: Optional[str]
+    received_at: Optional[date]
 
 # =========================
 # ============== Production Lots ==========

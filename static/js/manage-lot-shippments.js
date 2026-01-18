@@ -51,11 +51,12 @@ async function loadLotHeader() {
     const lot = await jfetch(ENDPOINTS.lotHeader);
     TABLE_HEADER = lot; // 👈 เก็บลง state
     const hdr = document.getElementById("lotHeader");
-
+    console.log("LOT Header", lot)
     hdr.innerHTML = `
       <div class="lot-grid">
         <div><b>Lot No:</b> ${lot.lot_no}</div>
-        <div><b>Part No:</b> ${lot.part_no ?? "-"}</div>
+        <div><b>PO No:</b> ${lot.po_number ?? "-"}</div>
+        <div><b>Part No:</b> ${lot.part_no ?? "-"}</div>        
         <div><b>Planned Qty:</b> ${lot.planned_qty ?? "-"}</div>
         <div><b>Finished Qty:</b> ${lot.finished_qty ?? "-"}</div>
         <div><b>Status:</b> ${lot.status ?? "-"}</div>
@@ -163,7 +164,7 @@ function initPartTable() {
 async function loadPartInventory() {
   try {
     const data = await jfetch(ENDPOINTS.partInventory);
-    console.log("av df dsf",data)
+    // console.log("av df dsf", data)
     // ✅ กรองเฉพาะ Available > 0
     const filtered = data.filter((row) => row.available_qty > 0);
 
@@ -223,33 +224,44 @@ async function handlePartAction(e, cell) {
   }
 }
 
-async function downloadCofC(row) {
+function downloadCofC(row) {
   const url = `/api/v1/lot-shippments/${row.id}/download/cofc`;
+  return downloadDoc(url, "cofc.docx", "Failed to download CofC");
+}
 
+function downloadPacking(row) {
+  const url = `/api/v1/lot-shippments/${row.id}/download/packing`;
+  return downloadDoc(url, "packing.docx", "Failed to download Packing List");
+}
+function downloadPackingFA(row) {
+  const url = `/api/v1/lot-shippments/${row.id}/download/packingFA`;
+  return downloadDoc(url, "packing.docx", "Failed to download Packing List");
+}
+
+async function downloadDoc(url, fallbackName, errorMsg = "Download failed") {
   try {
     const res = await fetch(url);
     if (!res.ok) {
-      toast("Failed to download CofC", false);
+      toast(errorMsg, false);
       return;
     }
 
-    // ✅ ใช้ filename จาก backend header
     const blob = await res.blob();
     const disposition = res.headers.get("Content-Disposition");
 
-    let filename = "cofc.docx"; // fallback
+    let filename = fallbackName;
     if (disposition && disposition.includes("filename=")) {
       filename = disposition.split("filename=")[1].replace(/["']/g, "");
     }
 
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = filename; // ✅ Browser จะใช้ชื่อ cofc_xxx_xxx.docx
+    link.download = filename;
     document.body.appendChild(link);
     link.click();
     link.remove();
   } catch (err) {
-    toast("Error downloading CofC", false);
+    toast(errorMsg, false);
   }
 }
 
@@ -260,7 +272,7 @@ async function downloadLabel(row, size, type) {
   const params = new URLSearchParams();
 
   // size is part of path, not query (already correct)
-  if (type) params.set("type", type); // fair | cmm | box
+  if (type) params.set("type", type); // fair | cmm | box \ number
 
   const url =
     `/api/v1/lot-shippments/${shipmentId}/download/label/${size}` +
@@ -482,7 +494,7 @@ function initShipmentTable() {
         width: 100,
       },
       {
-        title: "Allocated",
+        title: "Lot Use",
         field: "allocated_lots",
         width: 150,
         formatter: (cell) => {
@@ -609,45 +621,44 @@ function initShipmentTable() {
         },
       },
 
+    
       {
-        title: "CofC",
-        width: 80,
-        formatter: () => `<button class="btn-mini btn-blue">DOC</button>`,
-        cellClick: (e, cell) => downloadCofC(cell.getRow().getData()),
-      },
-     
+  title: "Docs",
+  width: 140,
+  hozAlign: "center",
+  formatter: () => `
+    <div style="display:flex; flex-direction:column; gap:6px; align-items:center;">
+      <button class="btn-mini btn-blue" data-action="cofc">CofC</button>
+      <button class="btn-mini btn-green" data-action="packing">Packing</button>
+      <button class="btn-mini btn-green" data-action="packingfa">PackingFA</button>
+    </div>
+  `,
+  cellClick: (e, cell) => {
+    const action = e.target?.dataset?.action;
+    const rowData = cell.getRow().getData();
+
+    if (action === "cofc") downloadCofC(rowData);
+    if (action === "packing") downloadPacking(rowData);
+    if (action === "packingfa") downloadPackingFA(rowData);
+  },
+},
       {
         title: "Label",
-        width: 250,
+        width: 150,
         formatter: () => `
-          <div class="label-buttons">
-            <!-- SIZE -->
-            <button class="btn-mini btn-orange"
-                    data-action="size"
-                    data-size="80">80</button>
+  <div class="label-buttons">
+    <!-- SIZE -->
+    <button class="btn-mini btn-orange" data-action="size" data-size="80">80</button>
+    <button class="btn-mini btn-blue"   data-action="size" data-size="60">60</button>
+    <button class="btn-mini btn-green"  data-action="size" data-size="30">30</button>
 
-            <button class="btn-mini btn-blue"
-                    data-action="size"
-                    data-size="60">60</button>
-
-            <button class="btn-mini btn-green"
-                    data-action="size"
-                    data-size="30">30</button>
-
-            <!-- TYPE -->
-            <button class="btn-mini btn-gray"
-                    data-action="type"
-                    data-type="fair">Fair</button>
-
-            <button class="btn-mini btn-gray"
-                    data-action="type"
-                    data-type="cmm">CMM</button>
-
-            <button class="btn-mini btn-gray"
-                    data-action="type"
-                    data-type="box">Box</button>
-          </div>
-        `,
+    <!-- TYPE -->
+    <button class="btn-mini btn-gray" data-action="type" data-type="fair">Fair</button>
+    <button class="btn-mini btn-gray" data-action="type" data-type="cmm">CMM</button>
+    <button class="btn-mini btn-gray" data-action="type" data-type="number">#</button>
+    <button class="btn-mini btn-gray" data-action="type" data-type="box">Box</button>
+  </div>
+`,
 
         cellClick: async (e, cell) => {
           const btn = e.target.closest("button");
@@ -658,7 +669,7 @@ function initShipmentTable() {
           const action = btn.dataset.action;   // ✅ works now
           var size = btn.dataset.size;       // string | undefined
           var type = btn.dataset.type;       // string | undefined
-          if (size === undefined ) {
+          if (size === undefined) {
             size = 30; // default size
           }
           if (type === undefined) {
@@ -670,13 +681,20 @@ function initShipmentTable() {
             type,
             shipmentId: row.id,
           });
-          await downloadLabel(row, Number(size),type);
+          await downloadLabel(row, Number(size), type);
           return;
-         
-      
+
+
         },
 
-  },
+      },
+
+       {
+        title: "Note",
+        field: "note",
+       editor: "input",
+        width: 80,
+       },
       {
         title: "Report",
         width: 100,
@@ -775,7 +793,7 @@ function makeLotLinks(lotId) {
   if (!lotId) return;
 
   const links = [
-     {
+    {
       id: "lot_link",
       href: `/static/lot-detail.html?lot_id=${encodeURIComponent(lotId)}`,
       title: "Traveler",
@@ -829,5 +847,5 @@ document.addEventListener("DOMContentLoaded", async () => {
   initShipmentTable();
   initToolbar();
 
-   makeLotLinks(lotId);
+  makeLotLinks(lotId);
 });

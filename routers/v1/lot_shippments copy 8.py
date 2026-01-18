@@ -574,22 +574,9 @@ def update_shipment_fields(
     updated_fields = []
 
     # ---- Tracking No ----
-    # ---- Tracking No ----
     if "tracking_number" in payload:
         shipment.tracking_no = payload["tracking_number"]
         updated_fields.append("tracking_number")
-
-        # Auto-mark as shipped if tracking number is provided
-        if payload["tracking_number"]:
-            shipment.status = "shipped"
-            updated_fields.append("status")
-
-            lot = db.get(ProductionLot, shipment.lot_id)
-            if lot:
-                lot.status = "completed"
-                updated_fields.append("lot.status=completed")
-
-           
 
     # ---- Shipped Date ----
     if "shipped_date" in payload:
@@ -599,22 +586,10 @@ def update_shipment_fields(
             shipment.shipped_at = datetime.utcnow()
         updated_fields.append("shipped_date")
 
+    # ---- Status (NEW) ----
     if "status" in payload:
-        new_status = payload["status"]
-        shipment.status = new_status
+        shipment.status = payload["status"]
         updated_fields.append("status")
-
-        # 🔥 If shipment is shipped → mark lot as completed
-        if new_status == "shipped":
-            lot = db.get(ProductionLot, shipment.lot_id)
-            if lot:
-                lot.status = "completed"
-                updated_fields.append("lot.status=completed")
-        if new_status == "pending":
-            lot = db.get(ProductionLot, shipment.lot_id)
-            if lot:
-                lot.status = "not_start"
-                updated_fields.append("lot.status=completed")
 
     # ---- Qty (NEW) ----
     if "qty" in payload:
@@ -649,18 +624,14 @@ from docx import Document
 import tempfile
 import os
 
-def generate_docx_from_template(
-    db: Session,
-    shipment_id: int,
-    template_path: str,
-    filename_prefix: str,
-    replace_map_builder,
-):
+@router.get("/{shipment_id}/download/cofc")
+def download_cofc(shipment_id: int, db: Session = Depends(get_db)):
     import os, tempfile
     from docx import Document
     from fastapi.responses import FileResponse
     from datetime import datetime
-
+    
+    # 1) Load shipment + items + lot + part +   revision
     shipment = (
         db.query(CustomerShipment)
         .options(
@@ -683,50 +654,68 @@ def generate_docx_from_template(
     if not shipment.items:
         raise HTTPException(status_code=400, detail="Shipment has no shipment items")
 
+    # 🟦 ใช้ item แรกเป็นข้อมูลสำหรับ CofC
+    
     item = shipment.items[0]
+    
     lot = item.lot
     part = lot.part if lot else None
     revision = lot.part_revision if lot else None
-
+    print(">>", revision)
     lot_no = lot.lot_no if lot else ""
     qty = int(item.qty or 0)
     part_no = part.part_no if part else ""
     rev = revision.rev if revision else ""
     desc = part.name if part else ""
 
+    # PO + Customer
     customer_name = shipment.po.customer.name if shipment.po and shipment.po.customer else ""
     customer_address = shipment.po.customer.address if shipment.po and shipment.po.customer else ""
     po_no = shipment.po.po_number if shipment.po else ""
+    cert_no = f"CERT-{shipment.id:05d}"
 
-    fair = lot.fair_note if part else ""
+    replace_map = {
+        "{CUSTOMER}": customer_name,
+        "{CUSTOMER_ADDRESS}": customer_address,
+        "{PO_NO}": po_no,
+        "{PART_NO}": part_no,
+        "{REV}": rev,
+        "{QTY}": str(qty),
+        "{LOT_NO}": lot_no,
+        "{LOT}": lot_no,
+        "{DESCRIPTION}": desc,
+        "{CERT_NO}": cert_no,
+        "{DATE}": datetime.now().strftime("%m/%d/%Y"),
+        "{}":"10",
+    }
 
-    # Let caller decide what fields to use
-    replace_map = replace_map_builder(
-        lot_no, part_no, rev, qty, desc,
-        customer_name, customer_address, po_no, shipment.id, fair
-    )
-
+    template_path = "templates/cofc.docx"
     if not os.path.exists(template_path):
         raise HTTPException(status_code=404, detail="Template not found")
 
     doc = Document(template_path)
 
+    # 2) Correct replace → preserve formatting
     def replace_runs(paragraph):
         for run in paragraph.runs:
             for k, v in replace_map.items():
                 if k in run.text:
                     run.text = run.text.replace(k, v or "")
 
+    # Replace in paragraphs
     for p in doc.paragraphs:
         replace_runs(p)
 
+    # Replace in tables
     for table in doc.tables:
         for row in table.rows:
             for cell in row.cells:
                 for p in cell.paragraphs:
                     replace_runs(p)
 
-    download_name = f"{filename_prefix}_{lot_no}_{part_no}.docx"
+    # Save temp file
+    download_name = f"cofc_{lot.lot_no}_{part.part_no}.docx"
+    print("Generated CofC Filename:", download_name)
 
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".docx")
     doc.save(tmp.name)
@@ -734,87 +723,110 @@ def generate_docx_from_template(
     return FileResponse(
         tmp.name,
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        filename=download_name,
+        filename=download_name,  # ✅ Browser จะได้รับชื่อนี้
     )
 
-@router.get("/{shipment_id}/download/cofc")
-def download_cofc(shipment_id: int, db: Session = Depends(get_db)):
 
-    def build_map(lot_no, part_no, rev, qty, desc, cust, addr, po, sid,fair):
-        from datetime import datetime
-        return {
-            "{CUSTOMER}": cust,
-            "{CUSTOMER_ADDRESS}": addr,
-            "{PO_NO}": po,
-            "{PART_NO}": part_no,
-            "{REV}": rev,
-            "{QTY}": str(qty),
-            "{LOT_NO}": lot_no,
-            "{LOT}": lot_no,
-            "{DESCRIPTION}": desc,
-            "{CERT_NO}": f"CERT-{sid:05d}",
-            "{DATE}": datetime.now().strftime("%m/%d/%Y"),
-            
-        }
-
-    return generate_docx_from_template(
-        db=db,
-        shipment_id=shipment_id,
-        template_path="templates/cofc.docx",
-        filename_prefix="cofc",
-        replace_map_builder=build_map,
-    )
 
 @router.get("/{shipment_id}/download/packing")
-def download_packing(shipment_id: int, db: Session = Depends(get_db)):
+def download_cofc(shipment_id: int, db: Session = Depends(get_db)):
+    import os, tempfile
+    from docx import Document
+    from fastapi.responses import FileResponse
+    from datetime import datetime
+    print("Packing")
+    # 1) Load shipment + items + lot + part +   revision
+    shipment = (
+        db.query(CustomerShipment)
+        .options(
+            joinedload(CustomerShipment.items)
+                .joinedload(CustomerShipmentItem.lot)
+                .joinedload(ProductionLot.part),
 
-    def build_map(lot_no, part_no, rev, qty, desc, cust, addr, po, sid, fair):
-        return {
-            "{CUSTOMER}": cust,
-            "{CUSTOMER_ADDRESS}": addr,
-            "{PO_NO}": po,
-            "{PART_NO}": part_no,
-            "{REV}": rev,
-            "{QTY}": str(qty),
-            "{LOT_NO}": lot_no,
-            "{LOT}": lot_no,
-            "{DESCRIPTION}": desc,
-        }
+            joinedload(CustomerShipment.items)
+                .joinedload(CustomerShipmentItem.lot)
+                .joinedload(ProductionLot.part_revision),
 
-    return generate_docx_from_template(
-        db=db,
-        shipment_id=shipment_id,
-        template_path="templates/packing.docx",
-        filename_prefix="packing",
-        replace_map_builder=build_map,
+            joinedload(CustomerShipment.po).joinedload(PO.customer),
+        )
+        .get(shipment_id)
     )
 
+    if not shipment:
+        raise HTTPException(status_code=404, detail="Shipment not found")
 
-@router.get("/{shipment_id}/download/packingFA")
-def download_packing(shipment_id: int, db: Session = Depends(get_db)):
+    if not shipment.items:
+        raise HTTPException(status_code=400, detail="Shipment has no shipment items")
 
-    def build_map(lot_no, part_no, rev, qty, desc, cust, addr, po, sid,fair):
-        return {
-            "{CUSTOMER}": cust,
-            "{CUSTOMER_ADDRESS}": addr,
-            "{PO_NO}": po,
-            "{PART_NO}": part_no,
-            "{REV}": rev,
-            "{QTY}": str(qty),
-            "{LOT_NO}": lot_no,
-            "{LOT}": lot_no,
-            "{DESCRIPTION}": desc,
-            "{FAIR}" : fair
-        }
+    # 🟦 ใช้ item แรกเป็นข้อมูลสำหรับ CofC
+    
+    item = shipment.items[0]
+    
+    lot = item.lot
+    part = lot.part if lot else None
+    revision = lot.part_revision if lot else None
+    print(">>", revision)
+    lot_no = lot.lot_no if lot else ""
+    qty = int(item.qty or 0)
+    part_no = part.part_no if part else ""
+    rev = revision.rev if revision else ""
+    desc = part.name if part else ""
 
-    return generate_docx_from_template(
-        db=db,
-        shipment_id=shipment_id,
-        template_path="templates/packing.docx",
-        filename_prefix="packing",
-        replace_map_builder=build_map,
+    # PO + Customer
+    customer_name = shipment.po.customer.name if shipment.po and shipment.po.customer else ""
+    customer_address = shipment.po.customer.address if shipment.po and shipment.po.customer else ""
+    po_no = shipment.po.po_number if shipment.po else ""
+    cert_no = f"CERT-{shipment.id:05d}"
+
+    replace_map = {
+        "{CUSTOMER}": customer_name,
+        "{CUSTOMER_ADDRESS}": customer_address,
+        "{PO_NO}": po_no,
+        "{PART_NO}": part_no,
+        "{REV}": rev,
+        "{QTY}": str(qty),
+        "{LOT_NO}": lot_no,
+        "{LOT}": lot_no,
+        "{DESCRIPTION}": desc,
+       
+    }
+
+    template_path = "templates/packing.docx"
+    if not os.path.exists(template_path):
+        raise HTTPException(status_code=404, detail="Template not found")
+
+    doc = Document(template_path)
+
+    # 2) Correct replace → preserve formatting
+    def replace_runs(paragraph):
+        for run in paragraph.runs:
+            for k, v in replace_map.items():
+                if k in run.text:
+                    run.text = run.text.replace(k, v or "")
+
+    # Replace in paragraphs
+    for p in doc.paragraphs:
+        replace_runs(p)
+
+    # Replace in tables
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                for p in cell.paragraphs:
+                    replace_runs(p)
+
+    # Save temp file
+    download_name = f"packing_{lot.lot_no}_{part.part_no}.docx"
+    print("Generated CofC Filename:", download_name)
+
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".docx")
+    doc.save(tmp.name)
+
+    return FileResponse(
+        tmp.name,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        filename=download_name,  # ✅ Browser จะได้รับชื่อนี้
     )
-
 
 ##Labels: recent-edits
 from fastapi import Query
@@ -883,8 +895,6 @@ def download_label(
         template_path = f"templates/label_fair.docx"
     elif type == "cmm":
         template_path = f"templates/label_cmm.docx"
-    elif type == "number":
-        template_path = f"templates/label_number.docx"
     elif type == "box":
         template_path = f"templates/label_box.docx"
     else:

@@ -28,22 +28,17 @@ def get_lot_or_404(db: Session, lot_id: int) -> ProductionLot:
 def list_lot_material_uses(lot_id: int, db: Session = Depends(get_db)):
     q = (
         db.query(LotMaterialUse)
-        .options(
-            joinedload(LotMaterialUse.batch).joinedload(RawBatch.material),
-            joinedload(LotMaterialUse.raw_material)  # ✅ ensure material is loaded
-        )
+        .options(joinedload(LotMaterialUse.batch).joinedload(RawBatch.material))
         .filter(LotMaterialUse.lot_id == lot_id)
         .order_by(LotMaterialUse.used_at.desc())
     )
-
     items = q.all()
-
     return [
         {
             "id": x.id,
             "lot_id": x.lot_id,
-            "material_code": x.raw_material.code if x.raw_material else None,   # ✅ fixed
-            "material_name": x.raw_material.name if x.raw_material else None, # ✅ fixed
+            "material_code": x.raw_material.code if x.raw_material else None,
+            "material_name": x.raw_material.name if x.raw_material else None,
             "batch_id": x.batch_id,
             "batch_no": x.batch.batch_no if x.batch else None,
             "qty": float(x.qty or 0),
@@ -55,82 +50,86 @@ def list_lot_material_uses(lot_id: int, db: Session = Depends(get_db)):
     ]
 
 
-
 # ============================================================
 # 2️⃣  Allocate materials to a lot
 # ============================================================
 class AllocateRequest(BaseModel):
     lot_id: int
-    batch_id: int
-    material_code: str | None = None
+    material_code: str
     qty: float
+    strategy: str = "fifo"
+
 
 @router.post("/allocate")
 def allocate_material(req: AllocateRequest, db: Session = Depends(get_db)):
-    print("test")
-    lot = get_lot_or_404(db, req.lot_id)
-
-    if req.qty <= 0:
+    lot_id = req.lot_id
+    material_code = req.material_code
+    qty = req.qty
+    if qty <= 0:
         raise HTTPException(status_code=400, detail="Quantity must be > 0")
 
-    # Get ONLY the selected batch
-    batch = (
-        db.query(RawBatch)
-        .options(joinedload(RawBatch.material))
-        .filter(RawBatch.id == req.batch_id)
-        .first()
-    )
-
-    if not batch:
-        raise HTTPException(status_code=404, detail="Batch not found")
-
-    mat = batch.material
+    lot = get_lot_or_404(db, lot_id)
+    mat = db.execute(select(RawMaterial).where(RawMaterial.code == material_code)).scalar_one_or_none()
     if not mat:
-        raise HTTPException(status_code=400, detail="Batch has no material")
+        raise HTTPException(status_code=404, detail=f"Material {material_code} not found")
 
-    avail = float(batch.qty_received or 0) - float(batch.qty_used_calc or 0)
-
-    if avail <= 0:
-        raise HTTPException(status_code=400, detail="Batch has no available stock")
-
-    if req.qty > avail:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Only {avail:.3f} {mat.uom} available in this batch"
-        )
-
-    # Create allocation
-    rec = LotMaterialUse(
-        lot_id=lot.id,
-        batch_id=batch.id,
-        raw_material_id=mat.id,
-        qty=req.qty,
-        qty_uom=mat.uom,
-        used_at=datetime.now(),
+    batches = (
+        db.query(RawBatch)
+        .filter(RawBatch.material_id == mat.id)
+        .filter((RawBatch.qty_received - RawBatch.qty_used_calc) > 0)
+        .order_by(asc(RawBatch.received_at))
+        .all()
     )
-    db.add(rec)
 
-    # History log
-    db.add(LotMaterialUseHistory(
-        lot_id=lot.id,
-        raw_material_id=mat.id,
-        batch_id=batch.id,
-        qty=req.qty,
-        uom=mat.uom,
-        action="ALLOCATE",
-    ))
+    if not batches:
+        raise HTTPException(status_code=404, detail="No available batches to allocate")
+
+    remain = qty
+    allocations = []
+
+    for b in batches:
+        avail = float(b.qty_received or 0) - float(b.qty_used_calc or 0)
+        if avail <= 0:
+            continue
+        use = min(avail, remain)
+        if use <= 0:
+            break
+
+        rec = LotMaterialUse(
+            lot_id=lot.id,
+            batch_id=b.id,
+            raw_material_id=mat.id,
+            qty=use,
+            qty_uom=mat.uom,
+            used_at=datetime.now(),
+        )
+        db.add(rec)
+
+        # ✅ Add to history log
+        db.add(LotMaterialUseHistory(
+            lot_id=lot.id,
+            raw_material_id=mat.id,
+            batch_id=b.id,
+            qty=use,
+            uom=mat.uom,
+            action="ALLOCATE",
+        ))
+
+        allocations.append({"batch_no": b.batch_no, "allocated": use})
+        remain -= use
+        if remain <= 0:
+            break
+
+    if remain > 0:
+        raise HTTPException(status_code=400, detail=f"Not enough stock; {remain:.3f} {mat.uom} short")
 
     db.commit()
-
     return {
         "status": "ok",
-        "material": mat.code,
-        "batch_no": batch.batch_no,
-        "allocated_qty": req.qty,
-        "available_before": avail,
-        "available_after": avail - req.qty,
+        "material": material_code,
+        "allocated_qty": qty,
+        "items": allocations,
     }
-
 
 
 # ============================================================

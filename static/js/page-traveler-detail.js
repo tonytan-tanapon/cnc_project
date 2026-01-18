@@ -1087,54 +1087,90 @@ async function exportInspection() {
 
 /* ---------- QR Code Popup ---------- */
 
+// function showTravelerQR() {
+//   if (!originalTraveler) {
+//     toast("Traveler not loaded", false);
+//     return;
+//   }
+
+//   const qrModal = document.getElementById("qrModal");
+//   const qrBox = document.getElementById("qrCode");
+//   qrBox.innerHTML = "";
+
+//   const travelerNo = originalTraveler.traveler_no || `TRAV-${travelerId}`;
+ 
+//   // ✅ ใช้ IP LAN ชั่วคราว
+//   const baseUrl = `${window.location.protocol}//${window.location.host}`;
+//   const qrLink = `${baseUrl}/static/ui-traveler.html?traveler_no=${encodeURIComponent(
+//     travelerNo
+//   )}`;
+
+//   new QRCode(qrBox, {
+//     text: qrLink,
+//     width: 180,
+//     height: 180,
+//     correctLevel: QRCode.CorrectLevel.M,
+//   });
+
+//   document.getElementById("qrText").textContent = travelerNo;
+//   qrModal.style.display = "flex";
+
+//   document.getElementById("qrPrintBtn").onclick = () =>
+//     printTravelerQR(travelerNo, qrLink);
+//   document.getElementById("qrCloseBtn").onclick = () =>
+//     (qrModal.style.display = "none");
+// }
+
+// function printTravelerQR(travelerNo, qrLink) {
+//   const w = window.open("", "_blank");
+//   w.document.write(`
+//     <html><head><title>QR - ${travelerNo}</title></head>
+//     <body style="text-align:center; font-family:sans-serif;">
+//       <h2>Traveler ${travelerNo}</h2>
+//       <img src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(
+//         qrLink
+//       )}" alt="QR">
+//       <p style="margin-top:10px;font-size:14px;">${qrLink}</p>
+//       <script>window.onload = () => { window.print(); }</script>
+//     </body></html>
+//   `);
+//   w.document.close();
+// }
 function showTravelerQR() {
-  if (!originalTraveler) {
-    toast("Traveler not loaded", false);
+  if (!originalTraveler || !originalTraveler.lot_no) {
+    toast("Lot not loaded", false);
     return;
   }
 
+  const lotNo = originalTraveler.lot_no;
+
   const qrModal = document.getElementById("qrModal");
   const qrBox = document.getElementById("qrCode");
+
   qrBox.innerHTML = "";
 
-  const travelerNo = originalTraveler.traveler_no || `TRAV-${travelerId}`;
-  // ✅ ใช้ IP LAN ชั่วคราว
+  // 🔗 Link you want the QR to open
   const baseUrl = `${window.location.protocol}//${window.location.host}`;
-  const qrLink = `${baseUrl}/static/ui-traveler.html?traveler_no=${encodeURIComponent(
-    travelerNo
-  )}`;
+  const qrLink = `${encodeURIComponent(lotNo)}`;
 
-  new QRCode(qrBox, {
-    text: qrLink,
-    width: 180,
-    height: 180,
-    correctLevel: QRCode.CorrectLevel.M,
-  });
+  // ✅ Use online QR generator (no backend needed)
+  const qrImg = document.createElement("img");
+  qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrLink)}`;
+  qrImg.style.width = "180px";
+  qrImg.style.height = "180px";
 
-  document.getElementById("qrText").textContent = travelerNo;
+  qrBox.appendChild(qrImg);
+
+  document.getElementById("qrText").textContent = `LOT: ${lotNo}`;
   qrModal.style.display = "flex";
 
-  document.getElementById("qrPrintBtn").onclick = () =>
-    printTravelerQR(travelerNo, qrLink);
-  document.getElementById("qrCloseBtn").onclick = () =>
-    (qrModal.style.display = "none");
+  // Close button
+  document.getElementById("qrCloseBtn")?.addEventListener("click", () => {
+    qrModal.style.display = "none";
+  });
 }
 
-function printTravelerQR(travelerNo, qrLink) {
-  const w = window.open("", "_blank");
-  w.document.write(`
-    <html><head><title>QR - ${travelerNo}</title></head>
-    <body style="text-align:center; font-family:sans-serif;">
-      <h2>Traveler ${travelerNo}</h2>
-      <img src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(
-        qrLink
-      )}" alt="QR">
-      <p style="margin-top:10px;font-size:14px;">${qrLink}</p>
-      <script>window.onload = () => { window.print(); }</script>
-    </body></html>
-  `);
-  w.document.close();
-}
+
 
 function makeLotLinks(lotId) {
   if (!lotId) return;

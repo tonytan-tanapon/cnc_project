@@ -9,6 +9,8 @@ SELECT
     pl.lot_no,
     pl.status             AS lot_status,
     pl.planned_qty        AS lot_qty,
+    pl.planned_ship_qty   AS lot_planned_ship_qty,   -- ✅ NEW
+    pl.lot_po_duedate   AS lot_po_duedate,   -- ✅ NEW
     pl.lot_due_date,
     pl.created_at,
     pl.lot_po_date,
@@ -60,7 +62,7 @@ SELECT
     -- LOT-CENTRIC SHIPMENT (SUMMARY)
     -- =====================================================
     COALESCE(lsh.shipped_qty, 0) AS lot_shipped_qty,
-    (pl.planned_qty - COALESCE(lsh.shipped_qty, 0)) AS lot_remaining_qty,
+    (pl.planned_ship_qty - COALESCE(lsh.shipped_qty, 0)) AS lot_remaining_to_ship, -- ✅ NEW
     lsh.last_ship_date           AS lot_last_ship_date,
 
     -- =====================================================
@@ -126,23 +128,19 @@ LEFT JOIN shop_travelers st
       ON st.lot_id = pl.id
 
 -- =====================
--- MATERIAL / BATCH (IDs + NOs)
+-- MATERIAL / BATCH (FIXED DISTINCT)
 -- =====================
 LEFT JOIN LATERAL (
     SELECT
-        string_agg(
-            DISTINCT rb.id::text,
-            ',' ORDER BY rb.id
-        ) AS batch_id_list,
-
-        string_agg(
-            DISTINCT rb.batch_no,
-            ', ' ORDER BY rb.batch_no
-        ) AS batch_no_list
-    FROM lot_material_use lmu
-    JOIN raw_batches rb
-         ON rb.id = lmu.batch_id
-    WHERE lmu.lot_id = pl.id
+        string_agg(id::text, ',' ORDER BY id) AS batch_id_list,
+        string_agg(batch_no, ', ' ORDER BY batch_no) AS batch_no_list
+    FROM (
+        SELECT DISTINCT rb.id, rb.batch_no
+        FROM lot_material_use lmu
+        JOIN raw_batches rb
+             ON rb.id = lmu.batch_id
+        WHERE lmu.lot_id = pl.id
+    ) x
 ) mb ON TRUE
 
 -- =====================================================

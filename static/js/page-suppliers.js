@@ -3,7 +3,10 @@
 import { $, jfetch, toast } from "./api.js";
 
 /* ===== CONFIG ===== */
-const ENDPOINTS = { base: "/suppliers", keyset: "/suppliers/keyset" };
+const ENDPOINTS = { 
+  base: "/api/v1/suppliers", 
+  keyset: "/api/v1/suppliers/keyset" 
+};
 const PER_PAGE = 50;
 const UI = { q: "_q", btnAdd: "_add", tableMount: "listBody" };
 const DEBUG = false;

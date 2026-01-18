@@ -210,7 +210,10 @@ class Employee(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     emp_code = Column(String, unique=True, index=True, nullable=False)
+    emp_op = Column(String, unique=True)
+    nickname = Column(String, nullable=True)
     name = Column(String, nullable=False)
+    lastname = Column(String, nullable=True)
     position = Column(String, nullable=True)
     department = Column(String, nullable=True)
     email = Column(String, nullable=True)

@@ -560,7 +560,7 @@ function initTable() {
   /* global Tabulator */
   table = new Tabulator(tableMount, {
     // layout: "fitColumns",
-    layout: "fitDataFill",
+    layout: "fitColumns",
     height: "auto",
     placeholder: "No rows",
     index: "lot_no",
@@ -675,7 +675,7 @@ function initTable() {
         field: "po_number",
         width: 150,
         hozAlign: "center",
-         headerHozAlign: "center",   // ✅ CENTER HEADER
+        headerHozAlign: "center",   // ✅ CENTER HEADER
         headerSort: true,
 
         formatter: (cell) => {
@@ -840,7 +840,7 @@ function initTable() {
       //   width: 80,
       //   field: "lot_planned_ship_qty",
       // },
-       {
+      {
         title: "QTY",
         width: 80,
         field: "lot_planned_ship_qty",
@@ -852,51 +852,51 @@ function initTable() {
           step: 1,
         },
         cellEdited: async (cell) => {
-        const d = cell.getRow().getData();
-      
-        await fetch(`/api/v1/lots/${d.lot_id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            planned_ship_qty: d.lot_planned_ship_qty,   // ✅ correct field
-          }),
-        });
-      
-        toast("Quantity updated", true);
-      }
+          const d = cell.getRow().getData();
+
+          await fetch(`/api/v1/lots/${d.lot_id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              planned_ship_qty: d.lot_planned_ship_qty,   // ✅ correct field
+            }),
+          });
+
+          toast("Quantity updated", true);
+        }
       },
 
 
-    //   {
-    //     title: "Ship/PO<br>(REM)",
-    //     field: "po_qty_total",
-    //     width: 120,
-    //     hozAlign: "center",
-    //     sorter: "string",
-    //     formatter: (cell) => {
-    //       const r = cell.getRow().getData();
+      //   {
+      //     title: "Ship/PO<br>(REM)",
+      //     field: "po_qty_total",
+      //     width: 120,
+      //     hozAlign: "center",
+      //     sorter: "string",
+      //     formatter: (cell) => {
+      //       const r = cell.getRow().getData();
 
-    //       const shipped = r.po_shipped_total ?? 0;
-    //       const total = r.po_qty_total ?? 0;
-    //       const remain = r.po_remaining_qty ?? total - shipped;
+      //       const shipped = r.po_shipped_total ?? 0;
+      //       const total = r.po_qty_total ?? 0;
+      //       const remain = r.po_remaining_qty ?? total - shipped;
 
-    //       // สีตามสถานะ
-    //       let bg = "#6b7280"; // gray
-    //       if (shipped === 0) bg = "#ef4444"; // not shipped
-    //       else if (remain > 0) bg = "#f59e0b"; // partial
-    //       else if (remain === 0) bg = "#10b981"; // complete
-    //       else bg = "#7c3aed"; // overship
+      //       // สีตามสถานะ
+      //       let bg = "#6b7280"; // gray
+      //       if (shipped === 0) bg = "#ef4444"; // not shipped
+      //       else if (remain > 0) bg = "#f59e0b"; // partial
+      //       else if (remain === 0) bg = "#10b981"; // complete
+      //       else bg = "#7c3aed"; // overship
 
-    //       // format remain
-    //       const remText = remain < 0 ? `-${Math.abs(remain)}` : remain;
+      //       // format remain
+      //       const remText = remain < 0 ? `-${Math.abs(remain)}` : remain;
 
-    //       return `
-     
-    //     ${shipped}/${total} (${remText})
-     
-    // `;
-    //     },
-    //   },
+      //       return `
+
+      //     ${shipped}/${total} (${remText})
+
+      // `;
+      //     },
+      //   },
       //  {
       //   title: "LOT DUE",
       //   width: 80,
@@ -1068,31 +1068,31 @@ function initTable() {
         headerSort: true,
         cssClass: "cell-wrap",
       },
-     
+
 
       {
-  title: "Note",
-  width: 120,
-  field: "note",
-  hozAlign: "center",
-  headerHozAlign: "center",
+        title: "Note",
+        width: 120,
+        field: "note",
+        hozAlign: "center",
+        headerHozAlign: "center",
 
-  editor: "input",        // ✅ allow text editing
+        editor: "input",        // ✅ allow text editing
 
-  cellEdited: async (cell) => {
-    const d = cell.getRow().getData();
+        cellEdited: async (cell) => {
+          const d = cell.getRow().getData();
 
-    await fetch(`/api/v1/lots/${d.lot_id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        note: d.note,   // ✅ send note
-      }),
-    });
+          await fetch(`/api/v1/lots/${d.lot_id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              note: d.note,   // ✅ send note
+            }),
+          });
 
-    toast("Note updated", true);
-  }
-}
+          toast("Note updated", true);
+        }
+      }
 
     ],
   });
