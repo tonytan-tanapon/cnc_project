@@ -191,7 +191,7 @@ def get_or_upsert_lot(
             started_at=(datetime.combine(start_date, time.min) if start_date else None),
             created_at=(datetime.combine(created_date, time.min) if created_date else None),
             lot_po_duedate = (datetime.combine(created_date, time.min) if lot_po_duedate else None), 
-            status="in_process",
+            status="not_start",
             note=(note.strip() if note else None),
             fair_note=(fair_note.strip() if fair_note else None),
             lot_po_date=(datetime.combine(lot_po_date, time.min) if lot_po_date else None),

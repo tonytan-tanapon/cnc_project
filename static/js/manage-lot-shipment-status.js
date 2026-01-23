@@ -158,8 +158,8 @@ function makeColumns() {
         e.preventDefault();
         e.stopPropagation();
         const d = cell.getRow().getData();
-        const rev = d.revision ? ` (${d.revision})` : "";
-        copyWithFeedback(e.target, `${d.part_no ?? ""}${rev}`, "Copied Part");
+        // const rev = d.revision ? ` (${d.revision})` : "";
+        copyWithFeedback(e.target, `${d.part_no ?? ""}`, "Copied Part");
       },
     },
 

@@ -1,6 +1,17 @@
 // --- tiny helpers ---
 
 const lotId = new URLSearchParams(location.search).get("lot_id");
+
+function formatDateMDY(dateStr) {
+  if (!dateStr) return "-";
+
+  // Expect YYYY-MM-DD or ISO
+  const [y, m, d] = dateStr.split("T")[0].split("-");
+  if (!y || !m || !d) return dateStr;
+
+  return `${m}/${d}/${y.slice(-2)}`;
+}
+
 async function jfetch(url, opts = {}) {
   const res = await fetch(url, opts);
   if (!res.ok) {
@@ -117,6 +128,11 @@ function editField(field) {
 
   if (!textEl || !inputEl) return;
 
+  // ✅ Load the SAME date that was shown on screen
+  if (inputEl.type === "date") {
+    inputEl.value = displayToISO(textEl.textContent.trim());
+  }
+
   textEl.style.display = "none";
   inputEl.style.display = "inline-block";
 
@@ -129,6 +145,7 @@ function editField(field) {
   saveBtn.style.display = "inline-block";
   cancelBtn.style.display = "inline-block";
 }
+
 async function saveField(field, lotId) {
   const input = document.getElementById(field + "Input");
 
@@ -141,7 +158,10 @@ async function saveField(field, lotId) {
     body: JSON.stringify({ [field]: newValue }),
   });
 
-  document.getElementById(field + "Text").textContent = newValue;
+  document.getElementById(field + "Text").textContent =
+  input.type === "date"
+    ? formatDateMDY(newValue)
+    : newValue;
   exitFieldEdit(field);
   toast("Updated!");
 }
@@ -169,23 +189,44 @@ function exitFieldEdit(field) {
 }
 
 
+function displayToISO(dateStr) {
+  if (!dateStr || dateStr === "-") return "";
 
+  const [mm, dd, yy] = dateStr.split("/");
+  if (!mm || !dd || !yy) return "";
+
+  const fullYear = Number(yy) < 50 ? "20" + yy : "19" + yy;
+  return `${fullYear}-${mm}-${dd}`;
+}
 
 function renderLotTable(d) {
   console.log("test",d)
   const tbody = document.getElementById("lotDetailBody");
   tbody.innerHTML = "";
-
+  console.log("CREATE:",d.created_at)
   const rows = [
   ["Lot", editableField("lot_no", d.lot_no, d.lot_id)],
 
   ["Lot Plan QTY", editableField("planned_qty", d.lot_qty, d.lot_id, "number")],
   ["Lot PO QTY", editableField("lot_planned_ship_qty", d.lot_planned_ship_qty, d.lot_id, "number")],
-  // ["Lot Remaining to Ship", d.lot_remaining_to_ship],
+  // ["Lot Remaining to Ship", d.lot_remaining_to_ship],d.created_at
+  // ["Created At", d.created_at],
+  ["Lot Created At", editableField(
+  "created_at",
+  formatDateMDY(d.created_at),
+  d.lot_id,
+  "date"
+)],
 
-  ["Lot Due Date", editableField("lot_due_date", d.lot_due_date?.split("T")[0], d.lot_id, "date")],
-  ["Lot PO Date", d.lot_po_date],
-  ["Lot PO Due Date", d.lot_po_duedate],
+["Lot Due Date", editableField(
+  "lot_due_date",
+  formatDateMDY(d.lot_due_date),
+  d.lot_id,
+  "date"
+)],
+  ["Lot PO Date", formatDateMDY(d.lot_po_date)],
+["Lot PO Due Date", formatDateMDY(d.lot_po_duedate)],
+
   // ["Lot Last Ship Date", d.lot_last_ship_date],
 
   ["Lot Status", d.lot_status],
@@ -206,7 +247,7 @@ function renderLotTable(d) {
 
   // ["Shipment Status", d.shipment_status],
 
-  ["Created At", d.created_at],
+  
   ["Days Left", d.days_left],
 ];
 

@@ -385,6 +385,7 @@ class ProductionLotUpdate(BaseModel):
     finished_at: Optional[datetime] = None
     status: Optional[str] = None
     note: Optional[str] = None
+    created_at: Optional[datetime] = None
 
 class PartTiny(BaseModel):
     model_config = ConfigDict(from_attributes=True)
