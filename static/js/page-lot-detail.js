@@ -39,12 +39,18 @@ function toast(msg, ok = true) {
 
 
 function makeLotLinks(lotId) {
+  
   if (!lotId) return;
 
   const links = [
      {
       id: "lot_link",
       href: `/static/lot-detail.html?lot_id=${encodeURIComponent(lotId)}`,
+      title: "Traveler",
+    },
+     {
+      id: "part_link",
+      href: `/static/manage-part-detail.html?lot_id=${encodeURIComponent(lotId)}`,
       title: "Traveler",
     },
     {
@@ -237,8 +243,19 @@ function renderLotTable(d) {
   // ["PO Qty Total", d.po_qty_total],
   // ["PO Shipped Total", d.po_shipped_total],
   // ["PO Remaining Qty", d.po_remaining_qty],
+  ["PO No", `  <a href="/static/manage-pos-detail.html?id=${d.po_id}"  >${d.po_number}
+  </a>
+`],
+  ["Part No", `
+  <a href="/static/manage-part-detail.html
+    ?part_id=${d.part_id}
+    &part_revision_id=${d.revision_id}
+    &customer_id=${d.customer_id}"
+  >
+    ${d.part_no}
+  </a>
+`],
 
-  ["Part No", d.part_no],
   ["Part Name", d.part_name],
   ["Revision Code", d.revision_code],
 
