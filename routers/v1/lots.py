@@ -285,13 +285,13 @@ def get_lot(lot_id: int, db: Session = Depends(get_db)):
 
 @router.put("/{lot_id}", response_model=ProductionLotOut)
 def update_lot_put(lot_id: int, payload: ProductionLotUpdate, db: Session = Depends(get_db)):
-    print(ProductionLotUpdate)
+   
     lot = db.get(ProductionLot, lot_id)
     if not lot:
         raise HTTPException(404, "Lot not found")
 
     data = payload.dict(exclude_unset=True)
-
+    print(ProductionLotUpdate,lot, data)
     if "lot_no" in data and data["lot_no"]:
         new_no = data["lot_no"].strip().upper()
         dup = (
@@ -319,6 +319,7 @@ def update_lot_put(lot_id: int, payload: ProductionLotUpdate, db: Session = Depe
             raise HTTPException(400, "part_revision_id does not belong to part_id")
 
     for k, v in data.items():
+        print(k, v)
         setattr(lot, k, v)
 
     db.commit()

@@ -214,7 +214,7 @@ function renderLotTable(d) {
   ["Lot", editableField("lot_no", d.lot_no, d.lot_id)],
 
   ["Lot Plan QTY", editableField("planned_qty", d.lot_qty, d.lot_id, "number")],
-  ["Lot PO QTY", editableField("lot_planned_ship_qty", d.lot_planned_ship_qty, d.lot_id, "number")],
+  ["Lot PO QTY", editableField("planned_ship_qty", d.lot_planned_ship_qty, d.lot_id, "number")],
   // ["Lot Remaining to Ship", d.lot_remaining_to_ship],d.created_at
   // ["Created At", d.created_at],
   ["Lot Created At", editableField(
@@ -230,7 +230,7 @@ function renderLotTable(d) {
   d.lot_id,
   "date"
 )],
-  ["Lot PO Date", formatDateMDY(d.lot_po_date)],
+  // ["Lot PO Date", formatDateMDY(d.lot_po_date)],
 ["Lot PO Due Date", formatDateMDY(d.lot_po_duedate)],
 
   // ["Lot Last Ship Date", d.lot_last_ship_date],
@@ -238,7 +238,7 @@ function renderLotTable(d) {
   ["Lot Status", d.lot_status],
   ["Note", editableField("note", d.note, d.lot_id)],
 
-  ["PO Number", d.po_number],
+  // ["PO Number", d.po_number],
   // ["PO Due Date", d.po_due_date],
   // ["PO Qty Total", d.po_qty_total],
   // ["PO Shipped Total", d.po_shipped_total],
