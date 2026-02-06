@@ -1,3 +1,7 @@
 python database_import/import_lot_db.py
 python doc/docx_to_db.py
 python doc/inspection/docx_to_db.py
+
+
+Use for update lot for man to database 
+python database_import/import_excel_to_database.py
