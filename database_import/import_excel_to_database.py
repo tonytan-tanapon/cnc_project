@@ -103,7 +103,8 @@ def get_or_create_po_line(
 # -------------------------
 # lot importer
 # -------------------------
-
+from datetime import timedelta
+from dateutil.relativedelta import relativedelta
 def upsert_lot(db, row):
     lot_no = str(row["Lot#"]).strip()
     part_no = str(row["Part No."]).strip()
@@ -113,6 +114,20 @@ def upsert_lot(db, row):
     rev = str(row["Rev."])
     qty = int(row["Qty PO"])
     due_date = row["Due Date"]
+
+    if due_date:
+        # subtract 1 month
+        new_due_date = due_date - relativedelta(months=1)
+
+        # Monday = 0 ... Sunday = 6
+        if new_due_date.weekday() == 5:   # Saturday
+            new_due_date -= timedelta(days=1)
+
+        elif new_due_date.weekday() == 6: # Sunday
+            new_due_date -= timedelta(days=2)
+
+    else:
+        new_due_date = due_date
 
     print(f"Processing Lot {lot_no}")
 
