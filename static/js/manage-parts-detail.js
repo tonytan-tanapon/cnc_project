@@ -752,7 +752,7 @@ function initTable() {
         white-space:nowrap;
       ">
         <span style="font-weight:600;">
-          ${qty} (${rev})
+          ${qty} 
         </span>
         <span data-action="materials"
               title="Materials"

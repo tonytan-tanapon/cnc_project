@@ -238,6 +238,7 @@ function readTraveler() {
     notes: strOrNull($("notes")?.value),
   };
 }
+
 async function loadTraveler() {
   if (!travelerId && !lotId) {
     setError("Missing ?id= or ?lot_id= in URL");

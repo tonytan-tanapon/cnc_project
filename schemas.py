@@ -1067,6 +1067,19 @@ class QAInspectionItemOut(BaseModel):
     class Config:
         from_attributes = True
 
+
+# schemas.py
+from pydantic import BaseModel
+from typing import Optional
+from decimal import Decimal
+
+class StepFinishRequest(BaseModel):
+    result: Optional[str] = "passed"
+    qty_receive: Optional[Decimal] = None
+    qty_accept: Optional[Decimal] = None
+    qty_reject: Optional[Decimal] = 0
+    qa_result: Optional[str] = None
+    qa_notes: Optional[str] = None
 # # ============================================================
 # # 🧭 CustomerShipment
 # # ============================================================

@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Body
 from sqlalchemy.orm import Session, joinedload
+
 from sqlalchemy import func
 from datetime import datetime
 from pydantic import BaseModel
@@ -417,7 +418,7 @@ def get_lot_header(lot_id: int, db: Session = Depends(get_db)):
         db.query(ProductionLot)
         .options(
             joinedload(ProductionLot.part),
-            joinedload(ProductionLot.po),   # 👈 load PO
+            joinedload(ProductionLot.po).joinedload(PO.customer),   # 👈 load PO
         )
         .filter(ProductionLot.id == lot_id)
         .first()
@@ -426,16 +427,25 @@ def get_lot_header(lot_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Lot not found")
 
     data = get_part_inventory_data(db, lot.id)
-
+    po = lot.po
+    customer = po.customer if po else None
     return {
         "lot_id": lot.id,
         "lot_no": lot.lot_no,
+
         "part_no": data["part"].part_no if data["part"] else None,
         "po_number": data["po_number"],
+
+        # ✅ NEW
+        "customer_code": customer.code if customer else None,
+        "customer_name": customer.name if customer else None,
+        "customer_address": customer.address if customer else None,
+
         "planned_qty": data["planned_qty"],
         "finished_qty": data["finished_qty"],
         "shipped_qty": data["shipped_qty"],
         "available_qty": data["available_qty"],
+
         "status": lot.status,
         "due_date": lot.lot_due_date,
     }

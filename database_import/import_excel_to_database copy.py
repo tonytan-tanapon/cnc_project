@@ -102,119 +102,7 @@ def get_or_create_po_line(
 
     return po, po_line
 
-def ensure_traveler_with_initial_step(db, lot_id: int, qty: float):
-    from models import ShopTraveler, ShopTravelerStep
 
-    traveler = (
-        db.query(ShopTraveler)
-        .filter(ShopTraveler.lot_id == lot_id)
-        .first()
-    )
-
-    if not traveler:
-        traveler = ShopTraveler(
-            traveler_no=f"TRV-{lot_id}",
-            lot_id=lot_id,
-            status="completed",
-            current_step_seq=1,
-        )
-        db.add(traveler)
-        db.flush()
-
-    step = (
-        db.query(ShopTravelerStep)
-        .filter(ShopTravelerStep.traveler_id == traveler.id)
-        .first()
-    )
-
-    if not step:
-        step = ShopTravelerStep(
-            traveler_id=traveler.id,
-            seq=1,
-            step_code="AUTO",
-            step_name="Auto Generated (Import)",
-            status="passed",
-            qty_receive=qty,
-            qty_accept=qty,
-            qty_reject=0,
-            uom="pcs",
-        )
-        db.add(step)
-    else:
-        # 🔥 IMPORTANT: update qty
-        step.qty_receive = qty
-        step.qty_accept = qty
-        db.add(step)
-
-    db.flush()
-    return traveler
-
-
-def allocate_qty(db, lot_id: int, po_id: int, po_line_id: int, new_qty: float):
-    from models import CustomerShipment, CustomerShipmentItem, ShopTravelerStep, ShopTraveler
-    from sqlalchemy import func
-    from datetime import datetime
-
-    if new_qty < 0:
-        raise Exception("qty cannot be negative")
-
-    # ensure step exists
-    ensure_traveler_with_initial_step(db, lot_id, new_qty)
-
-    # =========================
-    # FINISHED
-    # =========================
-    finished_qty = (
-        db.query(func.coalesce(func.sum(ShopTravelerStep.qty_accept), 0))
-        .join(ShopTraveler, ShopTraveler.id == ShopTravelerStep.traveler_id)
-        .filter(ShopTraveler.lot_id == lot_id)
-        .filter(ShopTravelerStep.status.in_(["passed", "completed"]))
-        .scalar()
-        or 0
-    )
-
-    if new_qty > finished_qty:
-        raise Exception(f"Cannot allocate more than finished ({finished_qty})")
-
-    # =========================
-    # GET OR CREATE SHIPMENT
-    # =========================
-    shipment = (
-        db.query(CustomerShipment)
-        .filter(CustomerShipment.lot_id == lot_id)
-        .order_by(CustomerShipment.id.desc())
-        .first()
-    )
-
-    if not shipment:
-        shipment = CustomerShipment(
-            po_id=po_id,
-            lot_id=lot_id,
-            shipped_at=datetime.utcnow(),
-            status="pending",
-        )
-        db.add(shipment)
-        db.flush()
-
-    # =========================
-    # 🔥 DELETE ALL OLD ITEMS
-    # =========================
-    db.query(CustomerShipmentItem)\
-        .filter(CustomerShipmentItem.lot_allocate_id == lot_id)\
-        .delete()
-    db.flush()
-
-    # =========================
-    # INSERT NEW
-    # =========================
-    new_item = CustomerShipmentItem(
-        shipment_id=shipment.id,
-        po_line_id=po_line_id or 0,
-        lot_id=lot_id,
-        lot_allocate_id=lot_id,
-        qty=new_qty,
-    )
-    db.add(new_item)
 # -------------------------
 # lot importer
 # -------------------------
@@ -288,15 +176,33 @@ def upsert_lot(db, row):
         # CREATE SHOP TRAVELER
         # =========================
 
-        ensure_traveler_with_initial_step(db, lot.id, qty)
-
-        allocate_qty(
-            db,
+        traveler = ShopTraveler(
+            traveler_no=f"TRV-{lot_no}",   # simple format
             lot_id=lot.id,
-            po_id=po.id,
-            po_line_id=po_line.id,
-            new_qty=float(qty),
+            status="open",
+            current_step_seq=1,
         )
+        db.add(traveler)
+        db.flush()  # 🔥 get traveler.id
+
+        # =========================
+        # CREATE FIRST STEP
+        # =========================
+        print("QTY:", qty   )
+        step = ShopTravelerStep(
+            traveler_id=traveler.id,
+            seq=1,
+            step_code="START",
+            step_name="Initial Operation",
+            status="passed",
+            qty_receive=qty,
+            qty_accept=qty,
+            qty_reject=0,
+            uom="pcs",
+        )
+        db.add(step)
+
+        print(f"CREATE TRAVELER + STEP for LOT {lot_no}")
 
     else:
         
@@ -309,16 +215,6 @@ def upsert_lot(db, row):
         
         db.add(lot)
         db.flush()  # 🔥 i
-      
-
-        ensure_traveler_with_initial_step(db, lot.id, qty)
-        allocate_qty(
-            db,
-            lot_id=lot.id,
-            po_id=po.id,
-            po_line_id=po_line.id,
-            new_qty=float(qty),
-        )
         
 
 
@@ -336,20 +232,8 @@ def import_excel(file_path):
 
     df.columns = df.columns.str.strip()
 
-    # =========================
-    # 🔥 GROUP BY LOT (FIX MULTI ROW BUG)
-    # =========================
-    df = df.groupby("Lot#", as_index=False).agg({
-        "Part No.": "first",
-        "PO": "first",
-        "Name": "first",
-        "Description": "first",
-        "Rev.": "first",
-        "Qty PO": "sum",   # 🔥 CRITICAL
-        "Due Date": "first",
-    })
-
-    print("Rows after grouping:", len(df))
+    # print(df.head())
+    print("Rows:", len(df))
 
     db = SessionLocal()
 

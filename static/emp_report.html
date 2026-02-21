@@ -224,7 +224,7 @@
       <input id="ot_rate" type="number" step="0.01" placeholder="default 1.5×" /></label>
     <button id="recalc">calculate</button>
     <button id="exportBtn">Export (Excel/CSV)</button>
-    <button id="exportCSVBtn">Export CSV Only</button>
+    <!-- <button id="exportCSVBtn">Export CSV Only</button> -->
   </div>
 
   <script type="module">
@@ -635,7 +635,7 @@
       let lastWeekKey = null;
 
       for (const [i, te] of details.entries()) {
-        console.log(i, te)
+   
         const dateKey = utcDateKey(te.clock_in_at || te.clock_out_at);
         const weekKey = weekKeyLocal(dateKey, 1);
 
@@ -689,8 +689,7 @@
           breakHrs,
           otHrs,
         });
-        console.log("Hight")
-        console.log(breakHrs, otHrs, highlight)
+     
         const tr = document.createElement("tr");
         if (highlight) {
           tr.style.backgroundColor = "#fee2e2"; // light red
@@ -974,100 +973,6 @@ const otAlert = otHrs > 2;
         .replace(/\s+/g, "_")
         .slice(0, 120);
 
-    /* ========= CSV fallback ========= */
-    // function exportCSV() {
-    //   const header = [
-    //     "no",
-    //     "date",
-    //     "shifts",
-    //     "breaks",
-    //     "break_unpaid_h",
-    //     "reg_h",
-    //     "ot_h",
-    //     "rate",
-    //     "ot_rate",
-    //     "pay_reg",
-    //     "pay_ot",
-    //     "pay_total",
-    //   ];
-    //   const rows = [];
-    //   let lastWeekKey = null;
-
-    //   // Add rows with week separators (blank line)
-    //   document.querySelectorAll("#tblBody tr").forEach((tr) => {
-    //     const t = tr.querySelectorAll("td");
-    //     const date = (t[1]?.innerText || "").trim();
-    //     if (date) {
-    //       const [mm, dd, yy] = date.split("/");
-    //       const iso = `${yy}-${mm}-${dd}`;
-    //       const wk = weekKeyLocal(iso, 1);
-    //       if (lastWeekKey !== null && wk !== lastWeekKey) rows.push([]); // separator
-    //       lastWeekKey = wk;
-    //     }
-    //     rows.push([
-    //       t[0]?.innerText.trim() ?? "",
-    //       date,
-    //       t[2]?.innerText.trim() ?? "",
-    //       t[3]?.innerText.trim() ?? "",
-    //       t[4]?.innerText.trim() ?? "",
-    //       t[5]?.innerText.trim() ?? "",
-    //       t[6]?.innerText.trim() ?? "",
-    //       t[7]?.innerText.trim() ?? "",
-    //       t[8]?.innerText.trim() ?? "",
-    //       t[9]?.innerText.trim() ?? "",
-    //       t[10]?.innerText.trim() ?? "",
-    //       t[11]?.innerText.trim() ?? "",
-    //     ]);
-
-    //     // rows.push([
-    //     //   t[0]?.innerText.trim() ?? "",
-    //     //   date,
-    //     //   t[2]?.innerText.trim() ?? "",
-    //     //   t[3]?.innerText.trim() ?? "",
-    //     //   t[4]?.innerText.trim() ?? "",
-    //     //   t[5]?.innerText.trim() ?? "",
-    //     //   t[6]?.innerText.trim() ?? "",
-    //     //   t[7]?.innerText.trim() ?? "",
-    //     //   t[8]?.innerText.trim() ?? "",
-    //     //   t[9]?.innerText.trim() ?? "",
-    //     //   t[10]?.innerText.trim() ?? "",
-    //     //   t[11]?.innerText.trim() ?? "",
-    //     // ]);
-    //   });
-
-    //   // Add TOTAL row as text (CSV)
-    //   rows.push([]);
-    //   rows.push([
-    //     "",
-    //     "",
-    //     "",
-    //     "",
-    //     "Total",
-    //     document.querySelector("#tblFoot td:nth-child(2)")?.innerText ?? "",
-    //     document.querySelector("#tblFoot td:nth-child(3)")?.innerText ?? "",
-    //     "",
-    //     "",
-    //     document.querySelector("#tblFoot td:nth-child(5)")?.innerText ?? "",
-    //     document.querySelector("#tblFoot td:nth-child(6)")?.innerText ?? "",
-    //     document.querySelector("#tblFoot td:nth-child(7)")?.innerText ?? "",
-    //   ]);
-
-    //   const csv = [header, ...rows]
-    //     .map((r) =>
-    //       r.map((v) => `"${String(v || "").replace(/"/g, '""')}"`).join(",")
-    //     )
-    //     .join("\n");
-    //   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    //   const url = URL.createObjectURL(blob);
-    //   const a = document.createElement("a");
-    //   a.href = url;
-    //   const fname = `${safeFilename(
-    //     currentEmpName
-    //   )}_${currentPpStart}_${currentPpEnd}.csv`;
-    //   a.download = fname;
-    //   a.click();
-    //   URL.revokeObjectURL(url);
-    // }
     function exportCSV() {
       const header = [
         "no",
@@ -1162,7 +1067,7 @@ const otAlert = otHrs > 2;
         exportCSV();
         return;
       }
-
+      // console.log("Exporting to Excel with SheetJS");
       const header = [
         "no",
         "date",
@@ -1178,6 +1083,7 @@ const otAlert = otHrs > 2;
         "pay_reg",
         "pay_ot",
         "pay_total",
+        "Note",
       ];
       const rows = [header];
 
@@ -1185,8 +1091,9 @@ const otAlert = otHrs > 2;
       const bodyTrs = Array.from(document.querySelectorAll("#tblBody tr"));
 
       for (const tr of bodyTrs) {
+        
         const t = Array.from(tr.querySelectorAll("td"));
-        if (t.length < 15) continue;
+        if (t.length < 16) continue;
         const cols = t.slice(1).map((td) => td.innerText.trim()); // ✅ skip Action column
         if (!cols[0]) continue;
 
@@ -1199,6 +1106,7 @@ const otAlert = otHrs > 2;
           if (lastWeekKey !== null && wk !== lastWeekKey) rows.push([]);
           lastWeekKey = wk;
         }
+        console.log("Processing row:", cols); 
         rows.push(cols);
       }
 
@@ -1212,6 +1120,7 @@ const otAlert = otHrs > 2;
         "",
         "",
         "", // "Total" จะใส่ทีหลัง
+        "",
         "",
         "",
         "",
@@ -1252,11 +1161,11 @@ const otAlert = otHrs > 2;
         { wch: 12 }, // pay_reg
         { wch: 12 }, // pay_ot
         { wch: 12 }, // pay_total
+        { wch: 12 }, // Note
       ];
 
       // === ใส่สูตร SUM ให้แถว Total ===
-      // === ใส่ค่า Total แบบคำนวณล่วงหน้า (ไม่ใช้สูตร) ===
-      // === ใส่ค่า Total แบบคำนวณล่วงหน้า (ไม่ใช้สูตร) ===
+    
       // === ใส่ค่า Total แบบคำนวณล่วงหน้า (ไม่ใช้สูตร) ===
       const ref = XLSX.utils.decode_range(ws["!ref"]);
       const totalRow = ref.e.r;
@@ -1308,7 +1217,7 @@ const otAlert = otHrs > 2;
 
       ws["!ref"] = XLSX.utils.encode_range({
         s: { r: 0, c: 0 },
-        e: { r: totalRow, c: 13 },
+        e: { r: totalRow, c: 14 },
       });
 
       XLSX.utils.book_append_sheet(wb, ws, "Timesheet");
@@ -1358,7 +1267,7 @@ const otAlert = otHrs > 2;
       let emp = null;
       try {
         emp = await apiGET(`${EMP}/${employee_id}`);
-        console.log("SERVER EMPLOYEE RESPONSE:", emp);
+       
       } catch { }
 
       document.getElementById("header").textContent = `Payroll — ${emp?.name ?? "Emp #" + employee_id
@@ -1377,7 +1286,7 @@ const otAlert = otHrs > 2;
 
       if ((emp?.payroll_emp || emp?.payroll_emp_id) && !samePerson) {
         btnPayee.style.display = "inline-block";
-        console.log("Emp has payee:", emp.payroll_emp, emp.payroll_emp_id);
+        
 
         // ปรับชื่อปุ่มให้เหมาะสม
         btnPayee.textContent = showingPayee ? "Return" : "Payee";
@@ -1448,8 +1357,7 @@ const otAlert = otHrs > 2;
               if (oldDepsBtn) oldDepsBtn.remove();
 
               const payeeFull = await apiGET(`${EMP}/${payee.id}`);
-              console.log("PAYEE FULL:", payeeFull);
-              console.log("emp:", emp);
+              
 
               const isSamePerson =
                 Number(payeeFull.id) === Number(emp.id) ||
@@ -1587,9 +1495,9 @@ const otAlert = otHrs > 2;
       // .addEventListener("click", exportExcelOrCsv);
       .addEventListener("click", exportExcelOrCsv);
 
-    document
-      .getElementById("exportCSVBtn")
-      .addEventListener("click", exportCSV);
+    // document
+    //   .getElementById("exportCSVBtn")
+    //   .addEventListener("click", exportCSV);
     document.addEventListener("DOMContentLoaded", () => loadPage(true));
   </script>
 

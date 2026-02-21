@@ -13,6 +13,70 @@ const UI = {
 let els = {};
 let table = null;
 
+
+let travelerId = null;
+let lotId = null;
+let originalTraveler = null;
+
+async function loadTraveler() {
+  if (!travelerId && !lotId) {
+    toast("Missing travelerId or lotId", false);
+    return;
+  }
+
+  try {
+    let t = null;
+
+    if (travelerId) {
+      t = await jfetch(`/travelers/${encodeURIComponent(travelerId)}`);
+    } else if (lotId) {
+      const list = await jfetch(
+        `/travelers?lot_id=${encodeURIComponent(lotId)}`
+      );
+      if (Array.isArray(list) && list.length > 0) {
+        t = list[0];
+      } else {
+        toast("No traveler found for this lot", false);
+        return;
+      }
+    }
+
+    travelerId = t.id;
+    originalTraveler = t;
+
+    console.log("Traveler loaded:", t);
+    toast("Traveler loaded");
+  } catch (e) {
+    toast(e?.message || "Load failed", false);
+  }
+}
+
+
+async function downloadDrawingBatch() {
+  try {
+    const res = await fetch(`/api/v1/traveler_drawing/drawing/${travelerId}`, {
+      method: "POST",
+    });
+
+    if (!res.ok) {
+      const txt = await res.text().catch(() => "");
+      console.error("Download error:", res.status, txt);
+      toast("Download failed");
+      return;
+    }
+    console.log(res);
+    const blob = await res.blob();
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `drawing_${travelerId}.bat`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  } catch (err) {
+    console.error("Download exception:", err);
+    toast("Download failed (exception)");
+  }
+}
+
 /* ===== Copy helper ===== */
 function copyWithFeedback(icon, text, msg = "Copied") {
   if (!text) return;
@@ -37,6 +101,7 @@ function copyWithFeedback(icon, text, msg = "Copied") {
 
   toast?.success?.(msg);
 }
+
 
 /* ===== Build columns ===== */
 function makeColumns() {
@@ -99,68 +164,145 @@ function makeColumns() {
       },
     },
 
-    /* ===== PO ===== */
-    {
-      title: "PO",
-      field: "po_number",
-      width: 90,
-      formatter: (cell) => {
-        const d = cell.getData();
-        if (!d.po_id) return cell.getValue() ?? "";
-        return `
-          <div style="display:flex;gap:6px;align-items:center;">
-            <a class="link"
-              href="/static/manage-pos-detail.html?id=${d.po_id}">
-              ${cell.getValue()}
-            </a>
-            <span class="copy-po" style="cursor:pointer;">📋</span>
-          </div>
-        `;
-      },
-      cellClick: (e, cell) => {
-        if (!e.target.classList.contains("copy-po")) return;
-        e.preventDefault();
-        e.stopPropagation();
-        copyWithFeedback(e.target, cell.getValue(), "Copied PO");
-      },
-    },
+    // /* ===== PO ===== */
+    // {
+    //   title: "PO",
+    //   field: "po_number",
+    //   width: 90,
+    //   formatter: (cell) => {
+    //     const d = cell.getData();
+    //     if (!d.po_id) return cell.getValue() ?? "";
+    //     return `
+    //       <div style="display:flex;gap:6px;align-items:center;">
+    //         <a class="link"
+    //           href="/static/manage-pos-detail.html?id=${d.po_id}">
+    //           ${cell.getValue()}
+    //         </a>
+    //         <span class="copy-po" style="cursor:pointer;">📋</span>
+    //       </div>
+    //     `;
+    //   },
+    //   cellClick: (e, cell) => {
+    //     if (!e.target.classList.contains("copy-po")) return;
+    //     e.preventDefault();
+    //     e.stopPropagation();
+    //     copyWithFeedback(e.target, cell.getValue(), "Copied PO");
+    //   },
+    // },
 
+    {
+      title: "PO<br><small>Ship/Total(Rem)</small>",
+      field: "po_number",
+      width: 160,
+      hozAlign: "center",
+      headerHozAlign: "center",
+
+      formatter: (cell) => {
+        const r = cell.getRow().getData();
+
+        const shipped = r.po_shipped_total ?? 0;
+        const total = r.po_qty_total ?? 0;
+        const remain = r.po_remaining_qty ?? total - shipped;
+
+        let color = "#6b7280";
+        if (shipped === 0) color = "#ef4444";
+        else if (remain > 0) color = "#f59e0b";
+        else if (remain === 0) color = "#10b981";
+        else color = "#7c3aed";
+
+        return `
+      <div style="display:flex;flex-direction:column;align-items:center;">
+        
+        <div>
+          <a href="/static/manage-pos-detail.html?id=${r.po_id}"
+             style="color:#2563eb;text-decoration:underline;">
+             ${r.po_number}
+          </a>
+          <span class="copy-po" style="cursor:pointer;margin-left:6px;">📋</span>
+        </div>
+
+        <div style="font-size:12px;font-weight:600;color:${color};">
+          ${shipped}/${total} (${remain})
+        </div>
+
+      </div>
+    `;
+      },
+
+      cellClick: (e, cell) => {
+        const r = cell.getRow().getData();
+
+        if (e.target.classList.contains("copy-po")) {
+          e.stopPropagation();
+          copyWithFeedback(e.target, r.po_number, "Copied PO");
+          return;
+        }
+
+        if (e.target.tagName === "A") return;
+
+        if (r.po_id) {
+          window.location.href =
+            `/static/manage-pos-detail.html?id=${encodeURIComponent(r.po_id)}`;
+        }
+      },
+    }
+    ,
     { title: "Cust", field: "customer_code", width: 80 },
 
     /* ===== PART ===== */
     {
       title: "Part",
       field: "part_no",
-      width: 150,
+      width: 170,
       formatter: (cell) => {
         const d = cell.getData();
         const rev = d.revision ? ` (${d.revision})` : "";
         const label = `${d.part_no ?? ""}${rev}`;
         return `
+        
           <div style="display:flex;gap:6px;align-items:center;">
-            ${
-              d.part_id
-                ? `<a class="link"
-                    href="/static/manage-part-detail.html?part_id=${
-                      d.part_id
-                    }&part_revision_id=${
-                    d.part_revision_id ?? ""
-                  }&customer_id=${d.customer_id ?? ""}">${label}
+           <span class="drawing" style="cursor:pointer;" title="CNC drawing">📐</span>
+            ${d.part_id
+            ? `<a class="link"
+                    href="/static/manage-part-detail.html?part_id=${d.part_id
+            }&part_revision_id=${d.part_revision_id ?? ""
+            }&customer_id=${d.customer_id ?? ""}">${label}
                  </a>`
-                : `<span>${label}</span>`
-            }
+            : `<span>${label}</span>`
+          }
+            
             <span class="copy-part" style="cursor:pointer;">📋</span>
+           
           </div>
         `;
       },
-      cellClick: (e, cell) => {
-        if (!e.target.classList.contains("copy-part")) return;
-        e.preventDefault();
-        e.stopPropagation();
+      cellClick: async (e, cell) => {
         const d = cell.getRow().getData();
-        // const rev = d.revision ? ` (${d.revision})` : "";
-        copyWithFeedback(e.target, `${d.part_no ?? ""}`, "Copied Part");
+
+        if (e.target.classList.contains("copy-part")) {
+          e.preventDefault();
+          e.stopPropagation();
+          copyWithFeedback(e.target, `${d.part_no ?? ""}`, "Copied Part");
+          return;
+        }
+
+        if (e.target.classList.contains("drawing")) {
+          e.preventDefault();
+          e.stopPropagation();
+
+          const d = cell.getRow().getData();
+
+          lotId = d.lot_id;   // ✅ set before calling
+          travelerId = null;  // optional reset
+
+          await loadTraveler();
+
+          console.log("load drawing", travelerId, lotId);
+
+          await downloadDrawingBatch();
+        }
       },
+
     },
 
     /* ===== PART NAME ===== */
@@ -212,7 +354,7 @@ function makeColumns() {
       },
     },
 
-    
+
     /* ===== DAYS LEFT (PO LEVEL) ===== */
     {
       title: "Left",
@@ -301,35 +443,152 @@ function makeColumns() {
     </span>`;
       },
     },
-
-
-   {
-  title: "QTY",
-  width: 80,
-  field: "lot_planned_ship_qty",
+  {
+  title: "Prod",
+  width: 90,
+  field: "accept_input",
   hozAlign: "center",
   headerHozAlign: "center",
-  editor: "number",        // ✅ inline edit
+
+  editor: "number",
   editorParams: {
     min: 0,
     step: 1,
   },
+
+  // 🎨 simple display
+  formatter: (cell) => {
+    const v = cell.getValue();
+    return `<div style="
+      padding:4px;
+      border-radius:6px;
+      text-align:center;
+      font-weight:600;
+      background:${v ? "#dcfce7" : "#f3f4f6"};
+    ">
+      ${v ?? ""}
+    </div>`;
+  },
+
+  // 🚀 autosave (เหมือน PROD)
   cellEdited: async (cell) => {
-  const d = cell.getRow().getData();
+    const d = cell.getRow().getData();
+    const qty = Number(cell.getValue());
 
-  await fetch(`/api/v1/lots/${d.lot_id}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      planned_ship_qty: d.lot_planned_ship_qty,   // ✅ correct field
-    }),
-  });
+    const raw = cell.getValue();
+    // const qty = Number(raw);
 
-  toast("Quantity updated", true);
-}
+    // allow 0, block NaN / negative
+    if (Number.isNaN(qty) || qty < 0) {
+      toast("Invalid qty", false);
+      cell.restoreOldValue();
+      return;
+    }
+
+    try {
+     await jfetch(`/api/v1/traveler-steps/${d.step_id}/finish`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    qty_receive: qty,
+    qty_accept: qty,
+    qty_reject: 0,
+    result: "passed"
+  }),
+});
+
+      toast("Accepted", true);
+
+    } catch (err) {
+      console.error(err);
+      toast("Save failed", false);
+      cell.restoreOldValue();
+    }
+  }
 },
 
-    
+    // {
+    //   title: "Ship",
+    //   width: 80,
+    //   field: "lot_planned_ship_qty",
+    //   hozAlign: "center",
+    //   headerHozAlign: "center",
+    //   editor: "number",        // ✅ inline edit
+    //   editorParams: {
+    //     min: 0,
+    //     step: 1,
+    //   },
+    //   cellEdited: async (cell) => {
+    //     // const d = cell.getRow().getData();
+
+    //     // await fetch(`/api/v1/lots/${d.lot_id}`, {
+    //     //   method: "PATCH",
+    //     //   headers: { "Content-Type": "application/json" },
+    //     //   body: JSON.stringify({
+    //     //     planned_ship_qty: d.lot_planned_ship_qty,   // ✅ correct field
+    //     //   }),
+    //     // });
+
+    //     // toast("Quantity updated", true);
+    //   }
+    // },
+// {
+//   title: "Tracking",
+//   width: 140,
+//   field: "tracking_number",   // ✅ correct field
+//   hozAlign: "center",
+//   headerHozAlign: "center",
+
+//   editor: "input",            // ✅ tracking เป็น text ไม่ใช่ number
+
+//   formatter: (cell) => {
+//     const v = cell.getValue();
+//     return `<div style="
+//       padding:4px;
+//       border-radius:6px;
+//       text-align:center;
+//       font-weight:500;
+//       background:${v ? "#e0f2fe" : "#f3f4f6"};
+//     ">
+//       ${v ?? ""}
+//     </div>`;
+//   },
+
+//   cellEdited: async (cell) => {
+//     const d = cell.getRow().getData();
+//     const tracking = cell.getValue();
+
+//     if (!d.shipment_id) {
+//       toast("No shipment found", false);
+//       cell.restoreOldValue();
+//       return;
+//     }
+
+//     try {
+//       await jfetch(`/api/v1/lot-shippments/${d.shipment_id}/update-fields`, {
+//         method: "PATCH",
+//         headers: { "Content-Type": "application/json" },
+//         body: JSON.stringify({
+//           tracking_number: tracking,
+//         }),
+//       });
+
+//       toast("Tracking updated", true);
+
+//       // ✅ update UI (optional)
+//       cell.getRow().update({
+//         tracking_number: tracking,
+//       });
+
+//     } catch (err) {
+//       console.error(err);
+//       toast("Update failed", false);
+//       cell.restoreOldValue();
+//     }
+//   }
+// } , 
+
+
     {
       title: "Ship",
       width: 150,
@@ -358,8 +617,8 @@ function makeColumns() {
          <!-- Materials -->
         <a
           href="/static/manage-lot-materials.html?lot_id=${encodeURIComponent(
-            lotId
-          )}"
+          lotId
+        )}"
           title="Materials"
           style="text-decoration:none;"
           target="_blank"
@@ -369,8 +628,8 @@ function makeColumns() {
         <!-- Traveler -->
         <a
           href="/static/traveler-detail.html?lot_id=${encodeURIComponent(
-            lotId
-          )}"
+          lotId
+        )}"
           title="Traveler"
           style="text-decoration:none;"
           target="_blank"
@@ -383,8 +642,8 @@ function makeColumns() {
         <!-- Shipment -->
         <a
           href="/static/manage-lot-shippments.html?lot_id=${encodeURIComponent(
-            lotId
-          )}"
+          lotId
+        )}"
           title="Shipment"
           style="text-decoration:none;"
           target="_blank"
@@ -422,43 +681,43 @@ function makeColumns() {
     //     `;
     //   }
     // },
-    {
-      title: "Ship/PO(Rem)",
-      width: 170,
-      hozAlign: "center",
-      formatter: (cell) => {
-        const r = cell.getRow().getData();
+    // {
+    //   title: "Ship/PO(Rem)",
+    //   width: 170,
+    //   hozAlign: "center",
+    //   formatter: (cell) => {
+    //     const r = cell.getRow().getData();
 
-        const shipped = r.po_shipped_total ?? 0;
-        const total = r.po_qty_total ?? 0;
-        const remain = r.po_remaining_qty ?? total - shipped;
+    //     const shipped = r.po_shipped_total ?? 0;
+    //     const total = r.po_qty_total ?? 0;
+    //     const remain = r.po_remaining_qty ?? total - shipped;
 
-        // สีตามสถานะ
-        let bg = "#6b7280"; // gray
-        if (shipped === 0) bg = "#ef4444"; // not shipped
-        else if (remain > 0) bg = "#f59e0b"; // partial
-        else if (remain === 0) bg = "#10b981"; // complete
-        else bg = "#7c3aed"; // overship
+    //     // สีตามสถานะ
+    //     let bg = "#6b7280"; // gray
+    //     if (shipped === 0) bg = "#ef4444"; // not shipped
+    //     else if (remain > 0) bg = "#f59e0b"; // partial
+    //     else if (remain === 0) bg = "#10b981"; // complete
+    //     else bg = "#7c3aed"; // overship
 
-        // format remain
-        const remText = remain < 0 ? `-${Math.abs(remain)}` : remain;
+    //     // format remain
+    //     const remText = remain < 0 ? `-${Math.abs(remain)}` : remain;
 
-        return `
-      <span style="
-        background:${bg};
-        color:white;
-        padding:4px 10px;
-        border-radius:8px;
-        font-weight:600;
-        display:inline-block;
-        min-width:120px;
-        text-align:center;
-      ">
-        ${shipped} / ${total} (${remText})
-      </span>
-    `;
-      },
-    },
+    //     return `
+    //   <span style="
+    //     background:${bg};
+    //     color:white;
+    //     padding:4px 10px;
+    //     border-radius:8px;
+    //     font-weight:600;
+    //     display:inline-block;
+    //     min-width:120px;
+    //     text-align:center;
+    //   ">
+    //     ${shipped} / ${total} (${remText})
+    //   </span>
+    // `;
+    //   },
+    // },
 
     // /* ===== LOT STATUS ===== */
     // {
@@ -467,7 +726,7 @@ function makeColumns() {
     //   width: 120,
     //   formatter: (cell) => {
     //     const v = cell.getValue();
-    //     const colors = {
+    //     const colors = {.
     //       not_start: "#6b7280",
     //       in_process: "#3b82f6",
     //       hold: "#f59e0b",

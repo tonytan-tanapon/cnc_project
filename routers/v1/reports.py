@@ -6,7 +6,8 @@ from typing import Optional, Dict, List
 from decimal import Decimal, ROUND_DOWN
 from database import get_db
 from models import LotMaterialUse
-
+from models import ShopTraveler, ShopTravelerStep
+from sqlalchemy.orm import aliased
 router = APIRouter(prefix="/reports", tags=["reports"])
 
 def _parse_ids_from_request(request: Request, csv_fallback: Optional[str]) -> List[int]:

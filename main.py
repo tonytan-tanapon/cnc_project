@@ -6,16 +6,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-
-
 from routers.v1 import api_v1
-
 from sqlalchemy import func, text
-
 
 # --- Local utils & DB ---
 from utils.code_generator import next_code, next_code_yearly
 from database import SessionLocal, engine, get_db
+
+
+from apscheduler.schedulers.background import BackgroundScheduler
+from services.pay_period_auto import ensure_next_pay_period
 
 
 # ------------------------------
@@ -24,6 +24,22 @@ from database import SessionLocal, engine, get_db
 
 
 app = FastAPI(title="MFG API", version="1.0")
+
+
+scheduler = BackgroundScheduler()
+
+@app.on_event("startup")
+def start_scheduler():
+    scheduler.add_job(
+        ensure_next_pay_period,
+        "cron",
+        hour=0,
+        minute=1,
+    )
+    scheduler.start()
+
+    # run once when server starts
+    ensure_next_pay_period()
 
 origins = [
     "http://127.0.0.1:5500",
