@@ -467,9 +467,7 @@ function makeColumns() {
       background:${v ? "#dcfce7" : "#f3f4f6"};
     ">
       ${v ?? ""}
-    </div>
-    
-    `;
+    </div>`;
   },
 
   // 🚀 autosave (เหมือน PROD)
@@ -616,7 +614,17 @@ function makeColumns() {
         <span style="font-weight:600;">
           ${shipped}
         </span>
-        
+         <!-- Materials -->
+        <a
+          href="/static/manage-lot-materials.html?lot_id=${encodeURIComponent(
+          lotId
+        )}"
+          title="Materials"
+          style="text-decoration:none;"
+          target="_blank"
+        >
+          🔩
+        </a>
         <!-- Traveler -->
         <a
           href="/static/traveler-detail.html?lot_id=${encodeURIComponent(
