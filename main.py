@@ -67,7 +67,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 @app.get("/", include_in_schema=False)
 def root():
     # เปิด / แล้วให้ไป login (ง่ายสุด)
-    return RedirectResponse(url="/static/index.html")
+    return RedirectResponse(url="/static/manage-lot-shipment-status.html")
 
 @app.get("/index", include_in_schema=False)
 def index():
