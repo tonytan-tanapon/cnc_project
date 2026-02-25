@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from sqlalchemy import select, func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
-
+from models import ShopTravelerStep
 from database import get_db
 from models import POLine, ProductionLot, ShopTraveler,PartRevision
 
@@ -97,26 +97,59 @@ def create_lot_and_traveler(
         lot_no = next_code_yearly(db, "")
         traveler_no = next_code_yearly(db, "T")
 
+        # =========================
+        # CREATE LOT
+        # =========================
         lot = ProductionLot(
             lot_no=lot_no,
             part_id=pl.part_id,
-            part_revision_id = rev_id,
+            part_revision_id=rev_id,
             po_id=pl.po_id,
             po_line_id=pl.id,
             planned_qty=planned_qty,
             lot_due_date=lot_due_date,
-            status="in_process",
+            status="not_start",
         )
         db.add(lot)
-        db.flush()  # ได้ lot.id
+        db.flush()
 
+        # =========================
+        # CREATE TRAVELER
+        # =========================
         trav = ShopTraveler(
             traveler_no=traveler_no,
             lot_id=lot.id,
             status="open",
         )
         db.add(trav)
+        db.flush()  # 🔥 สำคัญ ต้อง flush เพื่อให้ได้ trav.id
 
+        # =========================
+        # CREATE FIRST STEP
+        # =========================
+        step = ShopTravelerStep(
+            traveler_id=trav.id,
+            seq=1,                      # ✅ ใช้ seq ไม่ใช่ step_no
+            step_code="START",
+            step_name="Start",
+            step_detail="Auto created first step",
+            station="N/A",
+
+            status="pending",
+
+            qty_receive=0,
+            qty_accept=0,
+            qty_reject=0,
+            qty_rework=0,
+
+            uom="pcs",
+        )
+
+        db.add(step)
+
+        # =========================
+        # COMMIT
+        # =========================
         db.commit()
         db.refresh(lot)
         db.refresh(trav)
