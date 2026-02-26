@@ -810,49 +810,6 @@ function makeColumns() {
         return v ? new Date(v).toLocaleDateString() : "";
       },
     },
-
-{
-  title: "Note",
-  field: "lot_note", // ✅ มาจาก view
-  width: 200,
-
-  editor: "textarea", // ✅ multiline (ดีกว่า input)
-
-  formatter: (cell) => {
-    const v = cell.getValue();
-    return `<div style="
-      white-space: pre-wrap;
-      padding:4px;
-      border-radius:6px;
-      background:#fef3c7;
-      font-size:12px;
-      min-height:24px;
-    ">
-      ${v ?? ""}
-    </div>`;
-  },
-
-  // 🚀 ใช้ jfetch ของคุณ (สำคัญ)
-  cellEdited: async (cell) => {
-    const row = cell.getRow().getData();
-    const note = cell.getValue();
-
-    try {
-      await jfetch(`/api/v1/lots/${encodeURIComponent(row.lot_id)}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ note }),
-      });
-
-      toast("Note updated ✅");
-    } catch (err) {
-      console.error(err);
-      toast("Update failed ❌", false);
-    }
-  },
-}
-
-    
   ];
 }
 
