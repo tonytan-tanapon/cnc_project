@@ -569,6 +569,8 @@ function initTable() {
     columns: [
       {
         title: "📌",
+        
+  width: 80,
         minWidth: 40,
         field: "lot_status",
         hozAlign: "center",
@@ -612,34 +614,38 @@ function initTable() {
         },
       },
 
-      {
-        title: "Lot",
-        field: "lot_no",
-        minWidth: 80,
-        headerSort: true,
-        formatter: (cell) => {
-          const row = cell.getRow().getData();
-          const lotId = row.lot_id;
-          const lotNo = row.lot_no || "—";
-          if (!lotId) return lotNo;
-          return `
+     {
+  title: "Lot",
+  field: "lot_no",
+
+  width: 80,        // ✅ fix width เล็กลง
+  minWidth: 80,
+  maxWidth: 140,     // ✅ กันมันยืด
+  headerSort: true,
+
+  formatter: (cell) => {
+    const row = cell.getRow().getData();
+    const lotId = row.lot_id;
+    const lotNo = row.lot_no || "—";
+
+    if (!lotId) return lotNo;
+
+    return `
       <a href="/static/lot-detail.html?lot_id=${encodeURIComponent(lotId)}"
-         class="link-lot"
-         style="color:#2563eb; text-decoration:underline; cursor:pointer;">
+         onclick="event.stopPropagation();"
+         style="
+           color:#2563eb;
+           text-decoration:underline;
+           display:block;
+           white-space:nowrap;
+           overflow:hidden;
+           text-overflow:ellipsis;
+         ">
          ${lotNo}
       </a>
     `;
-        },
-        cellClick: (e, cell) => {
-          e.preventDefault(); // ✅ ป้องกัน reload หน้า
-          const row = cell.getRow().getData();
-          const lotId = row.lot_id;
-          if (!lotId) return toast("No lot ID found", false);
-          window.location.href = `/static/lot-detail.html?lot_id=${encodeURIComponent(
-            lotId
-          )}`;
-        },
-      },
+  },
+},
       // {
       //   title: "PO",
       //   field: "po_number",
@@ -671,62 +677,69 @@ function initTable() {
       //   },
       // },
       {
-        title: "PO<br><small>Ship/Total(Rem)</small>",
-        field: "po_number",
-        width: 150,
-        hozAlign: "center",
-        headerHozAlign: "center",   // ✅ CENTER HEADER
-        headerSort: true,
+  title: "PO<br><small>Ship/Total(Rem)</small>",
+  field: "po_number",
+  width: 130,                 // ✅ ลด width
+  minWidth: 110,
+  maxWidth: 150,
 
-        formatter: (cell) => {
-          const r = cell.getRow().getData();
+  hozAlign: "center",
+  headerHozAlign: "center",
+  headerSort: true,
 
-          const poNumber = r.po_number || "—";
-          const poId = r.po_id;
+  formatter: (cell) => {
+    const r = cell.getRow().getData();
 
-          const shipped = r.po_shipped_total ?? 0;
-          const total = r.po_qty_total ?? 0;
-          const remain = r.po_remaining_qty ?? total - shipped;
+    const poNumber = r.po_number || "—";
+    const poId = r.po_id;
 
-          // color by status
-          let color = "#6b7280"; // gray
-          if (shipped === 0) color = "#ef4444";        // not shipped
-          else if (remain > 0) color = "#f59e0b";     // partial
-          else if (remain === 0) color = "#10b981";   // complete
-          else color = "#7c3aed";                     // overship
+    const shipped = r.po_shipped_total ?? 0;
+    const total = r.po_qty_total ?? 0;
+    const remain = r.po_remaining_qty ?? total - shipped;
 
-          const remText = remain < 0 ? `-${Math.abs(remain)}` : remain;
+    let color = "#6b7280";
+    if (shipped === 0) color = "#ef4444";
+    else if (remain > 0) color = "#f59e0b";
+    else if (remain === 0) color = "#10b981";
+    else color = "#7c3aed";
 
-          const poLink = poId
-            ? `<a href="/static/manage-pos-detail.html?id=${encodeURIComponent(poId)}"
-           class="link-po"
-           style="color:#2563eb; text-decoration:underline; cursor:pointer;">
+    const remText = remain < 0 ? `-${Math.abs(remain)}` : remain;
+
+    const poLink = poId
+      ? `<a href="/static/manage-pos-detail.html?id=${encodeURIComponent(poId)}"
+           onclick="event.stopPropagation();"
+           style="
+             color:#2563eb;
+             text-decoration:underline;
+             display:block;
+             white-space:nowrap;
+             overflow:hidden;
+             text-overflow:ellipsis;
+           ">
            ${poNumber}
          </a>`
-            : poNumber;
+      : poNumber;
 
-          return `
-      <div style="display:flex;flex-direction:column;align-items:center;line-height:1.2;">
-        <div>${poLink}</div>
-        <div style="font-size:12px;font-weight:600;color:${color};">
+    return `
+      <div style="
+        display:flex;
+        flex-direction:column;
+        align-items:center;
+        line-height:1.2;
+      ">
+        <div style="max-width:100%;">${poLink}</div>
+        <div style="
+          font-size:12px;
+          font-weight:600;
+          color:${color};
+          white-space:nowrap;
+        ">
           ${shipped}/${total} (${remText})
         </div>
       </div>
     `;
-        },
-
-        cellClick: (e, cell) => {
-          // allow normal <a> clicks
-          if (e.target.tagName === "A") return;
-
-          const r = cell.getRow().getData();
-          if (!r.po_id) return toast("No PO ID found", false);
-
-          window.location.href = `/static/manage-pos-detail.html?id=${encodeURIComponent(
-            r.po_id
-          )}`;
-        },
-      },
+  },
+},
 
       {
         title: "Prod<br>Qty",
@@ -1014,12 +1027,12 @@ function initTable() {
       },
 
       // placeholders...
-      {
-        title: "FAIR",
-        field: "fair_note",
-        minWidth: 50,
-        headerSort: false,
-      },
+      // {
+      //   title: "FAIR",
+      //   field: "fair_note",
+      //   minWidth: 50,
+      //   headerSort: false,
+      // },
 
       {
         title: "Tracking no.",
@@ -1060,19 +1073,19 @@ function initTable() {
         },
       },
 
-      {
-        title: "Materaials<br>PO",
-        field: "batch_no_list",
-        minWidth: 150,
-        maxWidth: 250,
-        headerSort: true,
-        cssClass: "cell-wrap",
-      },
+      // {
+      //   title: "Materaials<br>PO",
+      //   field: "batch_no_list",
+      //   minWidth: 150,
+      //   maxWidth: 250,
+      //   headerSort: true,
+      //   cssClass: "cell-wrap",
+      // },
 
 
       {
         title: "Note",
-        width: 120,
+        width: 220,
         field: "note",
         hozAlign: "center",
         headerHozAlign: "center",
