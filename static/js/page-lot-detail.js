@@ -231,7 +231,13 @@ function renderLotTable(d) {
   "date"
 )],
   // ["Lot PO Date", formatDateMDY(d.lot_po_date)],
-["Lot PO Due Date", formatDateMDY(d.lot_po_duedate)],
+ ["Lot PO Due Date", editableField(
+  "lot_po_duedate",
+  formatDateMDY(d.lot_po_duedate),
+  d.lot_id,
+  "date"
+)],
+// ["Lot PO Due Date", formatDateMDY(d.lot_po_duedate)],
 
   // ["Lot Last Ship Date", d.lot_last_ship_date],
 

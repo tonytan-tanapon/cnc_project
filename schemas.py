@@ -380,7 +380,9 @@ class ProductionLotUpdate(BaseModel):
     part_revision_id: Optional[int] = None
     po_id: Optional[int] = None
     lot_due_date : Optional[datetime] = None
+    lot_po_duedate: Optional[datetime] = None   # ✅ ADD THIS
     planned_ship_qty: Optional[int] = None   # ✅ ADD THIS
+    
     planned_qty: Optional[int] = None
     started_at: Optional[datetime] = None
     finished_at: Optional[datetime] = None
