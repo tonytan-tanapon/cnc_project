@@ -370,7 +370,7 @@ function buildStepPayload(d) {
   if (d.qty_reject != null) p.qty_reject = Number(d.qty_reject) || 0;
   if (d.step_note != null) p.step_note = String(d.step_note); // 👈 เพิ่ม
 
-  console.log(p)
+  console.log(p);
   return p;
 }
 
@@ -1152,8 +1152,10 @@ function makeLotLinks(lotId) {
     },
     {
       id: "inspection_link",
-      href: `/static/travelerQA-detail.html?lot_id=${encodeURIComponent(lotId)}`,
-      title: "Traveler",
+      href: `/static/travelerQA-detail.html?lot_id=${encodeURIComponent(
+        lotId
+      )}`,
+      title: "Inspection", // 👈 ชัดเจนว่าเป็น QA
     },
     {
       id: "material_link",
