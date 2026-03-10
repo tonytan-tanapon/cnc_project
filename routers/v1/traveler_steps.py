@@ -134,39 +134,283 @@ def start_step(step_id: int, db: Session = Depends(get_db)):
     return s
 
 
+# @router.post("/{step_id}/finish", response_model=ShopTravelerStepOut)
+# def finish_step(
+#     step_id: int,
+#     result: str = "passed",
+#     qa_result: Optional[str] = None,
+#     qa_notes: Optional[str] = None,
+#     qty_receive: Optional[Decimal] = None,
+#     qty_accept: Optional[Decimal] = None,
+#     qty_reject: Optional[Decimal] = None,
+#     db: Session = Depends(get_db),
+# ):
+    
+#     # print("Finishing step", step_id, "with result", result) 
+#     s = db.get(ShopTravelerStep, step_id)
+#     if not s:
+#         raise HTTPException(404, "Step not found")
+#     if result not in ["passed", "failed", "skipped"]:
+#         raise HTTPException(400, "result must be passed/failed/skipped")
+
+#     print("Updating step status to", result)
+#     # ✅ อัปเดต qty ถ้ามีส่งมา
+#     if qty_receive is not None: s.qty_receive = qty_receive
+#     if qty_accept  is not None: s.qty_accept  = qty_accept
+#     if qty_reject  is not None: s.qty_reject  = qty_reject
+
+#     # ✅ validation ง่ายๆ (ถ้ามีรับเข้า)
+#     if s.qty_receive is not None and (s.qty_accept or 0) + (s.qty_reject or 0) > (s.qty_receive or 0):
+#         raise HTTPException(400, "qty_accept + qty_reject must not exceed qty_receive")
+
+#     s.status = result
+#     s.finished_at = datetime.utcnow()
+#     if qa_result is not None: s.qa_result = qa_result
+#     if qa_notes  is not None: s.qa_notes  = qa_notes
+
+#     db.commit()
+#     db.refresh(s)
+#     return s
+
+
+from schemas import StepFinishRequest
+
+# @router.post("/{step_id}/finish", response_model=ShopTravelerStepOut)
+# def finish_step(
+#     step_id: int,
+#     payload: StepFinishRequest,   # ✅ รับ JSON
+#     db: Session = Depends(get_db),
+# ):
+#     s = db.get(ShopTravelerStep, step_id)
+#     if not s:
+#         raise HTTPException(404, "Step not found")
+
+#     result = payload.result or "passed"
+
+#     if result not in ["passed", "failed", "skipped"]:
+#         raise HTTPException(400, "Invalid result")
+
+#     # =========================
+#     # qty update
+#     # =========================
+#     if payload.qty_receive is not None:
+#         s.qty_receive = payload.qty_receive
+
+#     if payload.qty_accept is not None:
+#         s.qty_accept = payload.qty_accept
+
+#     if payload.qty_reject is not None:
+#         s.qty_reject = payload.qty_reject
+
+#     # =========================
+#     # validation
+#     # =========================
+#     if (
+#         s.qty_receive is not None and
+#         (s.qty_accept or 0) + (s.qty_reject or 0) > (s.qty_receive or 0)
+#     ):
+#         raise HTTPException(400, "qty_accept + qty_reject > qty_receive")
+
+#     # =========================
+#     # auto start (optional 🔥)
+#     # =========================
+#     if s.status == "pending":
+#         s.started_at = datetime.utcnow()
+
+#     # =========================
+#     # finish
+#     # =========================
+#     s.status = result
+#     s.finished_at = datetime.utcnow()
+
+#     if payload.qa_result is not None:
+#         s.qa_result = payload.qa_result
+
+#     if payload.qa_notes is not None:
+#         s.qa_notes = payload.qa_notes
+
+#     db.commit()
+#     db.refresh(s)
+
+#     return s
 @router.post("/{step_id}/finish", response_model=ShopTravelerStepOut)
 def finish_step(
     step_id: int,
-    result: str = "passed",
-    qa_result: Optional[str] = None,
-    qa_notes: Optional[str] = None,
-    qty_receive: Optional[Decimal] = None,
-    qty_accept: Optional[Decimal] = None,
-    qty_reject: Optional[Decimal] = None,
+    payload: StepFinishRequest,
     db: Session = Depends(get_db),
 ):
+    from models import (
+        ShopTraveler,
+        ProductionLot,
+        CustomerShipment,
+        CustomerShipmentItem,
+    )
+    from sqlalchemy import func
+
+    # =========================
+    # GET STEP
+    # =========================
     s = db.get(ShopTravelerStep, step_id)
     if not s:
         raise HTTPException(404, "Step not found")
+
+    result = payload.result or "passed"
+
     if result not in ["passed", "failed", "skipped"]:
-        raise HTTPException(400, "result must be passed/failed/skipped")
+        raise HTTPException(400, "Invalid result")
 
-    # ✅ อัปเดต qty ถ้ามีส่งมา
-    if qty_receive is not None: s.qty_receive = qty_receive
-    if qty_accept  is not None: s.qty_accept  = qty_accept
-    if qty_reject  is not None: s.qty_reject  = qty_reject
+    # =========================
+    # UPDATE QTY
+    # =========================
+    if payload.qty_receive is not None:
+        s.qty_receive = payload.qty_receive
 
-    # ✅ validation ง่ายๆ (ถ้ามีรับเข้า)
-    if s.qty_receive is not None and (s.qty_accept or 0) + (s.qty_reject or 0) > (s.qty_receive or 0):
-        raise HTTPException(400, "qty_accept + qty_reject must not exceed qty_receive")
+    if payload.qty_accept is not None:
+        s.qty_accept = payload.qty_accept
 
+    if payload.qty_reject is not None:
+        s.qty_reject = payload.qty_reject
+
+    # =========================
+    # VALIDATION
+    # =========================
+    if (
+        s.qty_receive is not None and
+        (s.qty_accept or 0) + (s.qty_reject or 0) > (s.qty_receive or 0)
+    ):
+        raise HTTPException(400, "qty_accept + qty_reject > qty_receive")
+
+    # =========================
+    # AUTO START
+    # =========================
+    if s.status == "pending":
+        s.started_at = datetime.utcnow()
+
+    # =========================
+    # FINISH STEP
+    # =========================
     s.status = result
     s.finished_at = datetime.utcnow()
-    if qa_result is not None: s.qa_result = qa_result
-    if qa_notes  is not None: s.qa_notes  = qa_notes
 
+    if payload.qa_result is not None:
+        s.qa_result = payload.qa_result
+
+    if payload.qa_notes is not None:
+        s.qa_notes = payload.qa_notes
+
+    # =========================
+    # 🔥 AUTO ALLOCATE (CLEAN VERSION)
+    # =========================
+    if result == "passed" and payload.qty_accept is not None:
+
+        traveler = db.get(ShopTraveler, s.traveler_id)
+        lot = db.get(ProductionLot, traveler.lot_id)
+
+        new_qty = float(payload.qty_accept or 0)
+
+        if new_qty < 0:
+            raise HTTPException(400, "qty_accept cannot be negative")
+
+        # -------------------------
+        # GET SHIPMENT
+        # -------------------------
+        shipment = (
+            db.query(CustomerShipment)
+            .filter(CustomerShipment.lot_id == lot.id)
+            .order_by(CustomerShipment.id.desc())
+            .first()
+        )
+
+        # -------------------------
+        # FIND EXISTING ITEM
+        # -------------------------
+        item = None
+        if shipment:
+            item = (
+                db.query(CustomerShipmentItem)
+                .filter(CustomerShipmentItem.shipment_id == shipment.id)
+                .filter(CustomerShipmentItem.lot_allocate_id == lot.id)
+                .first()
+            )
+
+        # 🔥 IMPORTANT
+        old_qty = float(item.qty) if item else 0
+
+        # =========================
+        # 🧠 ZERO CASE (CLEAR ALL)
+        # =========================
+        if new_qty == 0:
+            s.qty_receive = 0
+            s.qty_accept = 0
+            s.qty_reject = 0
+
+            if item:
+                db.delete(item)
+
+            db.commit()
+            db.refresh(s)
+            return s
+
+        # =========================
+        # 🧠 CALCULATE AVAILABLE
+        # =========================
+        # 🔥 ใช้ step นี้เลย (สำคัญมาก)
+        finished_qty = float(s.qty_accept or 0)
+
+        shipped_qty = (
+            db.query(func.coalesce(func.sum(CustomerShipmentItem.qty), 0))
+            .filter(CustomerShipmentItem.lot_allocate_id == lot.id)
+            .scalar()
+            or 0
+        )
+
+        # 🔥 FIX สำคัญ
+        available_qty = float(finished_qty) - float(shipped_qty) + old_qty
+
+        if new_qty > available_qty:
+            raise HTTPException(
+                400,
+                detail=f"Not enough available qty ({available_qty})"
+            )
+
+        # =========================
+        # CREATE SHIPMENT
+        # =========================
+        if not shipment:
+            shipment = CustomerShipment(
+                po_id=lot.po_id,
+                lot_id=lot.id,
+                shipped_at=datetime.utcnow(),
+                status="pending",
+            )
+            db.add(shipment)
+            db.flush()
+
+        # =========================
+        # DELETE OLD
+        # =========================
+        if item:
+            db.delete(item)
+            db.flush()
+
+        # =========================
+        # INSERT NEW
+        # =========================
+        new_item = CustomerShipmentItem(
+            shipment_id=shipment.id,
+            po_line_id=lot.po_line_id or 0,
+            lot_id=lot.id,
+            lot_allocate_id=lot.id,
+            qty=new_qty,
+        )
+        db.add(new_item)
+
+    # =========================
+    # COMMIT
+    # =========================
     db.commit()
     db.refresh(s)
+
     return s
 
 from models import ShopTraveler as TravelerStep  # ถ้ามี

@@ -1,0 +1,3 @@
+python database_import/import_lot_db.py
+python doc/docx_to_db.py
+python doc/inspection/docx_to_db.py

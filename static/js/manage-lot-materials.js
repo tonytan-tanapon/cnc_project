@@ -38,13 +38,12 @@ async function loadLotHeader() {
     let summaryHtml =
       Array.isArray(summary) && summary.length
         ? summary
-            .map(
-              (s) =>
-                `${s.material_name}: <b>${(s.total_qty ?? 0).toFixed(2)} ${
-                  s.qty_uom ?? ""
-                }</b>`
-            )
-            .join(", ")
+          .map(
+            (s) =>
+              `${s.material_name}: <b>${(s.total_qty ?? 0).toFixed(2)} ${s.qty_uom ?? ""
+              }</b>`
+          )
+          .join(", ")
         : "<i>No materials allocated</i>";
 
     el.innerHTML = `
@@ -203,8 +202,22 @@ function initMaterialTable() {
     layout: "fitColumns",
     placeholder: "No material data",
     columns: [
-      { title: "Material PO", field: "batch_no" },
+      {
+        title: "Material PO",
+        field: "batch_no",
+        formatter: (cell) => {
+          const row = cell.getRow().getData();
+          return `
+      <a href="/static/batches-detail.html?id=${row.id}" 
+         class="link"
+         ">
+        ${cell.getValue()}
+      </a>
+    `;
+        }
+      },
       { title: "Material", field: "name" },
+      { title: "Recieved", field: "qty_received", hozAlign: "right" },
       { title: "#Available", field: "qty_available", hozAlign: "right" },
       { title: "UOM", field: "qty_uom", width: 80, hozAlign: "center" },
       {
@@ -228,9 +241,8 @@ function initMaterialTable() {
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 lot_id: Number(lotId),
-                material_code: row.material_code || row.code,
-                qty: String(qtyValue),
-                strategy: "fifo",
+                batch_id: row.id,              // 👈 REQUIRED
+                qty: Number(qtyValue),
               }),
             });
             toast(`✅ Allocated ${qtyValue} ${row.name}`);
@@ -253,6 +265,7 @@ async function loadMaterialTable() {
   if (!currentPartId) return;
   try {
     const allMaterials = await jfetch(ENDPOINTS.materialInventory);
+    console.log(allMaterials)
     const partRes = await jfetch(`/parts/${currentPartId}/materials`);
     const partList = Array.isArray(partRes?.items)
       ? partRes.items
@@ -262,7 +275,7 @@ async function loadMaterialTable() {
     );
     const filtered = allMaterials.filter(
       (r) =>
-        allowedCodes.has(r.code?.trim().toLowerCase()) 
+        allowedCodes.has(r.code?.trim().toLowerCase())
     );
     tables.material.setData(filtered);
   } catch (err) {
@@ -274,7 +287,7 @@ async function loadMaterialTable() {
 async function loadAllocationTable() {
   console.log("get allocate")
   try {
-    
+
     const res = await jfetch(ENDPOINTS.lotAllocations);
     console.log(res)
     tables.allocation.setData(res);
@@ -299,8 +312,9 @@ function initAllocationTable() {
     columns: [
       { title: "Material PO", field: "batch_no" },
       { title: "Material", field: "material_name" },
+
       { title: "Qty", field: "qty", hozAlign: "right" },
-      { title: "UOM", field: "sty_uom", width: 80 },
+      { title: "UOM", field: "qty_uom", width: 80 },
       {
         title: "Action",
         formatter: () => `<a href="#" class="link link-red">Return</a>`,
@@ -456,7 +470,7 @@ function makeLotLinks(lotId) {
   if (!lotId) return;
 
   const links = [
-     {
+    {
       id: "lot_link",
       href: `/static/lot-detail.html?lot_id=${encodeURIComponent(lotId)}`,
       title: "Traveler",
@@ -510,5 +524,5 @@ document.addEventListener("DOMContentLoaded", async () => {
   await loadHistoryTable();
   initInlineAddBatchForm();
 
-   makeLotLinks(lotId);
+  makeLotLinks(lotId);
 });

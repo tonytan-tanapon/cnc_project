@@ -210,7 +210,10 @@ class Employee(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     emp_code = Column(String, unique=True, index=True, nullable=False)
+    emp_op = Column(String, unique=True)
+    nickname = Column(String, nullable=True)
     name = Column(String, nullable=False)
+    lastname = Column(String, nullable=True)
     position = Column(String, nullable=True)
     department = Column(String, nullable=True)
     email = Column(String, nullable=True)
@@ -480,14 +483,19 @@ class ProductionLot(Base):
     po_id = Column(Integer, ForeignKey("purchase_orders.id"), nullable=True, index=True)
     po_line_id = Column(Integer, ForeignKey("po_lines.id"), nullable=True, index=True)
 
-    planned_qty = Column(Integer, nullable=False, default=0)
-    planned_ship_qty = Column(Integer, nullable=True, default=0)
+    planned_qty = Column(Integer, nullable=False, default=0)  # lot plan qty
+    planned_ship_qty = Column(Integer, nullable=True, default=0) #lot po qty ************* add
 
-    started_at = Column(DateTime(timezone=True), nullable=True)
-    finished_at = Column(DateTime(timezone=True), nullable=True)
-    lot_po_date = Column(DateTime(timezone=True), nullable=True)
-    lot_due_date = Column(DateTime(timezone=True), nullable=True)    
-    created_at = Column(DateTime(timezone=True), nullable=True)
+    lot_po_qty = Column(Integer, nullable=True, default=0) #lot po qty
+
+    started_at = Column(DateTime(timezone=True), nullable=True)  #lot production start date 
+    finished_at = Column(DateTime(timezone=True), nullable=True) #lot production finish date
+    lot_due_date = Column(DateTime(timezone=True), nullable=True)   # lot production duedate 
+
+    lot_po_date = Column(DateTime(timezone=True), nullable=True) #lot po date 
+    lot_po_duedate = Column(DateTime(timezone=True), nullable=True) #lot po due date ************* add
+    
+    created_at = Column(DateTime(timezone=True), nullable=True)  #lot create date
     status = Column(String, nullable=False, default="in_process")
     note =  Column(String,  nullable=True)
     
@@ -645,7 +653,7 @@ class ShopTravelerStep(Base):
     traveler = relationship("ShopTraveler", back_populates="steps")
     operator = relationship("Employee", foreign_keys=[operator_id])
     machine  = relationship("Machine", back_populates="step_assignments")
-    inspections = relationship("QAInspection",back_populates="step",cascade="all, delete-orphan",)
+   
 
     __table_args__ = (
         UniqueConstraint("traveler_id", "seq", name="uq_traveler_seq"),
@@ -767,14 +775,14 @@ class QAInspection(Base):
     __tablename__ = "qa_inspections"
 
     id = Column(Integer, primary_key=True)
-
-    traveler_step_id = Column(
+    
+    
+    lot_id = Column(
         Integer,
-        ForeignKey("shop_traveler_steps.id", ondelete="CASCADE"),
+        ForeignKey("production_lots.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-
     inspection_date = Column(Date, nullable=False, server_default=func.current_date())
     inspector_id = Column(Integer, ForeignKey("employees.id"), nullable=True)
 
@@ -787,7 +795,8 @@ class QAInspection(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     # relationships
-    step = relationship("ShopTravelerStep", back_populates="inspections")
+    lot = relationship("ProductionLot")
+   
     inspector = relationship("Employee")
     items = relationship(
         "QAInspectionItem",
@@ -809,6 +818,7 @@ class QAInspectionItem(Base):
     )
 
     seq = Column(Integer, nullable=False)  # ลำดับแถวในฟอร์ม
+    op_no = Column(String, nullable=True)
     bb_no = Column(String, nullable=True)  # B/B #
     dimension = Column(String, nullable=True)
     tqw = Column(String, nullable=True)    # Tolerance / Tool / Whatever you define
@@ -867,6 +877,7 @@ class QAInspectionTemplateItem(Base):
     )
 
     seq = Column(Integer, nullable=False)
+    op_no = Column(String)
     bb_no = Column(String, nullable=True)
     dimension = Column(String, nullable=False)
    

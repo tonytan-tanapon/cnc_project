@@ -1,6 +1,17 @@
 // --- tiny helpers ---
 
 const lotId = new URLSearchParams(location.search).get("lot_id");
+
+function formatDateMDY(dateStr) {
+  if (!dateStr) return "-";
+
+  // Expect YYYY-MM-DD or ISO
+  const [y, m, d] = dateStr.split("T")[0].split("-");
+  if (!y || !m || !d) return dateStr;
+
+  return `${m}/${d}/${y.slice(-2)}`;
+}
+
 async function jfetch(url, opts = {}) {
   const res = await fetch(url, opts);
   if (!res.ok) {
@@ -28,12 +39,18 @@ function toast(msg, ok = true) {
 
 
 function makeLotLinks(lotId) {
+  
   if (!lotId) return;
 
   const links = [
      {
       id: "lot_link",
       href: `/static/lot-detail.html?lot_id=${encodeURIComponent(lotId)}`,
+      title: "Traveler",
+    },
+     {
+      id: "part_link",
+      href: `/static/manage-part-detail.html?lot_id=${encodeURIComponent(lotId)}`,
       title: "Traveler",
     },
     {
@@ -74,211 +91,223 @@ function makeLotLinks(lotId) {
   });
 }
 
+async function loadLotDetail() {
+  const lotId = new URLSearchParams(location.search).get("lot_id");
+
+  const res = await jfetch(`/api/v1/lot-summary?lot_id=${lotId}`);
+  const lot = res.items?.[0];
+
+  if (!lot) return;
+
+  renderLotTable(lot);
+}
+function editableField(field, value, lotId, type = "text") {
+  const isNote = field === "note";
+
+  return `
+    <span 
+      id="${field}Text" 
+      style="${isNote ? "white-space: pre-wrap; display:block;" : ""}"
+    >
+      ${value ?? "-"}
+    </span>
+
+    ${
+      isNote
+        ? `<textarea id="${field}Input"
+            style="display:none; width:50%; min-height:80px;">${value ?? ""}</textarea>`
+        : `<input id="${field}Input"
+            type="${type}"
+            value="${value ?? ""}"
+            style="display:none; width:150px;">`
+    }
+
+    <button onclick="editField('${field}')">✏️</button>
+    <button style="display:none;" onclick="saveField('${field}', ${lotId})">💾</button>
+    <button style="display:none;" onclick="cancelField('${field}')">❌</button>
+  `;
+}
+
+function editField(field) {
+  const textEl = document.getElementById(field + "Text");
+  const inputEl = document.getElementById(field + "Input");
+
+  if (!textEl || !inputEl) return;
+
+  // ✅ Load the SAME date that was shown on screen
+  if (inputEl.type === "date") {
+    inputEl.value = displayToISO(textEl.textContent.trim());
+  }
+
+  textEl.style.display = "none";
+  inputEl.style.display = "inline-block";
+
+  const container = inputEl.parentElement;
+  const editBtn = container.querySelector("button:nth-of-type(1)");
+  const saveBtn = container.querySelector("button:nth-of-type(2)");
+  const cancelBtn = container.querySelector("button:nth-of-type(3)");
+
+  editBtn.style.display = "none";
+  saveBtn.style.display = "inline-block";
+  cancelBtn.style.display = "inline-block";
+}
+
+async function saveField(field, lotId) {
+  const input = document.getElementById(field + "Input");
+
+  const newValue =
+    input.type === "number" ? Number(input.value) : input.value;
+
+  await jfetch(`/api/v1/lots/${encodeURIComponent(lotId)}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ [field]: newValue }),
+  });
+
+  document.getElementById(field + "Text").textContent =
+  input.type === "date"
+    ? formatDateMDY(newValue)
+    : newValue;
+  exitFieldEdit(field);
+  toast("Updated!");
+}
+function cancelField(field) {
+  const text = document.getElementById(field + "Text").textContent;
+  document.getElementById(field + "Input").value = text;
+  exitFieldEdit(field);
+}
+
+function exitFieldEdit(field) {
+  const textEl = document.getElementById(field + "Text");
+  const inputEl = document.getElementById(field + "Input");
+
+  const container = inputEl.parentElement;
+  const editBtn = container.querySelector("button:nth-of-type(1)");
+  const saveBtn = container.querySelector("button:nth-of-type(2)");
+  const cancelBtn = container.querySelector("button:nth-of-type(3)");
+
+  textEl.style.display = "inline";
+  inputEl.style.display = "none";
+
+  editBtn.style.display = "inline-block";
+  saveBtn.style.display = "none";
+  cancelBtn.style.display = "none";
+}
+
+
+function displayToISO(dateStr) {
+  if (!dateStr || dateStr === "-") return "";
+
+  const [mm, dd, yy] = dateStr.split("/");
+  if (!mm || !dd || !yy) return "";
+
+  const fullYear = Number(yy) < 50 ? "20" + yy : "19" + yy;
+  return `${fullYear}-${mm}-${dd}`;
+}
+
+function renderLotTable(d) {
+  console.log("test",d)
+  const tbody = document.getElementById("lotDetailBody");
+  tbody.innerHTML = "";
+  console.log("CREATE:",d.created_at)
+  const rows = [
+  ["Lot", editableField("lot_no", d.lot_no, d.lot_id)],
+
+  ["Lot Plan QTY", editableField("planned_qty", d.lot_qty, d.lot_id, "number")],
+  ["Lot PO QTY", editableField("planned_ship_qty", d.lot_planned_ship_qty, d.lot_id, "number")],
+  // ["Lot Remaining to Ship", d.lot_remaining_to_ship],d.created_at
+  // ["Created At", d.created_at],
+  ["Lot Created At", editableField(
+  "created_at",
+  formatDateMDY(d.created_at),
+  d.lot_id,
+  "date"
+)],
+
+["Lot Due Date", editableField(
+  "lot_due_date",
+  formatDateMDY(d.lot_due_date),
+  d.lot_id,
+  "date"
+)],
+  // ["Lot PO Date", formatDateMDY(d.lot_po_date)],
+ ["Lot PO Due Date", editableField(
+  "lot_po_duedate",
+  formatDateMDY(d.lot_po_duedate),
+  d.lot_id,
+  "date"
+)],
+// ["Lot PO Due Date", formatDateMDY(d.lot_po_duedate)],
+
+  // ["Lot Last Ship Date", d.lot_last_ship_date],
+
+  ["Lot Status", d.lot_status],
+  ["Note", editableField("note", d.note, d.lot_id)],
+
+  // ["PO Number", d.po_number],
+  // ["PO Due Date", d.po_due_date],
+  // ["PO Qty Total", d.po_qty_total],
+  // ["PO Shipped Total", d.po_shipped_total],
+  // ["PO Remaining Qty", d.po_remaining_qty],
+  ["PO No", `  <a href="/static/manage-pos-detail.html?id=${d.po_id}"  >${d.po_number}
+  </a>
+`],
+  ["Part No", `
+  <a href="/static/manage-part-detail.html
+    ?part_id=${d.part_id}
+    &part_revision_id=${d.revision_id}
+    &customer_id=${d.customer_id}"
+  >
+    ${d.part_no}
+  </a>
+`],
+
+  ["Part Name", d.part_name],
+  ["Revision Code", d.revision_code],
+
+  ["Customer Code", d.customer_code],
+  // ["Customer Name", d.customer_name],
+
+  // ["Shipment Status", d.shipment_status],
+
+  
+  ["Days Left", d.days_left],
+];
+
+
+
+  rows.forEach(([label, value]) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td style="font-weight:600; width:200px;">${label}</td>
+      <td>${value ?? ""}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+
+
 document.addEventListener("DOMContentLoaded", () => {
+  loadLotDetail();
 
   
   const lotId = new URLSearchParams(location.search).get("lot_id");
    makeLotLinks(lotId);
   if (!lotId) return toast("Missing lot_id in URL", false);
 
-  const elLotNo = document.getElementById("lot_no");
-  const elPlanned = document.getElementById("plannedQtyInput");
-  const elDueDate = document.getElementById("dueDateInput");
-  const btnSavePlanned = document.getElementById("btnSavePlanned");
-  const btnCancelPlanned = document.getElementById("btnCancelPlanned");
-  const elFinished = document.getElementById("finishedQty");
-  const elStatus = document.getElementById("lotStatus");
-  const elProg = document.getElementById("progressBar");
-  const elProgLabel = document.getElementById("progressLabel");
-
-
-
-  let originalPlannedQty = null;
-  let originalDueDate = null;
-
-  // ====== load header ======
-  async function loadHeader() {
-    try {
-      const lot = await jfetch(`/api/v1/lots/${encodeURIComponent(lotId)}`);
-      console.log(lot);
-      console.log(lot.lot_no);
-      originalPlannedQty = lot.planned_qty ?? 0;
-      originalDueDate = lot.lot_due_date ?? null;
-      elLotNo.textContent = "📄 Lot Detail: " + lot.lot_no;
-      elPlanned.value = originalPlannedQty;
-      elDueDate.value = originalDueDate ? lot.lot_due_date.split("T")[0] : "";
-      elFinished.textContent = lot.finished_qty ?? "-";
-      elStatus.textContent = lot.status ?? "-";
-
-      hideEditButtons();
-
-      const inv = await jfetch(
-        `/api/v1/lot-shippments/lot/${encodeURIComponent(lotId)}/part-inventory`
-      );
-      const p = Math.max(0, Math.min(100, inv?.progress_percent ?? 0));
-      elProg.style.width = `${p}%`;
-      elProgLabel.textContent = `Progress: ${p}% (Finished ${
-        inv.finished_qty ?? 0
-      } / Planned ${inv.planned_qty ?? 0})`;
-    } catch (err) {
-      console.error(err);
-      toast("Failed to load header", false);
-    }
-  }
-
-  function showEditButtons() {
-    btnSavePlanned.style.display = "inline-block";
-    btnCancelPlanned.style.display = "inline-block";
-  }
-  function hideEditButtons() {
-    btnSavePlanned.style.display = "none";
-    btnCancelPlanned.style.display = "none";
-  }
-
-  // ตรวจจับการเปลี่ยนค่าทั้งสองช่อง
-  function checkChanges() {
-    const qtyChanged =
-      parseFloat(elPlanned.value) !== parseFloat(originalPlannedQty);
-    const dateChanged =
-      elDueDate.value !==
-      (originalDueDate ? originalDueDate.split("T")[0] : "");
-    if (qtyChanged || dateChanged) showEditButtons();
-    else hideEditButtons();
-  }
-
-  elPlanned.addEventListener("input", checkChanges);
-  elDueDate.addEventListener("change", checkChanges);
-
-  // SAVE
-  btnSavePlanned.addEventListener("click", async () => {
-    const qty = parseFloat(elPlanned.value);
-    const date = elDueDate.value || null;
-    if (isNaN(qty) || qty < 0) return toast("Invalid planned qty", false);
-
-    try {
-      await jfetch(`/api/v1/lots/${encodeURIComponent(lotId)}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          planned_qty: qty,
-          lot_due_date: date,
-        }),
-      });
-      toast("✅ Lot updated successfully");
-      originalPlannedQty = qty;
-      originalDueDate = date;
-      hideEditButtons();
-      await loadHeader();
-      await refreshAll();
-    } catch (err) {
-      console.error(err);
-      toast("Update failed", false);
-    }
-  });
-
-  // CANCEL
-  btnCancelPlanned.addEventListener("click", () => {
-    elPlanned.value = originalPlannedQty;
-    elDueDate.value = originalDueDate ? originalDueDate.split("T")[0] : "";
-    hideEditButtons();
-  });
-
   // =================== TABLES ===================
-  let tblMat = null;
-  let tblTrav = null;
-  let tblShip = null;
+ 
 
-  function initTables() {
-    /* global Tabulator */
-    tblMat = new Tabulator("#materialTable", {
-      layout: "fitColumns",
-      placeholder: "No material usage",
-      columns: [
-        { title: "Batch", field: "batch_no", minWidth: 120 },
-        { title: "Material", field: "material_name", minWidth: 160 },
-        { title: "Qty", field: "qty", hozAlign: "right", width: 90 },
-        { title: "UOM", field: "uom", width: 80, hozAlign: "center" },
-        {
-          title: "Used At",
-          field: "used_at",
-          minWidth: 140,
-          formatter: (c) =>
-            c.getValue() ? new Date(c.getValue()).toLocaleString() : "",
-        },
-      ],
-    });
-
-    tblTrav = new Tabulator("#travelerTable", {
-      layout: "fitColumns",
-      placeholder: "No travelers",
-      columns: [
-        { title: "Traveler No", field: "traveler_no", minWidth: 140 },
-        { title: "Status", field: "status", width: 110 },
-        {
-          title: "Prod Due",
-          field: "production_due_date",
-          minWidth: 130,
-          formatter: (c) =>
-            c.getValue() ? new Date(c.getValue()).toLocaleDateString() : "",
-        },
-        { title: "Notes", field: "notes", minWidth: 200 },
-      ],
-    });
-
-    tblShip = new Tabulator("#shipmentTable", {
-      layout: "fitColumns",
-      placeholder: "No shipments",
-      columns: [
-        { title: "Shipment No", field: "shipment_no", minWidth: 140 },
-        {
-          title: "Date",
-          field: "date",
-          minWidth: 120,
-          formatter: (c) =>
-            c.getValue() ? new Date(c.getValue()).toLocaleDateString() : "",
-        },
-        { title: "Customer", field: "customer_name", minWidth: 160 },
-        { title: "Qty", field: "qty", hozAlign: "right", width: 90 },
-        { title: "UOM", field: "uom", width: 80, hozAlign: "center" },
-        { title: "Status", field: "status", width: 110, hozAlign: "center" },
-      ],
-    });
-  }
-
-  async function loadMaterials() {
-    const rows = await jfetch(`/api/v1/lot-uses/${encodeURIComponent(lotId)}`);
-    tblMat?.setData(rows || []);
-  }
-
-  async function loadTravelers() {
-    let rows = [];
-    try {
-      rows = await jfetch(
-        `/api/v1/travelers?lot_id=${encodeURIComponent(lotId)}`
-      );
-    } catch {
-      rows = await jfetch(`/api/v1/travelers?q=${encodeURIComponent(lotId)}`);
-    }
-    tblTrav?.setData(rows || []);
-  }
-
-  async function loadShipments() {
-    const rows = await jfetch(
-      `/api/v1/lot-shippments/${encodeURIComponent(lotId)}`
-    );
-    tblShip?.setData(rows || []);
-  }
-
-  async function refreshAll() {
-    await Promise.all([
-      loadMaterials(),
-      loadTravelers(),
-      loadShipments(),
-      loadHeader(),
-    ]);
-  }
-
+  
   // boot
-  initTables();
-  refreshAll();
+ 
+  loadLotDetail();
+
+
 });
+
+
+window.editField = editField;
+window.saveField = saveField;
+window.cancelField = cancelField;

@@ -120,6 +120,9 @@ class EmployeeBase(BaseModel):  # ← เดิมคุณ inherit จาก AP
 class EmployeeCreate(BaseModel):
     emp_code: Optional[str] = None
     name: str
+    lastname: Optional[str] = None
+    nickname: Optional[str] = None
+    emp_op: Optional[str] = None
     position: Optional[str] = None
     department: Optional[str] = None
     email: Optional[str] = None
@@ -140,6 +143,10 @@ class EmployeeUpdate(BaseModel):
     status: Optional[str] = None
     payroll_emp_id: Optional[int] = None
 
+    emp_op: Optional[str] = None       # ✅ ADD
+    nickname: Optional[str] = None     # ✅ ADD
+    lastname: Optional[str] = None     # ✅ ADD
+
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -151,6 +158,10 @@ class EmployeeOut(EmployeeBase):
     payroll_emp_id: Optional[int] = None
     payroll_emp: Optional[EmployeeMiniOut] = None
     payroll_dependents: List[EmployeeMiniOut] = []
+    name: Optional[str] = None
+    lastname: Optional[str] = None
+    nickname: Optional[str] = None
+    emp_op: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -331,9 +342,18 @@ class RawBatchUpdate(BaseModel):
             return None
         return Decimal(str(v))
 
-class RawBatchOut(RawBatchBase):
+class RawBatchOut(BaseModel):
     id: int
-    
+    batch_no: str
+    material: Optional[RawMaterialOut]
+    supplier: Optional[SupplierOut]
+    qty_received: Optional[Decimal]
+    mill_heat_no: Optional[str]
+    weight: Optional[Decimal]
+    # weight_uom: Optional[str]
+    length : Optional[Decimal]
+    length_uom: Optional[str]
+    received_at: Optional[date]
 
 # =========================
 # ============== Production Lots ==========
@@ -352,6 +372,7 @@ class ProductionLotCreate(BaseModel):
     started_at: Optional[datetime] = None
     finished_at: Optional[datetime] = None
     status: Optional[LotStatus] = "in_process"
+    lot_planned_ship_qty: Optional[int] = None
 
 class ProductionLotUpdate(BaseModel):
     lot_no: Optional[str] = None         
@@ -359,10 +380,16 @@ class ProductionLotUpdate(BaseModel):
     part_revision_id: Optional[int] = None
     po_id: Optional[int] = None
     lot_due_date : Optional[datetime] = None
+    lot_po_duedate: Optional[datetime] = None   # ✅ ADD THIS
+    planned_ship_qty: Optional[int] = None   # ✅ ADD THIS
+    
     planned_qty: Optional[int] = None
     started_at: Optional[datetime] = None
     finished_at: Optional[datetime] = None
     status: Optional[str] = None
+    note: Optional[str] = None
+    created_at: Optional[datetime] = None
+    lot_planned_ship_qty: Optional[int] = None
 
 class PartTiny(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -396,6 +423,7 @@ class ProductionLotOut(BaseModel):
     started_at: Optional[datetime] = None
     finished_at: Optional[datetime] = None
     status: Optional[str] = None
+    planned_ship_qty: Optional[int] = None
     
 
     # ✅ nested objects
@@ -965,6 +993,95 @@ class TimeLeaveOut(TimeLeaveBase):
 
     class Config:
         from_attributes = True
+
+
+from pydantic import BaseModel
+from typing import Optional
+from datetime import date, datetime
+
+# =========================
+# QAInspection (Header)
+# =========================
+
+class QAInspectionCreate(BaseModel):
+    lot_id: int
+    inspector_id: Optional[int] = None
+    remarks: Optional[str] = None
+
+
+class QAInspectionOut(BaseModel):
+    id: int
+    lot_id: int
+    inspection_date: date
+    inspector_id: Optional[int]
+    status: str
+    remarks: Optional[str]
+
+    class Config:
+        from_attributes = True
+
+
+# =========================
+# QAInspectionItem (Rows)
+# =========================
+
+class QAInspectionItemCreate(BaseModel):
+    seq: int
+    op_no: Optional[str] = None
+    bb_no: Optional[str] = None
+    dimension: Optional[str] = None
+    tqw: Optional[str] = None
+    fa: Optional[bool] = None
+    actual_value: Optional[str] = None
+    result: Optional[str] = None
+    notes: Optional[str] = None
+    emp_id: Optional[int] = None
+
+
+class QAInspectionItemUpdate(BaseModel):
+    seq: Optional[int] = None
+    op_no: Optional[str] = None
+    bb_no: Optional[str] = None
+    dimension: Optional[str] = None
+    tqw: Optional[str] = None
+    fa: Optional[bool] = None
+    actual_value: Optional[str] = None
+    result: Optional[str] = None
+    notes: Optional[str] = None
+    emp_id: Optional[int] = None
+
+
+class QAInspectionItemOut(BaseModel):
+    id: int
+    inspection_id: int
+    seq: int
+    op_no: Optional[str]
+    bb_no: Optional[str]
+    dimension: Optional[str]
+    tqw: Optional[str]
+    fa: Optional[bool]
+    actual_value: Optional[str]
+    result: Optional[str]
+    notes: Optional[str]
+    emp_id: Optional[int]
+    qa_time_stamp: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# schemas.py
+from pydantic import BaseModel
+from typing import Optional
+from decimal import Decimal
+
+class StepFinishRequest(BaseModel):
+    result: Optional[str] = "passed"
+    qty_receive: Optional[Decimal] = None
+    qty_accept: Optional[Decimal] = None
+    qty_reject: Optional[Decimal] = 0
+    qa_result: Optional[str] = None
+    qa_notes: Optional[str] = None
 # # ============================================================
 # # 🧭 CustomerShipment
 # # ============================================================
@@ -1029,3 +1146,5 @@ class TimeLeaveOut(TimeLeaveBase):
 #     lot_code: Optional[str] = None
 
 #     model_config = ConfigDict(from_attributes=True)
+
+

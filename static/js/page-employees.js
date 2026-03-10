@@ -55,6 +55,10 @@ function buildPayload(row) {
     phone: row.phone ? trim(row.phone) : null,
     status: row.status || "active",
     payroll_emp_id: row.payroll_emp_id ?? null, // 👈 เพิ่มบรรทัดนี้
+
+    lastname: row.lastname || null,
+    nickname: row.nickname || null,
+    emp_op: row.emp_op || null,
   };
 }
 
@@ -69,6 +73,12 @@ function normalizeRow(r) {
     phone: r.phone ?? "",
     status: r.status ?? "active",
     payroll_emp_id: r.payroll_emp_id ?? null, // 👈 เพิ่มบรรทัดนี้
+
+    lastname: r.lastname || null,
+    nickname: r.nickname || null,
+    emp_op: r.emp_op || null,
+
+    
   };
 }
 
@@ -140,6 +150,9 @@ function makeColumns() {
       editor: "input",
       validator: "required",
     },
+    { title: "Lastname", field: "lastname", width: 160, editor: "input" },
+    { title: "OP", field: "emp_op", width: 160, editor: "input" },
+    { title: "Nickname", field: "nickname", width: 160, editor: "input" },
     { title: "Position", field: "position", width: 160, editor: "input" },
     { title: "Department", field: "department", width: 160, editor: "input" },
     { title: "Email", field: "email", width: 220, editor: "input" },

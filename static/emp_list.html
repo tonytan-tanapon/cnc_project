@@ -1,41 +1,132 @@
 <!doctype html>
 <html lang="en">
+
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Payroll — Select Pay Period & Employee</title>
   <style>
-    :root{ --bg:#fff; --text:#111; --muted:#6b7280; --line:#e5e7eb; --shadow:0 2px 10px rgba(0,0,0,.07) }
-    *{ box-sizing:border-box }
-    body{ margin:0; background:var(--bg); color:var(--text); font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Arial }
-    .wrap{ max-width:980px; margin:24px auto; padding:0 16px }
-    h1{ font-size:22px; margin:0 0 12px }
-    .bar{ display:flex; gap:12px; align-items:center; margin:12px 0 20px; flex-wrap:wrap }
-    label{ display:flex; align-items:center; gap:8px }
-    select{ padding:8px 10px; border:1px solid var(--line); border-radius:8px; min-width:280px }
-    .muted{ color:var(--muted) }
-    .card{ background:#fff; border:1px solid var(--line); border-radius:12px; box-shadow:var(--shadow); overflow:hidden }
-    .list-head,.row{ display:grid; grid-template-columns:120px 1fr 120px 120px; gap:12px; padding:10px 14px; align-items:center }
-    .list-head{ background:#f8fafc; font-weight:600; border-bottom:1px solid var(--line) }
-    .row{ border-top:1px solid var(--line) }
-    .row a{ color:#2563eb; text-decoration:none }
-    .empty{ padding:16px; color:var(--muted) }
-    .pill{ display:inline-block; padding:2px 8px; border:1px solid var(--line); border-radius:999px; font-size:12px; background:#f9fafb }
+    :root {
+      --bg: #fff;
+      --text: #111;
+      --muted: #6b7280;
+      --line: #e5e7eb;
+      --shadow: 0 2px 10px rgba(0, 0, 0, .07)
+    }
+
+    * {
+      box-sizing: border-box
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 16px/1.5 system-ui, -apple-system, Segoe UI, Roboto, Arial
+    }
+
+    .wrap {
+      max-width: 980px;
+      margin: 24px auto;
+      padding: 0 16px
+    }
+
+    h1 {
+      font-size: 22px;
+      margin: 0 0 12px
+    }
+
+    .bar {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      margin: 12px 0 20px;
+      flex-wrap: wrap
+    }
+
+    label {
+      display: flex;
+      align-items: center;
+      gap: 8px
+    }
+
+    select {
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      min-width: 280px
+    }
+
+    .muted {
+      color: var(--muted)
+    }
+
+    .card {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      box-shadow: var(--shadow);
+      overflow: hidden
+    }
+
+    .list-head,
+    .row {
+      display: grid;
+      grid-template-columns: 120px 1fr 120px 120px;
+      gap: 12px;
+      padding: 10px 14px;
+      align-items: center
+    }
+
+    .list-head {
+      background: #f8fafc;
+      font-weight: 600;
+      border-bottom: 1px solid var(--line)
+    }
+
+    .row {
+      border-top: 1px solid var(--line)
+    }
+
+    .row a {
+      color: #2563eb;
+      text-decoration: none
+    }
+
+    .empty {
+      padding: 16px;
+      color: var(--muted)
+    }
+
+    .pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      font-size: 12px;
+      background: #f9fafb
+    }
   </style>
 </head>
+
 <body>
   <div class="wrap">
     <h1>Payroll • Select Pay Period & Employee</h1>
 
     <div class="bar">
       <label for="f_period">Pay Period:
-        <select id="f_period"><option value="">— Select Pay Period —</option></select>
+        <select id="f_period">
+          <option value="">— Select Pay Period —</option>
+        </select>
       </label>
     </div>
 
     <div class="card">
       <div class="list-head">
-        <div>Code</div><div>Employee</div><div class="muted">Net Hours*</div><div class="muted">Entries</div>
+        <div>Code</div>
+        <div>Employee</div>
+        <div class="muted">Net Hours*</div>
+        <div class="muted">Entries</div>
       </div>
       <div id="rows"></div>
     </div>
@@ -45,122 +136,125 @@
 
   <script type="module">
     import { $ as _$$, jfetch, toast } from "/static/js/api.js?v=1";
-    const $ = (s)=>document.querySelector(s);
+    const $ = (s) => document.querySelector(s);
 
     const API_BASE = '';   // set '/api/v1' if needed
     const api = (p) => `${API_BASE}${p}`;
-    async function apiGET(path){ try{ return await jfetch(api(path)); }catch(e){ console.error(e); toast?.(e?.message||'API error'); throw e; } }
+    async function apiGET(path) { try { return await jfetch(api(path)); } catch (e) { console.error(e); toast?.(e?.message || 'API error'); throw e; } }
 
-    const PP  = "/pay-periods";
+    const PP = "/pay-periods";
     const EMP = "/employees";
 
-    const pad=(n)=>String(n).padStart(2,'0');
-    const toLocalISODate=(dt)=>`${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}`;
+    const pad = (n) => String(n).padStart(2, '0');
+    const toLocalISODate = (dt) => `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
 
     const selPeriod = document.getElementById('f_period');
-    const listBox   = document.getElementById('rows');
+    const listBox = document.getElementById('rows');
     const EMP_MAP = new Map();
     const fmtMMDDYYYY = (dt) =>
-  `${pad(dt.getMonth()+1)}/${pad(dt.getDate())}/${dt.getFullYear()}`;
+      `${pad(dt.getMonth() + 1)}/${pad(dt.getDate())}/${dt.getFullYear()}`;
     // รองรับทั้ง array และ {items,...}
     const toItems = (res) => Array.isArray(res) ? res : (res?.items || []);
 
-    async function preloadEmployees(){
-      try{
+    async function preloadEmployees() {
+      try {
         const list = await apiGET(`${EMP}?status=active`);
         EMP_MAP.clear();
-        for(const e of (list||[])) EMP_MAP.set(String(e.id), e);
-      }catch{ EMP_MAP.clear(); }
+        for (const e of (list || [])) EMP_MAP.set(String(e.id), e);
+      } catch { EMP_MAP.clear(); }
     }
 
     // ดึง pay periods ทั้งหมดแบบทีละหน้า (max limit=200 ให้ตรงกับ backend)
-    async function fetchAllPayPeriods(limitPerPage = 200){
+    async function fetchAllPayPeriods(limitPerPage = 200) {
       let page = 1, all = [], total = Infinity;
-      while(true){
+      while (true) {
         const res = await apiGET(`${PP}?page=${page}&limit=${limitPerPage}`);
         const items = toItems(res);
         all.push(...items);
         const t = Array.isArray(res) ? all.length : (res?.total ?? all.length);
         total = t;
-        if(items.length < limitPerPage || all.length >= total) break;
+        if (items.length < limitPerPage || all.length >= total) break;
         page++;
       }
       return all;
     }
 
-    async function loadPayPeriods(){
-  const periods = await fetchAllPayPeriods(200);   // ทั้งหมดเพื่อทำ dropdown
-  selPeriod.innerHTML = '<option value="">— Select Pay Period —</option>';
-  for(const p of periods){
-    const opt = document.createElement('option');
-    opt.value = p.id;
-    // opt.textContent = `(${p.id}) ${fmtMMDDYYYY(new Date(p.start_at))} → ${fmtMMDDYYYY(new Date(p.end_at))}`;
-    opt.textContent = `${fmtMMDDYYYY(new Date(p.start_at))} → ${fmtMMDDYYYY(new Date(p.end_at))}`;
-    opt.dataset.start = p.start_at; 
-    opt.dataset.end = p.end_at;
-    selPeriod.appendChild(opt);
-  }
-  return periods;
-}
+    async function loadPayPeriods() {
+      const allPeriods  = await fetchAllPayPeriods(200);   // ทั้งหมดเพื่อทำ dropdown
+      const periods = allPeriods.slice(0, 12);   // show only latest 12
 
-    async function loadEmployeesForSelectedPeriod(){
-  const opt = selPeriod.options[selPeriod.selectedIndex];
-  if(!opt || !opt.value){ 
-    listBox.innerHTML = `<div class="empty">No pay period</div>`; 
-    return; 
-  }
-  const ppId = opt.value;
+      selPeriod.innerHTML = '<option value="">— Select Pay Period —</option>';
+      for (const p of periods) {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        // opt.textContent = `(${p.id}) ${fmtMMDDYYYY(new Date(p.start_at))} → ${fmtMMDDYYYY(new Date(p.end_at))}`;
+        opt.textContent = `${fmtMMDDYYYY(new Date(p.start_at))} → ${fmtMMDDYYYY(new Date(p.end_at))}`;
+        opt.dataset.start = p.start_at;
+        opt.dataset.end = p.end_at;
+        selPeriod.appendChild(opt);
+      }
+      return periods;
+    }
 
-  let rows = await apiGET(`/payroll/pay-periods/${ppId}/employees`);
-  listBox.innerHTML = '';
-  if(!rows?.length){
-    listBox.innerHTML = `<div class="empty">No employees with entries in this pay period.</div>`;
-    return;
-  }
+    async function loadEmployeesForSelectedPeriod() {
+      const opt = selPeriod.options[selPeriod.selectedIndex];
+      if (!opt || !opt.value) {
+        listBox.innerHTML = `<div class="empty">No pay period</div>`;
+        return;
+      }
+      const ppId = opt.value;
 
-  // 🔹 Sort rows by last name
-  rows.sort((a,b)=>{
-    const empA = EMP_MAP.get(String(a.employee_id)) || {};
-    const empB = EMP_MAP.get(String(b.employee_id)) || {};
+      let rows = await apiGET(`/payroll/pay-periods/${ppId}/employees`);
+      listBox.innerHTML = '';
+      if (!rows?.length) {
+        listBox.innerHTML = `<div class="empty">No employees with entries in this pay period.</div>`;
+        return;
+      }
 
-    const nameA = a.name ?? empA.name ?? `Employee #${a.employee_id}`;
-    const nameB = b.name ?? empB.name ?? `Employee #${b.employee_id}`;
+      // 🔹 Sort rows by last name
+      rows.sort((a, b) => {
+        const empA = EMP_MAP.get(String(a.employee_id)) || {};
+        const empB = EMP_MAP.get(String(b.employee_id)) || {};
 
-    const lastA = nameA.trim().split(/\s+/).pop().toLowerCase();
-    const lastB = nameB.trim().split(/\s+/).pop().toLowerCase();
+        const nameA = a.name ?? empA.name ?? `Employee #${a.employee_id}`;
+        const nameB = b.name ?? empB.name ?? `Employee #${b.employee_id}`;
 
-    return lastA.localeCompare(lastB);
-  });
+        const lastA = nameA.trim().split(/\s+/).pop().toLowerCase();
+        const lastB = nameB.trim().split(/\s+/).pop().toLowerCase();
 
-  for(const r of rows){
-    const emp = EMP_MAP.get(String(r.employee_id)) || {};
-    const name = r.name ?? emp.name ?? `Employee #${r.employee_id}`;
-    const code = r.emp_code ?? emp.emp_code ?? r.employee_id;
-    const link = `emp_report.html?pp_id=${encodeURIComponent(ppId)}&employee_id=${encodeURIComponent(r.employee_id)}`;
+        return lastA.localeCompare(lastB);
+      });
 
-    const row = document.createElement('div');
-    row.className = 'row';
-    row.innerHTML = `
+      for (const r of rows) {
+        const emp = EMP_MAP.get(String(r.employee_id)) || {};
+        const name = r.name ?? emp.name ?? `Employee #${r.employee_id}`;
+        const code = r.emp_code ?? emp.emp_code ?? r.employee_id;
+        const link = `emp_report.html?pp_id=${encodeURIComponent(ppId)}&employee_id=${encodeURIComponent(r.employee_id)}`;
+
+        const row = document.createElement('div');
+        row.className = 'row';
+        row.innerHTML = `
       <div><span class="pill">${code}</span></div>
       <div><a href="${link}" target="_blank" rel="noopener noreferrer">${name}</a></div>
       <div>${Number(r.total_hours ?? 0).toFixed(2)} h</div>
       <div>${r.entry_count ?? 0}</div>`;
-    listBox.appendChild(row);
-  }
-}
+        listBox.appendChild(row);
+      }
+    }
 
-    selPeriod.addEventListener('change', async ()=>{ await loadEmployeesForSelectedPeriod(); });
+    selPeriod.addEventListener('change', async () => { await loadEmployeesForSelectedPeriod(); });
 
-    document.addEventListener('DOMContentLoaded', async ()=>{
+    document.addEventListener('DOMContentLoaded', async () => {
       await preloadEmployees();
       const periods = await loadPayPeriods();
-      if(periods.length){
+      if (periods.length) {
         selPeriod.value = String(periods[1].id); // ล่าสุดอยู่บนสุดจาก backend (start_at desc)
         await loadEmployeesForSelectedPeriod();
-      }else{
+      } else {
         listBox.innerHTML = `<div class="empty">No pay periods</div>`;
       }
     });
   </script>
 </body>
+
 </html>

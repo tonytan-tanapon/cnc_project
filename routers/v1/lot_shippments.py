@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Body
 from sqlalchemy.orm import Session, joinedload
+
 from sqlalchemy import func
 from datetime import datetime
 from pydantic import BaseModel
@@ -34,10 +35,13 @@ def get_part_inventory_data(db: Session, lot_id: int):
     if not part:
         raise HTTPException(status_code=404, detail="Part not found")
 
+    po = db.get(PO, lot.po_id) if lot.po_id else None
+    po_number = po.po_number if po else None
+
     from models import ShopTraveler, ShopTravelerStep
 
     # ===== คิด finished_qty จาก traveler steps =====
-    sub_max_seq = (
+    sub_last_step = (
         db.query(
             ShopTravelerStep.traveler_id,
             func.max(ShopTravelerStep.seq).label("max_seq"),
@@ -49,21 +53,21 @@ def get_part_inventory_data(db: Session, lot_id: int):
     finished_qty = (
         db.query(func.coalesce(func.sum(ShopTravelerStep.qty_accept), 0))
         .join(
-            sub_max_seq,
-            (ShopTravelerStep.traveler_id == sub_max_seq.c.traveler_id)
-            & (ShopTravelerStep.seq == sub_max_seq.c.max_seq),
+            sub_last_step,
+            (ShopTravelerStep.traveler_id == sub_last_step.c.traveler_id) &
+            (ShopTravelerStep.seq == sub_last_step.c.max_seq)
         )
         .join(ShopTraveler, ShopTraveler.id == ShopTravelerStep.traveler_id)
         .filter(ShopTraveler.lot_id == lot.id)
-        .filter(ShopTravelerStep.status.in_(["passed", "completed"]))
+        .filter(ShopTravelerStep.status == "passed")
         .scalar()
         or 0
     )
 
-    # ===== shipped_qty ควรดูจาก lot_allocate_id (lot แหล่งของสต็อก) =====
+    # ===== shipped_qty จาก lot_allocate_id =====
     shipped_qty = (
         db.query(func.coalesce(func.sum(CustomerShipmentItem.qty), 0))
-        .filter(CustomerShipmentItem.lot_allocate_id == lot_id)  # 👈 เปลี่ยนเป็น lot_allocate_id
+        .filter(CustomerShipmentItem.lot_allocate_id == lot_id)
         .scalar()
         or 0
     )
@@ -72,10 +76,17 @@ def get_part_inventory_data(db: Session, lot_id: int):
     finished_qty = float(finished_qty)
     shipped_qty = float(shipped_qty)
 
-    # ถ้าติดลบให้ตัดที่ 0 ไว้กัน error
     available_qty = max(finished_qty - shipped_qty, 0)
 
-    return part, planned_qty, finished_qty, shipped_qty, available_qty
+    return {
+        "part": part,
+        "po_number": po_number,   # ✅ added
+        "planned_qty": planned_qty,
+        "finished_qty": finished_qty,
+        "shipped_qty": shipped_qty,
+        "available_qty": available_qty,
+    }
+
 
 # ============================================================
 # 1️⃣  List shipments for a lot
@@ -405,39 +416,61 @@ def shipment_history(lot_id: int, db: Session = Depends(get_db)):
 def get_lot_header(lot_id: int, db: Session = Depends(get_db)):
     lot = (
         db.query(ProductionLot)
-        .options(joinedload(ProductionLot.part))
+        .options(
+            joinedload(ProductionLot.part),
+            joinedload(ProductionLot.po).joinedload(PO.customer),   # 👈 load PO
+        )
         .filter(ProductionLot.id == lot_id)
         .first()
     )
     if not lot:
         raise HTTPException(status_code=404, detail="Lot not found")
 
-    part, planned, finished, shipped, available = get_part_inventory_data(db, lot.id)
-
+    data = get_part_inventory_data(db, lot.id)
+    po = lot.po
+    customer = po.customer if po else None
     return {
         "lot_id": lot.id,
         "lot_no": lot.lot_no,
-        "part_no": part.part_no if part else None,
-        "planned_qty": planned,
-        "finished_qty": finished,
-        "shipped_qty": shipped,
-        "available_qty": available,
+
+        "part_no": data["part"].part_no if data["part"] else None,
+        "po_number": data["po_number"],
+
+        # ✅ NEW
+        "customer_code": customer.code if customer else None,
+        "customer_name": customer.name if customer else None,
+        "customer_address": customer.address if customer else None,
+
+        "planned_qty": data["planned_qty"],
+        "finished_qty": data["finished_qty"],
+        "shipped_qty": data["shipped_qty"],
+        "available_qty": data["available_qty"],
+
         "status": lot.status,
         "due_date": lot.lot_due_date,
     }
 
 
+
 # ============================================================
 # 6️⃣  Part inventory + progress
 # ============================================================
+
 @router.get("/lot/{lot_id}/part-inventory")
 def get_part_inventory(lot_id: int, db: Session = Depends(get_db)):
-    part, planned, finished, shipped, available = get_part_inventory_data(db, lot_id)
+    data = get_part_inventory_data(db, lot_id)
+
+    part = data["part"]
+    planned = data["planned_qty"]
+    finished = data["finished_qty"]
+    shipped = data["shipped_qty"]
+    available = data["available_qty"]
+
     progress_percent = round(finished / planned * 100, 2) if planned > 0 else 0
+
     return {
         "part_id": part.id,
         "part_no": part.part_no,
-   
         "lot_id": lot_id,
         "planned_qty": planned,
         "finished_qty": finished,
@@ -482,8 +515,16 @@ def get_part_inventory_all_for_same_part(lot_id: int, db: Session = Depends(get_
     results = []
 
     for l in lots:
-        part, planned, finished, shipped, available = get_part_inventory_data(db, l.id)
+        data = get_part_inventory_data(db, l.id)
+
+        part = data["part"]
+        planned = data["planned_qty"]
+        finished = data["finished_qty"]
+        shipped = data["shipped_qty"]
+        available = data["available_qty"]
+
         progress_percent = round(finished / planned * 100, 2) if planned > 0 else 0
+
         results.append({
             "lot_id": l.id,
             "lot_no": l.lot_no,
@@ -543,9 +584,22 @@ def update_shipment_fields(
     updated_fields = []
 
     # ---- Tracking No ----
+    # ---- Tracking No ----
     if "tracking_number" in payload:
         shipment.tracking_no = payload["tracking_number"]
         updated_fields.append("tracking_number")
+
+        # Auto-mark as shipped if tracking number is provided
+        if payload["tracking_number"]:
+            shipment.status = "shipped"
+            updated_fields.append("status")
+
+            lot = db.get(ProductionLot, shipment.lot_id)
+            if lot:
+                lot.status = "completed"
+                updated_fields.append("lot.status=completed")
+
+           
 
     # ---- Shipped Date ----
     if "shipped_date" in payload:
@@ -555,10 +609,22 @@ def update_shipment_fields(
             shipment.shipped_at = datetime.utcnow()
         updated_fields.append("shipped_date")
 
-    # ---- Status (NEW) ----
     if "status" in payload:
-        shipment.status = payload["status"]
+        new_status = payload["status"]
+        shipment.status = new_status
         updated_fields.append("status")
+
+        # 🔥 If shipment is shipped → mark lot as completed
+        if new_status == "shipped":
+            lot = db.get(ProductionLot, shipment.lot_id)
+            if lot:
+                lot.status = "completed"
+                updated_fields.append("lot.status=completed")
+        if new_status == "pending":
+            lot = db.get(ProductionLot, shipment.lot_id)
+            if lot:
+                lot.status = "not_start"
+                updated_fields.append("lot.status=completed")
 
     # ---- Qty (NEW) ----
     if "qty" in payload:
@@ -593,14 +659,18 @@ from docx import Document
 import tempfile
 import os
 
-@router.get("/{shipment_id}/download/cofc")
-def download_cofc(shipment_id: int, db: Session = Depends(get_db)):
+def generate_docx_from_template(
+    db: Session,
+    shipment_id: int,
+    template_path: str,
+    filename_prefix: str,
+    replace_map_builder,
+):
     import os, tempfile
     from docx import Document
     from fastapi.responses import FileResponse
     from datetime import datetime
-    
-    # 1) Load shipment + items + lot + part +   revision
+
     shipment = (
         db.query(CustomerShipment)
         .options(
@@ -623,68 +693,50 @@ def download_cofc(shipment_id: int, db: Session = Depends(get_db)):
     if not shipment.items:
         raise HTTPException(status_code=400, detail="Shipment has no shipment items")
 
-    # 🟦 ใช้ item แรกเป็นข้อมูลสำหรับ CofC
-    
     item = shipment.items[0]
-    
     lot = item.lot
     part = lot.part if lot else None
     revision = lot.part_revision if lot else None
-    print(">>", revision)
+
     lot_no = lot.lot_no if lot else ""
     qty = int(item.qty or 0)
     part_no = part.part_no if part else ""
     rev = revision.rev if revision else ""
     desc = part.name if part else ""
 
-    # PO + Customer
     customer_name = shipment.po.customer.name if shipment.po and shipment.po.customer else ""
     customer_address = shipment.po.customer.address if shipment.po and shipment.po.customer else ""
     po_no = shipment.po.po_number if shipment.po else ""
-    cert_no = f"CERT-{shipment.id:05d}"
 
-    replace_map = {
-        "{CUSTOMER}": customer_name,
-        "{CUSTOMER_ADDRESS}": customer_address,
-        "{PO_NO}": po_no,
-        "{PART_NO}": part_no,
-        "{REV}": rev,
-        "{QTY}": str(qty),
-        "{LOT_NO}": lot_no,
-        "{LOT}": lot_no,
-        "{DESCRIPTION}": desc,
-        "{CERT_NO}": cert_no,
-        "{DATE}": datetime.now().strftime("%m/%d/%Y"),
-        "{}":"10",
-    }
+    fair = lot.fair_note if part else ""
 
-    template_path = "templates/cofc.docx"
+    # Let caller decide what fields to use
+    replace_map = replace_map_builder(
+        lot_no, part_no, rev, qty, desc,
+        customer_name, customer_address, po_no, shipment.id, fair
+    )
+
     if not os.path.exists(template_path):
         raise HTTPException(status_code=404, detail="Template not found")
 
     doc = Document(template_path)
 
-    # 2) Correct replace → preserve formatting
     def replace_runs(paragraph):
         for run in paragraph.runs:
             for k, v in replace_map.items():
                 if k in run.text:
                     run.text = run.text.replace(k, v or "")
 
-    # Replace in paragraphs
     for p in doc.paragraphs:
         replace_runs(p)
 
-    # Replace in tables
     for table in doc.tables:
         for row in table.rows:
             for cell in row.cells:
                 for p in cell.paragraphs:
                     replace_runs(p)
 
-    # Save temp file
-    download_name = f"cofc_{lot.lot_no}_{part.part_no}.docx"
-    print("Generated CofC Filename:", download_name)
+    download_name = f"{filename_prefix}_{lot_no}_{part_no}.docx"
 
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".docx")
     doc.save(tmp.name)
@@ -692,8 +744,87 @@ def download_cofc(shipment_id: int, db: Session = Depends(get_db)):
     return FileResponse(
         tmp.name,
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        filename=download_name,  # ✅ Browser จะได้รับชื่อนี้
+        filename=download_name,
     )
+
+@router.get("/{shipment_id}/download/cofc")
+def download_cofc(shipment_id: int, db: Session = Depends(get_db)):
+
+    def build_map(lot_no, part_no, rev, qty, desc, cust, addr, po, sid,fair):
+        from datetime import datetime
+        return {
+            "{CUSTOMER}": cust,
+            "{CUSTOMER_ADDRESS}": addr,
+            "{PO_NO}": po,
+            "{PART_NO}": part_no,
+            "{REV}": rev,
+            "{QTY}": str(qty),
+            "{LOT_NO}": lot_no,
+            "{LOT}": lot_no,
+            "{DESCRIPTION}": desc,
+            "{CERT_NO}": f"CERT-{sid:05d}",
+            "{DATE}": datetime.now().strftime("%m/%d/%Y"),
+            
+        }
+
+    return generate_docx_from_template(
+        db=db,
+        shipment_id=shipment_id,
+        template_path="templates/cofc.docx",
+        filename_prefix="cofc",
+        replace_map_builder=build_map,
+    )
+
+@router.get("/{shipment_id}/download/packing")
+def download_packing(shipment_id: int, db: Session = Depends(get_db)):
+
+    def build_map(lot_no, part_no, rev, qty, desc, cust, addr, po, sid, fair):
+        return {
+            "{CUSTOMER}": cust,
+            "{CUSTOMER_ADDRESS}": addr,
+            "{PO_NO}": po,
+            "{PART_NO}": part_no,
+            "{REV}": rev,
+            "{QTY}": str(qty),
+            "{LOT_NO}": lot_no,
+            "{LOT}": lot_no,
+            "{DESCRIPTION}": desc,
+        }
+
+    return generate_docx_from_template(
+        db=db,
+        shipment_id=shipment_id,
+        template_path="templates/packing.docx",
+        filename_prefix="packing",
+        replace_map_builder=build_map,
+    )
+
+
+@router.get("/{shipment_id}/download/packingFA")
+def download_packing(shipment_id: int, db: Session = Depends(get_db)):
+
+    def build_map(lot_no, part_no, rev, qty, desc, cust, addr, po, sid,fair):
+        return {
+            "{CUSTOMER}": cust,
+            "{CUSTOMER_ADDRESS}": addr,
+            "{PO_NO}": po,
+            "{PART_NO}": part_no,
+            "{REV}": rev,
+            "{QTY}": str(qty),
+            "{LOT_NO}": lot_no,
+            "{LOT}": lot_no,
+            "{DESCRIPTION}": desc,
+            "{FAIR}" : fair
+        }
+
+    return generate_docx_from_template(
+        db=db,
+        shipment_id=shipment_id,
+        template_path="templates/packing.docx",
+        filename_prefix="packing",
+        replace_map_builder=build_map,
+    )
+
 
 ##Labels: recent-edits
 from fastapi import Query
@@ -762,6 +893,8 @@ def download_label(
         template_path = f"templates/label_fair.docx"
     elif type == "cmm":
         template_path = f"templates/label_cmm.docx"
+    elif type == "number":
+        template_path = f"templates/label_number.docx"
     elif type == "box":
         template_path = f"templates/label_box.docx"
     else:

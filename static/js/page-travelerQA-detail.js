@@ -1,22 +1,28 @@
-// /static/js/page-traveler-detail.js — POS-style header + Tabulator + autocomplete + Status dropdown
+// /static/js/page-travelerQA-detail.js
 import { $, jfetch, toast, initTopbar } from "./api.js";
 import { attachAutocomplete } from "./autocomplete.js";
 
-import { loadPartial } from "./load-partials.js";
-import { applyLotLinks } from "./lot-links.js";
-
 const qs = new URLSearchParams(location.search);
-let travelerId = qs.get("id"); // ✅ must be let so we can reassign later
-const lotId = qs.get("lot_id"); // ✅ add this line
+const lotId = qs.get("lot_id");
 
-let originalTraveler = null;
-let isSubmitting = false;
-
-/* ---- Header autocomplete state ---- */
-let selectedLot = null; // { id, label }
-let selectedCreator = null; // { id, label }
+let currentInspection = null;
+let qaTable = null;
 
 /* ---------- Helpers ---------- */
+
+const opColorMap = new Map(); // เก็บว่า OP ไหนใช้สีอะไร
+let opColorIndex = 0;
+
+const OP_COLORS = ["op-group-a", "op-group-b"]; // 2 สี
+
+function getOpColor(op) {
+  if (!opColorMap.has(op)) {
+    opColorMap.set(op, OP_COLORS[opColorIndex % OP_COLORS.length]);
+    opColorIndex++;
+  }
+  return opColorMap.get(op);
+}
+
 const escapeHtml = (s) =>
   String(s ?? "")
     .replaceAll("&", "&amp;")
@@ -24,20 +30,7 @@ const escapeHtml = (s) =>
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
-const numOrNull = (v) => (v === "" || v == null ? null : Number(v));
-const strOrNull = (v) => {
-  if (v == null) return null;
-  const s = String(v).trim();
-  return s === "" ? null : s;
-};
-const numOrZero = (v) => {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : 0;
-};
-function setBusyT(b) {
-  const el = $("t_hint");
-  if (el) el.textContent = b ? "Working…" : "";
-}
+
 function setError(msg) {
   const e = $("errorBox");
   if (!e) return;
@@ -202,7 +195,7 @@ function initHeaderAutocomplete() {
 
 /* ---------- Traveler IO ---------- */
 async function fillTraveler(t) {
-  const lotLabel = t.lot_no ? String(t.lot_no) : t.lot_id ?? "";
+  const lotLabel = t.lot_no ? String(t.lot_no) : (t.lot_id ?? "");
   $("lot_id").value = lotLabel;
   $("lot_id").dataset.id = t.lot_id ?? "";
 
@@ -254,7 +247,7 @@ async function loadTraveler() {
     } else if (lotId) {
       // Find by lot_id
       const list = await jfetch(
-        `/travelers?lot_id=${encodeURIComponent(lotId)}`
+        `/travelers?lot_id=${encodeURIComponent(lotId)}`,
       );
       if (Array.isArray(list) && list.length > 0) {
         t = list[0];
@@ -304,10 +297,10 @@ function statusBadge(s) {
     st === "running" || st === "in_progress"
       ? "blue"
       : st === "passed"
-      ? "green"
-      : st === "failed"
-      ? "red"
-      : "gray";
+        ? "green"
+        : st === "failed"
+          ? "red"
+          : "gray";
   const label =
     {
       running: "Running",
@@ -438,10 +431,10 @@ function autosaveStepRow(row, { immediate = false } = {}) {
       .catch(async (e) => {
         try {
           const fresh = await jfetch(
-            `/traveler-steps?traveler_id=${encodeURIComponent(travelerId)}`
+            `/traveler-steps?traveler_id=${encodeURIComponent(travelerId)}`,
           );
           const found = (fresh || []).find(
-            (x) => Number(x.id) === Number(dd.id)
+            (x) => Number(x.id) === Number(dd.id),
           );
           if (found) row.update(normalizeStep(found));
         } catch {}
@@ -452,7 +445,7 @@ function autosaveStepRow(row, { immediate = false } = {}) {
           try {
             stepsTable.redraw(true);
           } catch {}
-        }, 0)
+        }, 0),
       );
   };
   if (immediate) apply();
@@ -542,7 +535,7 @@ function stationAutocompleteEditor(cell, onRendered, success, cancel) {
     getDisplayValue: (it) => (it ? it.code || it.name || "" : ""),
     renderItem: (it) =>
       `<div><b>${escapeHtml(it.code || "")}</b> ${escapeHtml(
-        it.name || ""
+        it.name || "",
       )}</div>`,
     onPick: (it) => {
       success(it.code || it.name || "");
@@ -819,8 +812,8 @@ function initStepsTable() {
       // // 1️⃣ ขอ template active จาก backend
       const tmpl = await jfetch(
         `/api/v1/travelers/traveler-templates/active?traveler_id=${encodeURIComponent(
-          travelerId
-        )}`
+          travelerId,
+        )}`,
       );
 
       const templateId = tmpl.id;
@@ -829,12 +822,12 @@ function initStepsTable() {
       // 2️⃣ apply template
       const res = await fetch(
         `/api/v1/travelers/apply-template/${encodeURIComponent(
-          travelerId
+          travelerId,
         )}?template_id=${encodeURIComponent(templateId)}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-        }
+        },
       );
 
       if (!res.ok) {
@@ -861,7 +854,7 @@ function initStepsTable() {
       handleStatusChange(
         row,
         String(newVal || "").toLowerCase(),
-        String(oldVal || "").toLowerCase()
+        String(oldVal || "").toLowerCase(),
       );
       return;
     }
@@ -887,7 +880,7 @@ async function reloadSteps() {
   }
   try {
     const rows = await jfetch(
-      `/traveler-steps?traveler_id=${encodeURIComponent(travelerId)}`
+      `/traveler-steps?traveler_id=${encodeURIComponent(travelerId)}`,
     );
     console.log("traveler step", rows);
     stepsTable?.setData((rows || []).map(normalizeStep));
@@ -951,7 +944,7 @@ async function downloadTravelerBatch() {
       `/api/v1/traveler_drawing/traveletdoc/${travelerId}`,
       {
         method: "POST",
-      }
+      },
     );
 
     if (!res.ok) {
@@ -979,7 +972,7 @@ async function downloadInspectionBatch() {
       `/api/v1/traveler_drawing/inspection/${travelerId}`,
       {
         method: "POST",
-      }
+      },
     );
 
     if (!res.ok) {
@@ -1007,7 +1000,7 @@ async function exportTraveler() {
   try {
     const res = await fetch(
       `/api/v1/traveler_drawing/export_traveletdoc/${travelerId}`,
-      { method: "POST" }
+      { method: "POST" },
     );
 
     // ❌ backend error
@@ -1101,7 +1094,7 @@ function showTravelerQR() {
   // ✅ ใช้ IP LAN ชั่วคราว
   const baseUrl = `${window.location.protocol}//${window.location.host}`;
   const qrLink = `${baseUrl}/static/ui-traveler.html?traveler_no=${encodeURIComponent(
-    travelerNo
+    travelerNo,
   )}`;
 
   new QRCode(qrBox, {
@@ -1127,7 +1120,7 @@ function printTravelerQR(travelerNo, qrLink) {
     <body style="text-align:center; font-family:sans-serif;">
       <h2>Traveler ${travelerNo}</h2>
       <img src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(
-        qrLink
+        qrLink,
       )}" alt="QR">
       <p style="margin-top:10px;font-size:14px;">${qrLink}</p>
       <script>window.onload = () => { window.print(); }</script>
@@ -1153,21 +1146,21 @@ function makeLotLinks(lotId) {
     {
       id: "inspection_link",
       href: `/static/travelerQA-detail.html?lot_id=${encodeURIComponent(
-        lotId
+        lotId,
       )}`,
       title: "Inspection", // 👈 ชัดเจนว่าเป็น QA
     },
     {
       id: "material_link",
       href: `/static/manage-lot-materials.html?lot_id=${encodeURIComponent(
-        lotId
+        lotId,
       )}`,
       title: "Materials",
     },
     {
       id: "shippment_link",
       href: `/static/manage-lot-shippments.html?lot_id=${encodeURIComponent(
-        lotId
+        lotId,
       )}`,
       title: "Shipment",
     },
@@ -1194,44 +1187,316 @@ function makeLotLinks(lotId) {
   });
 }
 
+/* ---------- Load Inspection ---------- */
+async function loadInspection() {
+  if (!lotId) {
+    toast("Missing lot_id", false);
+    return;
+  }
+
+  let qa = await jfetch(`/qa-inspections/by-lot/${lotId}`);
+
+  if (!qa) {
+    qa = await jfetch(`/qa-inspections`, {
+      method: "POST",
+      body: JSON.stringify({ lot_id: Number(lotId) }),
+    });
+  }
+
+  currentInspection = qa;
+
+  const title = $("inspectionTitle");
+  if (title) title.textContent = `QA Inspection · Lot ${lotId}`;
+}
+
+/* ---------- Load Items ---------- */
+async function loadInspectionItems() {
+  if (!currentInspection?.id) return;
+
+  opColorMap.clear(); // 👈 reset map
+  opColorIndex = 0; // 👈 reset index
+
+  const rows = await jfetch(`/qa-inspections/${currentInspection.id}/items`);
+
+  qaTable.setData(rows || []);
+}
+/* ---------- Autocomplete ---------- */
+async function searchEmployees(term) {
+  const q = (term || "").trim();
+  const url = `/employees/keyset?limit=10${
+    q ? `&q=${encodeURIComponent(q)}` : ""
+  }`;
+
+  try {
+    const res = await jfetch(url);
+    const items = Array.isArray(res) ? res : res.items || [];
+    return items.map((e) => ({
+      id: e.id,
+      label: e.emp_code || String(e.id),
+    }));
+  } catch {
+    return [];
+  }
+}
+
+/* ---------- Inspector field ---------- */
+function initInspectorAutocomplete() {
+  const el = $("inspector_id");
+  if (!el) return;
+
+  attachAutocomplete(el, {
+    fetchItems: searchEmployees,
+    getDisplayValue: (it) => (it ? it.label : ""),
+    renderItem: (it) => `<div>${escapeHtml(it.label)}</div>`,
+    openOnFocus: true,
+    minChars: 0,
+    onPick: (it) => {
+      el.value = it.label;
+      el.dataset.id = it.id;
+    },
+  });
+}
+
+/* ---------- Build QA Table ---------- */
+function initQATable() {
+  const holder = document.getElementById("qa_table");
+  if (!holder) return;
+
+  qaTable = new Tabulator(holder, {
+    layout: "fitColumns",
+    height: "100%",
+    reactiveData: true,
+
+    rowFormatter: function (row) {
+      const data = row.getData();
+      const op = data.op_no;
+      console.log(data, op);
+      if (!op) return;
+
+      const cls = getOpColor(op);
+      console.log(cls);
+      const el = row.getElement();
+      el.classList.remove("op-group-a", "op-group-b"); // reset
+      el.classList.add(cls);
+    },
+
+    columns: [
+      { title: "Seq", field: "seq", width: 80, editor: "number" },
+
+      { title: "OP", field: "op_no", width: 100, editor: "input" },
+      { title: "Bubble", field: "bb_no", width: 100, editor: "input" },
+      {
+        title: "Dimension",
+        field: "dimension",
+        width: 300,
+        editor: "input",
+      },
+      {
+        title: "Actual",
+        field: "actual_value",
+        width: 120,
+        editor: "input",
+      },
+      { title: "TQW", field: "tqw", width: 120, editor: "input" },
+      {
+        title: "Date",
+        field: "qa_time_stamp", // 👈 ใช้จาก backend
+        width: 160,
+        formatter: (cell) => {
+          const v = cell.getValue();
+          if (!v) return "";
+          const d = new Date(v);
+
+          const mm = String(d.getMonth() + 1).padStart(2, "0");
+          const dd = String(d.getDate()).padStart(2, "0");
+          const yy = String(d.getFullYear()).slice(-2);
+
+          return `${mm}/${dd}/${yy}`;
+        },
+      },
+      {
+        title: "Result",
+        field: "result",
+        width: 100,
+        editor: "select",
+        editorParams: { values: ["pass", "fail"] },
+      },
+      { title: "Notes", field: "notes", width: 200, editor: "input" },
+      {
+        title: "Operator",
+        field: "emp_id",
+        width: 120,
+        editor: "number",
+      },
+      {
+        title: "Del",
+        width: 80,
+        hozAlign: "center",
+        formatter: () => "❌",
+        cellClick: async (e, cell) => {
+          const row = cell.getRow();
+          const d = row.getData();
+          if (d.id) {
+            await jfetch(`/qa-inspections/qa-items/${d.id}`, {
+              method: "DELETE",
+            });
+          }
+          row.delete();
+        },
+      },
+    ],
+  });
+
+  // Auto save
+  qaTable.on("cellEdited", async (cell) => {
+    const row = cell.getRow();
+    const d = row.getData();
+    const inspectionId = currentInspection.id;
+
+    const payload = {
+      seq: Number(d.seq),
+      op_no: d.op_no || null,
+      bb_no: d.bb_no || null,
+      dimension: d.dimension || null,
+      actual_value: d.actual_value || null,
+      result: d.result || null,
+      notes: d.notes || null,
+      emp_id: d.emp_id ? Number(d.emp_id) : null,
+    };
+
+    try {
+      if (!d.id) {
+        const created = await jfetch(`/qa-inspections/${inspectionId}/items`, {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+        row.update(created);
+        toast("Item added");
+      } else {
+        await jfetch(`/qa-inspections/qa-items/${d.id}`, {
+          method: "PUT",
+          body: JSON.stringify(payload),
+        });
+        toast("Saved");
+      }
+    } catch (err) {
+      console.error("QA save error:", err);
+      toast(err?.message || "Save failed", false);
+    }
+  });
+}
+
+/* ---------- Add Row ---------- */
+function initAddRowButton() {
+  const btn = $("btnAddRow");
+  if (!btn) return;
+
+  btn.addEventListener("click", async () => {
+    if (!qaTable) return;
+
+    const data = qaTable.getData();
+    const lastSeq = data.length
+      ? Math.max(...data.map((r) => Number(r.seq || 0)))
+      : 0;
+
+    const nextSeq = lastSeq + 10;
+
+    const newRow = {
+      seq: nextSeq,
+      op_no: "",
+      bb_no: "",
+      dimension: "",
+      actual_value: "",
+      result: "",
+      notes: "",
+      emp_id: "",
+    };
+
+    const row = await qaTable.addRow(newRow, false, "bottom");
+    row.getCell("op_no")?.edit();
+  });
+}
+
+async function btnAddTemplate() {
+  if (!currentInspection?.id) {
+    alert("Inspection ID not found");
+    return;
+  }
+
+  const inspectionId = currentInspection.id;
+  console.log("Applying QA template to inspectionId:", inspectionId);
+
+  try {
+    // 1️⃣ ขอ QA template ที่ active
+    const tmpl = await jfetch(
+      `/api/v1/qa-inspections/templates/active?inspection_id=${encodeURIComponent(
+        inspectionId,
+      )}`,
+    );
+    console.log(tmpl);
+    const templateId = tmpl.id;
+    console.log("Using QA templateId:", templateId);
+
+    // 2️⃣ apply QA template
+    const res = await fetch(
+      `/api/v1/qa-inspections/apply-template/${encodeURIComponent(
+        inspectionId,
+      )}?template_id=${encodeURIComponent(templateId)}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      },
+    );
+
+    if (!res.ok) {
+      throw new Error(await res.text());
+    }
+
+    toast("QA Template applied");
+    await loadInspectionItems(); // reload QA table
+  } catch (err) {
+    console.error(err);
+    toast(err?.message || "Failed to apply QA template", false);
+  }
+}
+
+async function btnExportInspection() {
+  // try {
+  //   const res = await fetch(`/api/v1/traveler_drawing/drawing/${travelerId}`, {
+  //     method: "POST",
+  //   });
+  //   if (!res.ok) {
+  //     const txt = await res.text().catch(() => "");
+  //     console.error("Download error:", res.status, txt);
+  //     toast("Download failed");
+  //     return;
+  //   }
+  //   console.log(res);
+  //   const blob = await res.blob();
+  //   const a = document.createElement("a");
+  //   a.href = URL.createObjectURL(blob);
+  //   a.download = `drawing_${travelerId}.bat`;
+  //   a.click();
+  //   URL.revokeObjectURL(a.href);
+  // } catch (err) {
+  //   console.error("Download exception:", err);
+  //   toast("Download failed (exception)");
+  // }
+}
 /* ---------- Boot ---------- */
 document.addEventListener("DOMContentLoaded", async () => {
   initTopbar();
-  ensureHeaderButtons();
-  wireHeaderDirtyOnly();
-  initHeaderAutocomplete();
-  // ---> Add Drawing diagram batch download
-  $("btnDrawing").addEventListener("click", downloadDrawingBatch);
-  $("btnTraveler").addEventListener("click", downloadTravelerBatch);
-  $("btnInspection").addEventListener("click", downloadInspectionBatch);
-  $("btnExportTraveler").addEventListener("click", exportTraveler);
-  $("btnExportInspection").addEventListener("click", exportInspection);
-  // Add Step (seq +10 เริ่ม 10)
-  // $("btnAddStep")?.addEventListener("click", async () => {
-  //   if (!travelerId) {
-  //     toast("Missing traveler id", false);
-  //     return;
-  //   }
-  //   const nextSeq = getNextSeq();
-  //   const row = await stepsTable.addRow(
-  //     makeBlankStep(nextSeq),
-  //     false,
-  //     "bottom"
-  //   );
-  //   row.getCell("step_name")?.edit();
-  //   setDirtyClass(row, true);
-  // });
-
-  // Keyboard: Ctrl+Delete → (optional) delete traveler
-  document.addEventListener("keydown", (e) => {
-    if (e.ctrlKey && e.key.toLowerCase() === "delete") {
-      e.preventDefault();
-      // (อาจต่อยอดลบ traveler ได้ ถ้าต้องการ)
-    }
-  });
-
-  initStepsTable();
-  await loadTraveler();
-  await reloadSteps();
+  initInspectorAutocomplete();
+  initQATable();
+  initAddRowButton();
   makeLotLinks(lotId);
+
+  $("btnAddTemplate").addEventListener("click", btnAddTemplate);
+  $("btnExportInspection").addEventListener("click", btnExportInspection);
+  try {
+    await loadInspection();
+    await loadInspectionItems();
+  } catch (e) {
+    setError(e?.message || "Failed to load inspection");
+  }
 });

@@ -333,6 +333,17 @@
   word-break: break-word;
   line-height: 1.3;
 }
+
+#po_lines {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding-bottom: 40px;   /* 👈 add space here */
+}
+#p_table .tabulator-tableholder {
+  padding-bottom: 200px;
+}
+
     </style>
   </head>
   <body>
@@ -460,7 +471,9 @@
 
             <!-- Tabulator mount -->
             <div id="p_table" style="min-height: 200px"></div>
+            
           </div>
+          <div id="area></div>
         </section>
       </main>
     </div>

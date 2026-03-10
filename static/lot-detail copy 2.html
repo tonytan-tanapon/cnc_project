@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Lot Detail · Topnotch – MFG</title>
+
+    <link rel="stylesheet" href="/static/css/app.css" />
+    <link
+      rel="stylesheet"
+      href="/static/vendor/tabulator/tabulator_modern.min.css"
+    />
+
+    <style>
+      body {
+        background: #f9fafb;
+        margin: 0;
+        font-family: system-ui, sans-serif;
+      }
+
+      .main--edge {
+        height: 100vh;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+      }
+
+      /* ===== LOT HEADER ===== */
+      .lot-info {
+        padding: 14px 18px;
+        border-bottom: 1px solid #e5e7eb;
+        font-size: 15px;
+        background: #fff;
+      }
+
+      .lot-info h2 {
+        margin: 0 0 6px 0;
+        font-size: 16px;
+        color: #111827;
+      }
+
+      .lot-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        gap: 8px;
+        font-size: 14px;
+      }
+
+      .progress {
+        margin-top: 10px;
+        height: 10px;
+        background: #e5e7eb;
+        border-radius: 6px;
+        overflow: hidden;
+      }
+
+      .progress-bar {
+        height: 100%;
+        background: #10b981;
+        width: 0%;
+        transition: width 0.4s ease;
+      }
+
+      .progress-label {
+        font-size: 13px;
+        color: #374151;
+        margin-top: 4px;
+      }
+
+      /* ===== TOOLBAR ===== */
+      .toolbar {
+        padding: 10px 16px;
+        background: #fff;
+        border-bottom: 1px solid #e5e7eb;
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      button {
+        border: none;
+        border-radius: 6px;
+        padding: 6px 12px;
+        cursor: pointer;
+        font-size: 14px;
+        color: #fff;
+        transition: background 0.2s;
+      }
+
+      button.warning {
+        background: #f59e0b;
+        color: #111;
+      }
+
+      button.success {
+        background: #16a34a;
+      }
+
+      button.secondary {
+        background: #6b7280;
+      }
+
+      button:hover {
+        opacity: 0.9;
+      }
+
+      /* ===== PANELS ===== */
+      .panel {
+        margin: 12px 16px;
+        display: flex;
+        flex-direction: column;
+        background: #fff;
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+        overflow: hidden;
+      }
+
+      .panel h3 {
+        margin: 0;
+        padding: 8px 10px;
+        background: #f3f4f6;
+        border-bottom: 1px solid #e5e7eb;
+        font-size: 15px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .table-wrap {
+        flex: 1;
+        overflow: auto;
+      }
+
+      .toast {
+        position: fixed;
+        bottom: 16px;
+        right: 16px;
+        background: rgba(17, 24, 39, 0.95);
+        color: #fff;
+        padding: 10px 14px;
+        border-radius: 6px;
+        font-size: 14px;
+        display: none;
+        z-index: 9999;
+      }
+
+
+       .quick-links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: #f3f4f6;
+  font-weight: 600;
+}
+
+.quick-links a:hover {
+  background: #e5e7eb;
+}
+
+
+
+    </style>
+  </head>
+
+  <body>
+    <div class="app">
+      <aside class="sidebar">
+        <div id="navSlot" data-nav-slot></div>
+      </aside>
+
+      <main class="main main--edge">
+
+         <section class="quick-links">
+        <div id="lot_link">🧾 LOT</div>
+          <div id="material_link">🔩 Material</div>
+  <div id="traveler_link">🧾 Traveler</div>
+
+  <div id="shippment_link">📦 Shipment</div>
+</section>
+
+        <!-- ===== LOT HEADER ===== -->
+        <div class="lot-info">
+          <h2 id="lot_no">📄 Lot Detail</h2>
+
+          <div>
+            <b>Planned Qty:</b>
+            <input
+              id="plannedQtyInput"
+              type="number"
+              min="0"
+              step="1"
+              style="width: 80px"
+            />
+
+            &nbsp;&nbsp;
+            <b>Finished Qty:</b> <span id="finishedQty"></span>
+            &nbsp;&nbsp;
+            <b>Status:</b> <span id="lotStatus"></span>
+            &nbsp;&nbsp;
+            <b>Due Date:</b>
+            <input id="dueDateInput" type="date" style="width: 150px" />
+            &nbsp;
+            <button
+              id="btnSavePlanned"
+              class="success"
+              style="margin-left: 4px; display: none"
+            >
+              💾 Save
+            </button>
+            <button
+              id="btnCancelPlanned"
+              class="secondary"
+              style="display: none"
+            >
+              ✖ Cancel
+            </button>
+          </div>
+
+          <div class="progress">
+            <div id="progressBar" class="progress-bar"></div>
+          </div>
+          <div id="progressLabel" class="progress-label"></div>
+        </div>
+
+        
+        <!-- ===== TOOLBAR ===== -->
+        <!-- <div class="toolbar">
+          <button id="btnViewMaterials" class="warning">🧱 Materials</button>
+          <button id="btnViewTravelers" class="success">👷 Travelers</button>
+          <button id="btnViewShipments" class="secondary">🚚 Shipments</button>
+          <button id="btnRefresh" class="success">🔄 Refresh</button>
+        </div> -->
+         
+        <!-- ===== MATERIALS ===== -->
+        <section class="panel">
+          <h3>🧱 Lot Usage</h3>
+          <div class="table-wrap">
+  <table id="lotDetailTable" cellpadding="8" style="width:100%; border-collapse:collapse;">
+    <tbody id="lotDetailBody"></tbody>
+  </table>
+</div>
+        </section>
+
+
+        <!-- ===== MATERIALS ===== -->
+        <section class="panel">
+          <h3>🧱 Material Usage</h3>
+          <div id="materialTable" class="table-wrap"></div>
+        </section>
+
+        <!-- ===== TRAVELERS ===== -->
+        <section class="panel">
+          <h3>👷 Travelers</h3>
+          <div id="travelerTable" class="table-wrap"></div>
+        </section>
+
+        <!-- ===== SHIPMENTS ===== -->
+        <section class="panel">
+          <h3>🚚 Shipments</h3>
+          <div id="shipmentTable" class="table-wrap"></div>
+        </section>
+      </main>
+    </div>
+
+    <div class="toast" id="toast"><span id="toastText"></span></div>
+
+    <script type="module" src="/static/js/nav-loader.js" defer></script>
+    <script src="/static/vendor/tabulator/tabulator.min.js" defer></script>
+    <script type="module" src="/static/js/page-lot-detail.js" defer></script>
+  </body>
+</html>

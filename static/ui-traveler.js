@@ -219,7 +219,9 @@ document.addEventListener("DOMContentLoaded", () => {
     let qty_accept = safeNum("#acceptQty");
     let qty_reject = safeNum("#rejectQty");
     const remark = document.querySelector("#remarkInput")?.value.trim() || "";
+    const operator_code = new URLSearchParams(location.search).get("traveler_emp");
 
+    
     if (activeType === "receive") qty_receive = val;
     if (activeType === "accept") {
       qty_accept = val;
@@ -249,7 +251,7 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    const payload = { qty_receive, qty_accept, qty_reject, remark };
+    const payload = { qty_receive, qty_accept, qty_reject, remark, operator_code };
     console.log("🔢 Sending payload:", payload);
 
     try {
@@ -395,6 +397,17 @@ async function loadOperation() {
     if (!data) return;
 
     let step = data.active_step || {};
+
+    if (data.steps && step.id) {
+      const full = data.steps.find((s) => s.id === step.id);
+      if (full) step = { ...step, ...full };
+    }
+
+    // ✅ NOW read operator from the final step
+    const operator = step.operator || {};
+    const emp_op = operator.emp_op || "—";
+    const nickname = operator.nickname || "—";
+
     console.log("Active step:", data.steps);
     if (data.steps && step.id) {
       const full = data.steps.find((s) => s.id === step.id);
@@ -409,6 +422,8 @@ async function loadOperation() {
 
     const step_list = data.steps || [];
     const opListEl = document.querySelector("#op_list");
+
+   
 
     // SET OP LIST
     // Set OP header
@@ -463,7 +478,8 @@ async function loadOperation() {
 
     document.querySelector("#opName").textContent = step.step_name || "-";
     // document.querySelector("#opDesc").textContent = step.step_note || "";
-    document.querySelector("#operatorName").textContent = "Operator: " + opText;
+    document.querySelector("#loginOP").textContent =  `Login: ${travelerEmp} `|| "-";travelerEmp;
+    document.querySelector("#operatorName").textContent = `Operator: ${emp_op} (${nickname})`|| "-";
     document.querySelector("#machinename").textContent = "Machine: " + machine;
 
     document.querySelector("#receiveQty").textContent = step.qty_receive ?? 0;
@@ -476,6 +492,8 @@ async function loadOperation() {
     toast(err.message || "Load failed", false);
   }
 }
+
+
 function statusColor(status) {
   return (
     {

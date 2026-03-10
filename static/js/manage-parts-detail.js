@@ -133,9 +133,9 @@ function renderMaterials() {
     return ac !== 0
       ? ac
       : (a.name || "").localeCompare(b.name || "", undefined, {
-          numeric: true,
-          sensitivity: "base",
-        });
+        numeric: true,
+        sensitivity: "base",
+      });
   });
 
   for (const m of rows) {
@@ -345,9 +345,8 @@ function renderFilters() {
   for (const p of mprocs) {
     const l = document.createElement("label");
     l.className = "chip";
-    l.innerHTML = `<input type="checkbox" data-id="${
-      p.id
-    }" data-kind="process"><span>${safeText(p.name)}</span>`;
+    l.innerHTML = `<input type="checkbox" data-id="${p.id
+      }" data-kind="process"><span>${safeText(p.name)}</span>`;
     elMproc.appendChild(l);
   }
 
@@ -356,9 +355,8 @@ function renderFilters() {
   for (const f of lookups.finishes) {
     const l = document.createElement("label");
     l.className = "chip";
-    l.innerHTML = `<input type="checkbox" data-id="${
-      f.id
-    }" data-kind="finish"><span>${safeText(f.name)}</span>`;
+    l.innerHTML = `<input type="checkbox" data-id="${f.id
+      }" data-kind="finish"><span>${safeText(f.name)}</span>`;
     elChem.appendChild(l);
   }
 
@@ -562,7 +560,7 @@ function initTable() {
   /* global Tabulator */
   table = new Tabulator(tableMount, {
     // layout: "fitColumns",
-    layout: "fitDataFill",
+    layout: "fitColumns",
     height: "auto",
     placeholder: "No rows",
     index: "lot_no",
@@ -571,6 +569,8 @@ function initTable() {
     columns: [
       {
         title: "📌",
+        
+  width: 80,
         minWidth: 40,
         field: "lot_status",
         hozAlign: "center",
@@ -614,64 +614,132 @@ function initTable() {
         },
       },
 
-      {
-        title: "Lot",
-        field: "lot_no",
-        minWidth: 80,
-        headerSort: true,
-        formatter: (cell) => {
-          const row = cell.getRow().getData();
-          const lotId = row.lot_id;
-          const lotNo = row.lot_no || "—";
-          if (!lotId) return lotNo;
-          return `
+     {
+  title: "Lot",
+  field: "lot_no",
+
+  width: 80,        // ✅ fix width เล็กลง
+  minWidth: 80,
+  maxWidth: 140,     // ✅ กันมันยืด
+  headerSort: true,
+
+  formatter: (cell) => {
+    const row = cell.getRow().getData();
+    const lotId = row.lot_id;
+    const lotNo = row.lot_no || "—";
+
+    if (!lotId) return lotNo;
+
+    return `
       <a href="/static/lot-detail.html?lot_id=${encodeURIComponent(lotId)}"
-         class="link-lot"
-         style="color:#2563eb; text-decoration:underline; cursor:pointer;">
+         onclick="event.stopPropagation();"
+         style="
+           color:#2563eb;
+           text-decoration:underline;
+           display:block;
+           white-space:nowrap;
+           overflow:hidden;
+           text-overflow:ellipsis;
+         ">
          ${lotNo}
       </a>
     `;
-        },
-        cellClick: (e, cell) => {
-          e.preventDefault(); // ✅ ป้องกัน reload หน้า
-          const row = cell.getRow().getData();
-          const lotId = row.lot_id;
-          if (!lotId) return toast("No lot ID found", false);
-          window.location.href = `/static/lot-detail.html?lot_id=${encodeURIComponent(
-            lotId
-          )}`;
-        },
-      },
-      {
-        title: "PO",
-        field: "po_number",
-        width: 80,
-        headerSort: true,
-        formatter: (cell) => {
-          const row = cell.getRow().getData();
-          const poNumber = row.po_number || "—";
-          const poId = row.po_id;
-          if (!poId) return poNumber;
+  },
+},
+      // {
+      //   title: "PO",
+      //   field: "po_number",
+      //   width: 80,
+      //   headerSort: true,
+      //   formatter: (cell) => {
+      //     const row = cell.getRow().getData();
+      //     const poNumber = row.po_number || "—";
+      //     const poId = row.po_id;
+      //     if (!poId) return poNumber;
 
-          // clickable link
-          return `<a href="/static/manage-pos-detail.html?id=${encodeURIComponent(
-            poId
-          )}" 
-              class="link-po" 
-              style="color:#2563eb; text-decoration:underline; cursor:pointer;">
-              ${poNumber}
-            </a>`;
-        },
-        cellClick: (e, cell) => {
-          e.preventDefault(); // prevent default <a> navigation
-          const row = cell.getRow().getData();
-          const poId = row.po_id;
-          if (!poId) return toast("No PO ID found", false);
-          window.location.href = `/static/manage-pos-detail.html?id=${encodeURIComponent(
-            poId
-          )}`;
-        },
-      },
+      //     // clickable link
+      //     return `<a href="/static/manage-pos-detail.html?id=${encodeURIComponent(
+      //       poId
+      //     )}" 
+      //         class="link-po" 
+      //         style="color:#2563eb; text-decoration:underline; cursor:pointer;">
+      //         ${poNumber}
+      //       </a>`;
+      //   },
+      //   cellClick: (e, cell) => {
+      //     e.preventDefault(); // prevent default <a> navigation
+      //     const row = cell.getRow().getData();
+      //     const poId = row.po_id;
+      //     if (!poId) return toast("No PO ID found", false);
+      //     window.location.href = `/static/manage-pos-detail.html?id=${encodeURIComponent(
+      //       poId
+      //     )}`;
+      //   },
+      // },
+      {
+  title: "PO<br><small>Ship/Total(Rem)</small>",
+  field: "po_number",
+  width: 130,                 // ✅ ลด width
+  minWidth: 110,
+  maxWidth: 150,
+
+  hozAlign: "center",
+  headerHozAlign: "center",
+  headerSort: true,
+
+  formatter: (cell) => {
+    const r = cell.getRow().getData();
+
+    const poNumber = r.po_number || "—";
+    const poId = r.po_id;
+
+    const shipped = r.po_shipped_total ?? 0;
+    const total = r.po_qty_total ?? 0;
+    const remain = r.po_remaining_qty ?? total - shipped;
+
+    let color = "#6b7280";
+    if (shipped === 0) color = "#ef4444";
+    else if (remain > 0) color = "#f59e0b";
+    else if (remain === 0) color = "#10b981";
+    else color = "#7c3aed";
+
+    const remText = remain < 0 ? `-${Math.abs(remain)}` : remain;
+
+    const poLink = poId
+      ? `<a href="/static/manage-pos-detail.html?id=${encodeURIComponent(poId)}"
+           onclick="event.stopPropagation();"
+           style="
+             color:#2563eb;
+             text-decoration:underline;
+             display:block;
+             white-space:nowrap;
+             overflow:hidden;
+             text-overflow:ellipsis;
+           ">
+           ${poNumber}
+         </a>`
+      : poNumber;
+
+    return `
+      <div style="
+        display:flex;
+        flex-direction:column;
+        align-items:center;
+        line-height:1.2;
+      ">
+        <div style="max-width:100%;">${poLink}</div>
+        <div style="
+          font-size:12px;
+          font-weight:600;
+          color:${color};
+          white-space:nowrap;
+        ">
+          ${shipped}/${total} (${remText})
+        </div>
+      </div>
+    `;
+  },
+},
 
       {
         title: "Prod<br>Qty",
@@ -697,7 +765,7 @@ function initTable() {
         white-space:nowrap;
       ">
         <span style="font-weight:600;">
-          ${qty} (${rev})
+          ${qty} 
         </span>
         <span data-action="materials"
               title="Materials"
@@ -780,55 +848,77 @@ function initTable() {
         },
       },
 
+      // {
+      //   title: "PO<br>QTY",
+      //   width: 80,
+      //   field: "lot_planned_ship_qty",
+      // },
       {
-        title: "LOT<br>QTY",
+        title: "QTY",
         width: 80,
         field: "lot_planned_ship_qty",
-      },
-
-      {
-        title: "PO(Rem)<br>QTY",
-        field: "po_qty_total",
-        width: 120,
         hozAlign: "center",
-        sorter: "string",
-        formatter: (cell) => {
-          const r = cell.getRow().getData();
-
-          const shipped = r.po_shipped_total ?? 0;
-          const total = r.po_qty_total ?? 0;
-          const remain = r.po_remaining_qty ?? total - shipped;
-
-          // สีตามสถานะ
-          let bg = "#6b7280"; // gray
-          if (shipped === 0) bg = "#ef4444"; // not shipped
-          else if (remain > 0) bg = "#f59e0b"; // partial
-          else if (remain === 0) bg = "#10b981"; // complete
-          else bg = "#7c3aed"; // overship
-
-          // format remain
-          const remText = remain < 0 ? `-${Math.abs(remain)}` : remain;
-
-          return `
-      <span style="
-        background:${bg};
-        color:white;
-        padding:4px 10px;
-        border-radius:8px;
-        font-weight:600;
-        display:inline-block;
-      
-        text-align:center;
-      ">
-         ${total} (${remText})
-      </span>
-    `;
+        headerHozAlign: "center",
+        editor: "number",        // ✅ inline edit
+        editorParams: {
+          min: 0,
+          step: 1,
         },
+        cellEdited: async (cell) => {
+          const d = cell.getRow().getData();
+
+          await fetch(`/api/v1/lots/${d.lot_id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              planned_ship_qty: d.lot_planned_ship_qty,   // ✅ correct field
+            }),
+          });
+
+          toast("Quantity updated", true);
+        }
       },
+
+
+      //   {
+      //     title: "Ship/PO<br>(REM)",
+      //     field: "po_qty_total",
+      //     width: 120,
+      //     hozAlign: "center",
+      //     sorter: "string",
+      //     formatter: (cell) => {
+      //       const r = cell.getRow().getData();
+
+      //       const shipped = r.po_shipped_total ?? 0;
+      //       const total = r.po_qty_total ?? 0;
+      //       const remain = r.po_remaining_qty ?? total - shipped;
+
+      //       // สีตามสถานะ
+      //       let bg = "#6b7280"; // gray
+      //       if (shipped === 0) bg = "#ef4444"; // not shipped
+      //       else if (remain > 0) bg = "#f59e0b"; // partial
+      //       else if (remain === 0) bg = "#10b981"; // complete
+      //       else bg = "#7c3aed"; // overship
+
+      //       // format remain
+      //       const remText = remain < 0 ? `-${Math.abs(remain)}` : remain;
+
+      //       return `
+
+      //     ${shipped}/${total} (${remText})
+
+      // `;
+      //     },
+      //   },
+      //  {
+      //   title: "LOT DUE",
+      //   width: 80,
+      //   field: "lot_po_duedate",
+      // },
 
       {
         title: "Due<br>Date",
-        field: "po_due_date",
+        field: "lot_po_duedate",
         headerSort: true,
         minWidth: 90,
         hozAlign: "center",
@@ -838,7 +928,7 @@ function initTable() {
         formatter: (cell) => {
           const r = cell.getRow().getData();
 
-          const dueRaw = r.po_due_date;
+          const dueRaw = r.lot_po_duedate;
           if (!dueRaw) return "—";
 
           const dueText = fmtDateMMDDYY(dueRaw);
@@ -847,7 +937,7 @@ function initTable() {
           const dueDate = toDateOnly(r.po_due_date);
           const today = toDateOnly(new Date());
 
-          console.log(dueDate, today);
+          // console.log(dueDate, today);
           let bg = "#e5e7eb";
           let color = "#111827";
           let title = "No status";
@@ -904,7 +994,7 @@ function initTable() {
 
           if (!d.lot_id) return shipped;
 
-          const url = `http://100.88.56.126:9000/static/manage-lot-shippments.html?lot_id=${d.lot_id}`;
+          const url = `/static/manage-lot-shippments.html?lot_id=${d.lot_id}`;
 
           return `
       <div style="display:flex; align-items:center; gap:6px; justify-content:center;">
@@ -937,12 +1027,12 @@ function initTable() {
       },
 
       // placeholders...
-      {
-        title: "FAIR",
-        field: "fair_note",
-        minWidth: 50,
-        headerSort: false,
-      },
+      // {
+      //   title: "FAIR",
+      //   field: "fair_note",
+      //   minWidth: 50,
+      //   headerSort: false,
+      // },
 
       {
         title: "Tracking no.",
@@ -965,8 +1055,8 @@ function initTable() {
                 return `
             <a
               href="https://www.ups.com/WebTracking/processInputRequest?tracknum=${encodeURIComponent(
-                tracking
-              )}&loc=en_US"
+                  tracking
+                )}&loc=en_US"
               target="_blank"
               rel="noopener noreferrer"
               class="link"
@@ -983,22 +1073,40 @@ function initTable() {
         },
       },
 
-      {
-        title: "Materaials<br>PO",
-        field: "batch_no_list",
-        minWidth: 150,
-        maxWidth: 250,
-        headerSort: true,
-        cssClass: "cell-wrap",
-      },
+      // {
+      //   title: "Materaials<br>PO",
+      //   field: "batch_no_list",
+      //   minWidth: 150,
+      //   maxWidth: 250,
+      //   headerSort: true,
+      //   cssClass: "cell-wrap",
+      // },
+
+
       {
         title: "Note",
+        width: 220,
         field: "note",
-        minWidth: 150,
-        maxWidth: 250,
-        headerSort: true,
-        cssClass: "cell-wrap",
-      },
+        hozAlign: "center",
+        headerHozAlign: "center",
+
+        editor: "input",        // ✅ allow text editing
+
+        cellEdited: async (cell) => {
+          const d = cell.getRow().getData();
+
+          await fetch(`/api/v1/lots/${d.lot_id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              note: d.note,   // ✅ send note
+            }),
+          });
+
+          toast("Note updated", true);
+        }
+      }
+
     ],
   });
 }

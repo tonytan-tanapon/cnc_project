@@ -212,7 +212,8 @@ def create_po(payload: PoCreate, db: Session = Depends(get_db)):
 
 @pos_router.patch("/{po_id}", response_model=PoOut)
 def update_po(po_id: int, payload: PoUpdate, db: Session = Depends(get_db)):
-    # print(payload)
+    print(payload)
+    # print(::)
     po = db.query(PO).get(po_id)
     if not po:
         raise HTTPException(404, "PO not found")
