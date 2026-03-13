@@ -1220,26 +1220,27 @@ async function loadInspectionItems() {
 
   qaTable.setData(rows || []);
 }
-/* ---------- Autocomplete ---------- */
-async function searchEmployees(term) {
-  const q = (term || "").trim();
-  const url = `/employees/keyset?limit=10${
-    q ? `&q=${encodeURIComponent(q)}` : ""
-  }`;
 
-  try {
-    const res = await jfetch(url);
-    const items = Array.isArray(res) ? res : res.items || [];
-    return items.map((e) => ({
-      id: e.id,
-      label: e.emp_code || String(e.id),
-    }));
-  } catch {
-    return [];
-  }
-}
+// /* ---------- Autocomplete ---------- */
+// async function searchEmployees(term) {
+//   const q = (term || "").trim();
+//   const url = `/employees/keyset?limit=10${
+//     q ? `&q=${encodeURIComponent(q)}` : ""
+//   }`;
 
-/* ---------- Inspector field ---------- */
+//   try {
+//     const res = await jfetch(url);
+//     const items = Array.isArray(res) ? res : res.items || [];
+//     return items.map((e) => ({
+//       id: e.id,
+//       label: e.emp_code || String(e.id),
+//     }));
+//   } catch {
+//     return [];
+//   }
+// }
+
+// /* ---------- Inspector field ---------- */
 function initInspectorAutocomplete() {
   const el = $("inspector_id");
   if (!el) return;
