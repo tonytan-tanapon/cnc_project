@@ -444,8 +444,8 @@ function makeColumns() {
       },
     },
   {
-  title: "Prod",
-  width: 90,
+  title: "QTY<br>Shipped",
+  width: 110,
   field: "accept_input",
   hozAlign: "center",
   headerHozAlign: "center",
@@ -592,7 +592,7 @@ function makeColumns() {
 
 
     {
-      title: "Ship",
+      title: "Shipped",
       width: 150,
       field: "lot_shipped_qty",
       hozAlign: "center",

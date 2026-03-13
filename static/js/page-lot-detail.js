@@ -213,23 +213,23 @@ function renderLotTable(d) {
   const rows = [
   ["Lot", editableField("lot_no", d.lot_no, d.lot_id)],
 
-  ["Lot Plan QTY", editableField("planned_qty", d.lot_qty, d.lot_id, "number")],
-  ["Lot PO QTY", editableField("planned_ship_qty", d.lot_planned_ship_qty, d.lot_id, "number")],
+  // ["Lot Plan QTY", editableField("planned_qty", d.lot_qty, d.lot_id, "number")],
+  // ["Lot PO QTY", editableField("planned_ship_qty", d.lot_planned_ship_qty, d.lot_id, "number")],
   // ["Lot Remaining to Ship", d.lot_remaining_to_ship],d.created_at
   // ["Created At", d.created_at],
-  ["Lot Created At", editableField(
-  "created_at",
-  formatDateMDY(d.created_at),
-  d.lot_id,
-  "date"
-)],
+//   ["Lot Created At", editableField(
+//   "created_at",
+//   formatDateMDY(d.created_at),
+//   d.lot_id,
+//   "date"
+// )],
 
-["Lot Due Date", editableField(
-  "lot_due_date",
-  formatDateMDY(d.lot_due_date),
-  d.lot_id,
-  "date"
-)],
+// ["Lot Due Date", editableField(
+//   "lot_due_date",
+//   formatDateMDY(d.lot_due_date),
+//   d.lot_id,
+//   "date"
+// )],
   // ["Lot PO Date", formatDateMDY(d.lot_po_date)],
  ["Lot PO Due Date", editableField(
   "lot_po_duedate",
