@@ -446,7 +446,7 @@
 
       <div class="panel" style="margin-top: 16px">
         <div style="font-size: 22px; font-weight: 700; margin-bottom: 8px">
-          Work Summary
+          Work Summary (Past 30 Days)
         </div>
         <table id="logTable" class="tbl">
           <thead>
@@ -557,18 +557,17 @@
 
       /* ----------------- state ----------------- */
       const state = {
-  code: "",
-  idDigits: "",
-  empName: "",
-  employeeId: null,
-  pp_id: null,   // ⭐ เพิ่มตัวนี้
-  timeEntryId: null,
-  breakId: null,
-  status: "off",
-  busy: false,
-  hasBreakUsed: false,
-  exiting: false,
-};
+        code: "",
+        idDigits: "",
+        empName: "",
+        employeeId: null,
+        timeEntryId: null,
+        breakId: null,
+        status: "off",
+        busy: false,
+        hasBreakUsed: false,
+        exiting: false,
+      };
 
       /* ----------------- misc helpers ----------------- */
       const startOfTodayISO = startOfTodayISO_LA;
@@ -636,13 +635,7 @@
           b.style.visibility = "";
         });
       }
-async function fetchCurrentPayPeriod() {
-  const periods = await jfetch("/pay-periods?status=open");
 
-  if (Array.isArray(periods) && periods.length) {
-    state.pp_id = periods[0].id;
-  }
-}
       /* ----------------- UI buttons show/hide ----------------- */
       function updateButtons() {
         if (state.exiting) {
@@ -696,8 +689,69 @@ async function fetchCurrentPayPeriod() {
       }
 
       /* ----------------- log renderer ----------------- */
-      
-    
+      function renderLog(rows) {
+        const tb = $("log");
+        if (!rows || rows.length === 0) {
+          // คำนวณรวมชั่วโมงของช่วง period นั้น
+          const sumReg = rows.reduce(
+            (acc, r) => acc + Number(r.reg_hours || 0),
+            0
+          );
+          const sumOT = rows.reduce(
+            (acc, r) => acc + Number(r.ot_hours || 0),
+            0
+          );
+
+          // แล้วค่อยพิมพ์
+          tb.innerHTML += `
+<tr><td colspan="12" class="period">
+--- Period ${fmtDate(pp.start_at)} → ${fmtDate(pp.end_at)}  
+Regular hrs: ${sumReg.toFixed(2)} OT hrs: ${sumOT.toFixed(2)} ---
+</td></tr>`;
+          return;
+        }
+
+        let html = "",
+          lastWeek = null;
+        for (const r of rows) {
+          const d = new Date(r.date);
+          const weekYear = `${d.getFullYear()}-${getWeekNumber(d)}`;
+          const isNewWeek = weekYear !== lastWeek;
+          lastWeek = weekYear;
+          if (isNewWeek && html !== "") {
+            html += `<tr><td colspan="6" style="border-top: 3px solid #000;"></td></tr>`;
+          }
+
+          let hrmin = "";
+          if (typeof r.total_hours === "number") {
+            const hrs = Math.floor(r.total_hours);
+            const mins = Math.round((r.total_hours - hrs) * 60);
+            hrmin = `${hrs}:${String(mins).padStart(2, "0")}`;
+          } else if (
+            typeof r.total_hours === "string" &&
+            r.total_hours.includes(":")
+          ) {
+            hrmin = r.total_hours;
+          }
+
+          html += `
+            <tr>
+              <td style="font-weight:600">${r.date} (${getWeekdayLetter(
+            new Date(r.date)
+          )})</td>
+              <td>${r.clock_in || ""}</td>
+              <td>${r.start_break || ""}</td>
+              <td>${r.stop_break || ""}</td>
+              <td>${r.clock_out || ""}</td>
+              <td>${hrmin}</td>
+            </tr>`;
+        }
+        tb.innerHTML = html;
+      }
+      // === helpers ===
+      function parseISO(dateStr) {
+        return new Date(dateStr + "T00:00:00");
+      }
 
       function groupBy2Week(rows) {
         if (!rows?.length) return [];
@@ -727,6 +781,62 @@ async function fetchCurrentPayPeriod() {
           groups.push({ start: end, end: start, rows: bucket });
 
         return groups; // ✅ newest period first
+      }
+
+      function applySixDayRule(rows) {
+        const norm = rows.map((r) => {
+          const total = Number(r.reg_hours || 0) + Number(r.ot_hours || 0);
+          let reg = Math.min(8, total);
+          let ot = Math.max(0, total - 8);
+          return { ...r, reg_hours: reg, ot_hours: ot };
+        });
+        // 6-day rule (simplified)
+        const byWeek = {};
+        for (const r of norm) {
+          const d = new Date(r.date);
+          const wk = new Date(d);
+          wk.setDate(d.getDate() - ((d.getDay() + 6) % 7)); // Monday
+          const key = wk.toISOString().slice(0, 10);
+          (byWeek[key] ??= []).push(r);
+        }
+        for (const wk in byWeek) {
+          const worked = byWeek[wk].filter((r) => r.reg_hours + r.ot_hours > 0);
+          if (worked.length >= 6) {
+            worked.sort(
+              (a, b) => a.reg_hours + b.ot_hours - (b.reg_hours + a.ot_hours)
+            );
+            const first = worked[0];
+            first.ot_hours += first.reg_hours;
+            first.reg_hours = 0;
+          }
+        }
+        return norm;
+      }
+      function parse(t) {
+        if (!t) return null;
+        // handle "7:51 AM" -> 24-hour
+        const m = t.match(/(\d+):(\d+)\s*(AM|PM)/i);
+        if (!m) return null;
+        let [_, hh, mm, ampm] = m;
+        hh = Number(hh);
+        mm = Number(mm);
+        if (ampm.toUpperCase() === "PM" && hh < 12) hh += 12;
+        if (ampm.toUpperCase() === "AM" && hh === 12) hh = 0;
+        return new Date(1970, 0, 1, hh, mm);
+      }
+      function calcHoursForRow(r) {
+        const cin = parse(r.clock_in);
+        const cout = parse(r.clock_out);
+        const sb = parse(r.start_break);
+        const eb = parse(r.stop_break);
+        if (!cin || !cout) return 0;
+        const total = (cout - cin) / 3600000;
+        const breakHrs = sb && eb ? (eb - sb) / 3600000 : 0;
+        const worked = total - breakHrs;
+        // split into regular / OT (8h rule)
+        const reg = Math.min(8, worked);
+        const ot = Math.max(0, worked - 8);
+        return { reg, ot };
       }
 
       // ========== PAY PERIOD FETCH ==========
@@ -812,7 +922,7 @@ async function fetchCurrentPayPeriod() {
           reg_hours: r.reg_hours ?? r.reg ?? 0,
           ot_hours: r.ot_hours ?? r.ot ?? 0,
         }));
-        
+        rows = applySixDayRule(rows);
 
         // ===== Fetch Pay Periods =====
         const payPeriods = await fetchPayPeriods();
@@ -889,7 +999,19 @@ const e = endDate.toISOString().slice(0, 10);
         }
       }
 
-      
+      function getWeekNumber(date) {
+        const d = new Date(
+          Date.UTC(date.getFullYear(), date.getMonth(), date.getDate())
+        );
+        const dayNum = d.getUTCDay() || 7;
+        d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+        const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+        return Math.ceil(((d - yearStart) / 86400000 + 1) / 7);
+      }
+      function getWeekdayLetter(date) {
+        const days = ["Su", "M", "T", "W", "Th", "F", "Sa"];
+        return days[date.getDay()];
+      }
       /* ----------------- Summary helpers (2-week) ----------------- */
       function weekKeyLocal(dateISO, weekStartsOn = 1) {
         const d = new Date(dateISO + "T00:00:00");
@@ -910,7 +1032,7 @@ const e = endDate.toISOString().slice(0, 10);
 
         if (!rows.length) return;
 
-        const ruled = rows;
+        const ruled = applySixDayRule(rows);
         const periods = groupBy2Week(ruled);
 
         // ✅ ใส่ summary ด้านบนสุด
@@ -939,70 +1061,96 @@ const e = endDate.toISOString().slice(0, 10);
 
       /* ----------------- fetch 30-day log and summarize ----------------- */
       async function fetchTodayLog() {
-
-  if (!state.employeeId) {
-    console.warn("employeeId not ready");
-    return;
-  }
-
-  try {
-
-    const rows = await jfetch(
-      api(`/api/v1/payroll/kiosk-timesheet?employee_id=${state.employeeId}`)
-    );
-
-    const summaries = rows.flatMap(block => {
-
-      const entries = block.entries || [];
-
-      return entries.map(r => {
-
-        const clock_in = r.clock_in_at
-          ? fmtTimeLA_AMPM(r.clock_in_at)
-          : "";
-
-        const clock_out = r.clock_out_at
-          ? fmtTimeLA_AMPM(r.clock_out_at)
-          : "";
-
-        let start_break = "";
-        let stop_break = "";
-
-        if (r.breaks?.length) {
-          const br = r.breaks[0];
-          start_break = br.start_at ? fmtTimeLA_AMPM(br.start_at) : "";
-          stop_break = br.end_at ? fmtTimeLA_AMPM(br.end_at) : "";
+        if (!state.employeeId) {
+          renderLog([]);
+          document.getElementById("log_foot").innerHTML = "";
+          updateButtons();
+          return;
         }
 
-        return {
-          date: r.clock_in_at.slice(0,10),
-          clock_in,
-          start_break,
-          stop_break,
-          clock_out,
-          reg_hours: r.reg_hours,
-          ot_hours: r.ot_hours
+        const qs = new URLSearchParams({
+          employee_id: String(state.employeeId),
+          start_at: startOf30DaysAgoISO_LA(),
+          end_at: startOfTomorrowISO(),
+        }).toString();
+
+        try {
+          let rows;
+          try {
+            rows = await jfetch(api(`/time-entries/range?${qs}`));
+          } catch {
+            rows = await jfetch(api(`/time-entries?${qs}`));
+          }
+
+          const summaries = [];
+          for (const te of rows) {
+            const d = toLA(new Date(te.clock_in_at || te.clock_out_at));
+            const dateStr = `${d.getFullYear()}-${String(
+              d.getMonth() + 1
+            ).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+            const clock_in = te.clock_in_at
+              ? fmtTimeLA_AMPM(te.clock_in_at)
+              : "";
+            const clock_out = te.clock_out_at
+              ? fmtTimeLA_AMPM(te.clock_out_at)
+              : "";
+            let start_break = "",
+              stop_break = "";
+
+            if (Array.isArray(te.breaks) && te.breaks.length > 0) {
+              const br = te.breaks[0];
+              start_break = br.start_at ? fmtTimeLA_AMPM(br.start_at) : "";
+              stop_break = br.end_at ? fmtTimeLA_AMPM(br.end_at) : "";
+            }
+
+            // compute net hours (exclude break)
+            let hrs = "";
+            if (te.clock_in_at && te.clock_out_at) {
+              const inT = new Date(te.clock_in_at);
+              const outT = new Date(te.clock_out_at);
+              let diff = (outT - inT) / 3600000;
+              if (Array.isArray(te.breaks)) {
+                for (const br of te.breaks) {
+                  if (br.start_at && br.end_at) {
+                    diff -=
+                      (new Date(br.end_at) - new Date(br.start_at)) / 3600000;
+                  }
+                }
+              }
+              hrs = Number.isFinite(diff) ? Number(diff.toFixed(2)) : "";
+            }
+            let reg_hours = 0,
+              ot_hours = 0;
+            if (hrs !== "" && !isNaN(hrs)) {
+              reg_hours = Math.min(8, hrs);
+              ot_hours = Math.max(0, hrs - 8);
+            }
+            summaries.push({
+              date: dateStr,
+              clock_in,
+              start_break,
+              stop_break,
+              clock_out,
+              total_hours: hrs === "" ? "" : Number(hrs),
+              reg_hours,
+              ot_hours,
+            });
+          }
+
+          // sort by most recent date
+          summaries.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+          renderLogWithPeriodSummary(summaries);
+
+          renderPeriodSummary(summaries); // ✅ แสดงสรุป Reg/OT ทุก 2 สัปดาห์
+          updateButtons();
+        } catch (e) {
+          renderLog([]);
+          document.getElementById("log_foot").innerHTML = "";
+          updateButtons();
+          if (navigator.onLine) toast(e.message || "Load log failed", false);
         }
-
-      });
-
-    });
-
-    summaries.sort((a,b)=> new Date(a.date) - new Date(b.date));
-
-    renderLogWithPeriodSummary(summaries);
-    renderPeriodSummary(summaries);
-
-    updateButtons();
-
-  } catch(e) {
-
-    console.error(e);
-    toast("Load log failed", false);
-
-  }
-
-}
+      }
 
       /* ----------------- server state ----------------- */
       async function fetchStateByCode(code) {
@@ -1039,9 +1187,7 @@ const e = endDate.toISOString().slice(0, 10);
               start_at: startOfTodayISO(),
               end_at: startOfTomorrowISO(),
             }).toString();
-             const rows = await jfetch(
-  api(`/time-entries?${qs}`)
-);
+            const rows = await jfetch(api(`/time-entries/range?${qs}`));
             const open = rows.find((r) => r.clock_in_at && !r.clock_out_at);
             if (open) {
               state.timeEntryId = open.id;
@@ -1214,7 +1360,6 @@ const e = endDate.toISOString().slice(0, 10);
 
       async function handleFourDigits(code) {
         try {
-          await fetchCurrentPayPeriod();
           await fetchStateByCode(code);
           state.code = code;
           setView("v_act");

@@ -54,12 +54,7 @@ def list_pay_periods(status: str | None = None, db: Session = Depends(get_db)):
         q = q.filter(PayPeriod.status == status)
     return q.all()
 
-@router.get("/{pp_id}", response_model=PayPeriodOut)
-def get_pay_period(pp_id: int, db: Session = Depends(get_db)):
-    pp = db.get(PayPeriod, pp_id)
-    if not pp:
-        raise HTTPException(404, "PayPeriod not found")
-    return pp
+
 
 @router.patch("/{pp_id}", response_model=PayPeriodOut)
 def update_pay_period(pp_id: int, payload: PayPeriodUpdate, db: Session = Depends(get_db)):
@@ -249,3 +244,198 @@ def bulk_pay_rates(
           .all()
     )
     return [_serialize_rate(r) for r in rows]
+
+from routers.v1.payroll_engine import calculate_timesheet
+
+from models import TimeEntry, BreakEntry
+
+def get_time_entries(db: Session, employee_id: int, start_at, end_at):
+
+    rows = (
+        db.query(TimeEntry)
+        .filter(
+            TimeEntry.employee_id == employee_id,
+            TimeEntry.clock_in_at >= start_at,
+            TimeEntry.clock_in_at <= end_at
+        )
+        .order_by(TimeEntry.clock_in_at)
+        .all()
+    )
+
+    result = []
+
+    for r in rows:
+        result.append({
+            "id": r.id,
+            "clock_in_at": r.clock_in_at,
+            "clock_out_at": r.clock_out_at,
+            "breaks": [
+                {
+                    "start_at": b.start_at,
+                    "end_at": b.end_at
+                }
+                for b in r.breaks
+            ]
+        })
+
+    return result
+
+@router.get("/timesheet/by-employee")
+def payroll_timesheet(
+    employee_id: int,
+    pp_id: int,
+    db: Session = Depends(get_db)
+):
+
+    pp = db.get(PayPeriod, pp_id)
+
+    if not pp:
+        raise HTTPException(404, "Pay period not found")
+
+    rows = (
+        db.query(TimeEntry)
+        .filter(
+            TimeEntry.employee_id == employee_id,
+            TimeEntry.clock_in_at >= pp.start_at,
+            TimeEntry.clock_in_at <= pp.end_at
+        )
+        .order_by(TimeEntry.clock_in_at)
+        .all()
+    )
+
+    result = []
+
+    for r in rows:
+
+        breaks = []
+        break_hours = 0
+
+        for b in r.breaks:
+            breaks.append({
+                "id": b.id,
+                "start_at": b.start_at,
+                "end_at": b.end_at
+            })
+
+            if b.start_at and b.end_at:
+                break_hours += (b.end_at - b.start_at).total_seconds() / 3600
+
+        total_hours = 0
+        if r.clock_in_at and r.clock_out_at:
+            total_hours = (
+                (r.clock_out_at - r.clock_in_at).total_seconds() / 3600
+            ) - break_hours
+
+        reg_hours = min(8, total_hours)
+        ot_hours = max(0, total_hours - 8)
+
+        result.append({
+            "id": r.id,
+            "clock_in_at": r.clock_in_at,
+            "clock_out_at": r.clock_out_at,
+            "breaks": breaks,
+            "notes": r.notes,
+            "reg_hours": round(reg_hours, 2),
+            "ot_hours": round(ot_hours, 2)
+        })
+
+    return result
+
+def apply_six_day_rule(entries):
+
+    from collections import defaultdict
+
+    weeks = defaultdict(list)
+
+    for e in entries:
+        wk = e["clock_in_at"].date().isocalendar()[1]
+        weeks[wk].append(e)
+
+    for week_entries in weeks.values():
+
+        worked = [e for e in week_entries if (e["reg_hours"] + e["ot_hours"]) > 0]
+
+        if len(worked) >= 6:
+
+            lowest = min(worked, key=lambda x: x["reg_hours"] + x["ot_hours"])
+
+            lowest["ot_hours"] += lowest["reg_hours"]
+            lowest["reg_hours"] = 0
+
+    return entries
+
+@router.get("/kiosk-timesheet")
+def kiosk_timesheet(employee_id: int, db: Session = Depends(get_db)):
+
+    periods = (
+        db.query(PayPeriod)
+        .order_by(PayPeriod.start_at.desc())
+        .limit(2)
+        .all()
+    )
+
+    result = []
+
+    for pp in periods:
+
+        rows = (
+            db.query(TimeEntry)
+            .filter(
+                TimeEntry.employee_id == employee_id,
+                TimeEntry.clock_in_at >= pp.start_at,
+                TimeEntry.clock_in_at <= pp.end_at
+            )
+            .order_by(TimeEntry.clock_in_at)
+            .all()
+        )
+
+        entries = []
+
+        for r in rows:
+
+            breaks = []
+            break_hours = 0
+
+            for b in r.breaks:
+                breaks.append({
+                    "start_at": b.start_at,
+                    "end_at": b.end_at
+                })
+
+                if b.start_at and b.end_at:
+                    break_hours += (b.end_at - b.start_at).total_seconds() / 3600
+
+            total_hours = 0
+            if r.clock_in_at and r.clock_out_at:
+                total_hours = (
+                    (r.clock_out_at - r.clock_in_at).total_seconds() / 3600
+                ) - break_hours
+
+            reg_hours = min(8, total_hours)
+            ot_hours = max(0, total_hours - 8)
+
+            entries.append({
+                "clock_in_at": r.clock_in_at,
+                "clock_out_at": r.clock_out_at,
+                "breaks": breaks,
+                "reg_hours": round(reg_hours, 2),
+                "ot_hours": round(ot_hours, 2)
+            })
+        entries = apply_six_day_rule(entries)
+        result.append({
+            "period": {
+                "id": pp.id,
+                "start_at": pp.start_at,
+                "end_at": pp.end_at
+            },
+            "entries": entries
+        })
+
+    return result
+
+@router.get("/{pp_id}", response_model=PayPeriodOut)
+def get_pay_period(pp_id: int, db: Session = Depends(get_db)):
+    pp = db.get(PayPeriod, pp_id)
+    if not pp:
+        raise HTTPException(404, "PayPeriod not found")
+    return pp
