@@ -7,6 +7,7 @@ const UI = {
   lotStatus: "_lot_status",
   duedays: "_duedays",
   reload: "_reload",
+  export: "_export",   // ✅ ADD
   table: "listBody",
 };
 
@@ -50,7 +51,38 @@ async function loadTraveler() {
     toast(e?.message || "Load failed", false);
   }
 }
+function exportExcel() {
+  const data = table.getData("active"); // ✅ only filtered data
 
+  if (!data || data.length === 0) {
+    toast("No data to export", false);
+    return;
+  }
+
+  // 🔥 map เอาเฉพาะ field (no icon / no HTML)
+  const clean = data.map((d) => ({
+    Lot: d.lot_no,
+    PO: d.po_number,
+    Customer: d.customer_code,
+    Part: d.part_no,
+    Part_Name: d.part_name,
+    Due: d.lot_po_duedate,
+    Days_Left: d.lot_po_days_left,
+    Shipped_Qty: d.lot_shipped_qty,
+    PO_Total: d.po_qty_total,
+    PO_Shipped: d.po_shipped_total,
+    PO_Remaining: d.po_remaining_qty,
+    Lot_Status: d.lot_status,
+    Last_Ship_Date: d.lot_last_ship_date,
+    Note: d.lot_note,
+  }));
+
+  // ✅ ใช้ Tabulator download
+  table.download("xlsx", "shipment_status.xlsx", {
+    sheetName: "Shipment",
+    data: clean, // 🔥 override data
+  });
+}
 
 async function downloadDrawingBatch() {
   try {
@@ -109,6 +141,7 @@ function makeColumns() {
     /* ===== COPY SUMMARY ===== */
     {
       title: "Copy",
+      download: false,
       width: 70,
       hozAlign: "center",
       formatter: () => `
@@ -192,6 +225,7 @@ function makeColumns() {
 
     {
       title: "PO<br><small>Ship/Total(Rem)</small>",
+      titleDownload: "PO",
       field: "po_number",
       width: 160,
       hozAlign: "center",
@@ -445,6 +479,7 @@ function makeColumns() {
     },
   {
   title: "QTY<br>Shipped",
+  titleDownload: "QTY Shipped",
   width: 110,
   field: "accept_input",
   hozAlign: "center",
@@ -926,4 +961,5 @@ document.addEventListener("DOMContentLoaded", () => {
   });
   els[UI.duedays].addEventListener("change", applyFilter);
   els[UI.lotStatus].addEventListener("change", applyFilter);
+  els[UI.export].addEventListener("click", exportExcel);
 });

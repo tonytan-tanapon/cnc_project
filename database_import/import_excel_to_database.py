@@ -375,4 +375,10 @@ def import_excel(file_path):
 
 
 if __name__ == "__main__":
+    print("Starting import...")
     import_excel(r"Z:\Topnotch Group\Public\Data Base & Inventory Stock\update.xlsm")
+
+
+
+
+# python database_import/import_excel_to_database.py
