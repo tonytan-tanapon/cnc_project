@@ -51,36 +51,55 @@ async function loadTraveler() {
     toast(e?.message || "Load failed", false);
   }
 }
-function exportExcel() {
-  const data = table.getData("active"); // ✅ only filtered data
 
-  if (!data || data.length === 0) {
-    toast("No data to export", false);
-    return;
+function formatDateShort(v) {
+  if (!v) return "";
+
+  let d;
+
+  // รองรับทั้ง string และ Date
+  if (typeof v === "string") {
+    d = new Date(v);
+  } else if (v instanceof Date) {
+    d = v;
+  } else {
+    return "";
   }
 
-  // 🔥 map เอาเฉพาะ field (no icon / no HTML)
-  const clean = data.map((d) => ({
-    Lot: d.lot_no,
-    PO: d.po_number,
-    Customer: d.customer_code,
-    Part: d.part_no,
-    Part_Name: d.part_name,
-    Due: d.lot_po_duedate,
-    Days_Left: d.lot_po_days_left,
-    Shipped_Qty: d.lot_shipped_qty,
-    PO_Total: d.po_qty_total,
-    PO_Shipped: d.po_shipped_total,
-    PO_Remaining: d.po_remaining_qty,
-    Lot_Status: d.lot_status,
-    Last_Ship_Date: d.lot_last_ship_date,
-    Note: d.lot_note,
-  }));
+  const m = d.getMonth() + 1;
+  const day = d.getDate();
+  const y = d.getFullYear().toString().slice(-2);
 
-  // ✅ ใช้ Tabulator download
+  return `${m}/${day}/${y}`;
+}
+
+
+function exportExcel() {
   table.download("xlsx", "shipment_status.xlsx", {
     sheetName: "Shipment",
-    data: clean, // 🔥 override data
+
+    downloadDataFormatter: (data) => {
+      return data.map((d) => ({
+        Lot: d.lot_no,
+        PO: d.po_number,
+        Cust: d.customer_code,
+        Part: d.part_no,
+        "Part Name": d.part_name,
+
+        // ✅ FIX HERE
+        Due: formatDateShort(d.lot_po_duedate),
+
+        Left: d.lot_po_days_left,
+        "QTY Shipped": d.accept_input,
+        Shipped: d.lot_shipped_qty,
+        "Lot Status": d.lot_status,
+
+        // ✅ FIX HERE
+        "Shipped Date": formatDateShort(d.lot_last_ship_date),
+
+        Note: d.lot_note,
+      }));
+    },
   });
 }
 
@@ -375,19 +394,27 @@ function makeColumns() {
 
 
     {
-      title: "Due",
-      field: "lot_po_duedate",
-      width: 90,
-      formatter: (cell) => {
-        const v = cell.getValue();
-        if (!v) return "";
-        const d = new Date(v);
-        return `${String(d.getMonth() + 1).padStart(2, "0")}/
-                ${String(d.getDate()).padStart(2, "0")}/
-                ${String(d.getFullYear()).slice(-2)}`;
-      },
-    },
+  title: "Due",
+  field: "lot_po_duedate",
+  width: 90,
 
+  formatter: (cell) => {
+    const v = cell.getValue();
+    if (!v) return "";
+
+    const [y, m, d] = v.split("T")[0].split("-");
+    return `${m}/${d}/${y.slice(-2)}`;
+  },
+
+  // ✅ IMPORTANT
+  accessorDownload: (value) => {
+    if (!value) return "";
+
+    const [y, m, d] = value.split("T")[0].split("-");
+    return `${m}/${d}/${y.slice(-2)}`;
+  }
+}
+,
 
     /* ===== DAYS LEFT (PO LEVEL) ===== */
     {
@@ -625,22 +652,21 @@ function makeColumns() {
 //   }
 // } , 
 
+{
+  title: "Shipped",
+  width: 150,
+  field: "lot_shipped_qty",
+  hozAlign: "center",
+  headerHozAlign: "center",
 
-    {
-      title: "Shipped",
-      width: 150,
-      field: "lot_shipped_qty",
-      hozAlign: "center",
-      headerHozAlign: "center",
+  formatter: (cell) => {
+    const r = cell.getRow().getData();
+    const lotId = r.lot_id;
+    const shipped = r.lot_shipped_qty ?? 0;
 
-      formatter: (cell) => {
-        const r = cell.getRow().getData();
-        const lotId = r.lot_id;
-        const shipped = r.lot_shipped_qty ?? 0;
+    if (!lotId) return shipped;
 
-        if (!lotId) return shipped;
-
-        return `
+    return `
       <div style="
         display:flex;
         align-items:center;
@@ -651,36 +677,16 @@ function makeColumns() {
         <span style="font-weight:600;">
           ${shipped}
         </span>
-        
-        <!-- Traveler -->
-        <a
-          href="/static/traveler-detail.html?lot_id=${encodeURIComponent(
-          lotId
-        )}"
-          title="Traveler"
-          style="text-decoration:none;"
-          target="_blank"
-        >
-          🧾
-        </a>
 
-       
+        <a href="/static/traveler-detail.html?lot_id=${encodeURIComponent(lotId)}"
+           target="_blank">🧾</a>
 
-        <!-- Shipment -->
-        <a
-          href="/static/manage-lot-shippments.html?lot_id=${encodeURIComponent(
-          lotId
-        )}"
-          title="Shipment"
-          style="text-decoration:none;"
-          target="_blank"
-        >
-          📦
-        </a>
+        <a href="/static/manage-lot-shippments.html?lot_id=${encodeURIComponent(lotId)}"
+           target="_blank">📦</a>
       </div>
     `;
-      },
-    },
+  },
+},
     // {
     //   title: "Ship",
     //   width: 110,
@@ -844,6 +850,10 @@ function makeColumns() {
         const v = cell.getValue();
         return v ? new Date(v).toLocaleDateString() : "";
       },
+
+      accessorDownload: (value) => {
+    return formatDateShort(value);
+  },
     },
 
 {
