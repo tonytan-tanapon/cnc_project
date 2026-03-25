@@ -181,7 +181,7 @@
 
     async function loadPayPeriods() {
       const allPeriods  = await fetchAllPayPeriods(200);   // ทั้งหมดเพื่อทำ dropdown
-      const periods = allPeriods.slice(0, 12);   // show only latest 12
+      const periods = allPeriods.slice(0, 30);   // show only latest 12
 
       selPeriod.innerHTML = '<option value="">— Select Pay Period —</option>';
       for (const p of periods) {

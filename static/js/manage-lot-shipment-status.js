@@ -504,6 +504,7 @@ function makeColumns() {
     </span>`;
       },
     },
+    
   {
   title: "QTY<br>Shipped",
   titleDownload: "QTY Shipped",
@@ -571,31 +572,31 @@ function makeColumns() {
   }
 },
 
-    // {
-    //   title: "Ship",
-    //   width: 80,
-    //   field: "lot_planned_ship_qty",
-    //   hozAlign: "center",
-    //   headerHozAlign: "center",
-    //   editor: "number",        // ✅ inline edit
-    //   editorParams: {
-    //     min: 0,
-    //     step: 1,
-    //   },
-    //   cellEdited: async (cell) => {
-    //     // const d = cell.getRow().getData();
+    {
+      title: "Ship",
+      width: 80,
+      field: "lot_planned_ship_qty",
+      hozAlign: "center",
+      headerHozAlign: "center",
+      editor: "number",        // ✅ inline edit
+      editorParams: {
+        min: 0,
+        step: 1,
+      },
+      cellEdited: async (cell) => {
+        // const d = cell.getRow().getData();
 
-    //     // await fetch(`/api/v1/lots/${d.lot_id}`, {
-    //     //   method: "PATCH",
-    //     //   headers: { "Content-Type": "application/json" },
-    //     //   body: JSON.stringify({
-    //     //     planned_ship_qty: d.lot_planned_ship_qty,   // ✅ correct field
-    //     //   }),
-    //     // });
+        // await fetch(`/api/v1/lots/${d.lot_id}`, {
+        //   method: "PATCH",
+        //   headers: { "Content-Type": "application/json" },
+        //   body: JSON.stringify({
+        //     planned_ship_qty: d.lot_planned_ship_qty,   // ✅ correct field
+        //   }),
+        // });
 
-    //     // toast("Quantity updated", true);
-    //   }
-    // },
+        // toast("Quantity updated", true);
+      }
+    },
 // {
 //   title: "Tracking",
 //   width: 140,

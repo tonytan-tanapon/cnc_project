@@ -834,33 +834,21 @@ from docx import Document
 from datetime import datetime
 import os
 
-from fastapi import Query, Depends, HTTPException
-from fastapi.responses import FileResponse
-from sqlalchemy.orm import Session, joinedload
-from docx import Document
-from datetime import datetime
-import tempfile
-import os
-
-from docx.oxml.ns import qn
-
-
 @router.get("/{shipment_id}/download/label/{size}")
 def download_label(
     shipment_id: int,
     size: int,
-    type: str = Query(None, description="Type of label"),
+    type: str = Query(None, description="Type of label: fair, cmm, or default"),
+    
     db: Session = Depends(get_db),
 ):
     print(f"Generating label for shipment {shipment_id}, size {size}, type {type}")
-
-    # ===============================
-    # 1️⃣ LOAD DATA
-    # ===============================
+    # 1️⃣ Load shipment + items + lot + part + revision
     shipment = (
         db.query(CustomerShipment)
         .options(
-            joinedload(CustomerShipment.po).joinedload(PO.customer),
+            joinedload(CustomerShipment.po)
+                .joinedload(PO.customer),   # ✅ ตรงนี้สำคัญ
             joinedload(CustomerShipment.items)
                 .joinedload(CustomerShipmentItem.lot)
                 .joinedload(ProductionLot.part),
@@ -871,9 +859,8 @@ def download_label(
         .filter(CustomerShipment.id == shipment_id)
         .first()
     )
-
     if not shipment or not shipment.items:
-        raise HTTPException(status_code=404, detail="Shipment not found")
+        raise HTTPException(status_code=404, detail="Shipment not found or empty")
 
     item = shipment.items[0]
     lot = item.lot
@@ -883,365 +870,79 @@ def download_label(
     lot_no = lot.lot_no if lot else "UNKNOWN_LOT"
     part_no = part.part_no if part else "UNKNOWN_PART"
     po_no = shipment.po.po_number if shipment.po else ""
-
+    
     customer_name = (
         shipment.po.customer.name
         if shipment.po and shipment.po.customer
         else ""
     )
-
-    # ===============================
-    # 2️⃣ QTY LOGIC
-    # ===============================
-    total_qty = int(item.qty or 0) + 2
-    page_size = size
-
-    if total_qty <= page_size:
-        first_page_limit = total_qty
-        second_page_limit = 0
-        remove_page2 = True
-    else:
-        first_page_limit = page_size
-        second_page_limit = total_qty % page_size
-        remove_page2 = False
-
-    print(f"[DEBUG] total_qty={total_qty}")
-    print(f"[DEBUG] page1={first_page_limit}, page2={second_page_limit}")
-
-    # ===============================
-    # 3️⃣ REPLACE MAP
-    # ===============================
+    print("Customer Name for Label:", customer_name)
+    # 2️⃣ Map replace fields
     replace_map = {
         "{PART}": f"Part: {part.part_no} {part.name}" if part else "",
         "{REV}": f"Rev: {revision.rev} Lot: {lot.lot_no} PO: {po_no}" if revision else "",
         "{LOT_NO}": lot_no,
+        "{QTY}": str(int(item.qty or 0)),
         "{DESCRIPTION}": part.name if part else "",
         "{DATE}": datetime.now().strftime("%m/%d/%Y"),
-        "CUSTOMER": customer_name,
-        "{XX}": total_qty,
+        "CUSTOMER": customer_name,   # ✅ เพิ่ม
     }
-
-    # ===============================
-    # 4️⃣ LOAD TEMPLATE
-    # ===============================
+    n = str(int(item.qty or 0))
+    # 3️⃣ Load template
     if type == "fair":
-        template_path = "templates/label_fair.docx"
+        template_path = f"templates/label_fair.docx"
     elif type == "cmm":
-        template_path = "templates/label_cmm.docx"
+        template_path = f"templates/label_cmm.docx"
     elif type == "number":
-        template_path = "templates/label_number.docx"
+        template_path = f"templates/label_number.docx"
     elif type == "box":
-        template_path = "templates/label_box.docx"
+        template_path = f"templates/label_box.docx"
     else:
         template_path = f"templates/label_{size}.docx"
-
     if not os.path.exists(template_path):
         raise HTTPException(status_code=404, detail="Template not found")
 
     doc = Document(template_path)
 
-    # ===============================
-    # 5️⃣ REPLACE FUNCTIONS
-    # ===============================
-    def replace_runs(p):
-        full_text = "".join(run.text for run in p.runs)
-        original = full_text
+    # 4️⃣ Replace preserving format
+    def replace_runs(paragraph):
+        for run in list(paragraph.runs):
+            # replace placeholders ปกติ
+            for k, v in replace_map.items():
+                if k in run.text:
+                    run.text = run.text.replace(k, v or "")
 
-        for k, v in replace_map.items():
-            if k in full_text:
-                full_text = full_text.replace(k, str(v))
+        
+            
 
-        if full_text != original:
-            for run in p.runs:
-                run.text = ""
-            if p.runs:
-                p.runs[0].text = full_text
-
-    def clear_runs(p):
-        for run in p.runs:
-            run.text = ""
-
-    # ===============================
-    # 6️⃣ GLOBAL LABEL CONTROL
-    # ===============================
-    label_index = 0
-
-    def process_paragraph(p):
-        nonlocal label_index
-
-        text = p.text.strip()
-
-        if "Topnotch Quality Works" in text:
-            label_index += 1
-            print(f"[DEBUG] Label #{label_index}")
-
-        # CASE 1 → ONLY ONE PAGE
-        if remove_page2:
-            if label_index <= first_page_limit:
-                replace_runs(p)
-            else:
-                clear_runs(p)
-            return
-
-        # CASE 2 → TWO PAGE LOGIC
-        if label_index <= first_page_limit:
-            replace_runs(p)
-
-        elif label_index <= first_page_limit + second_page_limit:
-            replace_runs(p)
-
-        else:
-            clear_runs(p)
-
-    # ===============================
-    # 7️⃣ PROCESS CONTENT
-    # ===============================
+        
+    print(len(doc.paragraphs))        # อาจ = 0
+    print(len(doc.tables))            # มี table เต็ม
+    # 🔁 Replace ใน paragraph ปกติ
     for p in doc.paragraphs:
-        process_paragraph(p)
+        replace_runs(p)
 
+    # 🔁 Replace ใน table cells
     for table in doc.tables:
         for row in table.rows:
             for cell in row.cells:
                 for p in cell.paragraphs:
-                    process_paragraph(p)
+                    replace_runs(p)
 
-    # ===============================
-    # 8️⃣ REMOVE PAGE BREAK (IMPORTANT)
-    # ===============================
-    if remove_page2:
-        for paragraph in doc.paragraphs:
-            p = paragraph._element
-            for br in p.findall(".//w:br", namespaces={"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}):
-                if br.get(qn("w:type")) == "page":
-                    p.remove(br)
-
-    # ===============================
-    # 9️⃣ SAVE FILE
-    # ===============================
+    # 5️⃣ Save temp file
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".docx")
     doc.save(tmp.name)
 
-    # ===============================
-    # 🔟 RETURN FILE
-    # ===============================
-    label_type = type.upper() if type else "LABEL"
-    filename = f"label_{lot_no}_{part_no}_{label_type}_{size}.docx"
+    # 6️⃣ ตั้งชื่อไฟล์ตอน download
+    label_type = type.upper() if type else "label"
 
+    download_name = f"label_{lot_no}_{part_no}_{label_type}_{size}.docx"
+    # download_name = f"label_{lot_no}_{part_no}.docx"
+
+    # 7️⃣ Return file + force filename จาก client ✅
     return FileResponse(
         path=tmp.name,
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        filename=filename,
+        filename=download_name,
+        headers={"Content-Disposition": f'attachment; filename="{download_name}"'},
     )
-
-
-# from fastapi import Query, Depends, HTTPException
-# from fastapi.responses import FileResponse
-# from sqlalchemy.orm import Session, joinedload
-# from docx import Document
-# from datetime import datetime
-# import tempfile
-# import os
-# from docx.oxml.ns import qn
-
-
-# @router.get("/{shipment_id}/download/label/{size}")
-# def download_label(
-#     shipment_id: int,
-#     size: int,
-#     type: str = Query(None, description="Type of label"),
-#     db: Session = Depends(get_db),
-# ):
-#     print(f"Generating label for shipment {shipment_id}, size {size}, type {type}")
-
-#     # ===============================
-#     # 1️⃣ LOAD DATA
-#     # ===============================
-#     shipment = (
-#         db.query(CustomerShipment)
-#         .options(
-#             joinedload(CustomerShipment.po).joinedload(PO.customer),
-#             joinedload(CustomerShipment.items)
-#                 .joinedload(CustomerShipmentItem.lot)
-#                 .joinedload(ProductionLot.part),
-#             joinedload(CustomerShipment.items)
-#                 .joinedload(CustomerShipmentItem.lot)
-#                 .joinedload(ProductionLot.part_revision),
-#         )
-#         .filter(CustomerShipment.id == shipment_id)
-#         .first()
-#     )
-
-#     if not shipment or not shipment.items:
-#         raise HTTPException(status_code=404, detail="Shipment not found")
-
-#     item = shipment.items[0]
-#     lot = item.lot
-#     part = lot.part if lot else None
-#     revision = lot.part_revision if lot else None
-
-#     lot_no = lot.lot_no if lot else "UNKNOWN_LOT"
-#     part_no = part.part_no if part else "UNKNOWN_PART"
-#     po_no = shipment.po.po_number if shipment.po else ""
-
-#     customer_name = (
-#         shipment.po.customer.name
-#         if shipment.po and shipment.po.customer
-#         else ""
-#     )
-
-#     # ===============================
-#     # 2️⃣ QTY LOGIC
-#     # ===============================
-#     total_qty = int(item.qty or 0) + 2
-#     page_size = size
-
-#     if total_qty <= page_size:
-#         first_page_limit = total_qty
-#         second_page_limit = 0
-#         remove_page2 = True
-#     else:
-#         first_page_limit = page_size
-#         second_page_limit = total_qty % page_size
-#         remove_page2 = False
-
-#     print(f"[DEBUG] total_qty={total_qty}")
-#     print(f"[DEBUG] page1={first_page_limit}, page2={second_page_limit}")
-
-#     # ===============================
-#     # 3️⃣ REPLACE MAP
-#     # ===============================
-#     replace_map = {
-#         "{PART}": f"Part: {part.part_no} {part.name}" if part else "",
-#         "{REV}": f"Rev: {revision.rev} Lot: {lot.lot_no} PO: {po_no}" if revision else "",
-#         "{LOT_NO}": lot_no,
-#         "{DESCRIPTION}": part.name if part else "",
-#         "{DATE}": datetime.now().strftime("%m/%d/%Y"),
-#         "CUSTOMER": customer_name,
-#         "{XX}": total_qty,
-#     }
-
-#     # ===============================
-#     # 4️⃣ LOAD TEMPLATE
-#     # ===============================
-#     if type == "fair":
-#         template_path = "templates/label_fair.docx"
-#     elif type == "cmm":
-#         template_path = "templates/label_cmm.docx"
-#     elif type == "number":
-#         template_path = "templates/label_number.docx"
-#     elif type == "box":
-#         template_path = "templates/label_box.docx"
-#     else:
-#         template_path = f"templates/label_{size}.docx"
-
-#     if not os.path.exists(template_path):
-#         raise HTTPException(status_code=404, detail="Template not found")
-
-#     doc = Document(template_path)
-
-#     # ===============================
-#     # 5️⃣ REPLACE FUNCTIONS
-#     # ===============================
-#     def replace_runs(p):
-#         full_text = "".join(run.text for run in p.runs)
-
-#         for k, v in replace_map.items():
-#             if k in full_text:
-#                 full_text = full_text.replace(k, str(v))
-
-#         for run in p.runs:
-#             run.text = ""
-#         if p.runs:
-#             p.runs[0].text = full_text
-
-#     def clear_runs(p):
-#         for run in p.runs:
-#             run.text = ""
-
-#     # ===============================
-#     # 6️⃣ COLLECT LABEL BLOCKS
-#     # ===============================
-#     labels = []
-#     current_block = []
-
-#     for table in doc.tables:
-#         rows = len(table.rows)
-#         cols = len(table.rows[0].cells)
-
-#         # 🔥 COLUMN-FIRST (สำคัญ)
-#         for c in range(cols):
-#             for r in range(rows):
-#                 cell = table.cell(r, c)
-
-#                 for p in cell.paragraphs:
-#                     text = p.text.strip()
-
-#                     if "Topnotch Quality Works" in text:
-#                         if current_block:
-#                             labels.append(current_block)
-#                         current_block = [p]
-#                     else:
-#                         if current_block:
-#                             current_block.append(p)
-
-#     if current_block:
-#         labels.append(current_block)
-
-#     print(f"[DEBUG] total labels found = {len(labels)}")
-
-#     # ===============================
-#     # 7️⃣ APPLY PAGE LOGIC (🔥 FINAL FIX)
-#     # ===============================
-#     for i, block in enumerate(labels, start=1):
-
-#         # ---------- PAGE 1 ----------
-#         if i <= first_page_limit:
-#             should_fill = True
-
-#         # ---------- PAGE 2 ----------
-#         elif i <= first_page_limit + second_page_limit:
-#             page2_index = i - first_page_limit  # 🔥 RESET INDEX
-#             should_fill = page2_index <= second_page_limit
-
-#         # ---------- EMPTY ----------
-#         else:
-#             should_fill = False
-
-#         print(f"[DEBUG] label {i} -> fill={should_fill}")
-
-#         for p in block:
-#             if should_fill:
-#                 replace_runs(p)
-#             else:
-#                 clear_runs(p)
-
-#     # ===============================
-#     # 8️⃣ REMOVE PAGE BREAK
-#     # ===============================
-#     if remove_page2:
-#         for paragraph in doc.paragraphs:
-#             p = paragraph._element
-#             for br in p.findall(
-#                 ".//w:br",
-#                 namespaces={"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"},
-#             ):
-#                 if br.get(qn("w:type")) == "page":
-#                     p.remove(br)
-
-#     # ===============================
-#     # 9️⃣ SAVE FILE
-#     # ===============================
-#     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".docx")
-#     doc.save(tmp.name)
-
-#     # ===============================
-#     # 🔟 RETURN FILE
-#     # ===============================
-#     label_type = type.upper() if type else "LABEL"
-#     filename = f"label_{lot_no}_{part_no}_{label_type}_{size}.docx"
-
-#     return FileResponse(
-#         path=tmp.name,
-#         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-#         filename=filename,
-#     )

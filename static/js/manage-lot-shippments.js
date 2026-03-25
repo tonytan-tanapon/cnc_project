@@ -57,16 +57,13 @@ async function loadLotHeader() {
   <div class="lot-vertical">
   <div><b>Customer:</b> ${lot.customer_code ?? "-"}</div>
   <div><b>Part No:</b> ${lot.part_no ?? "-"}</div>      
-    <div><b>Lot No:</b> ${lot.lot_no}, <b>PO No:</b> ${lot.po_number ?? "-"}</div>
+    <div><b>Lot No:</b> ${lot.lot_no}</div>
 
-    
+    <div><b>PO No:</b> ${lot.po_number ?? "-"}</div>
       
-    <div><b>Planned Qty:</b> ${lot.planned_qty ?? "-"}</div>
-    <div><b>Finished Qty:</b> ${lot.finished_qty ?? "-"}</div>
+   
     <div><b>Status:</b> ${lot.status ?? "-"}</div>
-    <div><b>Due Date:</b> ${
-      lot.due_date ? new Date(lot.due_date).toLocaleDateString() : "-"
-    }</div>
+  
   </div>
 `;
   } catch (err) {
