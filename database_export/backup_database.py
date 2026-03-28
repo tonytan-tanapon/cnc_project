@@ -1,3 +1,8 @@
+# python database_export/backup_database.py
+# You can select specific tables or export all. 
+# for export all set EXPORT_ALL_TABLES = True
+# for specific tables set EXPORT_ALL_TABLES = False and list tables in TABLES_TO_EXPORT
+
 #!/usr/bin/env python3
 """
 Fixed configuration version of export_csv.py

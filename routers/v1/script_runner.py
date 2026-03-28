@@ -9,6 +9,7 @@ router = APIRouter(prefix="/script", tags=["script"])
 
 @router.post("/import-excel")
 def run_import(db: Session = Depends(get_db)):
+    print("Running import_excel_to_database.py script...")
     try:
         script_path = r"C:\Users\TPSERVER\dev\cnc_project\database_import\import_excel_to_database.py"
         python_exe = r"C:\Users\TPSERVER\dev\cnc_project\venv\Scripts\python.exe"
@@ -18,7 +19,8 @@ def run_import(db: Session = Depends(get_db)):
             capture_output=True,
             text=True
         )
-
+        print("Script output:", result.stdout)
+        print("Script errors:", result.stderr)
         return {
             "status": "success" if result.returncode == 0 else "error",
             "output": result.stdout,
