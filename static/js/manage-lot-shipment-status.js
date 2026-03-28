@@ -655,7 +655,7 @@ function makeColumns() {
     // } , 
 
     {
-      title: "Shipped",
+      title: "Ship<br><small>details</small>",
       width: 150,
       field: "lot_shipped_qty",
       hozAlign: "center",
@@ -676,9 +676,11 @@ function makeColumns() {
         gap:6px;
         white-space:nowrap;
       ">
+      <!--
         <span style="font-weight:600;">
           ${shipped}
         </span>
+        -->
 
         <a href="/static/traveler-detail.html?lot_id=${encodeURIComponent(lotId)}"
            target="_blank">🧾</a>
@@ -845,19 +847,19 @@ function makeColumns() {
       },
     },
     /* ===== LAST SHIPPED ===== */
-    {
-      title: "Shipped Date",
-      field: "lot_last_ship_date",
-      width: 160,
-      formatter: (cell) => {
-        const v = cell.getValue();
-        return v ? new Date(v).toLocaleDateString() : "";
-      },
+    // {
+    //   title: "Shipped Date",
+    //   field: "lot_last_ship_date",
+    //   width: 160,
+    //   formatter: (cell) => {
+    //     const v = cell.getValue();
+    //     return v ? new Date(v).toLocaleDateString() : "";
+    //   },
 
-      accessorDownload: (value) => {
-        return formatDateShort(value);
-      },
-    },
+    //   accessorDownload: (value) => {
+    //     return formatDateShort(value);
+    //   },
+    // },
 
     {
       title: "Note",
