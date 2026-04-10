@@ -52,7 +52,7 @@ async function loadLotHeader() {
     TABLE_HEADER = lot; // 👈 เก็บลง state
     const hdr = document.getElementById("lotHeader");
     console.log("LOT Header", lot)
-    
+
     hdr.innerHTML = `
   <div class="lot-vertical">
   <div><b>Customer:</b> ${lot.customer_code ?? "-"}</div>
@@ -623,27 +623,88 @@ function initShipmentTable() {
         },
       },
 
-    
+
+      //     {
+      //       title: "Docs",
+      //       width: 140,
+      //       hozAlign: "center",
+      //       formatter: () => `
+      //   <div style="display:flex; flex-direction:column; gap:6px; align-items:center;">
+      //     <button class="btn-mini btn-blue" data-action="cofc">CofC</button>
+      //     <button class="btn-mini btn-green" data-action="packing">Packing</button>
+      //     <button class="btn-mini btn-green" data-action="packingfa">PackingFA</button>
+      //   </div>
+      // `,
+      //       cellClick: (e, cell) => {
+      //         const action = e.target?.dataset?.action;
+      //         const rowData = cell.getRow().getData();
+
+      //         if (action === "cofc") {
+      //           const row = cell.getRow();
+      //           const rowData = row.getData();
+
+      //           // ✅ 1. download first (optional order)
+      //           downloadCofC(rowData);
+
+      //           // ✅ 2. get tracking cell
+      //           const trackingCell = row.getCell("tracking_number");
+
+      //           // ✅ 3. set value + trigger cellEdited
+      //           trackingCell.setValue("Print CofC", true);
+      //           // 🔥 true = trigger cellEdited → updateField("tracking_number") runs
+
+      //         }
+      //       },
+      //     },
       {
-  title: "Docs",
-  width: 140,
-  hozAlign: "center",
-  formatter: () => `
+        title: "Docs",
+        width: 140,
+        hozAlign: "center",
+        formatter: () => `
     <div style="display:flex; flex-direction:column; gap:6px; align-items:center;">
       <button class="btn-mini btn-blue" data-action="cofc">CofC</button>
       <button class="btn-mini btn-green" data-action="packing">Packing</button>
       <button class="btn-mini btn-green" data-action="packingfa">PackingFA</button>
     </div>
   `,
-  cellClick: (e, cell) => {
-    const action = e.target?.dataset?.action;
-    const rowData = cell.getRow().getData();
+        cellClick: async (e, cell) => {
+          const btn = e.target.closest("button");
+          if (!btn) return;
 
-    if (action === "cofc") downloadCofC(rowData);
-    if (action === "packing") downloadPacking(rowData);
-    if (action === "packingfa") downloadPackingFA(rowData);
-  },
-},
+          const action = btn.dataset.action;
+          const row = cell.getRow();
+          const rowData = row.getData();
+
+          try {
+            if (action === "cofc") {
+              const trackingCell = row.getCell("tracking_number");
+
+              // ✅ 1. update UI
+              trackingCell.setValue("Print CofC");
+
+              // ✅ 2. FORCE call updateField manually
+              await updateField("tracking_number")(trackingCell);
+
+              // ✅ 3. download
+              await downloadCofC(rowData);
+
+              toast("✅ CofC + tracking updated");
+            }
+
+            if (action === "packing") {
+              await downloadPacking(rowData);
+            }
+
+            if (action === "packingfa") {
+              await downloadPackingFA(rowData);
+            }
+
+          } catch (err) {
+            console.error(err);
+            toast("❌ Action failed", false);
+          }
+        },
+      },
       {
         title: "Label",
         width: 150,
@@ -691,12 +752,12 @@ function initShipmentTable() {
 
       },
 
-       {
+      {
         title: "Note",
         field: "note",
-       editor: "input",
+        editor: "input",
         width: 80,
-       },
+      },
       {
         title: "Report",
         width: 100,
