@@ -1206,6 +1206,9 @@ def download_label(
             joinedload(CustomerShipment.items)
                 .joinedload(CustomerShipmentItem.lot)
                 .joinedload(ProductionLot.part_revision),
+            joinedload(CustomerShipment.items)
+                .joinedload(CustomerShipmentItem.po_line)
+                .joinedload(POLine.rev),
         )
         .filter(CustomerShipment.id == shipment_id)
         .first()
@@ -1217,7 +1220,11 @@ def download_label(
     item = shipment.items[0]
     lot = item.lot
     part = lot.part if lot else None
-    revision = lot.part_revision if lot else None
+    rev = ""
+    for i in shipment.items:
+        if i.po_line and i.po_line.rev:
+            rev = i.po_line.rev.rev
+            break
 
     lot_no = lot.lot_no if lot else "UNKNOWN_LOT"
     part_no = part.part_no if part else "UNKNOWN_PART"
@@ -1255,7 +1262,7 @@ def download_label(
     # ===============================
     replace_map = {
         "{PART}": f"Part: {part.part_no} {part.name}" if part else "",
-        "{REV}": f"Rev: {revision.rev} Lot: {lot.lot_no} PO: {po_no}" if revision else "",
+        "{REV}": f"Rev: {rev} Lot: {lot.lot_no} PO: {po_no}" if rev else "",
         "{LOT_NO}": lot_no,
         "{DESCRIPTION}": part.name if part else "",
         "{DATE}": datetime.now().strftime("%m/%d/%Y"),

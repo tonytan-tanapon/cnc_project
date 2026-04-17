@@ -263,7 +263,7 @@ function renderLotTable(d) {
 `],
 
   ["Part Name", d.part_name],
-  ["Revision Code", d.revision_code],
+  // ["Revision Code", d.lot_revision_code],
    ["Revision Code", d.rev_from_po],
   ["Customer Code", d.customer_code],
   // ["Customer Name", d.customer_name],

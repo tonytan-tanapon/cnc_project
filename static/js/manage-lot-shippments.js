@@ -428,8 +428,19 @@ function initShipmentTable() {
     placeholder: "No shipment data",
 
     columns: [
-      { title: "#Ship", field: "shipment_no", width: 95 },
+      // { title: "#Ship", field: "shipment_no", width: 95 },
+{
+        title: "Lot",
+        field: "lots",
+        formatter: (cell) => {
+          const lots = cell.getValue() || [];
+          return lots.map((l) => l.lot_no).join(", "); // แสดงเฉพาะ lot_no
+        },
 
+        width: 100,
+      },
+
+        { title: "Cus.", field: "customer_code", width: 80 },
       {
         title: "Date",
         field: "date", // 👈 ต้องตรงกับ response จาก server
@@ -476,7 +487,7 @@ function initShipmentTable() {
         },
       },
 
-      { title: "Cus.", field: "customer_code", width: 80 },
+    
 
       {
         title: "Tracking #",
@@ -485,84 +496,75 @@ function initShipmentTable() {
         width: 160,
         cellEdited: updateField("tracking_number"),
       },
-      {
-        title: "Lot",
-        field: "lots",
-        formatter: (cell) => {
-          const lots = cell.getValue() || [];
-          return lots.map((l) => l.lot_no).join(", "); // แสดงเฉพาะ lot_no
-        },
+      
+    //   {
+    //     title: "Lot Use",
+    //     field: "allocated_lots",
+    //     width: 150,
+    //     formatter: (cell) => {
+    //       const row = cell.getRow().getData();
+    //       const lots = cell.getValue();
+    //       if (!lots || !Array.isArray(lots) || !lots.length) {
+    //         return `<span style="color:#ccc">(no alloc)</span>`;
+    //       }
 
-        width: 100,
-      },
-      {
-        title: "Lot Use",
-        field: "allocated_lots",
-        width: 150,
-        formatter: (cell) => {
-          const row = cell.getRow().getData();
-          const lots = cell.getValue();
-          if (!lots || !Array.isArray(lots) || !lots.length) {
-            return `<span style="color:#ccc">(no alloc)</span>`;
-          }
+    //       return lots
+    //         .map((lot) => {
+    //           const disabled =
+    //             row.status === "shipped" ? "disabled btn-disabled" : "";
+    //           return `
+    //   <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+    //     <span>${lot.lot_no}, (${lot.qty}) </span>
+    //     <button data-act="return-one"
+    //             data-lot-id="${lot.lot_id}"
+    //             data-qty="${lot.qty}"
+    //             class="btn-mini btn-orange ${disabled}">
+    //       Return
+    //     </button>
+    //   </div>
+    // `;
+    //         })
+    //         .join("");
+    //     },
+    //     cellClick: async (e, cell) => {
+    //       const btn = e.target;
+    //       if (btn.dataset.act !== "return-one") return;
 
-          return lots
-            .map((lot) => {
-              const disabled =
-                row.status === "shipped" ? "disabled btn-disabled" : "";
-              return `
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-        <span>${lot.lot_no}, (${lot.qty}) </span>
-        <button data-act="return-one"
-                data-lot-id="${lot.lot_id}"
-                data-qty="${lot.qty}"
-                class="btn-mini btn-orange ${disabled}">
-          Return
-        </button>
-      </div>
-    `;
-            })
-            .join("");
-        },
-        cellClick: async (e, cell) => {
-          const btn = e.target;
-          if (btn.dataset.act !== "return-one") return;
+    //       const row = cell.getRow().getData();
+    //       if (row.status === "shipped") {
+    //         return toast("⛔ Cannot return, shipment already shipped", false);
+    //       }
 
-          const row = cell.getRow().getData();
-          if (row.status === "shipped") {
-            return toast("⛔ Cannot return, shipment already shipped", false);
-          }
+    //       const sourceLotId = Number(btn.dataset.lotId);
+    //       const shipmentId = row.id;
 
-          const sourceLotId = Number(btn.dataset.lotId);
-          const shipmentId = row.id;
+    //       try {
+    //         await jfetch(ENDPOINTS.returnPart, {
+    //           method: "POST",
+    //           headers: { "Content-Type": "application/json" },
+    //           body: JSON.stringify({
+    //             source_lot_id: sourceLotId,
+    //             target_lot_id: Number(lotId),
+    //             qty: Number(btn.dataset.qty),
+    //             shipment_id: shipmentId,
+    //           }),
+    //         });
 
-          try {
-            await jfetch(ENDPOINTS.returnPart, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                source_lot_id: sourceLotId,
-                target_lot_id: Number(lotId),
-                qty: Number(btn.dataset.qty),
-                shipment_id: shipmentId,
-              }),
-            });
+    //         toast("✅ Return success");
 
-            toast("✅ Return success");
-
-            await loadShipmentTable();
-            await loadPartInventory();
-            cell.getRow().update({}); // redraw row
-          } catch (err) {
-            console.error("Return error:", err);
-            toast("❌ Return failed", false);
-          }
-        },
-      },
+    //         await loadShipmentTable();
+    //         await loadPartInventory();
+    //         cell.getRow().update({}); // redraw row
+    //       } catch (err) {
+    //         console.error("Return error:", err);
+    //         toast("❌ Return failed", false);
+    //       }
+    //     },
+    //   },
       {
         title: "Qty",
         field: "qty",
-        editor: "number",
+        // editor: "number",
         width: 80,
 
         formatter: (cell) => {
@@ -601,27 +603,27 @@ function initShipmentTable() {
           }
         },
       },
-      {
-        title: "Status",
-        field: "status",
-        editor: "select",
-        editorParams: { values: ["pending", "shipped", "cancelled"] },
-        width: 110,
-        cellEdited: updateField("status"),
-        formatter: (cell) => {
-          const v = cell.getValue();
-          const colors = {
-            pending: "#fbbf24",
-            shipped: "#22c55e",
-            cancelled: "#ef4444",
-          };
-          return `<span style="
-            background:${colors[v] || "#ccc"};
-            color:#fff;padding:3px 8px;border-radius:6px;
-            text-transform:capitalize;
-          ">${v}</span>`;
-        },
-      },
+      // {
+      //   title: "Status",
+      //   field: "status",
+      //   editor: "select",
+      //   editorParams: { values: ["pending", "shipped", "cancelled"] },
+      //   width: 110,
+      //   cellEdited: updateField("status"),
+      //   formatter: (cell) => {
+      //     const v = cell.getValue();
+      //     const colors = {
+      //       pending: "#fbbf24",
+      //       shipped: "#22c55e",
+      //       cancelled: "#ef4444",
+      //     };
+      //     return `<span style="
+      //       background:${colors[v] || "#ccc"};
+      //       color:#fff;padding:3px 8px;border-radius:6px;
+      //       text-transform:capitalize;
+      //     ">${v}</span>`;
+      //   },
+      // },
 
 
       //     {
@@ -759,19 +761,19 @@ function initShipmentTable() {
         editor: "input",
         width: 80,
       },
-      {
-        title: "Report",
-        width: 100,
-        formatter: () =>
-          `<button class="btn-mini btn-orange" data-act="report">Report</button>`,
-        cellClick: async (e, cell) => {
-          const row = cell.getRow().getData();
-          if (e.target.dataset.act === "report") {
-            logShipmentRow(row); // 👈 log detail row
-            await downloadReport(row);
-          }
-        },
-      },
+      // {
+      //   title: "Report",
+      //   width: 100,
+      //   formatter: () =>
+      //     `<button class="btn-mini btn-orange" data-act="report">Report</button>`,
+      //   cellClick: async (e, cell) => {
+      //     const row = cell.getRow().getData();
+      //     if (e.target.dataset.act === "report") {
+      //       logShipmentRow(row); // 👈 log detail row
+      //       await downloadReport(row);
+      //     }
+      //   },
+      // },
       {
         title: "Delete",
         width: 90,
