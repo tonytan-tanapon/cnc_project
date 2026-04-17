@@ -161,7 +161,7 @@ function makeColumns() {
     {
       title: "Copy",
       download: false,
-      width: 70,
+      width: 100,
       hozAlign: "center",
       formatter: () => `
         <button style="
@@ -189,7 +189,7 @@ function makeColumns() {
     {
       title: "Lot",
       field: "lot_no",
-      width: 80,
+      width: 100,
       sorter: (a, b) => {
         const na = Number((a || "").match(/\d+/)?.[0] || 0);
         const nb = Number((b || "").match(/\d+/)?.[0] || 0);
@@ -306,7 +306,7 @@ function makeColumns() {
     {
       title: "Part",
       field: "part_no",
-      width: 170,
+      width: 200,
       formatter: (cell) => {
         const d = cell.getData();
         const rev = d.revision ? ` (${d.revision})` : "";
@@ -680,11 +680,11 @@ function makeColumns() {
         <span style="font-weight:600;">
           ${shipped}
         </span>
-        -->
-
+        
+<!--
         <a href="/static/traveler-detail.html?lot_id=${encodeURIComponent(lotId)}"
            target="_blank">🧾</a>
-
+-->
         <a href="/static/manage-lot-shippments.html?lot_id=${encodeURIComponent(lotId)}"
            target="_blank">📦</a>
       </div>
