@@ -9,8 +9,8 @@ SELECT
     pl.lot_no,
     pl.status             AS lot_status,
     pl.planned_qty        AS lot_qty,
-    pl.planned_ship_qty   AS lot_planned_ship_qty,
-    pl.lot_po_duedate     AS lot_po_duedate,
+    pl.planned_ship_qty   AS lot_planned_ship_qty,   -- ✅ NEW
+    pl.lot_po_duedate   AS lot_po_duedate,   -- ✅ NEW
     pl.lot_due_date,
     pl.created_at,
     pl.lot_po_date,
@@ -25,21 +25,10 @@ SELECT
     pt.name               AS part_name,
 
     -- =====================
-    -- REVISION (LOT vs PO)
+    -- REVISION
     -- =====================
-    pr.id       AS lot_revision_id,
-    pr.rev      AS lot_revision_code,
-
-    pr_po.id    AS po_revision_id,
-    pr_po.rev   AS rev_from_po,
-
-    CASE 
-        WHEN pr_po.rev IS NOT NULL 
-         AND pr.rev IS NOT NULL 
-         AND pr_po.rev != pr.rev
-        THEN 'Mismatch'
-        ELSE 'OK'
-    END AS revision_check,
+    pr.id                 AS revision_id,
+    pr.rev                AS revision_code,
 
     -- =====================
     -- PO / CUSTOMER
@@ -70,34 +59,38 @@ SELECT
     mb.batch_no_list,
 
     -- =====================================================
-    -- LOT SHIPMENT SUMMARY
+    -- LOT-CENTRIC SHIPMENT (SUMMARY)
     -- =====================================================
     COALESCE(lsh.shipped_qty, 0) AS lot_shipped_qty,
-    (pl.planned_ship_qty - COALESCE(lsh.shipped_qty, 0)) AS lot_remaining_to_ship,
+    (pl.planned_ship_qty - COALESCE(lsh.shipped_qty, 0)) AS lot_remaining_to_ship, -- ✅ NEW
     lsh.last_ship_date           AS lot_last_ship_date,
 
     -- =====================================================
-    -- LOT SHIPMENT DETAIL
+    -- LOT-CENTRIC SHIPMENT (LATEST DETAIL)
     -- =====================================================
     lsd.shipped_at     AS lot_shipped_at,
     lsd.tracking_no    AS lot_tracking_no,
     lsd.shipped_qty    AS lot_shipped_qty_last,
 
     -- =====================================================
-    -- PO SHIPMENT SUMMARY
+    -- PO-CENTRIC SHIPMENT (SUMMARY)
     -- =====================================================
     COALESCE(psh.shipped_qty_total, 0) AS po_shipped_total,
     (pol.qty_ordered - COALESCE(psh.shipped_qty_total, 0)) AS po_remaining_qty,
     psh.last_ship_date                 AS po_last_ship_date,
 
     -- =====================
-    -- SHIPMENT STATUS
+    -- SHIPMENT STATUS (PO-centric)
     -- =====================
     CASE
-        WHEN pol.qty_ordered IS NULL OR pol.qty_ordered = 0 THEN 'Invalid'
-        WHEN (pol.qty_ordered - COALESCE(psh.shipped_qty_total, 0)) < 0 THEN 'Overshipped'
-        WHEN COALESCE(psh.shipped_qty_total, 0) = 0 THEN 'Not Shipped'
-        WHEN (pol.qty_ordered - COALESCE(psh.shipped_qty_total, 0)) = 0 THEN 'Fully Shipped'
+        WHEN pol.qty_ordered IS NULL OR pol.qty_ordered = 0
+            THEN 'Invalid'
+        WHEN (pol.qty_ordered - COALESCE(psh.shipped_qty_total, 0)) < 0
+            THEN 'Overshipped'
+        WHEN COALESCE(psh.shipped_qty_total, 0) = 0
+            THEN 'Not Shipped'
+        WHEN (pol.qty_ordered - COALESCE(psh.shipped_qty_total, 0)) = 0
+            THEN 'Fully Shipped'
         ELSE 'Partially Shipped'
     END AS shipment_status
 
@@ -107,40 +100,35 @@ FROM production_lots pl
 -- PO / CUSTOMER
 -- =====================
 JOIN purchase_orders po
-    ON po.id = pl.po_id
+      ON po.id = pl.po_id
 
 LEFT JOIN customers c
-    ON c.id = po.customer_id
+      ON c.id = po.customer_id
 
 -- =====================
 -- PO LINE
 -- =====================
 LEFT JOIN po_lines pol
-    ON pol.po_id = po.id
-   AND pol.part_id = pl.part_id
+      ON pol.po_id = po.id
+     AND pol.part_id = pl.part_id
 
 -- =====================
--- PART
+-- PART / REVISION
 -- =====================
 LEFT JOIN parts pt
-    ON pt.id = pl.part_id
+      ON pt.id = pl.part_id
 
--- LOT revision
 LEFT JOIN part_revisions pr
-    ON pr.id = pl.part_revision_id
-
--- ✅ PO revision (NEW)
-LEFT JOIN part_revisions pr_po
-    ON pr_po.id = pol.revision_id
+      ON pr.id = pl.part_revision_id
 
 -- =====================
 -- TRAVELER
 -- =====================
 LEFT JOIN shop_travelers st
-    ON st.lot_id = pl.id
+      ON st.lot_id = pl.id
 
 -- =====================
--- MATERIAL / BATCH
+-- MATERIAL / BATCH (FIXED DISTINCT)
 -- =====================
 LEFT JOIN LATERAL (
     SELECT
@@ -150,27 +138,27 @@ LEFT JOIN LATERAL (
         SELECT DISTINCT rb.id, rb.batch_no
         FROM lot_material_use lmu
         JOIN raw_batches rb
-            ON rb.id = lmu.batch_id
+             ON rb.id = lmu.batch_id
         WHERE lmu.lot_id = pl.id
     ) x
 ) mb ON TRUE
 
--- =====================
--- LOT SHIPMENT SUMMARY
--- =====================
+-- =====================================================
+-- LOT-CENTRIC SHIPMENT (SUMMARY)
+-- =====================================================
 LEFT JOIN LATERAL (
     SELECT
         SUM(csi.qty)       AS shipped_qty,
         MAX(cs.shipped_at) AS last_ship_date
     FROM customer_shipment_items csi
     JOIN customer_shipments cs
-        ON cs.id = csi.shipment_id
+         ON cs.id = csi.shipment_id
     WHERE csi.lot_id = pl.id
 ) lsh ON TRUE
 
--- =====================
--- LOT SHIPMENT DETAIL
--- =====================
+-- =====================================================
+-- LOT-CENTRIC SHIPMENT (LATEST DETAIL)
+-- =====================================================
 LEFT JOIN LATERAL (
     SELECT
         cs.shipped_at,
@@ -178,23 +166,23 @@ LEFT JOIN LATERAL (
         csi.qty AS shipped_qty
     FROM customer_shipment_items csi
     JOIN customer_shipments cs
-        ON cs.id = csi.shipment_id
+         ON cs.id = csi.shipment_id
     WHERE csi.lot_id = pl.id
     ORDER BY cs.shipped_at DESC
     LIMIT 1
 ) lsd ON TRUE
 
--- =====================
--- PO SHIPMENT SUMMARY
--- =====================
+-- =====================================================
+-- PO-CENTRIC SHIPMENT (SUMMARY ONLY)
+-- =====================================================
 LEFT JOIN LATERAL (
     SELECT
         SUM(csi.qty) AS shipped_qty_total,
         MAX(cs.shipped_at) AS last_ship_date
     FROM customer_shipment_items csi
     JOIN customer_shipments cs
-        ON cs.id = csi.shipment_id
+         ON cs.id = csi.shipment_id
     JOIN production_lots pl2
-        ON pl2.id = csi.lot_id
+         ON pl2.id = csi.lot_id
     WHERE pl2.po_line_id = pol.id
 ) psh ON TRUE;

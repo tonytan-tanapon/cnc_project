@@ -674,9 +674,10 @@ function initShipmentTable() {
           const action = btn.dataset.action;
           const row = cell.getRow();
           const rowData = row.getData();
-
+          console.log("Doc action:", { action, rowData });  
           try {
             if (action === "cofc") {
+              console.log("Downloading CofC for shipment:", rowData.shipment_no);
               const trackingCell = row.getCell("tracking_number");
 
               // ✅ 1. update UI

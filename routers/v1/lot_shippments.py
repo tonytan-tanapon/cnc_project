@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 from database import get_db
 from models import (
+    POLine,
     ProductionLot,
     CustomerShipment,
     CustomerShipmentItem,
@@ -103,6 +104,9 @@ def list_lot_shipments(lot_id: int, db: Session = Depends(get_db)):
             # joinedload(CustomerShipment.items).joinedload(CustomerShipmentItem.lot),  # preload source lot ด้วย
             joinedload(CustomerShipment.items).joinedload(CustomerShipmentItem.lot).joinedload(ProductionLot.part_revision),  # 👈 preload rev
             joinedload(CustomerShipment.po).joinedload(PO.customer),
+            joinedload(CustomerShipment.items)
+            .joinedload(CustomerShipmentItem.po_line)
+            .joinedload(POLine.rev),
         )
         .filter(CustomerShipment.lot_id == lot_id)
         .order_by(CustomerShipment.shipped_at.desc())
@@ -163,6 +167,26 @@ def list_lot_shipments(lot_id: int, db: Session = Depends(get_db)):
             for k, v in allocated_group.items()
         ]
 
+        rev = None
+        for i in items:
+            if i.po_line and i.po_line.rev:
+                rev = i.po_line.rev.rev
+                break
+
+        rev_po = list({
+            i.po_line.rev.rev
+            for i in items
+            if i.po_line and i.po_line.rev
+        })
+
+        rev_lot = list({
+            i.lot.part_revision.rev
+            for i in items
+            if i.lot and i.lot.part_revision
+        })
+
+        print(f"Shipment {s.id} has rev from PO lines: {rev_po}, rev from lot revisions: {rev_lot}")
+
         result.append({
             "id": s.id,
             "shipment_no": s.package_no or f"SHP-{s.id:05d}",
@@ -172,12 +196,15 @@ def list_lot_shipments(lot_id: int, db: Session = Depends(get_db)):
             "date": s.shipped_at,
             "tracking_number": s.tracking_no,
             "customer_name": s.po.customer.name if s.po and s.po.customer else None,
-            "customer_code": s.po.customer.code if s.po and s.po.customer else None,  # ✅ เพิ่มบรรทัดนี้
-            # "customer_code": s.po.customer.code if s.po and s.po.code else None,
-            # ✅ ส่งให้ UI
+            "customer_code": s.po.customer.code if s.po and s.po.customer else None,
+
             "lots": lots_list,
-            "allocated_lots": allocated_lots_list,  # 👈 มี allocate ID แล้ว
-            "rev": i.lot.part_revision.rev if i.lot and i.lot.part_revision else None  # 👈 append rev from item
+            "allocated_lots": allocated_lots_list,
+
+            # ✅ FIXED: rev from PO line
+            "rev": rev_po,
+            "rev_from_po": rev_po,
+            "rev_from_lot": rev_lot,
         })
 
     return result
@@ -659,6 +686,94 @@ from docx import Document
 import tempfile
 import os
 
+# def generate_docx_from_template(
+#     db: Session,
+#     shipment_id: int,
+#     template_path: str,
+#     filename_prefix: str,
+#     replace_map_builder,
+# ):
+#     import os, tempfile
+#     from docx import Document
+#     from fastapi.responses import FileResponse
+#     from datetime import datetime
+
+#     shipment = (
+#         db.query(CustomerShipment)
+#         .options(
+#             joinedload(CustomerShipment.items)
+#                 .joinedload(CustomerShipmentItem.lot)
+#                 .joinedload(ProductionLot.part),
+
+#             joinedload(CustomerShipment.items)
+#                 .joinedload(CustomerShipmentItem.lot)
+#                 .joinedload(ProductionLot.part_revision),
+
+#             joinedload(CustomerShipment.po).joinedload(PO.customer),
+#         )
+#         .get(shipment_id)
+#     )
+
+#     if not shipment:
+#         raise HTTPException(status_code=404, detail="Shipment not found")
+
+#     if not shipment.items:
+#         raise HTTPException(status_code=400, detail="Shipment has no shipment items")
+
+#     item = shipment.items[0]
+#     lot = item.lot
+#     part = lot.part if lot else None
+#     revision = lot.part_revision if lot else None
+
+#     lot_no = lot.lot_no if lot else ""
+#     qty = int(item.qty or 0)
+#     part_no = part.part_no if part else ""
+#     rev = revision.rev if revision else ""
+#     desc = part.name if part else ""
+
+#     customer_name = shipment.po.customer.name if shipment.po and shipment.po.customer else ""
+#     customer_address = shipment.po.customer.address if shipment.po and shipment.po.customer else ""
+#     po_no = shipment.po.po_number if shipment.po else ""
+
+#     fair = lot.fair_note if part else ""
+
+#     # Let caller decide what fields to use
+#     replace_map = replace_map_builder(
+#         lot_no, part_no, rev, qty, desc,
+#         customer_name, customer_address, po_no, shipment.id, fair
+#     )
+
+#     if not os.path.exists(template_path):
+#         raise HTTPException(status_code=404, detail="Template not found")
+
+#     doc = Document(template_path)
+
+#     def replace_runs(paragraph):
+#         for run in paragraph.runs:
+#             for k, v in replace_map.items():
+#                 if k in run.text:
+#                     run.text = run.text.replace(k, v or "")
+
+#     for p in doc.paragraphs:
+#         replace_runs(p)
+
+#     for table in doc.tables:
+#         for row in table.rows:
+#             for cell in row.cells:
+#                 for p in cell.paragraphs:
+#                     replace_runs(p)
+
+#     download_name = f"{filename_prefix}_{lot_no}_{part_no}.docx"
+
+#     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".docx")
+#     doc.save(tmp.name)
+
+#     return FileResponse(
+#         tmp.name,
+#         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+#         filename=download_name,
+#     )
+
 def generate_docx_from_template(
     db: Session,
     shipment_id: int,
@@ -674,6 +789,7 @@ def generate_docx_from_template(
     shipment = (
         db.query(CustomerShipment)
         .options(
+            # LOT info
             joinedload(CustomerShipment.items)
                 .joinedload(CustomerShipmentItem.lot)
                 .joinedload(ProductionLot.part),
@@ -681,6 +797,11 @@ def generate_docx_from_template(
             joinedload(CustomerShipment.items)
                 .joinedload(CustomerShipmentItem.lot)
                 .joinedload(ProductionLot.part_revision),
+
+            # ✅ NEW: PO LINE REV
+            joinedload(CustomerShipment.items)
+                .joinedload(CustomerShipmentItem.po_line)
+                .joinedload(POLine.rev),
 
             joinedload(CustomerShipment.po).joinedload(PO.customer),
         )
@@ -694,23 +815,33 @@ def generate_docx_from_template(
         raise HTTPException(status_code=400, detail="Shipment has no shipment items")
 
     item = shipment.items[0]
+
     lot = item.lot
     part = lot.part if lot else None
-    revision = lot.part_revision if lot else None
 
+    # =========================
+    # ✅ FIXED REV FROM PO LINE
+    # =========================
+    rev = ""
+    for i in shipment.items:
+        if i.po_line and i.po_line.rev:
+            rev = i.po_line.rev.rev
+            break
+
+    # =========================
+    # NORMAL FIELDS
+    # =========================
     lot_no = lot.lot_no if lot else ""
     qty = int(item.qty or 0)
     part_no = part.part_no if part else ""
-    rev = revision.rev if revision else ""
     desc = part.name if part else ""
 
     customer_name = shipment.po.customer.name if shipment.po and shipment.po.customer else ""
     customer_address = shipment.po.customer.address if shipment.po and shipment.po.customer else ""
     po_no = shipment.po.po_number if shipment.po else ""
 
-    fair = lot.fair_note if part else ""
+    fair = lot.fair_note if lot else ""
 
-    # Let caller decide what fields to use
     replace_map = replace_map_builder(
         lot_no, part_no, rev, qty, desc,
         customer_name, customer_address, po_no, shipment.id, fair
@@ -749,6 +880,7 @@ def generate_docx_from_template(
 
 @router.get("/{shipment_id}/download/cofc")
 def download_cofc(shipment_id: int, db: Session = Depends(get_db)):
+    print(f"Generating CofC for shipment {shipment_id}")
 
     def build_map(lot_no, part_no, rev, qty, desc, cust, addr, po, sid,fair):
         from datetime import datetime
