@@ -67,73 +67,138 @@
   </head>
 
   <body>
-    <div class="app">
-      <aside class="sidebar"><div id="navSlot" data-nav-slot></div></aside>
+  <div class="app">
+    <aside class="sidebar">
+      <div id="navSlot" data-nav-slot></div>
+    </aside>
 
-      <main class="main main--edge">
-        <section class="panel panel--edge" id="listPanel">
-          <div class="list-topbar">
-            <input
-              id="_q"
-              type="search"
-              class="search-lg"
-              placeholder="Search…"
-            />LOT STATUS:
-            <select id="_lot_status" class="search-lg">
-              <option value="">All Status</option>
-              <option value="not_start" selected>Not Ship</option>
-  
-              <option value="in_process">In Process</option>
-      
-              <option value="completed">Completed</option>
-           
+    <main class="main main--edge">
+      <section class="panel panel--edge" id="listPanel">
+        
+        <div class="list-topbar">
+          <input
+            id="_q"
+            type="search"
+            class="search-lg"
+            placeholder="Search…"
+          />
 
-            </select>
-             <!-- <select id="_lot_status" class="search-lg">
-              <option value="">All Status</option>
-              <option value="not_start" selected>Not Start</option>
-              <option value="planned">Planned</option>
-              <option value="in_process">In Process</option>
-              <option value="hold">Hold</option>
-              <option value="completed">Completed</option>
-              <option value="shipped">Shipped</option>
-              <option value="canceled">Canceled</option>
-            </select> -->
-            <!-- Shipment STATUS:
-            <select id="_status" class="search-lg">
-              <option value="">All Status</option>
-              <option value="Not Shipped">Not Shipped</option>
-              <option value="Partially Shipped">Partially Shipped</option>
-              <option value="Fully Shipped">Fully Shipped</option>
-            </select> -->
+          <span style="margin-left:10px;">LOT STATUS:</span>
 
-            <!-- ✅ NEW DROPDOWN for Due Date -->
-            Due Date:
-            <select id="_duedays" class="search-lg">
-              <option value="">All Due Dates</option>
-              <option value="7">Due in ≤ 7 days</option>
-              <option value="30">Due in ≤ 30 days</option>
-              <option value="60">Due in ≤ 60 days</option>
-              <option value="90">Due in ≤ 90 days</option>
-              <option value="gt90">Due in > 90 days</option>
-            </select>
+          <!-- ✅ RADIO BUTTON -->
+          <div id="_lot_status_group" style="display:inline-flex; gap:10px; margin-left:10px; flex-wrap:wrap;">
+            
+            <label class="radio-pill">
+              <input type="radio" name="lot_status" value="" />
+              <span>All</span>
+            </label>
 
-            <button id="_reload" class="btn" type="button">Reload</button>
-            <button id="_export" class="btn" type="button">Export Excel</button>
+            <label class="radio-pill">
+              <input type="radio" name="lot_status" value="not_start" checked />
+              <span>No Ship</span>
+            </label>
+
+            <!-- <label class="radio-pill">
+              <input type="radio" name="lot_status" value="in_process" />
+              <span>In Process</span>
+            </label> -->
+
+            <label class="radio-pill">
+              <input type="radio" name="lot_status" value="completed" />
+              <span>Completed</span>
+            </label>
+
           </div>
 
-          <div id="listBody"></div>
-        </section>
-      </main>
-    </div>
+          <button id="_reload" class="btn" type="button">Reload</button>
+          <button id="_export" class="btn" type="button">Export Excel</button>
+        </div>
 
-    <div class="toast" id="toast"><span id="toastText"></span></div>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script src="/static/vendor/tabulator/tabulator.min.js"></script>
-    <script type="module" src="/static/js/nav-loader.js"></script>
-    <script
-      type="module"
-      src="/static/js/manage-lot-shipment-status.js"
-    ></script>
-  </body>
+        <div id="listBody"></div>
+      </section>
+    </main>
+  </div>
+
+  <div class="toast" id="toast"><span id="toastText"></span></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="/static/vendor/tabulator/tabulator.min.js"></script>
+  <script type="module" src="/static/js/nav-loader.js"></script>
+
+  <!-- ✅ UPDATE JS -->
+  <script type="module">
+    import "/static/js/manage-lot-shipment-status.js";
+
+    // ✅ radio filter handler
+    document.querySelectorAll('input[name="lot_status"]').forEach(radio => {
+      radio.addEventListener("change", () => {
+        const status = document.querySelector('input[name="lot_status"]:checked')?.value || "";
+
+        // 🔥 ถ้าคุณใช้ Tabulator global table
+        if (window.table) {
+          if (!status) {
+            table.clearFilter();
+          } else {
+            table.setFilter("lot_status", "=", status);
+          }
+        }
+      });
+    });
+
+    // ✅ reload button (optional)
+    document.getElementById("_reload").addEventListener("click", () => {
+      const status = document.querySelector('input[name="lot_status"]:checked')?.value || "";
+
+      if (window.table) {
+        if (!status) {
+          table.clearFilter();
+        } else {
+          table.setFilter("lot_status", "=", status);
+        }
+      }
+    });
+  </script>
+
+  <!-- ✅ STYLE (สำคัญ ทำให้สวยเหมือน button) -->
+  <style>
+    .radio-pill {
+      background: #f3f4f6;
+      padding: 6px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+
+    .radio-pill input {
+      display: none;
+    }
+
+    .radio-pill span {
+      pointer-events: none;
+    }
+
+    .radio-pill:hover {
+      background: #e5e7eb;
+    }
+
+    .radio-pill input:checked + span {
+      color: white;
+    }
+
+    .radio-pill input:checked ~ span,
+    .radio-pill input:checked {
+      background: transparent;
+    }
+
+    .radio-pill:has(input:checked) {
+      background: #3b82f6;
+      color: white;
+      font-weight: 600;
+    }
+  </style>
+</body>
 </html>

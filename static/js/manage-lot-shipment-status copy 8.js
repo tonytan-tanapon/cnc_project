@@ -4,7 +4,7 @@ import { $, jfetch, toast } from "./api.js";
 const API_URL = "/reports/shipment-status";
 const UI = {
   q: "_q",
-  // lotStatus: "_lot_status",
+  lotStatus: "_lot_status",
   // duedays: "_duedays",
   reload: "_reload",
   export: "_export",   // ✅ ADD
@@ -917,10 +917,8 @@ function makeColumns() {
 /* ===== Apply Filter ===== */
 function applyFilter() {
   const q = els[UI.q].value.trim().toLowerCase();
-  // const lotStatus = els[UI.lotStatus].value;
+  const lotStatus = els[UI.lotStatus].value;
   // const duedaysVal = els[UI.duedays].value;
-  const lotStatus =
-  document.querySelector('input[name="lot_status"]:checked')?.value || "";
 
   table.clearFilter(true);
 
@@ -985,9 +983,6 @@ document.addEventListener("DOMContentLoaded", () => {
     window._flt = setTimeout(applyFilter, 300);
   });
   // els[UI.duedays].addEventListener("change", applyFilter);
-  // els[UI.lotStatus].addEventListener("change", applyFilter);
+  els[UI.lotStatus].addEventListener("change", applyFilter);
   els[UI.export].addEventListener("click", exportExcel);
-  document.querySelectorAll('input[name="lot_status"]').forEach((radio) => {
-  radio.addEventListener("change", applyFilter);
-});
 });
