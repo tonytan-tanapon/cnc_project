@@ -791,7 +791,7 @@ function makeColumns() {
       editor: "select",
       editorParams: {
         values: {
-          not_start: "Not Start",
+          not_start: "No Ship",      // 👈 เปลี่ยนตรงนี้ด้วย
           in_process: "In Process",
           hold: "Hold",
           completed: "Completed",
@@ -801,12 +801,22 @@ function makeColumns() {
 
       formatter: (cell) => {
         const v = cell.getValue();
+
         const colors = {
           not_start: "#6b7280",
           in_process: "#3b82f6",
           hold: "#f59e0b",
           completed: "#10b981",
           canceled: "#ef4444",
+        };
+
+        // ✅ label mapping
+        const labels = {
+          not_start: "No Ship",
+          in_process: "In Process",
+          hold: "Hold",
+          completed: "Completed",
+          canceled: "Canceled",
         };
 
         return `<span style="
@@ -819,7 +829,7 @@ function makeColumns() {
       min-width:90px;
       text-align:center;
     ">
-      ${v ?? ""}
+      ${labels[v] || v || ""}
     </span>`;
       },
 
@@ -834,13 +844,12 @@ function makeColumns() {
           await jfetch(`/api/v1/lots/${row.lot_id}/status`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ status: newStatus }),
+            body: JSON.stringify({ status: newStatus }), // ✅ ยังส่ง not_start อยู่
           });
 
           toast("Lot status updated", true);
         } catch (err) {
           toast("Update failed", false);
-          // rollback
           cell.setValue(oldStatus, true);
           console.error(err);
         }

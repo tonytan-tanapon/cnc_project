@@ -190,7 +190,7 @@ def allocate_qty(db, lot_id: int, po_id: int, po_line_id: int, new_qty: float):
         shipment = CustomerShipment(
             po_id=po_id,
             lot_id=lot_id,
-            shipped_at=datetime.utcnow(),
+            # shipped_at=datetime.utcnow(),
             status="pending",
         )
         db.add(shipment)

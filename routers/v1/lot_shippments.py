@@ -626,6 +626,9 @@ def update_shipment_fields(
                 lot.status = "completed"
                 updated_fields.append("lot.status=completed")
 
+            shipment.shipped_at = datetime.utcnow()
+            updated_fields.append("shipped_date")
+
            
 
     # ---- Shipped Date ----

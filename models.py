@@ -1519,7 +1519,8 @@ class CustomerShipment(Base):
     id = Column(Integer, primary_key=True)
     po_id = Column(Integer, ForeignKey("purchase_orders.id"), nullable=False, index=True)
     lot_id = Column(Integer, ForeignKey("production_lots.id"))  # ✅ add this
-    shipped_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    # shipped_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=True)
+    shipped_at = Column(DateTime(timezone=True), nullable=True)
     ship_to = Column(String, nullable=True)
     carrier = Column(String, nullable=True)
     tracking_no = Column(String, nullable=True)

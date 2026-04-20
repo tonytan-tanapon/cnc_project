@@ -492,7 +492,13 @@ def update_shipment_fields(
 
     if "tracking_number" in payload:
         shipment.tracking_no = payload["tracking_number"]
+
+        # shipment.shipped_at = datetime.utcnow()
+
+        # print(f"✅ Updated tracking number to {shipment.tracking_no} and set shipped_at to {shipment.shipped_at}")
         updated_fields.append("tracking_number")
+        # updated_fields.append("shipped_date")
+        
 
     if "shipped_date" in payload:
         try:

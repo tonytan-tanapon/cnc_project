@@ -71,7 +71,7 @@ last_traveler AS (
 -- =========================
 last_step AS (
     SELECT DISTINCT ON (s.traveler_id)
-        s.id AS step_id,
+        s.id AS step_id,                -- ✅ important
         s.traveler_id,
         s.qty_receive,
         s.qty_accept,
@@ -87,61 +87,41 @@ last_step AS (
 SELECT
     b.*,
 
-    -- =========================
-    -- step info
-    -- =========================
+    -- ✅ step info (NEW)
     ls.step_id,
+
+    -- ✅ qty from last step
     COALESCE(ls.qty_receive, 0) AS receive_input,
     COALESCE(ls.qty_accept, 0) AS accept_input,
     COALESCE(ls.qty_reject, 0) AS reject_input,
     ls.step_status,
 
     -- =========================
-    -- PO aggregation (FIXED)
+    -- PO aggregation
     -- =========================
+    SUM(b.lot_shipped_qty)
+        OVER (PARTITION BY b.po_line_id)
+        AS po_shipped_total,
 
-    -- ✅ shipped_total: นับเฉพาะ lot ที่ไม่ใช่ not_start
-    COALESCE(
-        SUM(b.lot_shipped_qty)
-        FILTER (WHERE b.lot_status <> 'not_start')
-        OVER (PARTITION BY b.po_line_id),
-    0) AS po_shipped_total,
-
-    -- ✅ remaining: คิดเฉพาะ lot ที่ not_start
-    CASE 
-        WHEN b.lot_status = 'not_start' THEN
-            b.po_qty_total
-            - COALESCE(
-                SUM(b.lot_shipped_qty)
-                FILTER (WHERE b.lot_status <> 'not_start')
-                OVER (PARTITION BY b.po_line_id),
-            0)
-        ELSE 0
-    END AS po_remaining_qty,
+    b.po_qty_total
+      - SUM(b.lot_shipped_qty)
+        OVER (PARTITION BY b.po_line_id)
+        AS po_remaining_qty,
 
     -- =========================
-    -- shipment status (FIXED)
+    -- shipment status
     -- =========================
     CASE
-        WHEN COALESCE(
-            SUM(b.lot_shipped_qty)
-            FILTER (WHERE b.lot_status <> 'not_start')
-            OVER (PARTITION BY b.po_line_id),
-        0) = 0
+        WHEN SUM(b.lot_shipped_qty)
+             OVER (PARTITION BY b.po_line_id) = 0
             THEN 'Not Shipped'
 
-        WHEN COALESCE(
-            SUM(b.lot_shipped_qty)
-            FILTER (WHERE b.lot_status <> 'not_start')
-            OVER (PARTITION BY b.po_line_id),
-        0) < b.po_qty_total
+        WHEN SUM(b.lot_shipped_qty)
+             OVER (PARTITION BY b.po_line_id) < b.po_qty_total
             THEN 'Partially Shipped'
 
-        WHEN COALESCE(
-            SUM(b.lot_shipped_qty)
-            FILTER (WHERE b.lot_status <> 'not_start')
-            OVER (PARTITION BY b.po_line_id),
-        0) = b.po_qty_total
+        WHEN SUM(b.lot_shipped_qty)
+             OVER (PARTITION BY b.po_line_id) = b.po_qty_total
             THEN 'Fully Shipped'
 
         ELSE 'Overshipped'
