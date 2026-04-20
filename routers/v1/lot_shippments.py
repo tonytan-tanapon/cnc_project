@@ -1246,6 +1246,7 @@ def download_label(
         total_qty = 1
     elif type in ["cmm", "number", "box"]:
         total_qty = int(item.qty or 0)
+        
     else:
         total_qty = int(item.qty or 0) + 2
 
@@ -1307,7 +1308,7 @@ def download_label(
                 full_text = full_text.replace(k, str(v))
 
         if "{XX}" in full_text and current_index is not None:
-            full_text = full_text.replace("{XX}", str(current_index))
+            full_text = full_text.replace("{XX}", str(total_qty))
 
         if full_text != original:
             for run in p.runs:
