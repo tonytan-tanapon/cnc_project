@@ -294,6 +294,8 @@ def parse_docx(path: str) -> dict:
 
 import datetime
 def get_part_and_revision(db, part_no: str, rev: str | None):
+
+    print(f"Looking up Part: {part_no}, Rev: {rev}")
     part = db.query(Part).filter(Part.part_no == part_no).first()
     if not part:
         raise ValueError(f"Part not found: {part_no}")
@@ -312,43 +314,54 @@ def get_part_and_revision(db, part_no: str, rev: str | None):
     return part, part_rev
 
 from sqlalchemy import func
+
 def activate_latest_template(db, part_id: int, part_revision_id: int | None):
+    from sqlalchemy import func
+
+    # -----------------------------
+    # Build filters (FIX NULL bug)
+    # -----------------------------
+    filters = [
+        TravelerTemplate.part_id == part_id,
+    ]
+
+    if part_revision_id is not None:
+        filters.append(TravelerTemplate.part_revision_id == part_revision_id)
+    else:
+        filters.append(TravelerTemplate.part_revision_id.is_(None))  # ✅ FIX
+
+    # -----------------------------
     # หา version ล่าสุด
+    # -----------------------------
     latest_version = (
         db.query(func.max(TravelerTemplate.version))
-        .filter(
-            TravelerTemplate.part_id == part_id,
-            TravelerTemplate.part_revision_id == part_revision_id,
-        )
+        .filter(*filters)
         .scalar()
     )
 
     if latest_version is None:
         return
 
+    # -----------------------------
     # ปิดทั้งหมด
+    # -----------------------------
     db.query(TravelerTemplate)\
-      .filter(
-          TravelerTemplate.part_id == part_id,
-          TravelerTemplate.part_revision_id == part_revision_id,
-      )\
-      .update({TravelerTemplate.is_active: False}, synchronize_session=False)
+        .filter(*filters)\
+        .update({TravelerTemplate.is_active: False}, synchronize_session=False)
 
+    # -----------------------------
     # เปิดเฉพาะ version ล่าสุด
+    # -----------------------------
     db.query(TravelerTemplate)\
-      .filter(
-          TravelerTemplate.part_id == part_id,
-          TravelerTemplate.part_revision_id == part_revision_id,
-          TravelerTemplate.version == latest_version,
-      )\
-      .update({TravelerTemplate.is_active: True}, synchronize_session=False)
-def date_to_version(date_str: str) -> int:
-    # "10-06-25" -> 100625
-    return int(date_str.replace("-", ""))
+        .filter(
+            *filters,
+            TravelerTemplate.version == latest_version,
+        )\
+        .update({TravelerTemplate.is_active: True}, synchronize_session=False)
+
 
 def update_database(result, date_create):
-    import datetime
-    from sqlalchemy import func
+    from datetime import datetime
     from sqlalchemy.exc import IntegrityError
 
     db = SessionLocal()
@@ -356,33 +369,62 @@ def update_database(result, date_create):
         part_no = result["lot"].get("part_no", "UNKNOWN")
         part_rev_code = result["lot"].get("rev")
 
-        version_str = date_create or datetime.datetime.now().strftime("%m-%d-%y")
-        version = version_str.replace("-", "")  # string "081122"
-        
+        print("Raw date_create:", date_create)
+
+        # -----------------------------
+        # ✅ FIX DATE PARSING (robust)
+        # -----------------------------
+        date_obj = None
+
+        if date_create:
+            for fmt in ("%m-%d-%y", "%m-%d-%Y", "%d-%m-%y", "%d-%m-%Y"):
+                try:
+                    date_obj = datetime.strptime(date_create, fmt)
+                    break
+                except:
+                    continue
+
+        if not date_obj:
+            print("⚠️ Cannot parse date, fallback to now()")
+            date_obj = datetime.now()
+
+        # -----------------------------
+        # ✅ VERSION (INT for performance)
+        # -----------------------------
+        version = int(date_obj.strftime("%Y%m%d"))
+        version_str = date_obj.strftime("%m-%d-%y")
+
+        print("Version:", version)
+
         # -----------------------------
         # Resolve part / rev
         # -----------------------------
         part, part_rev = get_part_and_revision(db, part_no, part_rev_code)
 
+        print(f"Resolved Part: {part.part_no} (ID: {part.id})")
+
         # -----------------------------
-        # 🔍 CHECK: part + rev + version exists ?
+        # 🔍 CHECK EXIST (FIX NULL BUG)
         # -----------------------------
-        exists = (
-            db.query(TravelerTemplate.id)
-            .filter(
-                TravelerTemplate.part_id == part.id,
-                TravelerTemplate.part_revision_id == (part_rev.id if part_rev else None),
-                TravelerTemplate.version == version,
-            )
-            .first()
-        )
+        filters = [
+            TravelerTemplate.part_id == part.id,
+            TravelerTemplate.version == version,
+        ]
+
+        if part_rev is not None:
+            filters.append(TravelerTemplate.part_revision_id == part_rev.id)
+        else:
+            filters.append(TravelerTemplate.part_revision_id.is_(None))
+
+        exists = db.query(TravelerTemplate.id).filter(*filters).first()
 
         if exists:
             print(
                 f"⏭️ SKIP: Template already exists "
                 f"(part={part_no}, rev={part_rev_code}, version={version_str})"
             )
-            return  # ✅ EXIT — ไม่ทำอะไรต่อ
+            db.rollback()
+            return
 
         # -----------------------------
         # Create new template
@@ -415,7 +457,7 @@ def update_database(result, date_create):
             )
 
         # -----------------------------
-        # Activate latest date only
+        # Activate latest template
         # -----------------------------
         activate_latest_template(
             db,
@@ -424,15 +466,16 @@ def update_database(result, date_create):
         )
 
         db.commit()
+
         print(f"✅ Imported new template: {part_no} REV {part_rev_code} {version_str}")
 
-    except IntegrityError as e:
+    except IntegrityError:
         db.rollback()
-        raise RuntimeError(f"DB integrity error: {e}")
+        print("⚠️ Duplicate prevented by DB constraint")
 
-    except Exception:
+    except Exception as e:
         db.rollback()
-        raise
+        raise RuntimeError(f"Unexpected error: {e}")
 
     finally:
         db.close()
@@ -449,6 +492,7 @@ if __name__ == "__main__":
     from pathlib import Path
 
     path = Path(r"C:\Users\TPSERVER\Desktop\ST convert\st_blank")
+    # path = Path(r"C:\Users\TPSERVER\Desktop\ST convert\st_blank_sample")
 
     # loop ทุกไฟล์ docx ในโฟลเดอร์
     for template_path in path.glob("*.docx"):
@@ -459,7 +503,7 @@ if __name__ == "__main__":
         # Extract date from filename
         # -----------------------------
         stem = template_path.stem
-        m = re.search(r"\d{2}-\d{2}-\d{2}", stem)
+        m = re.search(r"\d{1,2}-\d{1,2}-\d{2}", stem)
         date_create = m.group(0) if m else None
 
         print("📅 Date create:", date_create)
@@ -469,6 +513,7 @@ if __name__ == "__main__":
             # Parse DOCX
             # -----------------------------
             result = parse_docx(template_path)
+            
 
             # -----------------------------
             # Update database
@@ -477,32 +522,3 @@ if __name__ == "__main__":
 
         except Exception as e:
             print(f"❌ ERROR processing {filename}: {e}")
-
-# if __name__ == "__main__":
-#     import json
-#     from pathlib import Path
-
-#     # path = Path(r"C:\Users\Tanapon\Documents\GitHub\cnc\doc")
-#     path =Path(r"C:\Users\TPSERVER\Desktop\ST convert\st_blank")
-#     filename = "AF6182_5185-49-1_B_5185-49-1_B_Version_B_5185-49-1 B 08-11-22  Version B Blank.docx"
-#     filename = "AF6182_5185-49-1_B_5185-49-1_B_Version__NC_5185-49-1 B Blank 06-27-17 Rev. NC.docx"
-#     # filename = "AF6182_5185-49-1_B_5185-49-1_B_Version__NC_5185-49-1 B Blank 05-11-17 Rev. NC.docx"
-#     filename = "AF6182_5185-49-1_B_5185-49-1_B_Rev_A_Ship from lot  Rev A 11-10-17 Blank.docx"
-#     filename = "AF6182_5185-49-1_B_5185-49-1_B_Rev_A_5185-49-1 B 12-19-17 Version A Blank.docx"
-#     template_path = path / filename
-
-#     stem = Path(filename).stem
-#     # 👉 "L16492 10-06-25 Blank"
-
-#     # ดึง pattern วันที่ MM-DD-YY
-#     m = re.search(r"\d{2}-\d{2}-\d{2}", stem)
-
-#     date_create = m.group(0) if m else None
-#     result = parse_docx(template_path)
-#     part_no = result["lot"].get("part_no","UNKNOWN")
-#     part_rev = result["lot"].get("rev","-")
-#     lot_no = result["lot"].get("lot_no","UNKNOWN")  
-
-#     update_database(result,date_create)
-   
-

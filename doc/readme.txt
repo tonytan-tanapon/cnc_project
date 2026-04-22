@@ -6,7 +6,7 @@ Template:
 
 File:
 
-doc_to_docx_working.ps1
+doc_to_docx_working.bat
    doc -> docx template 
 
    convert doc to docx

@@ -707,7 +707,7 @@ class TravelerTemplate(Base):
     customer_id = Column(Integer, ForeignKey("customers.id"), nullable=True, index=True)    
 
     template_name = Column(String, nullable=False)
-    version = Column(String, nullable=False, default=1)
+    version = Column(Integer, nullable=False, default=1)
 
     is_active = Column(Boolean, nullable=False, default=True)
 
