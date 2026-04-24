@@ -157,6 +157,8 @@ function copyWithFeedback(icon, text, msg = "Copied") {
 function makeColumns() {
   return [
     /* ===== COPY SUMMARY ===== */
+   
+
     {
       title: "Copy",
       download: false,
