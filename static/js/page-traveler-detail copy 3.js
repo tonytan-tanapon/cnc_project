@@ -221,8 +221,6 @@ async function fillTraveler(t) {
 
   selectedLot = null;
   selectedCreator = null;
-
-  await loadTemplateVersions(t.part_id, t.part_revision_id);
 }
 function readTraveler() {
   const lotInput = $("lot_id");
@@ -810,52 +808,47 @@ function initStepsTable() {
     row.getElement().classList.add("is-dirty");
   });
 
-  const templateSelect = document.getElementById("templateSelect");
-const btnUseTemplate = document.getElementById("btnUseTemplate");
+  const btnAddTemplate = document.getElementById("btnAddTemplate");
 
-  btnUseTemplate.addEventListener("click", async () => {
-  if (!travelerId) {
-    alert("Traveler ID not found");
-    return;
-  }
-
-  const templateId = templateSelect.value;
-
-  if (!templateId) {
-    alert("Please select a template first");
-    return;
-  }
-
-  if (!confirm("Apply this template? This will add steps.")) return;
-
-  console.log("Applying template:", templateId);
-
-  try {
-    const res = await fetch(
-      `/api/v1/travelers/apply-template/${encodeURIComponent(travelerId)}?template_id=${encodeURIComponent(templateId)}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      }
-    );
-
-    if (!res.ok) {
-      throw new Error(await res.text());
+  btnAddTemplate.addEventListener("click", async () => {
+    if (!travelerId) {
+      alert("Traveler ID not found");
+      return;
     }
+    console.log("Applying template to travelerId:", travelerId);
+    try {
+      // // 1️⃣ ขอ template active จาก backend
+      const tmpl = await jfetch(
+        `/api/v1/travelers/traveler-templates/active?traveler_id=${encodeURIComponent(
+          travelerId
+        )}`
+      );
 
-    toast("Template applied");
+      const templateId = tmpl.id;
+      console.log("Using templateId:", templateId);
 
-    // ✅ reload steps instead of reload page (better UX)
-    await reloadSteps();
+      // 2️⃣ apply template
+      const res = await fetch(
+        `/api/v1/travelers/apply-template/${encodeURIComponent(
+          travelerId
+        )}?template_id=${encodeURIComponent(templateId)}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        }
+      );
 
-    // reset dropdown
-    templateSelect.value = "";
+      if (!res.ok) {
+        throw new Error(await res.text());
+      }
 
-  } catch (err) {
-    console.error(err);
-    toast(err?.message || "Failed to apply template", false);
-  }
-});
+      toast("Template applied");
+      location.reload();
+    } catch (err) {
+      console.error(err);
+      toast(err?.message || "Failed to apply template", false);
+    }
+  });
 
   stepsTable.on("cellEdited", (cell) => {
     const row = cell.getRow();
@@ -886,40 +879,6 @@ const btnUseTemplate = document.getElementById("btnUseTemplate");
   const ro = new ResizeObserver(safeRedraw);
   ro.observe(holder);
   window.addEventListener("resize", safeRedraw);
-}
-
-async function loadTemplateVersions(part_id, part_revision_id) {
-  const select = document.getElementById("templateSelect");
-  if (!select) return;
-
-  try {
-    const res = await jfetch(
-      `/travelers/template-versions?part_id=${part_id}&part_revision_id=${part_revision_id}`
-    );
-
-    select.innerHTML = `<option value="">Select Version</option>`;
-
-    res.forEach((t) => {
-      const opt = document.createElement("option");
-      opt.value = t.id;
-      opt.textContent = `${t.name} (v${t.version})`;
-
-      if (t.is_active) {
-        opt.textContent += " ⭐";
-      }
-
-      select.appendChild(opt);
-    });
-
-    // ⭐ AUTO SELECT ACTIVE
-    const active = res.find(t => t.is_active);
-    if (active) {
-      select.value = String(active.id);
-    }
-
-  } catch (err) {
-    console.error("loadTemplateVersions error:", err);
-  }
 }
 
 async function reloadSteps() {
@@ -1270,50 +1229,6 @@ function makeLotLinks(lotId) {
   });
 }
 
-
-async function handleImportFile(e) {
-  const file = e.target.files[0];
-  if (!file) return;
-
-  if (!travelerId) {
-    toast("Traveler ID missing", false);
-    return;
-  }
-
-  console.log("import");
-
-  
-  try {
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("traveler_id", travelerId);
-
-    const res = await fetch("/api/v1/traveler-steps/import", {
-      method: "POST",
-      body: formData,
-    });
-
-    if (!res.ok) {
-      throw new Error(await res.text());
-    }
-
-    const result = await res.json();
-
-    console.log("Import result:", result);
-
-    toast("File imported");
-
-    // ✅ reload steps from DB
-    await reloadSteps();
-
-  } catch (err) {
-    console.error(err);
-    toast("Import failed: " + err.message, false);
-  }
-
-  e.target.value = "";
-}
-
 /* ---------- Boot ---------- */
 document.addEventListener("DOMContentLoaded", async () => {
   initTopbar();
@@ -1325,41 +1240,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("btnTraveler").addEventListener("click", downloadTravelerBatch);
   $("btnInspection").addEventListener("click", downloadInspectionBatch);
   $("btnExportTraveler").addEventListener("click", exportTraveler);
-
-
-  const btnUpdate = document.getElementById("btnUpdateTravelerStep");
-
-btnUpdate?.addEventListener("click", async () => {
-  if (!travelerId) {
-    toast("Traveler not loaded", false);
-    return;
-  }
-
-  if (!confirm("Create new template version from this traveler?")) return;
-
-  try {
-    setBusyT(true);
-
-    const res = await jfetch(
-      `/api/v1/travelers/${travelerId}/create-template-version`,
-      { method: "POST" }
-    );
-
-    toast(`✅ Template V${res.version} created`);
-
-    // 🔥 IMPORTANT → reload template dropdown
-    await loadTemplateVersions(
-      originalTraveler.part_id,
-      originalTraveler.part_revision_id
-    );
-
-  } catch (err) {
-    console.error(err);
-    toast(err?.message || "Failed to create template", false);
-  } finally {
-    setBusyT(false);
-  }
-});
   // $("btnExportInspection").addEventListener("click", exportInspection);
   // Add Step (seq +10 เริ่ม 10)
   // $("btnAddStep")?.addEventListener("click", async () => {
@@ -1389,15 +1269,4 @@ btnUpdate?.addEventListener("click", async () => {
   await loadTraveler();
   await reloadSteps();
   makeLotLinks(lotId);
-
-  const btnImportFile = document.getElementById("btnImportFile");
-const fileInput = document.getElementById("fileInput");
-
-btnImportFile.addEventListener("click", () => {
-  fileInput.click();
 });
-
-fileInput.addEventListener("change", handleImportFile);
-});
-
-

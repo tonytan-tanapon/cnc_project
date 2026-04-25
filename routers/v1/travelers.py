@@ -6,7 +6,7 @@ from typing import List, Optional
 from datetime import date
 
 from database import get_db
-from models import ShopTraveler, ProductionLot, Employee, TravelerTemplate
+from models import ShopTraveler, ProductionLot, Employee, TravelerTemplate,TravelerTemplateStep
 from pydantic import BaseModel, ConfigDict
 from utils.code_generator import next_code_yearly
 from sqlalchemy import (
@@ -43,6 +43,8 @@ class ShopTravelerRowOut(BaseModel):
     notes: Optional[str] = None
     production_due_date: Optional[date] = None
     created_at: Optional[str] = None
+    part_id: Optional[int] = None
+    part_revision_id: Optional[int] = None
 
 # ---------- Helpers ----------
 def to_row_out(t: ShopTraveler) -> ShopTravelerRowOut:
@@ -56,6 +58,8 @@ def to_row_out(t: ShopTraveler) -> ShopTravelerRowOut:
         notes=t.notes,
         production_due_date=t.production_due_date,
         created_at=t.created_at.isoformat() if t.created_at else None,
+        part_id=t.lot.part_id,
+        part_revision_id=t.lot.part_revision_id,
     )
 
 # ---------- CREATE ----------
@@ -93,6 +97,36 @@ def create_traveler(payload: ShopTravelerCreate, db: Session = Depends(get_db)):
 
 # ---------- LIST ----------
 
+from fastapi import Query
+
+@router.get("/template-versions")
+def list_template_versions(
+    part_id: int | None = Query(None),
+    part_revision_id: int | None = Query(None),
+    db: Session = Depends(get_db),
+):
+    q = db.query(TravelerTemplate)
+
+    if part_id:
+        q = q.filter(TravelerTemplate.part_id == part_id)
+
+    if part_revision_id:
+        q = q.filter(TravelerTemplate.part_revision_id == part_revision_id)
+
+    rows = q.order_by(
+        TravelerTemplate.template_name,
+        TravelerTemplate.version.desc()
+    ).all()
+
+    return [
+        {
+            "id": t.id,
+            "name": t.template_name,
+            "version": t.version,
+            "is_active": t.is_active,
+        }
+        for t in rows
+    ]
 
 @router.get("/traveler-templates/active")
 def get_active_template(
@@ -125,10 +159,12 @@ def get_active_template(
         raise HTTPException(404, "No active template found")
 
     return {
-        "id": tmpl.id,
-        "template_name": tmpl.template_name,
-        "version": tmpl.version,
-    }
+    "id": tmpl.id,
+    "template_name": tmpl.template_name,
+    "version": tmpl.version,
+    "part_id": tmpl.part_id,
+    "part_revision_id": tmpl.part_revision_id,
+}
 
 @router.get("", response_model=List[ShopTravelerRowOut])
 def list_travelers(
@@ -724,3 +760,126 @@ def apply_template(
     # return {"ok": True, "traveler_id": traveler.id}
     return {"ok": True}
 
+
+from datetime import datetime
+from fastapi import HTTPException
+from sqlalchemy.orm import joinedload
+from sqlalchemy import func
+
+@router.post("/{traveler_id}/create-template-version")
+def create_template_version(traveler_id: int, db: Session = Depends(get_db)):
+
+    # =========================
+    # ✅ LOAD DATA
+    # =========================
+    traveler = (
+        db.query(ShopTraveler)
+        .options(
+            joinedload(ShopTraveler.lot).joinedload(ProductionLot.part),
+            joinedload(ShopTraveler.lot).joinedload(ProductionLot.part_revision),
+            joinedload(ShopTraveler.steps)
+        )
+        .get(traveler_id)
+    )
+
+    if not traveler:
+        raise HTTPException(404, "Traveler not found")
+
+    lot = traveler.lot
+    part_id = lot.part_id
+    part_rev_id = lot.part_revision_id
+
+    # =========================
+    # ✅ VERSION = YYYYMMDD
+    # =========================
+    today_str = datetime.now().strftime("%Y%m%d")
+    new_version = int(today_str)   # 👈 version is date
+
+    # =========================
+    # ✅ NAME
+    # =========================
+    part_no = lot.part.part_no if lot and lot.part else "UNKNOWN"
+    rev_no = lot.part_revision.rev if lot and lot.part_revision else "-"
+
+    template_name = f"{part_no} REV {rev_no}"
+
+    # =========================
+    # 🔍 CHECK EXISTING VERSION
+    # =========================
+    existing_template = db.query(TravelerTemplate).filter(
+        TravelerTemplate.part_id == part_id,
+        TravelerTemplate.part_revision_id == part_rev_id,
+        TravelerTemplate.version == new_version
+    ).first()
+
+    # =========================
+    # 🔁 CASE 1: EXIST → UPDATE
+    # =========================
+    if existing_template:
+
+        # ❗ delete old steps
+        db.query(TravelerTemplateStep).filter(
+            TravelerTemplateStep.template_id == existing_template.id
+        ).delete()
+
+        # 👉 insert new steps
+        for step in traveler.steps:
+            db.add(TravelerTemplateStep(
+                template_id=existing_template.id,
+                seq=step.seq,
+                step_code=step.step_code,
+                step_name=step.step_name,
+                step_detail=step.step_detail,
+                station=step.station,
+                qa_required=step.qa_required,
+            ))
+
+        db.commit()
+
+        return {
+            "message": "Template updated (same day version)",
+            "template_id": existing_template.id,
+            "version": new_version
+        }
+
+    # =========================
+    # 🆕 CASE 2: CREATE NEW
+    # =========================
+
+    # ❗ deactivate old
+    db.query(TravelerTemplate).filter(
+        TravelerTemplate.part_id == part_id,
+        TravelerTemplate.part_revision_id == part_rev_id
+    ).update({"is_active": False})
+
+    new_template = TravelerTemplate(
+        part_id=part_id,
+        part_revision_id=part_rev_id,
+        template_name=template_name,
+        version=new_version,
+        is_active=True,
+        created_by_id=traveler.created_by_id,
+    )
+
+    db.add(new_template)
+    db.flush()
+
+    # 👉 copy steps
+    for step in traveler.steps:
+        db.add(TravelerTemplateStep(
+            template_id=new_template.id,
+            seq=step.seq,
+            step_code=step.step_code,
+            step_name=step.step_name,
+            step_detail=step.step_detail,
+            station=step.station,
+            qa_required=step.qa_required,
+        ))
+
+    db.commit()
+
+    return {
+        "message": "Template created",
+        "template_id": new_template.id,
+        "version": new_version
+    }

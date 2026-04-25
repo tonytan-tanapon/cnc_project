@@ -1,71 +1,80 @@
-$InputDir  = "Z:\Topnotch Group\Public\AS9100\Shop Traveler\SHOP TRAVELER\AF6182\02-1031 NC\02-1013 NC Version NC"
+$InputDir  = "C:\docs\input"
 $OutputDir = "C:\docs\shop_travelers"
 
+# Ensure output root exists
 if (!(Test-Path $OutputDir)) {
     New-Item -ItemType Directory -Path $OutputDir | Out-Null
 }
 
-# 🔥 include subfolders
+# Get files (with "blank" in name, case-insensitive)
 $files = Get-ChildItem $InputDir -Recurse -Filter *.doc -File |
          Where-Object { $_.Name -match "(?i)blank" }
+
 Write-Host "Found files:" $files.Count
+
+# Create Word COM once
+$word = New-Object -ComObject Word.Application
+$word.Visible = $false
+$word.DisplayAlerts = 0
+
+# Disable macro/security prompts
+try { $word.AutomationSecurity = 3 } catch {}
 
 foreach ($f in $files) {
 
     Write-Host "----------------------------------------"
-    Write-Host "Converting:" $f.FullName
+    Write-Host "Processing:" $f.FullName
 
-    # ✅ สร้าง relative path
+    # Skip long paths
+    if ($f.FullName.Length -gt 240) {
+        Write-Host "❌ Path too long, skipping"
+        continue
+    }
+
+    # Build relative path
     $relative = $f.DirectoryName.Substring($InputDir.Length).TrimStart('\')
-
-    # ✅ build output folder
     $targetFolder = Join-Path $OutputDir $relative
 
+    # Create output folder if needed
     if (!(Test-Path $targetFolder)) {
         New-Item -ItemType Directory -Path $targetFolder -Force | Out-Null
     }
 
-    # ✅ output file
+    # Output file
     $outFile = Join-Path $targetFolder ($f.BaseName + ".docx")
 
-    # 🔥 skip ถ้ามีแล้ว (เร็วขึ้นมาก)
+    # Skip if already exists
     if (Test-Path $outFile) {
-        Write-Host "⏭️ Skip:" $outFile
+        Write-Host "⏭️ Skip existing:" $outFile
         continue
     }
 
-    Start-Process powershell.exe `
-        -ArgumentList @(
-            "-NoProfile",
-            "-Command",
-@"
-`$word = New-Object -ComObject Word.Application
-`$word.Visible = `$false
-`$word.DisplayAlerts = 0
+    try {
+        # Open document (with repair mode)
+        $doc = $word.Documents.Open(
+            $f.FullName,   # file path
+            $false,        # ConfirmConversions
+            $true,         # ReadOnly
+            $false,        # AddToRecentFiles
+            "", "", $true, "", "", 0, "", $true  # OpenAndRepair
+        )
 
-try {
-    `$doc = `$word.Documents.Open(
-        '$($f.FullName)',
-        `$false,
-        `$true,
-        `$false,
-        '', '',
-        `$true
-    )
+        # Save as DOCX
+        $doc.SaveAs2($outFile, 16)
 
-    `$doc.SaveAs2('$outFile',16)
-    `$doc.Close()
+        # Close doc
+        $doc.Close()
 
-    Write-Host 'Saved:' '$outFile'
-}
-catch {
-    Write-Host '❌ ERROR:' '$($f.FullName)'
+        Write-Host "✅ Saved:" $outFile
+    }
+    catch {
+        Write-Host "❌ ERROR processing:" $f.FullName
+        Write-Host $_.Exception.Message
+    }
 }
 
-`$word.Quit()
-"@
-        ) `
-        -Wait
-}
+# Cleanup Word
+$word.Quit()
+[System.Runtime.InteropServices.Marshal]::ReleaseComObject($word) | Out-Null
 
 Write-Host "DONE"

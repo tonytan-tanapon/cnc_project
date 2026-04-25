@@ -490,12 +490,14 @@ if __name__ == "__main__":
     import json
     import re
     from pathlib import Path
+    print("🚀 Starting DOCX to DB import...")
 
-    path = Path(r"C:\Users\TPSERVER\Desktop\ST convert\st_blank")
+    path = Path(r"C:\docs\shop_travelers\result")
     # path = Path(r"C:\Users\TPSERVER\Desktop\ST convert\st_blank_sample")
 
     # loop ทุกไฟล์ docx ในโฟลเดอร์
     for template_path in path.glob("*.docx"):
+
         filename = template_path.name
         print(f"\n📄 Processing: {filename}")
 

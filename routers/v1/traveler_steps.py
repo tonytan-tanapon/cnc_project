@@ -435,3 +435,59 @@ def restart_step(step_id: int, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(s)
     return s
+
+
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+@router.post("/import")
+async def import_steps(
+    traveler_id: int = Form(...),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+
+    print("import")
+    try:
+        content = await file.read()
+        print(content)
+    #     filename = file.filename.lower()
+
+    #     import csv, io, json
+
+    #     if filename.endswith(".json"):
+    #         rows = json.loads(content.decode("utf-8"))
+
+    #     elif filename.endswith(".csv"):
+    #         text = content.decode("utf-8")
+    #         reader = csv.DictReader(io.StringIO(text))
+    #         rows = list(reader)
+
+    #     else:
+    #         raise HTTPException(400, "Unsupported file format")
+
+    #     steps = []
+
+    #     for i, r in enumerate(rows):
+    #         step = ShopTravelerStep(
+    #             traveler_id=traveler_id,
+    #             seq=(i + 1) * 10,
+    #             step_name=r.get("step_name") or r.get("Step"),
+    #             step_detail=r.get("step_detail"),
+    #             step_code=r.get("step_code"),
+    #             qty_receive=int(r.get("qty_receive") or 0),
+    #             qty_accept=int(r.get("qty_accept") or 0),
+    #             qty_reject=int(r.get("qty_reject") or 0),
+    #             status="pending",
+    #             station=r.get("station"),
+    #             step_note=r.get("step_note"),
+    #         )
+
+    #         db.add(step)
+    #         steps.append(step)
+
+    #     db.commit()
+
+    #     return {"inserted": len(steps)}
+
+    except Exception as e:
+        raise HTTPException(500, str(e))
+ 
