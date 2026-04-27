@@ -222,8 +222,6 @@ async function fillTraveler(t) {
   selectedLot = null;
   selectedCreator = null;
 
-  
-
   await loadTemplateVersions(t.part_id, t.part_revision_id);
 }
 function readTraveler() {
@@ -333,7 +331,7 @@ const STATUS_OPTIONS = {
 };
 
 /* ---------- Tabulator: Steps ---------- */
-let stepsTable = null;
+
 const createInFlight = new WeakSet();
 const patchTimers = new Map();
 const PATCH_DEBOUNCE_MS = 350;
@@ -346,21 +344,15 @@ function normalizeStep(row) {
     step_name: row.step_name ?? "",
     step_detail: row.step_detail ?? "",
     step_code: row.step_code ?? "",
-
     operator_id: row.operator_id ?? null,
-
-    // 🔥 ADD THIS LINE
-    operator_nickname: row.operator_nickname ?? "", 
-
     status: row.status ?? "pending",
     qty_receive: row.qty_receive ?? 0,
     qty_accept: row.qty_accept ?? 0,
     qty_reject: row.qty_reject ?? 0,
     qa_required: !!row.qa_required,
-    step_note: row.step_note ?? "",
+    step_note: row.step_note ?? "", // 👈 เพิ่ม
   };
 }
-
 function setDirtyClass(row, on) {
   const el = row?.getElement?.();
   if (!el) return;
@@ -372,16 +364,13 @@ function buildStepPayload(d) {
   if (d.seq != null) p.seq = Number(d.seq);
   if (d.station != null) p.station = strOrNull(d.station);
   if (d.step_name != null) p.step_name = strOrNull(d.step_name);
-  if (d.step_detail != null) p.step_detail = strOrNull(d.step_detail);
-  if (d.step_code != null) p.step_code = strOrNull(d.step_code);
-  // 🔥 send nickname instead of id
-if (d.operator_nickname != null) {
-  // 🔥 extract nickname only
-  const raw = d.operator_nickname;
-  const nickname = raw.split("-").pop().trim();
-
-  p.operator_nickname = nickname;
+if (d.step_detail != null) {
+  p.step_detail = String(d.step_detail)
+    .replace(/↵/g, "\n")
+    .replace(/\r/g, "\n");
 }
+  if (d.step_code != null) p.step_code = strOrNull(d.step_code);
+  if (d.operator_id != null) p.operator_id = numOrNull(d.operator_id);
   if (d.qa_required != null) p.qa_required = !!d.qa_required;
   if (d.qty_receive != null) p.qty_receive = Number(d.qty_receive) || 0;
   if (d.qty_accept != null) p.qty_accept = Number(d.qty_accept) || 0;
@@ -444,7 +433,7 @@ function autosaveStepRow(row, { immediate = false } = {}) {
       toast("qty_accept + qty_reject ต้องไม่เกิน qty_receive", false);
       return;
     }
-    return jfetch(`/traveler-steps/${dd.id}`, {
+    jfetch(`/traveler-steps/${dd.id}`, {
       method: "PUT",
       body: JSON.stringify(buildStepPayload(dd)),
     })
@@ -481,6 +470,7 @@ function autosaveStepRow(row, { immediate = false } = {}) {
 // ใช้ค่าตัวเลขในแถว ไม่ถาม prompt
 async function finishStepFromRow(id, result) {
   const row = stepsTable?.getRow(id)?.getData() || {};
+  const qs = new URLSearchParams({ result });
 
   const recv = Number(row.qty_receive ?? 0);
   const acc = Number(row.qty_accept ?? 0);
@@ -491,54 +481,38 @@ async function finishStepFromRow(id, result) {
     throw new Error("qty invalid");
   }
 
-  await jfetch(`/traveler-steps/${id}/finish`, {
+  if (recv) {
+    qs.set("qty_receive", String(recv));
+    qs.set("qty_accept", String(acc));
+    qs.set("qty_reject", String(rej));
+  }
+
+  await jfetch(`/traveler-steps/${id}/finish?${qs.toString()}`, {
     method: "POST",
-    body: JSON.stringify({
-      result: result,
-      qty_receive: recv,
-      qty_accept: acc,
-      qty_reject: rej
-    }),
   });
 }
+
 async function handleStatusChange(row, newStatus, oldStatus) {
   const d = row.getData();
-
   if (!d.id) {
     toast("Save this row first", false);
     row.update({ status: oldStatus });
     return;
   }
-
   try {
-    // ✅ RESET
     if (newStatus === "pending") {
-      await jfetch(`/traveler-steps/${d.id}/restart`, {
-        method: "POST",
-      });
+      await jfetch(`/traveler-steps/${d.id}/restart`, { method: "POST" });
       toast("Step reset");
-    }
-
-    // ✅ START
-    else if (newStatus === "running" || newStatus === "in_progress") {
-      await jfetch(`/traveler-steps/${d.id}/start`, {
-        method: "POST",
-      });
+    } else if (newStatus === "running" || newStatus === "in_progress") {
+      await jfetch(`/traveler-steps/${d.id}/start`, { method: "POST" });
       toast("Step started");
-    }
-
-    // ✅ FINISH
-    else if (["passed", "failed", "skipped"].includes(newStatus)) {
+    } else if (["passed", "failed", "skipped"].includes(newStatus)) {
       await finishStepFromRow(d.id, newStatus);
       toast(`Step ${newStatus}`);
-    }
-
-    else {
+    } else {
       throw new Error("Unknown status");
     }
-
     await reloadSteps();
-
   } catch (e) {
     row.update({ status: oldStatus }); // revert
     toast(e?.message || "Update status failed", false);
@@ -595,350 +569,210 @@ function stationAutocompleteEditor(cell, onRendered, success, cancel) {
   });
   return input;
 }
+
 function operatorAutocompleteEditor(cell, onRendered, success, cancel) {
   const input = document.createElement("input");
   input.type = "text";
   input.className = "tabulator-editing";
   input.value = cell.getValue() || "";
   input.autocomplete = "off";
-
   async function fetchEmployees(term) {
     const q = (term || "").trim();
     try {
       const url = q
         ? `/employees?q=${encodeURIComponent(q)}&page=1&page_size=10`
         : `/employees?page=1&page_size=10`;
-
       const res = await jfetch(url);
       const items = Array.isArray(res) ? res : res.items || [];
-
-      return items.map((e) => ({
-        id: e.id,
-        label: `${e.emp_code || ""} - ${e.nickname || e.name || ""}`,
-      }));
+      return items.map((e) => ({ id: e.id, label: `${e.emp_code || e.id}` }));
     } catch {
       return [];
     }
   }
-
   attachAutocomplete(input, {
     fetchItems: fetchEmployees,
     getDisplayValue: (it) => (it ? it.label : ""),
     renderItem: (it) => `<div>${escapeHtml(it.label)}</div>`,
-
     onPick: (it) => {
       success(String(it.id));
       const row = cell.getRow();
-
-      setTimeout(async () => {
-  const nickname = it.label.split("-").pop().trim();
-
-  row.update({
-    operator_id: it.id,
-    operator_nickname: nickname,
-  });
-
-  setDirtyClass(row, true);
-
-  autosaveStepRow(row, { immediate: true });
-
-  // 🔥 wait a bit
-  setTimeout(() => location.reload(), 300);
-
-}, 0);
+      setTimeout(() => {
+        row.update({ operator_id: it.id });
+        setDirtyClass(row, true);
+        autosaveStepRow(row);
+      }, 0);
     },
-
     minChars: 0,
     openOnFocus: true,
   });
-
   onRendered(() => {
     input.focus();
     input.select();
   });
-
   return input;
 }
 
 /* ---------- Build table ---------- */
-function initStepsTable() {
+let stepsData = [];
+
+function normalizeText(v) {
+  return String(v || "")
+    .replace(/↵/g, "\n")
+    .replace(/\r/g, "\n");
+}
+
+function renderStepsTable(rows = []) {
+  stepsData = rows.map(normalizeStep);
+
   const holder = document.getElementById("steps_table");
-  if (!holder) return;
-  let ready = false;
-  const safeRedraw = () => {
-    if (!ready || !holder.offsetWidth) return;
-    try {
-      stepsTable.redraw(true);
-    } catch {}
-  };
+  holder.innerHTML = `
+    <table class="steps-html-table">
+      <thead>
+        <tr>
+          <th>Seq</th>
+          <th>OP</th>
+          <th>Step Name</th>
+          <th>Step Detail</th>
+          <th>Status</th>
+          <th>Qty Recv</th>
+          <th>Qty Accept</th>
+          <th>Qty Reject</th>
+          <th>Note</th>
+          <th>Station</th>
+          <th>Manage</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${stepsData.map(renderStepRow).join("")}
+      </tbody>
+    </table>
+  `;
 
-  stepsTable = new Tabulator(holder, {
-    layout: "fitColumns",
-    height: "calc(100vh - 480px)", // 👈 เพิ่มระยะเพื่อให้มีที่สำหรับปุ่มด้านล่าง
-    placeholder: "No steps",
-    reactiveData: true,
-    rowHeight: 38,   
-    index: "id",
-    columns: [
-      {
-        title: "APP",
-        width: 80,
-        hozAlign: "center",
-        headerSort: false,
+  wireStepInputs();
+}
 
-        formatter: (cell) => {
-          const row = cell.getRow().getData();
-          const seq = row.seq;
+function renderStepRow(r, i) {
+  return `
+    <tr data-index="${i}" data-id="${r.id || ""}">
+      <td><input data-field="seq" type="number" value="${r.seq || ""}"></td>
+      <td><input data-field="step_code" value="${escapeHtml(r.step_code || "")}"></td>
+      <td><input data-field="step_name" value="${escapeHtml(r.step_name || "")}"></td>
 
-          const travelerNo = originalTraveler?.traveler_no || travelerId;
-          if (!travelerNo || seq == null) return "";
+      <td>
+        <textarea data-field="step_detail" rows="5">${escapeHtml(
+          normalizeText(r.step_detail)
+        )}</textarea>
+      </td>
 
-          const baseUrl = `${location.protocol}//${location.host}`;
-          const url =
-            `${baseUrl}/static/ui-traveler.html` +
-            `?traveler_no=${encodeURIComponent(travelerNo)}` +
-            `&seq=${encodeURIComponent(seq)}`;
+      <td>
+        <select data-field="status">
+          ${Object.entries(STATUS_OPTIONS)
+            .map(([k, v]) => `<option value="${k}" ${r.status === k ? "selected" : ""}>${v}</option>`)
+            .join("")}
+        </select>
+      </td>
 
-          return `
-                <a href="${url}" target="_blank" rel="noopener"
-                  style="text-decoration:none;font-weight:600;">
-                  ${seq}
-                </a>
-              `;
-        },
-      },
+      <td><input data-field="qty_receive" type="number" value="${r.qty_receive || 0}"></td>
+      <td><input data-field="qty_accept" type="number" value="${r.qty_accept || 0}"></td>
+      <td><input data-field="qty_reject" type="number" value="${r.qty_reject || 0}"></td>
+      <td><input data-field="step_note" value="${escapeHtml(r.step_note || "")}"></td>
+      <td><input data-field="station" value="${escapeHtml(r.station || "")}"></td>
 
-      {
-        title: "#Seq",
-        field: "seq",
-        width: 80,
-        hozAlign: "center",
-        editor: "number",
-        editorParams: { step: 1 },
-      },
+      <td>
+        <button class="btn-mini btn-danger" data-act="delete">Delete</button>
+      </td>
+    </tr>
+  `;
+}
 
-      {
-        title: "OP",
-        field: "step_code",
-        width: 120,
-        hozAlign: "center",
-        editor: "input",
-      },
+function wireStepInputs() {
+  document.querySelectorAll("#steps_table [data-field]").forEach((el) => {
+    el.addEventListener("change", async () => {
+      const tr = el.closest("tr");
+      const index = Number(tr.dataset.index);
+      const field = el.dataset.field;
 
-      { title: "Step Name", field: "step_name", width: 220, editor: "input" },
-      {
-        title: "Step Detail",
-        field: "step_detail",
-        width: 220,
-        editor: "input",
-      },
-      {
-        title: "Status",
-        field: "status",
-        width: 100,
-        headerSort: false,
-        editor: "select",
-        editorParams: { values: STATUS_OPTIONS },
-        formatter: (cell) => statusBadge(cell.getValue()),
-      },
-      {
-        title: "Qty Recv",
-        field: "qty_receive",
-        width: 110,
-        hozAlign: "right",
-        editor: "number",
-        editorParams: { step: 1, min: 0, precision: 0 },
-        formatter: (cell) => {
-          const v = cell.getValue();
-          const n = parseInt(v, 10);
-          return Number.isFinite(n) && n >= 0 ? n : 0; // 👈 บังคับ return integer
-        },
-      },
-      {
-        title: "Qty Accept",
-        field: "qty_accept",
-        width: 110,
-        hozAlign: "right",
-        editor: "number",
-        editorParams: { step: 1, min: 0, precision: 0 },
-        formatter: (cell) => {
-          const v = cell.getValue();
-          const n = parseInt(v, 10);
-          return Number.isFinite(n) && n >= 0 ? n : 0; // 👈 integer only
-        },
-      },
-      {
-        title: "Qty Reject",
-        field: "qty_reject",
-        width: 110,
-        hozAlign: "right",
-        editor: "number",
-        editorParams: { step: 1, min: 0, precision: 0 },
-        formatter: (cell) => {
-          const v = cell.getValue();
-          const n = parseInt(v, 10);
-          return Number.isFinite(n) && n >= 0 ? n : 0; // 👈 integer only
-        },
-      },
-      { title: "Note", field: "step_note", width: 240, editor: "input" },
+      stepsData[index][field] = el.value;
 
-      {
-        title: "Operator",
-        field: "operator_nickname",
-        width: 140,
-        hozAlign: "right",
-        editor: operatorAutocompleteEditor,
-        formatter: (c) => (c.getValue() == null ? "" : String(c.getValue())),
-      },
-      {
-        title: "Station",
-        field: "station",
-        width: 170,
-        editor: stationAutocompleteEditor,
-      },
+      if (field === "step_detail") {
+        stepsData[index][field] = normalizeText(el.value);
+      }
 
-      {
-        title: "Manage",
-        field: "_manage",
-        width: 120,
-        headerSort: false,
-        formatter: () =>
-          `<button class="btn-mini btn-danger" data-act="delete">Delete</button>`,
-        cellClick: async (e, cell) => {
-          const btn = e.target.closest("button[data-act='delete']");
-          if (!btn) return;
-          const row = cell.getRow();
-          const d = row.getData();
-          if (!d.id) {
-            row.delete();
-            return;
-          }
-          if (!confirm("ลบ Step นี้?")) return;
-          try {
-            await jfetch(`/traveler-steps/${d.id}`, { method: "DELETE" });
-            row.delete();
-            toast("Step deleted");
-          } catch (err) {
-            toast("ลบ Step ไม่สำเร็จ: " + (err?.message || ""), false);
-          }
-        },
-      },
-    ],
+      await savePlainStep(index);
+    });
   });
 
+  document.querySelectorAll("#steps_table [data-act='delete']").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const tr = btn.closest("tr");
+      const index = Number(tr.dataset.index);
+      const row = stepsData[index];
+
+      if (!row.id) {
+        stepsData.splice(index, 1);
+        renderStepsTable(stepsData);
+        return;
+      }
+
+      if (!confirm("Delete this step?")) return;
+
+      await jfetch(`/traveler-steps/${row.id}`, { method: "DELETE" });
+      toast("Step deleted");
+      await reloadSteps();
+    });
+  });
+}
+
+async function savePlainStep(index) {
+  const d = stepsData[index];
+
+  if (!d.step_name) return;
+
+  if (!d.id) {
+    const created = await jfetch(`/traveler-steps`, {
+      method: "POST",
+      body: JSON.stringify(buildStepPayload(d)),
+    });
+
+    stepsData[index] = normalizeStep(created);
+    toast("Step added");
+    renderStepsTable(stepsData);
+    return;
+  }
+
+  const updated = await jfetch(`/traveler-steps/${d.id}`, {
+    method: "PUT",
+    body: JSON.stringify(buildStepPayload(d)),
+  });
+
+  stepsData[index] = normalizeStep(updated || d);
+  toast("Saved");
+}
+
+function initStepsTable() {
   const btnAddStep = document.getElementById("btnAddStep");
 
-  btnAddStep.addEventListener("click", async () => {
-    if (!stepsTable) return;
-
-    // หาค่า seq ล่าสุด
-    const data = stepsTable.getData();
-    const lastSeq = data.length
-      ? Math.max(...data.map((r) => Number(r.seq || 0)))
+  btnAddStep.addEventListener("click", () => {
+    const lastSeq = stepsData.length
+      ? Math.max(...stepsData.map((r) => Number(r.seq || 0)))
       : 0;
-    const nextSeq = lastSeq + 10;
 
-    // สร้างแถวใหม่ (ใช้ field name ให้ตรงกับ columns ด้านบน)
-    const newRow = {
-      seq: nextSeq,
+    stepsData.push({
+      seq: lastSeq + 10,
+      step_code: "",
       step_name: "",
       step_detail: "",
-      status: "Pending",
+      status: "pending",
       qty_receive: 0,
       qty_accept: 0,
       qty_reject: 0,
       step_note: "",
-      step_code: "",
-      operator_id: "",
       station: "",
-    };
+      operator_id: null,
+    });
 
-    // ✅ เพิ่มแถวใหม่ในตาราง (ต่อจากแถวสุดท้าย)
-    const row = await stepsTable.addRow(newRow, false, "bottom");
-
-    // เริ่มแก้ไขชื่อทันที
-    row.getCell("step_name").edit();
-
-    // เพิ่มคลาสเน้นสีพื้นหลัง (optional)
-    row.getElement().classList.add("is-dirty");
+    renderStepsTable(stepsData);
   });
-
-  const templateSelect = document.getElementById("templateSelect");
-const btnUseTemplate = document.getElementById("btnUseTemplate");
-
-  btnUseTemplate.addEventListener("click", async () => {
-  if (!travelerId) {
-    alert("Traveler ID not found");
-    return;
-  }
-
-  const templateId = templateSelect.value;
-
-  if (!templateId) {
-    alert("Please select a template first");
-    return;
-  }
-
-  if (!confirm("Apply this template? This will add steps.")) return;
-
-  console.log("Applying template:", templateId);
-
-  try {
-    const res = await fetch(
-      `/api/v1/travelers/apply-template/${encodeURIComponent(travelerId)}?template_id=${encodeURIComponent(templateId)}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      }
-    );
-
-    if (!res.ok) {
-      throw new Error(await res.text());
-    }
-
-    toast("Template applied");
-
-    // ✅ reload steps instead of reload page (better UX)
-    await reloadSteps();
-
-    // reset dropdown
-    templateSelect.value = "";
-
-  } catch (err) {
-    console.error(err);
-    toast(err?.message || "Failed to apply template", false);
-  }
-});
-
-  stepsTable.on("cellEdited", (cell) => {
-    const row = cell.getRow();
-    setDirtyClass(row, true);
-
-    const field = cell.getField();
-    const newVal = cell.getValue();
-    const oldVal = cell.getOldValue();
-
-    if (field === "status") {
-      handleStatusChange(
-        row,
-        String(newVal || "").toLowerCase(),
-        String(oldVal || "").toLowerCase()
-      );
-      return;
-    }
-
-    setTimeout(() => autosaveStepRow(row), 0);
-  });
-
-  stepsTable.on("tableBuilt", () => {
-    ready = true;
-    requestAnimationFrame(safeRedraw);
-    setTimeout(safeRedraw, 0);
-  });
-
-  const ro = new ResizeObserver(safeRedraw);
-  ro.observe(holder);
-  window.addEventListener("resize", safeRedraw);
 }
 
 async function loadTemplateVersions(part_id, part_revision_id) {
@@ -975,19 +809,24 @@ async function loadTemplateVersions(part_id, part_revision_id) {
   }
 }
 
+
 async function reloadSteps() {
   if (!travelerId) {
-    stepsTable?.setData([]);
+    renderStepsTable([]);
     return;
   }
+
   try {
     const rows = await jfetch(
       `/traveler-steps?traveler_id=${encodeURIComponent(travelerId)}`
     );
-    console.log("traveler step", rows);
-    stepsTable?.setData((rows || []).map(normalizeStep));
-  } catch {
-    stepsTable?.setData([]);
+
+    console.log("reload steps:", rows);
+
+    renderStepsTable(rows || []);   // ✅ สำคัญมาก
+  } catch (err) {
+    console.error(err);
+    renderStepsTable([]);
   }
 }
 
@@ -1266,23 +1105,6 @@ function showTravelerQR() {
 }
 
 
-async function loadLotDetail() {
-  if (!lotId) return;
-
-  try {
-    const lot = await jfetch(`/lots/${encodeURIComponent(lotId)}`);
-
-    console.log("lot detail:", lot);
-
-    $("customer_name").value = lot.customer?.name || "";
-    $("part_no").value = lot.part?.part_no || "";
-    $("rev").value = lot.revision?.rev || "";
-
-  } catch (err) {
-    console.error(err);
-    toast("Failed to load lot", false);
-  }
-}
 
 function makeLotLinks(lotId) {
   if (!lotId) return;
@@ -1426,6 +1248,45 @@ btnUpdate?.addEventListener("click", async () => {
   } catch (err) {
     console.error(err);
     toast(err?.message || "Failed to create template", false);
+  } finally {
+    setBusyT(false);
+  }
+});
+
+const btnUseTemplate = document.getElementById("btnUseTemplate");
+
+btnUseTemplate?.addEventListener("click", async () => {
+  const select = document.getElementById("templateSelect");
+  const templateId = select?.value;
+
+  if (!templateId) {
+    toast("Please select template", false);
+    return;
+  }
+
+  if (!travelerId) {
+    toast("Traveler not loaded", false);
+    return;
+  }
+
+  if (!confirm("Apply this template to traveler?")) return;
+
+  try {
+    setBusyT(true);
+
+    await jfetch(
+      `/api/v1/travelers/${travelerId}/apply-template?template_id=${templateId}`,
+      { method: "POST" }
+    );
+
+    toast("✅ Template applied");
+
+    // 🔥 IMPORTANT: reload steps after apply
+    await reloadSteps();
+
+  } catch (err) {
+    console.error(err);
+    toast(err?.message || "Failed to apply template", false);
   } finally {
     setBusyT(false);
   }

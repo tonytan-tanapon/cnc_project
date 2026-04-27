@@ -59,12 +59,25 @@ def create_traveler_step(payload: ShopTravelerStepCreate, db: Session = Depends(
 
 @router.get("", response_model=List[ShopTravelerStepOut])
 def list_traveler_steps(traveler_id: Optional[int] = None, db: Session = Depends(get_db)):
-    q = db.query(ShopTravelerStep)
+
+    q = (
+        db.query(ShopTravelerStep, Employee)
+        .outerjoin(Employee, ShopTravelerStep.operator_id == Employee.id)
+    )
+
     if traveler_id:
-        q = q.filter(ShopTravelerStep.traveler_id == traveler_id).order_by(ShopTravelerStep.seq.asc())
-    else:
-        q = q.order_by(ShopTravelerStep.id.desc())
-    return q.all()
+        q = q.filter(ShopTravelerStep.traveler_id == traveler_id)
+
+    rows = q.order_by(ShopTravelerStep.seq.asc()).all()
+
+    result = []
+    for step, emp in rows:
+        step.operator_nickname = (
+            f"{emp.emp_code} - {emp.nickname}" if emp else None
+        )
+        result.append(step)
+
+    return result
 
 
 @router.get("/{step_id}", response_model=ShopTravelerStepOut)
@@ -75,15 +88,83 @@ def get_traveler_step(step_id: int, db: Session = Depends(get_db)):
     return s
 
 
+# @router.put("/{step_id}", response_model=ShopTravelerStepOut)
+# def update_traveler_step(step_id: int, payload: ShopTravelerStepUpdate, db: Session = Depends(get_db)):
+#     s = db.get(ShopTravelerStep, step_id)
+#     if not s:
+#         raise HTTPException(404, "Step not found")
+
+#     data = payload.dict(exclude_unset=True)
+
+#     # ถ้ามีการเปลี่ยน seq ต้องไม่ชนภายใน traveler เดียวกัน
+#     if "seq" in data and data["seq"] is not None and data["seq"] != s.seq:
+#         dup = (
+#             db.query(ShopTravelerStep)
+#             .filter(
+#                 ShopTravelerStep.traveler_id == s.traveler_id,
+#                 ShopTravelerStep.seq == data["seq"],
+#             )
+#             .first()
+#         )
+#         if dup:
+#             raise HTTPException(409, "This seq already exists in traveler")
+
+#     # เปลี่ยน operator ต้องมีจริง
+#     if "operator_id" in data and data["operator_id"] is not None:
+#         if not db.get(Employee, data["operator_id"]):
+#             raise HTTPException(404, "Operator not found")
+        
+#     # 🔥 HANDLE operator_nickname
+#     if "operator_nickname" in data:
+#         nickname = data["operator_nickname"]
+
+#         if nickname == "" or nickname is None:
+#             s.operator_id = None
+#         else:
+#             emp = (
+#                 db.query(Employee)
+#                 .filter(func.lower(Employee.nickname) == nickname.lower())
+#                 .first()
+#             )
+
+#             if not emp:
+#                 raise HTTPException(400, f"Nickname '{nickname}' not found")
+
+#             s.operator_id = emp.id
+
+#         # ❗ IMPORTANT: remove it so loop won't override
+#         del data["operator_nickname"]
+
+#     # อัปเดตฟิลด์ที่เหลือ
+#     for k, v in data.items():
+#         setattr(s, k, v)
+
+#     db.commit()
+#     db.refresh(s)
+#     return s
+
+from fastapi import HTTPException, Depends
+from sqlalchemy.orm import Session
+from sqlalchemy import func
+
 @router.put("/{step_id}", response_model=ShopTravelerStepOut)
-def update_traveler_step(step_id: int, payload: ShopTravelerStepUpdate, db: Session = Depends(get_db)):
+def update_traveler_step(
+    step_id: int,
+    payload: ShopTravelerStepUpdate,
+    db: Session = Depends(get_db)
+):
+    # -----------------------------
+    # 1. Load step
+    # -----------------------------
     s = db.get(ShopTravelerStep, step_id)
     if not s:
         raise HTTPException(404, "Step not found")
 
     data = payload.dict(exclude_unset=True)
 
-    # ถ้ามีการเปลี่ยน seq ต้องไม่ชนภายใน traveler เดียวกัน
+    # -----------------------------
+    # 2. Validate seq (no duplicate)
+    # -----------------------------
     if "seq" in data and data["seq"] is not None and data["seq"] != s.seq:
         dup = (
             db.query(ShopTravelerStep)
@@ -96,17 +177,57 @@ def update_traveler_step(step_id: int, payload: ShopTravelerStepUpdate, db: Sess
         if dup:
             raise HTTPException(409, "This seq already exists in traveler")
 
-    # เปลี่ยน operator ต้องมีจริง
+    # -----------------------------
+    # 3. Validate operator_id (if sent)
+    # -----------------------------
     if "operator_id" in data and data["operator_id"] is not None:
         if not db.get(Employee, data["operator_id"]):
             raise HTTPException(404, "Operator not found")
 
-    # อัปเดตฟิลด์ที่เหลือ
+    # -----------------------------
+    # 4. 🔥 HANDLE operator_nickname
+    # -----------------------------
+    if "operator_nickname" in data:
+        nickname = data["operator_nickname"]
+
+        if nickname is None or nickname.strip() == "":
+            # clear operator
+            s.operator_id = None
+        else:
+            nickname = nickname.strip()
+
+            emps = (
+                db.query(Employee)
+                .filter(func.lower(Employee.nickname) == nickname.lower())
+                .all()
+            )
+
+            if not emps:
+                raise HTTPException(400, f"Nickname '{nickname}' not found")
+
+            if len(emps) > 1:
+                raise HTTPException(
+                    400,
+                    f"Duplicate nickname '{nickname}', please use emp_code"
+                )
+
+            s.operator_id = emps[0].id
+
+        # ❗ prevent overwrite in loop
+        del data["operator_nickname"]
+
+    # -----------------------------
+    # 5. Apply remaining fields
+    # -----------------------------
     for k, v in data.items():
         setattr(s, k, v)
 
+    # -----------------------------
+    # 6. Save
+    # -----------------------------
     db.commit()
     db.refresh(s)
+
     return s
 
 

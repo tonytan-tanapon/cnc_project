@@ -549,15 +549,20 @@ class ShopTravelerStepUpdate(BaseModel):
     seq: Optional[int] = None
     step_code: Optional[str] = None
     step_name: Optional[str] = None
-    step_detail: Optional[str]   # 👈 ต้องมี
+    step_detail: Optional[str]
     station: Optional[str] = None
+
     operator_id: Optional[int] = None
+
+    # 🔥 ADD THIS
+    operator_nickname: Optional[str] = None
+
     qa_required: Optional[bool] = None
     qty_receive: Optional[Decimal] = None
     qty_accept: Optional[Decimal] = None
     qty_reject: Optional[Decimal] = None
     status: Optional[str] = None
-    step_note: Optional[str] = None        # 👈 ใหม่
+    step_note: Optional[str] = None
 
 class ShopTravelerStepOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -577,6 +582,8 @@ class ShopTravelerStepOut(BaseModel):
     qty_accept: Decimal
     qty_reject: Decimal
     step_note: Optional[str] = None        # 👈 ใหม่
+    operator_name: Optional[str] = None
+    operator_nickname: Optional[str] = None
 # =========================================
 # ============== Subcontracting ===========
 # =========================================

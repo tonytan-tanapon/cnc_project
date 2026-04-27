@@ -29,6 +29,7 @@ def _with_joined(db: Session, lot_id: int):
             joinedload(ProductionLot.part),
             joinedload(ProductionLot.po),
             joinedload(ProductionLot.part_revision),
+            joinedload(ProductionLot.customer),
         )
         .filter(ProductionLot.id == lot_id)
         .first()
@@ -123,6 +124,7 @@ def list_lots(
             joinedload(ProductionLot.part),
             joinedload(ProductionLot.po).joinedload(PO.lines),
             joinedload(ProductionLot.part_revision),
+            joinedload(ProductionLot.customer), 
         )
     )
 
@@ -274,12 +276,17 @@ def get_lot(lot_id: int, db: Session = Depends(get_db)):
             joinedload(ProductionLot.part),
             joinedload(ProductionLot.po),
             joinedload(ProductionLot.part_revision),
+            joinedload(ProductionLot.customer), 
         )
         .filter(ProductionLot.id == lot_id)
         .first()
     )
     if not lot:
         raise HTTPException(404, "Lot not found")
+    
+    lot.customer_name = lot.customer.name if lot.customer else None
+    lot.part_no = lot.part.part_no if lot.part else None
+    lot.rev = lot.part_revision.rev if lot.part_revision else None
   
     return lot
 

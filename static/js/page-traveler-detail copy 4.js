@@ -222,8 +222,6 @@ async function fillTraveler(t) {
   selectedLot = null;
   selectedCreator = null;
 
-  
-
   await loadTemplateVersions(t.part_id, t.part_revision_id);
 }
 function readTraveler() {
@@ -346,21 +344,15 @@ function normalizeStep(row) {
     step_name: row.step_name ?? "",
     step_detail: row.step_detail ?? "",
     step_code: row.step_code ?? "",
-
     operator_id: row.operator_id ?? null,
-
-    // 🔥 ADD THIS LINE
-    operator_nickname: row.operator_nickname ?? "", 
-
     status: row.status ?? "pending",
     qty_receive: row.qty_receive ?? 0,
     qty_accept: row.qty_accept ?? 0,
     qty_reject: row.qty_reject ?? 0,
     qa_required: !!row.qa_required,
-    step_note: row.step_note ?? "",
+    step_note: row.step_note ?? "", // 👈 เพิ่ม
   };
 }
-
 function setDirtyClass(row, on) {
   const el = row?.getElement?.();
   if (!el) return;
@@ -372,16 +364,13 @@ function buildStepPayload(d) {
   if (d.seq != null) p.seq = Number(d.seq);
   if (d.station != null) p.station = strOrNull(d.station);
   if (d.step_name != null) p.step_name = strOrNull(d.step_name);
-  if (d.step_detail != null) p.step_detail = strOrNull(d.step_detail);
-  if (d.step_code != null) p.step_code = strOrNull(d.step_code);
-  // 🔥 send nickname instead of id
-if (d.operator_nickname != null) {
-  // 🔥 extract nickname only
-  const raw = d.operator_nickname;
-  const nickname = raw.split("-").pop().trim();
-
-  p.operator_nickname = nickname;
+if (d.step_detail != null) {
+  p.step_detail = String(d.step_detail)
+    .replace(/↵/g, "\n")
+    .replace(/\r/g, "\n");
 }
+  if (d.step_code != null) p.step_code = strOrNull(d.step_code);
+  if (d.operator_id != null) p.operator_id = numOrNull(d.operator_id);
   if (d.qa_required != null) p.qa_required = !!d.qa_required;
   if (d.qty_receive != null) p.qty_receive = Number(d.qty_receive) || 0;
   if (d.qty_accept != null) p.qty_accept = Number(d.qty_accept) || 0;
@@ -444,7 +433,7 @@ function autosaveStepRow(row, { immediate = false } = {}) {
       toast("qty_accept + qty_reject ต้องไม่เกิน qty_receive", false);
       return;
     }
-    return jfetch(`/traveler-steps/${dd.id}`, {
+    jfetch(`/traveler-steps/${dd.id}`, {
       method: "PUT",
       body: JSON.stringify(buildStepPayload(dd)),
     })
@@ -481,6 +470,7 @@ function autosaveStepRow(row, { immediate = false } = {}) {
 // ใช้ค่าตัวเลขในแถว ไม่ถาม prompt
 async function finishStepFromRow(id, result) {
   const row = stepsTable?.getRow(id)?.getData() || {};
+  const qs = new URLSearchParams({ result });
 
   const recv = Number(row.qty_receive ?? 0);
   const acc = Number(row.qty_accept ?? 0);
@@ -491,54 +481,38 @@ async function finishStepFromRow(id, result) {
     throw new Error("qty invalid");
   }
 
-  await jfetch(`/traveler-steps/${id}/finish`, {
+  if (recv) {
+    qs.set("qty_receive", String(recv));
+    qs.set("qty_accept", String(acc));
+    qs.set("qty_reject", String(rej));
+  }
+
+  await jfetch(`/traveler-steps/${id}/finish?${qs.toString()}`, {
     method: "POST",
-    body: JSON.stringify({
-      result: result,
-      qty_receive: recv,
-      qty_accept: acc,
-      qty_reject: rej
-    }),
   });
 }
+
 async function handleStatusChange(row, newStatus, oldStatus) {
   const d = row.getData();
-
   if (!d.id) {
     toast("Save this row first", false);
     row.update({ status: oldStatus });
     return;
   }
-
   try {
-    // ✅ RESET
     if (newStatus === "pending") {
-      await jfetch(`/traveler-steps/${d.id}/restart`, {
-        method: "POST",
-      });
+      await jfetch(`/traveler-steps/${d.id}/restart`, { method: "POST" });
       toast("Step reset");
-    }
-
-    // ✅ START
-    else if (newStatus === "running" || newStatus === "in_progress") {
-      await jfetch(`/traveler-steps/${d.id}/start`, {
-        method: "POST",
-      });
+    } else if (newStatus === "running" || newStatus === "in_progress") {
+      await jfetch(`/traveler-steps/${d.id}/start`, { method: "POST" });
       toast("Step started");
-    }
-
-    // ✅ FINISH
-    else if (["passed", "failed", "skipped"].includes(newStatus)) {
+    } else if (["passed", "failed", "skipped"].includes(newStatus)) {
       await finishStepFromRow(d.id, newStatus);
       toast(`Step ${newStatus}`);
-    }
-
-    else {
+    } else {
       throw new Error("Unknown status");
     }
-
     await reloadSteps();
-
   } catch (e) {
     row.update({ status: oldStatus }); // revert
     toast(e?.message || "Update status failed", false);
@@ -595,68 +569,46 @@ function stationAutocompleteEditor(cell, onRendered, success, cancel) {
   });
   return input;
 }
+
 function operatorAutocompleteEditor(cell, onRendered, success, cancel) {
   const input = document.createElement("input");
   input.type = "text";
   input.className = "tabulator-editing";
   input.value = cell.getValue() || "";
   input.autocomplete = "off";
-
   async function fetchEmployees(term) {
     const q = (term || "").trim();
     try {
       const url = q
         ? `/employees?q=${encodeURIComponent(q)}&page=1&page_size=10`
         : `/employees?page=1&page_size=10`;
-
       const res = await jfetch(url);
       const items = Array.isArray(res) ? res : res.items || [];
-
-      return items.map((e) => ({
-        id: e.id,
-        label: `${e.emp_code || ""} - ${e.nickname || e.name || ""}`,
-      }));
+      return items.map((e) => ({ id: e.id, label: `${e.emp_code || e.id}` }));
     } catch {
       return [];
     }
   }
-
   attachAutocomplete(input, {
     fetchItems: fetchEmployees,
     getDisplayValue: (it) => (it ? it.label : ""),
     renderItem: (it) => `<div>${escapeHtml(it.label)}</div>`,
-
     onPick: (it) => {
       success(String(it.id));
       const row = cell.getRow();
-
-      setTimeout(async () => {
-  const nickname = it.label.split("-").pop().trim();
-
-  row.update({
-    operator_id: it.id,
-    operator_nickname: nickname,
-  });
-
-  setDirtyClass(row, true);
-
-  autosaveStepRow(row, { immediate: true });
-
-  // 🔥 wait a bit
-  setTimeout(() => location.reload(), 300);
-
-}, 0);
+      setTimeout(() => {
+        row.update({ operator_id: it.id });
+        setDirtyClass(row, true);
+        autosaveStepRow(row);
+      }, 0);
     },
-
     minChars: 0,
     openOnFocus: true,
   });
-
   onRendered(() => {
     input.focus();
     input.select();
   });
-
   return input;
 }
 
@@ -677,7 +629,6 @@ function initStepsTable() {
     height: "calc(100vh - 480px)", // 👈 เพิ่มระยะเพื่อให้มีที่สำหรับปุ่มด้านล่าง
     placeholder: "No steps",
     reactiveData: true,
-    rowHeight: 38,   
     index: "id",
     columns: [
       {
@@ -726,12 +677,48 @@ function initStepsTable() {
       },
 
       { title: "Step Name", field: "step_name", width: 220, editor: "input" },
-      {
-        title: "Step Detail",
-        field: "step_detail",
-        width: 220,
-        editor: "input",
-      },
+   
+
+    // {
+    //         title: "Step Detail",
+    //         field: "step_detail",
+    //         width: 220,
+    //         editor: "textarea",
+    //       },
+{
+  title: "Step Detail",
+  field: "step_detail",
+  width: 220,
+
+  editor: "textarea",
+
+  formatter: "textarea",   // ✅ ใช้แค่นี้พอ
+
+  variableHeight: true,
+
+  mutatorEdit: (value) => {
+    return (value || "")
+      .replace(/↵/g, "\n")
+      .replace(/\r/g, "\n");
+  },
+
+  mutator: (value) => {
+    return (value || "")
+      .replace(/↵/g, "\n")
+      .replace(/\r/g, "\n");
+  },
+
+  cellClick: (e, cell) => {
+    cell.edit();   // ✅ click แล้ว edit
+  },
+
+  editorParams: {
+    elementAttributes: {
+      style: "height:120px;"
+    }
+  }
+},
+
       {
         title: "Status",
         field: "status",
@@ -784,7 +771,7 @@ function initStepsTable() {
 
       {
         title: "Operator",
-        field: "operator_nickname",
+        field: "operator_id",
         width: 140,
         hozAlign: "right",
         editor: operatorAutocompleteEditor,
@@ -1266,23 +1253,6 @@ function showTravelerQR() {
 }
 
 
-async function loadLotDetail() {
-  if (!lotId) return;
-
-  try {
-    const lot = await jfetch(`/lots/${encodeURIComponent(lotId)}`);
-
-    console.log("lot detail:", lot);
-
-    $("customer_name").value = lot.customer?.name || "";
-    $("part_no").value = lot.part?.part_no || "";
-    $("rev").value = lot.revision?.rev || "";
-
-  } catch (err) {
-    console.error(err);
-    toast("Failed to load lot", false);
-  }
-}
 
 function makeLotLinks(lotId) {
   if (!lotId) return;

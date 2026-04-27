@@ -212,10 +212,17 @@
       background: #e5e7eb;
     }
 
-   #templateSelect {
-    width: 180px;       /* ปรับตามต้องการ */
-    max-width: 200px;
-}
+    #templateSelect {
+      width: 180px;
+      /* ปรับตามต้องการ */
+      max-width: 200px;
+    }
+
+    .cell-multiline {
+      white-space: pre-wrap;
+      /* ✅ แสดง \n */
+      line-height: 1.3;
+    }
   </style>
 </head>
 
@@ -247,7 +254,14 @@
           <h2 style="margin: 0">🧾 Traveler:</h2>
           <h2 id="t_sub">(loading…)</h2>
         </div>
-
+        <div id="lot_summary" style="
+  padding: 6px 0 10px;
+  font-weight: 600;
+  font-size: 14px;
+  border-bottom: 1px solid #e5e7eb;
+">
+          (loading…)
+        </div>
         <!-- Header -->
         <div class="header">
           <div class="field col-3">
@@ -262,6 +276,7 @@
             <label>Status</label>
             <input id="status" placeholder="open / in_progress / closed" />
           </div>
+
           <div class="field col-12">
             <label>Notes</label>
             <textarea id="notes" rows="2" placeholder="Notes…"></textarea>
@@ -287,7 +302,7 @@
           <!-- Dropdown (เลือก template) -->
           <select id="templateSelect" class="btn-mini">
             <option value="">Select Version</option>
-        </select>
+          </select>
 
           <!-- Confirm button -->
           <button id="btnUseTemplate" class="btn-mini">Use Template</button>
@@ -296,10 +311,10 @@
           <button id="btnImportFile" class="btn-mini">
             📂 Import File
           </button>
-          <button id ="btnUpdateTravelerStep" class="btn-mini">Update Traveler</button>
+          <button id="btnUpdateTravelerStep" class="btn-mini">Update Traveler</button>
           <button id="btnExportTraveler" class="btn-mini">📝 Export Traveler</button>
 
-          
+
 
         </div>
 
@@ -390,6 +405,37 @@
     #qrCloseBtn {
       background: #9ca3af;
       color: #fff;
+    }
+
+    .tabulator-cell {
+      white-space: pre-wrap !important;
+    }
+
+    .steps-html-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+
+    .steps-html-table th,
+    .steps-html-table td {
+      border: 1px solid #e5e7eb;
+      padding: 6px;
+      vertical-align: top;
+    }
+
+    .steps-html-table input,
+    .steps-html-table select,
+    .steps-html-table textarea {
+      width: 100%;
+      box-sizing: border-box;
+      font: inherit;
+    }
+
+    .steps-html-table textarea {
+      min-height: 100px;
+      resize: vertical;
+      white-space: pre-wrap;
     }
   </style>
 

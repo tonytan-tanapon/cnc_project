@@ -593,7 +593,7 @@ class ShopTraveler(Base):
     traveler_no = Column(String, unique=True, index=True)
     lot_id = Column(Integer, ForeignKey("production_lots.id"), nullable=False)
 
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False) # release date
     created_by_id = Column(Integer, ForeignKey("employees.id"), nullable=True)
     status = Column(String, nullable=False, default="open")
     notes = Column(Text, nullable=True)
@@ -602,7 +602,9 @@ class ShopTraveler(Base):
     # 👇 เพิ่มใหม่
     current_step_seq = Column(Integer, nullable=True, index=True)  # step ที่ต้องทำต่อ
     qr_code = Column(String, nullable=True, unique=True, index=True)  # ใช้ encode ใน QR
-
+    materail = Column(String, nullable=True) # type spec
+    risk_level = Column(String, nullable=True) # low/medium/high
+  
 
     lot = relationship("ProductionLot", back_populates="travelers")
     created_by = relationship("Employee", foreign_keys=[created_by_id])
@@ -650,9 +652,19 @@ class ShopTravelerStep(Base):
     step_note = Column(Text, nullable=True)
     uom = Column(String, nullable=True, default="pcs")  # 👈 หน่วยต่อ step เช่น 'pcs', 'foot'
 
+    supplier_po = Column(String, nullable=True)  # สำหรับขั้นตอนที่ส่งไปซับฯ จะได้บันทึกเลข PO ไว้
+    supplier_name = Column(String, nullable=True) # สำหรับขั้นตอนที่ส่งไปซับฯ จะได้บันทึกชื่อซัพไว้
+    heat_lot = Column(String, nullable=True)       # สำหรับขั้นตอนที่ส่งไปซับฯ จะได้บันทึก heat lot ไว้
+
+
+
     traveler = relationship("ShopTraveler", back_populates="steps")
     operator = relationship("Employee", foreign_keys=[operator_id])
     machine  = relationship("Machine", back_populates="step_assignments")
+    
+
+    material_size = Column(String, nullable=True) # type spec + size text รวมกัน เผื่อใช้แสดงใน QR code หรือ label
+    material_length = Column(String, nullable=True) # type spec + size text รวมกัน เผื่อใช้แสดงใน QR code หรือ label
    
 
     __table_args__ = (
@@ -716,6 +728,9 @@ class TravelerTemplate(Base):
 
     note = Column(Text, nullable=True)
 
+    materail = Column(String, nullable=True) # type spec
+    risk_level = Column(String, nullable=True) # low/medium/high 
+
     # relationships
     steps = relationship(
         "TravelerTemplateStep",
@@ -760,7 +775,13 @@ class TravelerTemplateStep(Base):
 
     note = Column(Text, nullable=True)
 
+    material_size = Column(String, nullable=True) # type spec + size text รวมกัน เผื่อใช้แสดงใน QR code หรือ label
+    material_length = Column(String, nullable=True) # type spec + size text รวมกัน เผื่อใช้แสดงใน QR code หรือ label
+   
+
     template = relationship("TravelerTemplate", back_populates="steps")
+
+    
 
     __table_args__ = (
         UniqueConstraint("template_id", "seq", name="uq_template_seq"),
