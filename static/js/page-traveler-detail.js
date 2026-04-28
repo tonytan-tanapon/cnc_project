@@ -111,7 +111,10 @@ function ensureHeaderButtons() {
   btnHdrSave.className = "btn-mini";
   btnHdrSave.textContent = "💾 Save";
   btnHdrSave.style.display = "none";
-  btnHdrSave.onclick = saveTraveler;
+  btnHdrSave.onclick = async () => {
+  await saveLot();        // 🔥 save lot fields
+  await saveTraveler();   // existing logic
+};
 
   btnHdrCancel = document.createElement("button");
   btnHdrCancel.className = "btn-mini";
@@ -133,12 +136,53 @@ function ensureHeaderButtons() {
   console.log("✅ Header buttons added");
 }
 
+async function saveLot() {
+  const lotId = $("lot_id")?.dataset?.id;
+  if (!lotId) {
+    toast("Missing lot_id", false);
+    return;
+  }
+
+  try {
+    setBusyT(true);
+
+    const payload = {
+      lot_po_qty: numOrNull($("lot_po_qty")?.value),
+      planned_qty: numOrNull($("lot_planned_qty")?.value), // 🔥 DB field
+      lot_po_date: strOrNull($("lot_release_date")?.value),
+      lot_po_duedate: strOrNull($("lot_po_duedate")?.value),
+    };
+
+    await jfetch(`/lots/${lotId}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+
+    toast("Lot updated");
+
+  } catch (e) {
+    console.error(e);
+    toast(e?.message || "Update lot failed", false);
+  } finally {
+    setBusyT(false);
+  }
+}
+
 function markHeaderDirty(on) {
   if (btnHdrSave) btnHdrSave.style.display = on ? "" : "none";
   if (btnHdrCancel) btnHdrCancel.style.display = on ? "" : "none";
 }
 function wireHeaderDirtyOnly() {
-  ["lot_id", "created_by_id", "status", "notes"].forEach((id) => {
+ [
+  "lot_id",
+  "created_by_id",
+  "status",
+  "notes",
+  "lot_po_qty",
+  "lot_planned_qty",
+  "lot_release_date",     // 🔥 add
+  "lot_po_duedate"        // 🔥 add
+].forEach((id) => {
     const el = $(id);
     if (!el) return;
     el.addEventListener("input", () => markHeaderDirty(true));
@@ -150,6 +194,8 @@ function wireHeaderDirtyOnly() {
 function initHeaderAutocomplete() {
   const elLot = $("lot_id");
   const elCreator = $("created_by_id");
+
+  
 
   // LOT → lot_no only
   if (elLot) {
@@ -200,32 +246,77 @@ function initHeaderAutocomplete() {
   }
 }
 
+
+
 /* ---------- Traveler IO ---------- */
 async function fillTraveler(t) {
+  console.log("🔥 fillTraveler called", t);
+
+  // ---------- Lot ----------
   const lotLabel = t.lot_no ? String(t.lot_no) : t.lot_id ?? "";
   $("lot_id").value = lotLabel;
   $("lot_id").dataset.id = t.lot_id ?? "";
 
+  // ---------- Creator ----------
   const creatorCode = t.created_by_id
     ? await fetchEmpCodeById(t.created_by_id)
     : "";
   $("created_by_id").value = creatorCode;
   $("created_by_id").dataset.id = t.created_by_id ?? "";
 
-  $("status").value = t.status ?? "";
+  // ---------- Basic fields ----------
+  // $("status").value = t.status ?? "";
   $("notes").value = t.notes ?? "";
-  console.log("t", t);
+
   $("t_sub").textContent = `#${t.traveler_no}`;
   document.title = `Traveler · #${t.id}`;
+
   markHeaderDirty(false);
 
   selectedLot = null;
   selectedCreator = null;
 
-  
-
+  // ---------- Load template versions ----------
   await loadTemplateVersions(t.part_id, t.part_revision_id);
+
+  // ---------- Load LOT summary ----------
+  if (!t.lot_id) return;
+
+  try {
+    const lot = await jfetch(`/lots/${t.lot_id}`);
+    console.log("Fetched lot for header:", lot);
+
+    // ✅ SET HEADER INPUT VALUES
+const elPoQty = $("lot_po_qty");
+const elPlanQty = $("lot_planned_qty");
+const elRelease = $("lot_release_date");
+const elDue = $("lot_po_duedate");
+
+if (elPoQty) elPoQty.value = lot.lot_po_qty ?? "";
+if (elPlanQty) elPlanQty.value = lot.lot_planned_qty ?? "";
+if (elRelease) elRelease.value = lot.lot_po_date?.slice(0, 10) ?? "";
+if (elDue) elDue.value = lot.lot_po_duedate?.slice(0, 10) ?? "";
+
+    const el = $("lot_summary");
+    if (!el) return;
+
+    // ✅ Option 1: clean string builder (recommended)
+    const summary = [
+      `<b>LOT:</b> ${lot.lot_no || "-"}`,
+      `<b>Customer:</b> ${lot.customer?.code || "-"}`,
+      `<b>PO:</b> ${lot.po?.po_number || "-"}`,
+      `<b>Part:</b> ${lot.part?.part_no || "-"}`,
+      `<b>Part Name:</b> ${lot.part?.part_name || "-"}`,
+      `<b>Rev:</b> ${lot.part_revision?.rev || "-"}`
+    ].join(" | ");
+
+    el.innerHTML = summary;
+
+  } catch (err) {
+    console.error("❌ Failed to load lot:", err);
+  }
 }
+
 function readTraveler() {
   const lotInput = $("lot_id");
   const creatorInput = $("created_by_id");
@@ -240,6 +331,11 @@ function readTraveler() {
     created_by_id,
     status: strOrNull($("status")?.value),
     notes: strOrNull($("notes")?.value),
+
+    lot_po_qty: numOrNull($("lot_po_qty")?.value),
+    lot_planned_qty: numOrNull($("lot_planned_qty")?.value),
+    lot_po_date: strOrNull($("lot_release_date")?.value),
+    lot_po_duedate: strOrNull($("lot_po_duedate")?.value),
   };
 }
 
@@ -680,33 +776,33 @@ function initStepsTable() {
     rowHeight: 38,   
     index: "id",
     columns: [
-      {
-        title: "APP",
-        width: 80,
-        hozAlign: "center",
-        headerSort: false,
+      // {
+      //   title: "APP",
+      //   width: 80,
+      //   hozAlign: "center",
+      //   headerSort: false,
 
-        formatter: (cell) => {
-          const row = cell.getRow().getData();
-          const seq = row.seq;
+      //   formatter: (cell) => {
+      //     const row = cell.getRow().getData();
+      //     const seq = row.seq;
 
-          const travelerNo = originalTraveler?.traveler_no || travelerId;
-          if (!travelerNo || seq == null) return "";
+      //     const travelerNo = originalTraveler?.traveler_no || travelerId;
+      //     if (!travelerNo || seq == null) return "";
 
-          const baseUrl = `${location.protocol}//${location.host}`;
-          const url =
-            `${baseUrl}/static/ui-traveler.html` +
-            `?traveler_no=${encodeURIComponent(travelerNo)}` +
-            `&seq=${encodeURIComponent(seq)}`;
+      //     const baseUrl = `${location.protocol}//${location.host}`;
+      //     const url =
+      //       `${baseUrl}/static/ui-traveler.html` +
+      //       `?traveler_no=${encodeURIComponent(travelerNo)}` +
+      //       `&seq=${encodeURIComponent(seq)}`;
 
-          return `
-                <a href="${url}" target="_blank" rel="noopener"
-                  style="text-decoration:none;font-weight:600;">
-                  ${seq}
-                </a>
-              `;
-        },
-      },
+      //     return `
+      //           <a href="${url}" target="_blank" rel="noopener"
+      //             style="text-decoration:none;font-weight:600;">
+      //             ${seq}
+      //           </a>
+      //         `;
+      //   },
+      // },
 
       {
         title: "#Seq",

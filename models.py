@@ -637,6 +637,10 @@ class ShopTravelerStep(Base):
     finished_at = Column(DateTime(timezone=True), nullable=True)
 
     operator_id = Column(Integer, ForeignKey("employees.id"), nullable=True, index=True)
+    operator__init_id = Column(Integer, ForeignKey("employees.id"), nullable=True, index=True)
+    operator__qa_id = Column(Integer, ForeignKey("employees.id"), nullable=True, index=True)
+    operator_init_id = Column(Integer, ForeignKey("employees.id"), nullable=True, index=True)
+    operator_qa_id = Column(Integer, ForeignKey("employees.id"), nullable=True, index=True)
     machine_id = Column(Integer, ForeignKey("machines.id"), nullable=True, index=True)
 
     qa_required = Column(Boolean, default=False, nullable=False)

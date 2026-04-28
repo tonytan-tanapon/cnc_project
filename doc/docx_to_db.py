@@ -492,7 +492,7 @@ if __name__ == "__main__":
     from pathlib import Path
     print("🚀 Starting DOCX to DB import...")
 
-    path = Path(r"C:\docs\shop_travelers\result")
+    path = Path(r"C:\docs\shop_travelers\test")
     # path = Path(r"C:\Users\TPSERVER\Desktop\ST convert\st_blank_sample")
 
     # loop ทุกไฟล์ docx ในโฟลเดอร์

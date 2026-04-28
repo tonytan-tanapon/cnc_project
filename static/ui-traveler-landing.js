@@ -123,19 +123,45 @@ let pinResolve = null;
 // Build keypad
 (function buildPinPad() {
   const keys = document.getElementById("pinKeys");
-  for (let i = 1; i <= 9; i++) addKey(i);
-  addKey(0);
+  keys.innerHTML = ""; // reset
 
-  function addKey(n) {
-    const btn = document.createElement("button");
-    btn.textContent = n;
-    btn.style.fontSize = "20px";
-    btn.style.padding = "14px";
-    btn.onclick = () => pressPin(n);
-    keys.appendChild(btn);
-  }
+  const layout = [
+    [1, 2, 3],
+    [4, 5, 6],
+    [7, 8, 9],
+    ["del", 0, "clear"],
+  ];
+
+  layout.forEach((row) => {
+    row.forEach((key) => {
+      const btn = document.createElement("button");
+
+      btn.className = "pin-btn";
+
+      if (key === "del") {
+        btn.textContent = "⌫";
+        btn.onclick = () => deletePin();
+      } else if (key === "clear") {
+        btn.textContent = "Clear";
+        btn.onclick = () => clearPin();
+      } else {
+        btn.textContent = key;
+        btn.onclick = () => pressPin(key);
+      }
+
+      keys.appendChild(btn);
+    });
+  });
 })();
+function deletePin() {
+  pinValue = pinValue.slice(0, -1);
+  updatePinDisplay();
+}
 
+function clearPin() {
+  pinValue = "";
+  updatePinDisplay();
+}
 function showPinPad() {
   pinValue = "";
   updatePinDisplay();
@@ -165,11 +191,19 @@ function pressPin(n) {
 }
 
 function updatePinDisplay() {
-  document.getElementById("pinDisplay").textContent = pinValue
-    .padEnd(4, "-")
-    .replace(/./g, "•");
-}
+  const display = document.getElementById("pinDisplay");
 
+  let html = "";
+  for (let i = 0; i < 4; i++) {
+    if (i < pinValue.length) {
+      html += `<span class="pin-dot filled">•</span>`;
+    } else {
+      html += `<span class="pin-dot">-</span>`;
+    }
+  }
+
+  display.innerHTML = html;
+}
 // Clear
 document.getElementById("pinClear").onclick = () => {
   pinValue = "";

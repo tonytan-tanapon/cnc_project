@@ -64,6 +64,44 @@
             font-size: 14px;
             color: #94a3b8;
         }
+
+
+    .pin-dot {
+  color: #cbd5f5; /* empty = light gray */
+}
+
+.pin-dot.filled {
+  color: #2563eb; /* typing = blue */
+}
+
+#pinKeys {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.pin-btn {
+  font-size: 18px;
+  padding: 16px;
+  border-radius: 10px;
+  border: none;
+  background: #e2e8f0;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.pin-btn:active {
+  background: #cbd5f5;
+}
+
+/* Special buttons */
+.pin-btn:nth-last-child(3) { /* DEL */
+  background: #fecaca;
+}
+
+.pin-btn:nth-last-child(1) { /* CLEAR */
+  background: #fde68a;
+}
     </style>
 </head>
 
@@ -128,12 +166,7 @@
                 <!-- numbers injected by JS -->
             </div>
 
-            <button id="pinClear" style="
-      margin-top:12px;
-      width:100%;
-      padding:10px;
-      font-size:16px;
-    ">Clear</button>
+            
 
         </div>
     </div>

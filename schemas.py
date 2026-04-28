@@ -391,6 +391,11 @@ class ProductionLotUpdate(BaseModel):
     created_at: Optional[datetime] = None
     lot_planned_ship_qty: Optional[int] = None
 
+     # 🔥 ADD THESE
+    lot_po_qty: Optional[int] = None
+    lot_po_date: Optional[date] = None
+    lot_po_duedate: Optional[date] = None
+
 class PartTiny(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
@@ -409,6 +414,17 @@ class PartRevisionTiny(BaseModel):
     rev: str
     is_current: Optional[bool] = None
 
+
+from pydantic import BaseModel, ConfigDict
+from typing import Optional
+
+class CustomerTiny(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    code: str
+    name: str
+
+
 class ProductionLotOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -419,19 +435,19 @@ class ProductionLotOut(BaseModel):
     po_id: Optional[int] = None
 
     planned_qty: int
-    lot_due_date : Optional[datetime] = None
+    lot_due_date: Optional[datetime] = None
     started_at: Optional[datetime] = None
     finished_at: Optional[datetime] = None
     status: Optional[str] = None
     planned_ship_qty: Optional[int] = None
-    
 
-    # ✅ nested objects
+    # ✅ nested objects (IMPORTANT)
     part: Optional[PartTiny] = None
     po: Optional[POTiny] = None
-    revision: Optional[PartRevisionTiny] = None  # <- NEW
-    # traveler_ids: List[int] = []
-    traveler_ids: List[int] = Field(default_factory=list)  # ← แทน []
+    part_revision: Optional[PartRevisionTiny] = None   # ✅ FIXED NAME
+    customer: Optional[CustomerTiny] = None           # ✅ NEW
+
+    traveler_ids: List[int] = Field(default_factory=list)
 # =========================================
 # ============ Lot Material Use ===========
 # =========================================

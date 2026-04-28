@@ -29,7 +29,7 @@ def _with_joined(db: Session, lot_id: int):
             joinedload(ProductionLot.part),
             joinedload(ProductionLot.po),
             joinedload(ProductionLot.part_revision),
-            joinedload(ProductionLot.customer),
+            joinedload(ProductionLot.po).joinedload(PO.customer)
         )
         .filter(ProductionLot.id == lot_id)
         .first()
@@ -267,28 +267,54 @@ def used_materials(request: Request, db: Session = Depends(get_db)) -> Dict[str,
             }
         )
     return out
+from models import PO
 
-@router.get("/{lot_id}", response_model=ProductionLotOut)
+
+@router.get("/{lot_id}")
 def get_lot(lot_id: int, db: Session = Depends(get_db)):
     lot = (
         db.query(ProductionLot)
         .options(
             joinedload(ProductionLot.part),
-            joinedload(ProductionLot.po),
+            joinedload(ProductionLot.po).joinedload(PO.customer),
             joinedload(ProductionLot.part_revision),
-            joinedload(ProductionLot.customer), 
         )
         .filter(ProductionLot.id == lot_id)
         .first()
     )
+
     if not lot:
         raise HTTPException(404, "Lot not found")
-    
-    lot.customer_name = lot.customer.name if lot.customer else None
-    lot.part_no = lot.part.part_no if lot.part else None
-    lot.rev = lot.part_revision.rev if lot.part_revision else None
-  
-    return lot
+
+    return {
+        "id": lot.id,
+        "lot_no": lot.lot_no,
+
+        # ✅ NEW FIELDS
+        "lot_po_date": lot.lot_po_date,
+        "lot_po_duedate": lot.lot_po_duedate,
+        "lot_po_qty": lot.lot_po_qty,
+        "lot_planned_qty": lot.planned_qty,
+
+        "customer": {
+            "name": lot.po.customer.name,
+            "code": lot.po.customer.code,
+        } if lot.po and lot.po.customer else None,
+
+        "po": {
+            "po_number": lot.po.po_number
+        } if lot.po else None,
+
+        "part": {
+            "part_no": lot.part.part_no,
+            "part_name": lot.part.name,
+        } if lot.part else None,
+
+        "part_revision": {
+            "rev": lot.part_revision.rev
+        } if lot.part_revision else None,
+        "all": lot,
+    }
 
 @router.put("/{lot_id}", response_model=ProductionLotOut)
 def update_lot_put(lot_id: int, payload: ProductionLotUpdate, db: Session = Depends(get_db)):
