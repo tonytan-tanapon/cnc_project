@@ -22,7 +22,8 @@ def get_shipment_status(
         "customer_name",
         "lot_shipment_status",
         "lot_last_ship_date",
-        "days_left",
+        "po_days_left",        # ✅
+        "lot_po_days_left",    # ✅
     }
 
     order_col = order_by if order_by in allowed_order else "lot_po_duedate"

@@ -594,9 +594,9 @@ class ShopTravelerStepOut(BaseModel):
     status: str
     started_at: Optional[datetime] = None
     finished_at: Optional[datetime] = None
-    qty_receive: Decimal
-    qty_accept: Decimal
-    qty_reject: Decimal
+    total_receive: Optional[float]
+    total_accept: Optional[float]
+    total_reject: Optional[float]
     step_note: Optional[str] = None        # 👈 ใหม่
     operator_name: Optional[str] = None
     operator_nickname: Optional[str] = None

@@ -621,6 +621,7 @@ class ShopTraveler(Base):
         return f"<ShopTraveler(lot_id={self.lot_id}, status={self.status})>"
 
 
+
 class ShopTravelerStep(Base):
     __tablename__ = "shop_traveler_steps"
     id = Column(Integer, primary_key=True)
@@ -647,10 +648,10 @@ class ShopTravelerStep(Base):
     qa_result = Column(String, nullable=True)
     qa_notes = Column(Text, nullable=True)
 
-    qty_receive = Column(Numeric(18, 3), nullable=False, default=0)
-    qty_accept  = Column(Numeric(18, 3), nullable=False, default=0)
-    qty_reject  = Column(Numeric(18, 3), nullable=False, default=0)
-    qty_rework  = Column(Numeric(18, 3), nullable=True, default=0)
+    # qty_receive = Column(Numeric(18, 3), nullable=False, default=0)
+    # qty_accept  = Column(Numeric(18, 3), nullable=False, default=0)
+    # qty_reject  = Column(Numeric(18, 3), nullable=False, default=0)
+    # qty_rework  = Column(Numeric(18, 3), nullable=True, default=0)
 
     # 👇 ใหม่
     step_note = Column(Text, nullable=True)
@@ -665,8 +666,27 @@ class ShopTravelerStep(Base):
     traveler = relationship("ShopTraveler", back_populates="steps")
     operator = relationship("Employee", foreign_keys=[operator_id])
     machine  = relationship("Machine", back_populates="step_assignments")
-    
 
+
+    # 👇 ✅ ใส่ตรงนี้
+    logs = relationship(
+        "ShopTravelerStepLog",
+        back_populates="step",
+        cascade="all, delete-orphan",
+        order_by="ShopTravelerStepLog.work_date"
+    )
+    @property
+    def total_receive(self):
+        return sum((log.qty_receive or 0) for log in self.logs)
+    
+    # 👇 computed field
+    @property
+    def total_accept(self):
+        return sum((log.qty_accept or 0) for log in self.logs)
+
+    @property
+    def total_reject(self):
+        return sum((log.qty_reject or 0) for log in self.logs)
     material_size = Column(String, nullable=True) # type spec + size text รวมกัน เผื่อใช้แสดงใน QR code หรือ label
     material_length = Column(String, nullable=True) # type spec + size text รวมกัน เผื่อใช้แสดงใน QR code หรือ label
    
@@ -703,13 +723,91 @@ class ShopTravelerStep(Base):
 
         db.commit()
 
+from sqlalchemy import Column, Integer, ForeignKey, Date, DateTime, Numeric, Text, String, UniqueConstraint, Index
+from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
 
+class ShopTravelerStepLog(Base):
+    __tablename__ = "shop_traveler_step_logs"
+
+    id = Column(Integer, primary_key=True)
+
+    # 🔗 relation
+    step_id = Column(
+        Integer,
+        ForeignKey("shop_traveler_steps.id"),
+        nullable=False,
+        index=True
+    )
+
+    # 📅 วันทำงาน (สำคัญมาก)
+    work_date = Column(Date, nullable=False, index=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # 👤 operator
+    operator_id = Column(Integer, ForeignKey("employees.id"), nullable=True)
+
+    # 🏭 machine (optional แต่แนะนำให้มี future-proof)
+    machine_id = Column(Integer, ForeignKey("machines.id"), nullable=True)
+
+    # ⏱ เวลา (optional)
+    started_at = Column(DateTime(timezone=True), nullable=True)
+    finished_at = Column(DateTime(timezone=True), nullable=True)
+
+    # 📦 qty (core ของระบบ)
+    qty_receive = Column(Numeric(18, 3), nullable=True)
+    qty_accept  = Column(Numeric(18, 3), nullable=False, default=0)
+    qty_reject  = Column(Numeric(18, 3), nullable=False, default=0)
+    qty_rework  = Column(Numeric(18, 3), nullable=True, default=0)
+
+    # 📝 note
+    note = Column(Text, nullable=True)
+
+    # 🔗 relationships
+    step = relationship("ShopTravelerStep", back_populates="logs")
+    operator = relationship("Employee")
+    machine = relationship("Machine")
+
+    # ⚠️ กัน duplicate ต่อวัน (สำคัญ)
+    __table_args__ = (
+        UniqueConstraint("step_id", "work_date", name="uq_step_day"),
+        Index("ix_step_log_operator", "operator_id"),
+        Index("ix_step_log_machine", "machine_id"),
+        CheckConstraint("qty_accept >= 0", name="ck_accept_positive"),
+        CheckConstraint("qty_reject >= 0", name="ck_reject_positive"),
+    )
+    def __repr__(self):
+        return f"<StepLog(step_id={self.step_id}, date={self.work_date})>"
+    
 from sqlalchemy import (
     Column, Integer, String, Boolean, DateTime, ForeignKey,
     Text, Index, UniqueConstraint
 )
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+
+from sqlalchemy import func
+from decimal import Decimal
+
+def get_step_totals(db, step_id: int):
+    row = (
+        db.query(
+            func.coalesce(func.sum(ShopTravelerStepLog.qty_receive), 0),
+            func.coalesce(func.sum(ShopTravelerStepLog.qty_accept), 0),
+            func.coalesce(func.sum(ShopTravelerStepLog.qty_reject), 0),
+            func.coalesce(func.sum(ShopTravelerStepLog.qty_rework), 0),
+        )
+        .filter(ShopTravelerStepLog.step_id == step_id)
+        .one()
+    )
+
+    return {
+        "qty_receive": row[0],
+        "qty_accept": row[1],
+        "qty_reject": row[2],
+        "qty_rework": row[3],
+    }
+
 
 
 class TravelerTemplate(Base):

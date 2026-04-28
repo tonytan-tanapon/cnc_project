@@ -157,7 +157,7 @@ function copyWithFeedback(icon, text, msg = "Copied") {
 function makeColumns() {
   return [
     /* ===== COPY SUMMARY ===== */
-   
+
 
     {
       title: "Copy",
@@ -510,7 +510,7 @@ function makeColumns() {
       title: "QTY<br>Shipped",
       titleDownload: "QTY Shipped",
       width: 110,
-      field: "accept_input",
+      field: "lot_shipped_qty",
       hozAlign: "center",
       headerHozAlign: "center",
 
@@ -536,15 +536,10 @@ function makeColumns() {
     `;
       },
 
-      // 🚀 autosave (เหมือน PROD)
       cellEdited: async (cell) => {
         const d = cell.getRow().getData();
         const qty = Number(cell.getValue());
 
-        const raw = cell.getValue();
-        // const qty = Number(raw);
-
-        // allow 0, block NaN / negative
         if (Number.isNaN(qty) || qty < 0) {
           toast("Invalid qty", false);
           cell.restoreOldValue();
@@ -552,22 +547,20 @@ function makeColumns() {
         }
 
         try {
-          await jfetch(`/api/v1/traveler-steps/${d.step_id}/finish`, {
+          await jfetch(`/api/v1/lot-shippments/shipment/update-from-ui`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              qty_receive: qty,
-              qty_accept: qty,
-              qty_reject: 0,
-              result: "passed"
+              lot_id: d.lot_id,
+              qty: qty
             }),
           });
 
-          toast("Accepted", true);
+          toast("Shipment updated", true);
 
         } catch (err) {
           console.error(err);
-          toast("Save failed", false);
+          toast(err?.message || "Save failed", false);
           cell.restoreOldValue();
         }
       }
@@ -922,7 +915,7 @@ function applyFilter() {
   // const lotStatus = els[UI.lotStatus].value;
   // const duedaysVal = els[UI.duedays].value;
   const lotStatus =
-  document.querySelector('input[name="lot_status"]:checked')?.value || "";
+    document.querySelector('input[name="lot_status"]:checked')?.value || "";
 
   table.clearFilter(true);
 
@@ -990,6 +983,6 @@ document.addEventListener("DOMContentLoaded", () => {
   // els[UI.lotStatus].addEventListener("change", applyFilter);
   els[UI.export].addEventListener("click", exportExcel);
   document.querySelectorAll('input[name="lot_status"]').forEach((radio) => {
-  radio.addEventListener("change", applyFilter);
-});
+    radio.addEventListener("change", applyFilter);
+  });
 });

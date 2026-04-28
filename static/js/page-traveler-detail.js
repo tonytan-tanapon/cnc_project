@@ -64,9 +64,8 @@ async function searchLots(term) {
 
 async function searchEmployees(term) {
   const q = (term || "").trim();
-  const url = `/employees/keyset?limit=10${
-    q ? `&q=${encodeURIComponent(q)}` : ""
-  }`;
+  const url = `/employees/keyset?limit=10${q ? `&q=${encodeURIComponent(q)}` : ""
+    }`;
   try {
     const res = await jfetch(url);
     const items = Array.isArray(res) ? res : res.items || [];
@@ -112,9 +111,9 @@ function ensureHeaderButtons() {
   btnHdrSave.textContent = "💾 Save";
   btnHdrSave.style.display = "none";
   btnHdrSave.onclick = async () => {
-  await saveLot();        // 🔥 save lot fields
-  await saveTraveler();   // existing logic
-};
+    await saveLot();        // 🔥 save lot fields
+    await saveTraveler();   // existing logic
+  };
 
   btnHdrCancel = document.createElement("button");
   btnHdrCancel.className = "btn-mini";
@@ -173,16 +172,16 @@ function markHeaderDirty(on) {
   if (btnHdrCancel) btnHdrCancel.style.display = on ? "" : "none";
 }
 function wireHeaderDirtyOnly() {
- [
-  "lot_id",
-  "created_by_id",
-  "status",
-  "notes",
-  "lot_po_qty",
-  "lot_planned_qty",
-  "lot_release_date",     // 🔥 add
-  "lot_po_duedate"        // 🔥 add
-].forEach((id) => {
+  [
+    "lot_id",
+    "created_by_id",
+    "status",
+    "notes",
+    "lot_po_qty",
+    "lot_planned_qty",
+    "lot_release_date",     // 🔥 add
+    "lot_po_duedate"        // 🔥 add
+  ].forEach((id) => {
     const el = $(id);
     if (!el) return;
     el.addEventListener("input", () => markHeaderDirty(true));
@@ -195,7 +194,7 @@ function initHeaderAutocomplete() {
   const elLot = $("lot_id");
   const elCreator = $("created_by_id");
 
-  
+
 
   // LOT → lot_no only
   if (elLot) {
@@ -287,15 +286,15 @@ async function fillTraveler(t) {
     console.log("Fetched lot for header:", lot);
 
     // ✅ SET HEADER INPUT VALUES
-const elPoQty = $("lot_po_qty");
-const elPlanQty = $("lot_planned_qty");
-const elRelease = $("lot_release_date");
-const elDue = $("lot_po_duedate");
+    const elPoQty = $("lot_po_qty");
+    const elPlanQty = $("lot_planned_qty");
+    const elRelease = $("lot_release_date");
+    const elDue = $("lot_po_duedate");
 
-if (elPoQty) elPoQty.value = lot.lot_po_qty ?? "";
-if (elPlanQty) elPlanQty.value = lot.lot_planned_qty ?? "";
-if (elRelease) elRelease.value = lot.lot_po_date?.slice(0, 10) ?? "";
-if (elDue) elDue.value = lot.lot_po_duedate?.slice(0, 10) ?? "";
+    if (elPoQty) elPoQty.value = lot.lot_po_qty ?? "";
+    if (elPlanQty) elPlanQty.value = lot.lot_planned_qty ?? "";
+    if (elRelease) elRelease.value = lot.lot_po_date?.slice(0, 10) ?? "";
+    if (elDue) elDue.value = lot.lot_po_duedate?.slice(0, 10) ?? "";
 
     const el = $("lot_summary");
     if (!el) return;
@@ -405,10 +404,10 @@ function statusBadge(s) {
     st === "running" || st === "in_progress"
       ? "blue"
       : st === "passed"
-      ? "green"
-      : st === "failed"
-      ? "red"
-      : "gray";
+        ? "green"
+        : st === "failed"
+          ? "red"
+          : "gray";
   const label =
     {
       running: "Running",
@@ -442,17 +441,15 @@ function normalizeStep(row) {
     step_name: row.step_name ?? "",
     step_detail: row.step_detail ?? "",
     step_code: row.step_code ?? "",
-
     operator_id: row.operator_id ?? null,
-
-    // 🔥 ADD THIS LINE
-    operator_nickname: row.operator_nickname ?? "", 
-
+    operator_nickname: row.operator_nickname ?? "",
     status: row.status ?? "pending",
-    qty_receive: row.qty_receive ?? 0,
-    qty_accept: row.qty_accept ?? 0,
-    qty_reject: row.qty_reject ?? 0,
-    qa_required: !!row.qa_required,
+
+    // 🔥 NEW SOURCE OF TRUTH
+    total_receive: row.total_receive ?? 0,
+    total_accept: row.total_accept ?? 0,
+    total_reject: row.total_reject ?? 0,
+
     step_note: row.step_note ?? "",
   };
 }
@@ -463,183 +460,7 @@ function setDirtyClass(row, on) {
   el.classList.toggle("is-dirty", !!on);
 }
 
-function buildStepPayload(d) {
-  const p = { traveler_id: Number(travelerId) };
-  if (d.seq != null) p.seq = Number(d.seq);
-  if (d.station != null) p.station = strOrNull(d.station);
-  if (d.step_name != null) p.step_name = strOrNull(d.step_name);
-  if (d.step_detail != null) p.step_detail = strOrNull(d.step_detail);
-  if (d.step_code != null) p.step_code = strOrNull(d.step_code);
-  // 🔥 send nickname instead of id
-if (d.operator_nickname != null) {
-  // 🔥 extract nickname only
-  const raw = d.operator_nickname;
-  const nickname = raw.split("-").pop().trim();
 
-  p.operator_nickname = nickname;
-}
-  if (d.qa_required != null) p.qa_required = !!d.qa_required;
-  if (d.qty_receive != null) p.qty_receive = Number(d.qty_receive) || 0;
-  if (d.qty_accept != null) p.qty_accept = Number(d.qty_accept) || 0;
-  if (d.qty_reject != null) p.qty_reject = Number(d.qty_reject) || 0;
-  if (d.step_note != null) p.step_note = String(d.step_note); // 👈 เพิ่ม
-
-  console.log(p)
-  return p;
-}
-
-function autosaveStepRow(row, { immediate = false } = {}) {
-  const d = row.getData();
-  if (!travelerId) {
-    toast("Missing traveler id", false);
-    return;
-  }
-
-  // CREATE
-  if (!d.id) {
-    if (createInFlight.has(row)) return;
-    if (!strOrNull(d.step_name)) return; // require step_name
-    const qrecv = Number(d.qty_receive || 0),
-      qacc = Number(d.qty_accept || 0),
-      qrej = Number(d.qty_reject || 0);
-    if (qacc + qrej > qrecv) {
-      toast("qty_accept + qty_reject ต้องไม่เกิน qty_receive", false);
-      return;
-    }
-    createInFlight.add(row);
-    jfetch(`/traveler-steps`, {
-      method: "POST",
-      body: JSON.stringify(buildStepPayload(d)),
-    })
-      .then((created) => {
-        row.update(normalizeStep(created));
-        setDirtyClass(row, false);
-        toast("Step added");
-      })
-      .catch((e) => toast(e?.message || "Create failed", false))
-      .finally(() => {
-        createInFlight.delete(row);
-        setTimeout(() => {
-          try {
-            stepsTable.redraw(true);
-          } catch {}
-        }, 0);
-      });
-    return;
-  }
-
-  // PATCH (debounce) — ยกเว้น field 'status' ที่มี handler แยก
-  if (patchTimers.has(row)) clearTimeout(patchTimers.get(row));
-  const apply = () => {
-    patchTimers.delete(row);
-    const dd = row.getData();
-    const qrecv = Number(dd.qty_receive || 0),
-      qacc = Number(dd.qty_accept || 0),
-      qrej = Number(dd.qty_reject || 0);
-    if (qacc + qrej > qrecv) {
-      toast("qty_accept + qty_reject ต้องไม่เกิน qty_receive", false);
-      return;
-    }
-    return jfetch(`/traveler-steps/${dd.id}`, {
-      method: "PUT",
-      body: JSON.stringify(buildStepPayload(dd)),
-    })
-      .then((upd) => {
-        row.update(normalizeStep(upd || dd));
-        setDirtyClass(row, false);
-        toast("Saved");
-      })
-      .catch(async (e) => {
-        try {
-          const fresh = await jfetch(
-            `/traveler-steps?traveler_id=${encodeURIComponent(travelerId)}`
-          );
-          const found = (fresh || []).find(
-            (x) => Number(x.id) === Number(dd.id)
-          );
-          if (found) row.update(normalizeStep(found));
-        } catch {}
-        toast(e?.message || "Save failed", false);
-      })
-      .finally(() =>
-        setTimeout(() => {
-          try {
-            stepsTable.redraw(true);
-          } catch {}
-        }, 0)
-      );
-  };
-  if (immediate) apply();
-  else patchTimers.set(row, setTimeout(apply, PATCH_DEBOUNCE_MS));
-}
-
-/* ---------- Status change handlers ---------- */
-// ใช้ค่าตัวเลขในแถว ไม่ถาม prompt
-async function finishStepFromRow(id, result) {
-  const row = stepsTable?.getRow(id)?.getData() || {};
-
-  const recv = Number(row.qty_receive ?? 0);
-  const acc = Number(row.qty_accept ?? 0);
-  const rej = Number(row.qty_reject ?? 0);
-
-  if (recv && acc + rej > recv) {
-    toast("qty_accept + qty_reject ต้องไม่เกิน qty_receive", false);
-    throw new Error("qty invalid");
-  }
-
-  await jfetch(`/traveler-steps/${id}/finish`, {
-    method: "POST",
-    body: JSON.stringify({
-      result: result,
-      qty_receive: recv,
-      qty_accept: acc,
-      qty_reject: rej
-    }),
-  });
-}
-async function handleStatusChange(row, newStatus, oldStatus) {
-  const d = row.getData();
-
-  if (!d.id) {
-    toast("Save this row first", false);
-    row.update({ status: oldStatus });
-    return;
-  }
-
-  try {
-    // ✅ RESET
-    if (newStatus === "pending") {
-      await jfetch(`/traveler-steps/${d.id}/restart`, {
-        method: "POST",
-      });
-      toast("Step reset");
-    }
-
-    // ✅ START
-    else if (newStatus === "running" || newStatus === "in_progress") {
-      await jfetch(`/traveler-steps/${d.id}/start`, {
-        method: "POST",
-      });
-      toast("Step started");
-    }
-
-    // ✅ FINISH
-    else if (["passed", "failed", "skipped"].includes(newStatus)) {
-      await finishStepFromRow(d.id, newStatus);
-      toast(`Step ${newStatus}`);
-    }
-
-    else {
-      throw new Error("Unknown status");
-    }
-
-    await reloadSteps();
-
-  } catch (e) {
-    row.update({ status: oldStatus }); // revert
-    toast(e?.message || "Update status failed", false);
-  }
-}
 
 /* ---------- Autocomplete Editors for table ---------- */
 function stationAutocompleteEditor(cell, onRendered, success, cancel) {
@@ -679,7 +500,7 @@ function stationAutocompleteEditor(cell, onRendered, success, cancel) {
       setTimeout(() => {
         row.update({ station: it.code || it.name || "" });
         setDirtyClass(row, true);
-        autosaveStepRow(row);
+
       }, 0);
     },
     minChars: 0,
@@ -727,21 +548,20 @@ function operatorAutocompleteEditor(cell, onRendered, success, cancel) {
       const row = cell.getRow();
 
       setTimeout(async () => {
-  const nickname = it.label.split("-").pop().trim();
+        const nickname = it.label.split("-").pop().trim();
 
-  row.update({
-    operator_id: it.id,
-    operator_nickname: nickname,
-  });
+        row.update({
+          operator_id: it.id,
+          operator_nickname: nickname,
+        });
 
-  setDirtyClass(row, true);
+        setDirtyClass(row, true);
 
-  autosaveStepRow(row, { immediate: true });
 
-  // 🔥 wait a bit
-  setTimeout(() => location.reload(), 300);
+        // 🔥 wait a bit
+        await reloadSteps();
 
-}, 0);
+      }, 0);
     },
 
     minChars: 0,
@@ -760,282 +580,152 @@ function operatorAutocompleteEditor(cell, onRendered, success, cancel) {
 function initStepsTable() {
   const holder = document.getElementById("steps_table");
   if (!holder) return;
-  let ready = false;
-  const safeRedraw = () => {
-    if (!ready || !holder.offsetWidth) return;
-    try {
-      stepsTable.redraw(true);
-    } catch {}
-  };
 
   stepsTable = new Tabulator(holder, {
     layout: "fitColumns",
-    height: "calc(100vh - 480px)", // 👈 เพิ่มระยะเพื่อให้มีที่สำหรับปุ่มด้านล่าง
+    height: "calc(100vh - 480px)",
     placeholder: "No steps",
     reactiveData: true,
-    rowHeight: 38,   
     index: "id",
+
     columns: [
-      // {
-      //   title: "APP",
-      //   width: 80,
-      //   hozAlign: "center",
-      //   headerSort: false,
+      { title: "#", field: "seq", width: 70, hozAlign: "center" },
 
-      //   formatter: (cell) => {
-      //     const row = cell.getRow().getData();
-      //     const seq = row.seq;
+      { title: "OP", field: "step_code", width: 100 },
 
-      //     const travelerNo = originalTraveler?.traveler_no || travelerId;
-      //     if (!travelerNo || seq == null) return "";
+      { title: "Step Name", field: "step_name", width: 220 },
 
-      //     const baseUrl = `${location.protocol}//${location.host}`;
-      //     const url =
-      //       `${baseUrl}/static/ui-traveler.html` +
-      //       `?traveler_no=${encodeURIComponent(travelerNo)}` +
-      //       `&seq=${encodeURIComponent(seq)}`;
-
-      //     return `
-      //           <a href="${url}" target="_blank" rel="noopener"
-      //             style="text-decoration:none;font-weight:600;">
-      //             ${seq}
-      //           </a>
-      //         `;
-      //   },
-      // },
-
-      {
-        title: "#Seq",
-        field: "seq",
-        width: 80,
-        hozAlign: "center",
-        editor: "number",
-        editorParams: { step: 1 },
-      },
-
-      {
-        title: "OP",
-        field: "step_code",
-        width: 120,
-        hozAlign: "center",
-        editor: "input",
-      },
-
-      { title: "Step Name", field: "step_name", width: 220, editor: "input" },
-      {
-        title: "Step Detail",
-        field: "step_detail",
-        width: 220,
-        editor: "input",
-      },
-      {
-        title: "Status",
-        field: "status",
-        width: 100,
-        headerSort: false,
-        editor: "select",
-        editorParams: { values: STATUS_OPTIONS },
-        formatter: (cell) => statusBadge(cell.getValue()),
-      },
-      {
-        title: "Qty Recv",
-        field: "qty_receive",
-        width: 110,
-        hozAlign: "right",
-        editor: "number",
-        editorParams: { step: 1, min: 0, precision: 0 },
-        formatter: (cell) => {
-          const v = cell.getValue();
-          const n = parseInt(v, 10);
-          return Number.isFinite(n) && n >= 0 ? n : 0; // 👈 บังคับ return integer
-        },
-      },
-      {
-        title: "Qty Accept",
-        field: "qty_accept",
-        width: 110,
-        hozAlign: "right",
-        editor: "number",
-        editorParams: { step: 1, min: 0, precision: 0 },
-        formatter: (cell) => {
-          const v = cell.getValue();
-          const n = parseInt(v, 10);
-          return Number.isFinite(n) && n >= 0 ? n : 0; // 👈 integer only
-        },
-      },
-      {
-        title: "Qty Reject",
-        field: "qty_reject",
-        width: 110,
-        hozAlign: "right",
-        editor: "number",
-        editorParams: { step: 1, min: 0, precision: 0 },
-        formatter: (cell) => {
-          const v = cell.getValue();
-          const n = parseInt(v, 10);
-          return Number.isFinite(n) && n >= 0 ? n : 0; // 👈 integer only
-        },
-      },
-      { title: "Note", field: "step_note", width: 240, editor: "input" },
+      { title: "Station", field: "station", width: 140 },
 
       {
         title: "Operator",
         field: "operator_nickname",
         width: 140,
-        hozAlign: "right",
-        editor: operatorAutocompleteEditor,
-        formatter: (c) => (c.getValue() == null ? "" : String(c.getValue())),
-      },
-      {
-        title: "Station",
-        field: "station",
-        width: 170,
-        editor: stationAutocompleteEditor,
       },
 
       {
-        title: "Manage",
-        field: "_manage",
+        title: "Status",
+        field: "status",
         width: 120,
-        headerSort: false,
+        formatter: (cell) => statusBadge(cell.getValue()),
+      },
+
+      // 🔥 TOTALS (READ ONLY)
+      {
+        title: "Recv",
+        field: "total_receive",
+        width: 100,
+        hozAlign: "right",
+        formatter: (c) => c.getValue() ?? 0,
+      },
+      {
+        title: "Accept",
+        field: "total_accept",
+        width: 100,
+        hozAlign: "right",
+        formatter: (c) => c.getValue() ?? 0,
+      },
+      {
+        title: "Reject",
+        field: "total_reject",
+        width: 100,
+        hozAlign: "right",
+        formatter: (c) => c.getValue() ?? 0,
+      },
+
+      // 🔥 ADD LOG
+      {
+        title: "Log",
+        width: 120,
+        hozAlign: "center",
         formatter: () =>
-          `<button class="btn-mini btn-danger" data-act="delete">Delete</button>`,
+          `<button class="btn-mini btn-primary">+ Log</button>`,
         cellClick: async (e, cell) => {
-          const btn = e.target.closest("button[data-act='delete']");
-          if (!btn) return;
+          const d = cell.getRow().getData();
+
+          const accept = Number(prompt("Accept qty?") || 0);
+          const reject = Number(prompt("Reject qty?") || 0);
+
+          if (accept === 0 && reject === 0) return;
+
+          try {
+            await jfetch(`/api/v1/step-logs`, {
+              method: "POST",
+              body: JSON.stringify({
+                step_id: d.id,
+                qty_receive: accept + reject, // 🔥 key logic
+                qty_accept: accept,
+                qty_reject: reject,
+                work_date: new Date().toISOString().slice(0, 10),
+              }),
+            });
+
+            toast("Log added");
+
+            await reloadSteps(); // refresh totals
+          } catch (err) {
+            toast(err?.message || "Failed", false);
+          }
+        },
+      },
+
+      // 🔥 VIEW HISTORY
+      {
+        title: "History",
+        width: 120,
+        hozAlign: "center",
+        formatter: () => `<button class="btn-mini">View</button>`,
+        cellClick: async (e, cell) => {
+          const d = cell.getRow().getData();
+
+          const logs = await jfetch(
+            `/api/v1/step-logs?step_id=${d.id}`
+          );
+
+          let msg = logs
+            .map(
+              (l) =>
+                `${l.work_date} | Recv:${l.qty_receive} A:${l.qty_accept} R:${l.qty_reject}`
+            )
+            .join("\n");
+
+          alert(msg || "No logs");
+        },
+      },
+
+      // 🔥 DELETE STEP
+      {
+        title: "Manage",
+        width: 120,
+        formatter: () =>
+          `<button class="btn-mini btn-danger">Delete</button>`,
+        cellClick: async (e, cell) => {
           const row = cell.getRow();
           const d = row.getData();
+
           if (!d.id) {
             row.delete();
             return;
           }
-          if (!confirm("ลบ Step นี้?")) return;
+
+          if (!confirm("Delete this step?")) return;
+
           try {
-            await jfetch(`/traveler-steps/${d.id}`, { method: "DELETE" });
+            await jfetch(`/traveler-steps/${d.id}`, {
+              method: "DELETE",
+            });
+
             row.delete();
-            toast("Step deleted");
+            toast("Deleted");
           } catch (err) {
-            toast("ลบ Step ไม่สำเร็จ: " + (err?.message || ""), false);
+            toast("Delete failed", false);
           }
         },
       },
     ],
   });
-
-  const btnAddStep = document.getElementById("btnAddStep");
-
-  btnAddStep.addEventListener("click", async () => {
-    if (!stepsTable) return;
-
-    // หาค่า seq ล่าสุด
-    const data = stepsTable.getData();
-    const lastSeq = data.length
-      ? Math.max(...data.map((r) => Number(r.seq || 0)))
-      : 0;
-    const nextSeq = lastSeq + 10;
-
-    // สร้างแถวใหม่ (ใช้ field name ให้ตรงกับ columns ด้านบน)
-    const newRow = {
-      seq: nextSeq,
-      step_name: "",
-      step_detail: "",
-      status: "Pending",
-      qty_receive: 0,
-      qty_accept: 0,
-      qty_reject: 0,
-      step_note: "",
-      step_code: "",
-      operator_id: "",
-      station: "",
-    };
-
-    // ✅ เพิ่มแถวใหม่ในตาราง (ต่อจากแถวสุดท้าย)
-    const row = await stepsTable.addRow(newRow, false, "bottom");
-
-    // เริ่มแก้ไขชื่อทันที
-    row.getCell("step_name").edit();
-
-    // เพิ่มคลาสเน้นสีพื้นหลัง (optional)
-    row.getElement().classList.add("is-dirty");
-  });
-
-  const templateSelect = document.getElementById("templateSelect");
-const btnUseTemplate = document.getElementById("btnUseTemplate");
-
-  btnUseTemplate.addEventListener("click", async () => {
-  if (!travelerId) {
-    alert("Traveler ID not found");
-    return;
-  }
-
-  const templateId = templateSelect.value;
-
-  if (!templateId) {
-    alert("Please select a template first");
-    return;
-  }
-
-  if (!confirm("Apply this template? This will add steps.")) return;
-
-  console.log("Applying template:", templateId);
-
-  try {
-    const res = await fetch(
-      `/api/v1/travelers/apply-template/${encodeURIComponent(travelerId)}?template_id=${encodeURIComponent(templateId)}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      }
-    );
-
-    if (!res.ok) {
-      throw new Error(await res.text());
-    }
-
-    toast("Template applied");
-
-    // ✅ reload steps instead of reload page (better UX)
-    await reloadSteps();
-
-    // reset dropdown
-    templateSelect.value = "";
-
-  } catch (err) {
-    console.error(err);
-    toast(err?.message || "Failed to apply template", false);
-  }
-});
-
-  stepsTable.on("cellEdited", (cell) => {
-    const row = cell.getRow();
-    setDirtyClass(row, true);
-
-    const field = cell.getField();
-    const newVal = cell.getValue();
-    const oldVal = cell.getOldValue();
-
-    if (field === "status") {
-      handleStatusChange(
-        row,
-        String(newVal || "").toLowerCase(),
-        String(oldVal || "").toLowerCase()
-      );
-      return;
-    }
-
-    setTimeout(() => autosaveStepRow(row), 0);
-  });
-
-  stepsTable.on("tableBuilt", () => {
-    ready = true;
-    requestAnimationFrame(safeRedraw);
-    setTimeout(safeRedraw, 0);
-  });
-
-  const ro = new ResizeObserver(safeRedraw);
-  ro.observe(holder);
-  window.addEventListener("resize", safeRedraw);
 }
+
 
 async function loadTemplateVersions(part_id, part_revision_id) {
   const select = document.getElementById("templateSelect");
@@ -1076,11 +766,12 @@ async function reloadSteps() {
     stepsTable?.setData([]);
     return;
   }
+
   try {
     const rows = await jfetch(
       `/traveler-steps?traveler_id=${encodeURIComponent(travelerId)}`
     );
-    console.log("traveler step", rows);
+
     stepsTable?.setData((rows || []).map(normalizeStep));
   } catch {
     stepsTable?.setData([]);
@@ -1104,9 +795,7 @@ function makeBlankStep(seq) {
     step_code: "",
     operator_id: null,
     status: "pending",
-    qty_receive: 0,
-    qty_accept: 0,
-    qty_reject: 0,
+
     qa_required: false,
   };
 }
@@ -1207,7 +896,7 @@ async function exportTraveler() {
       try {
         const err = await res.json();
         msg = err.detail || msg;
-      } catch (_) {}
+      } catch (_) { }
       alert(msg);
       return;
     }
@@ -1289,7 +978,7 @@ async function exportInspection() {
 //   qrBox.innerHTML = "";
 
 //   const travelerNo = originalTraveler.traveler_no || `TRAV-${travelerId}`;
- 
+
 //   // ✅ ใช้ IP LAN ชั่วคราว
 //   const baseUrl = `${window.location.protocol}//${window.location.host}`;
 //   const qrLink = `${baseUrl}/static/ui-traveler.html?traveler_no=${encodeURIComponent(
@@ -1394,7 +1083,7 @@ function makeLotLinks(lotId) {
       href: `/static/traveler-detail.html?lot_id=${encodeURIComponent(lotId)}`,
       title: "Traveler",
     },
-     {
+    {
       id: "inspection_link",
       href: `/static/travelerQA-detail.html?lot_id=${encodeURIComponent(lotId)}`,
       title: "Traveler",
@@ -1448,7 +1137,7 @@ async function handleImportFile(e) {
 
   console.log("import");
 
-  
+
   try {
     const formData = new FormData();
     formData.append("file", file);
@@ -1480,6 +1169,8 @@ async function handleImportFile(e) {
   e.target.value = "";
 }
 
+
+
 /* ---------- Boot ---------- */
 document.addEventListener("DOMContentLoaded", async () => {
   initTopbar();
@@ -1495,53 +1186,38 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   const btnUpdate = document.getElementById("btnUpdateTravelerStep");
 
-btnUpdate?.addEventListener("click", async () => {
-  if (!travelerId) {
-    toast("Traveler not loaded", false);
-    return;
-  }
+  btnUpdate?.addEventListener("click", async () => {
+    if (!travelerId) {
+      toast("Traveler not loaded", false);
+      return;
+    }
 
-  if (!confirm("Create new template version from this traveler?")) return;
+    if (!confirm("Create new template version from this traveler?")) return;
 
-  try {
-    setBusyT(true);
+    try {
+      setBusyT(true);
 
-    const res = await jfetch(
-      `/api/v1/travelers/${travelerId}/create-template-version`,
-      { method: "POST" }
-    );
+      const res = await jfetch(
+        `/api/v1/travelers/${travelerId}/create-template-version`,
+        { method: "POST" }
+      );
 
-    toast(`✅ Template V${res.version} created`);
+      toast(`✅ Template V${res.version} created`);
 
-    // 🔥 IMPORTANT → reload template dropdown
-    await loadTemplateVersions(
-      originalTraveler.part_id,
-      originalTraveler.part_revision_id
-    );
+      // 🔥 IMPORTANT → reload template dropdown
+      await loadTemplateVersions(
+        originalTraveler.part_id,
+        originalTraveler.part_revision_id
+      );
 
-  } catch (err) {
-    console.error(err);
-    toast(err?.message || "Failed to create template", false);
-  } finally {
-    setBusyT(false);
-  }
-});
-  // $("btnExportInspection").addEventListener("click", exportInspection);
-  // Add Step (seq +10 เริ่ม 10)
-  // $("btnAddStep")?.addEventListener("click", async () => {
-  //   if (!travelerId) {
-  //     toast("Missing traveler id", false);
-  //     return;
-  //   }
-  //   const nextSeq = getNextSeq();
-  //   const row = await stepsTable.addRow(
-  //     makeBlankStep(nextSeq),
-  //     false,
-  //     "bottom"
-  //   );
-  //   row.getCell("step_name")?.edit();
-  //   setDirtyClass(row, true);
-  // });
+    } catch (err) {
+      console.error(err);
+      toast(err?.message || "Failed to create template", false);
+    } finally {
+      setBusyT(false);
+    }
+  });
+
 
   // Keyboard: Ctrl+Delete → (optional) delete traveler
   document.addEventListener("keydown", (e) => {
@@ -1551,19 +1227,53 @@ btnUpdate?.addEventListener("click", async () => {
     }
   });
 
+  document.getElementById("btnAddStep")?.addEventListener("click", async () => {
+    if (!travelerId) {
+      toast("Missing traveler id", false);
+      return;
+    }
+
+    try {
+      const nextSeq = getNextSeq();
+
+      const step = await jfetch("/traveler-steps", {
+        method: "POST",
+        body: JSON.stringify({
+          traveler_id: Number(travelerId),
+          seq: nextSeq,
+          step_name: "New Step",
+          step_code: "",
+          station: "",
+          operator_id: null,
+          status: "pending",
+        }),
+      });
+
+      toast("Step created");
+
+      await reloadSteps();
+
+    } catch (err) {
+      console.error(err);
+      toast(err?.message || "Create step failed", false);
+    }
+  });
+
   initStepsTable();
   await loadTraveler();
   await reloadSteps();
   makeLotLinks(lotId);
 
   const btnImportFile = document.getElementById("btnImportFile");
-const fileInput = document.getElementById("fileInput");
+  const fileInput = document.getElementById("fileInput");
 
-btnImportFile.addEventListener("click", () => {
-  fileInput.click();
-});
+  btnImportFile.addEventListener("click", () => {
+    fileInput.click();
+  });
 
-fileInput.addEventListener("change", handleImportFile);
+  fileInput.addEventListener("change", handleImportFile);
+
+
 });
 
 

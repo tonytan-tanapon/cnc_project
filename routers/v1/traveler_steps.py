@@ -9,6 +9,7 @@ from models import ShopTravelerStep, ShopTraveler, Employee
 from schemas import (
     ShopTravelerStepCreate, ShopTravelerStepUpdate, ShopTravelerStepOut
 )
+from models import ShopTravelerStepLog
                   
 router = APIRouter(prefix="/traveler-steps", tags=["traveler_steps"])
 
@@ -45,40 +46,59 @@ def create_traveler_step(payload: ShopTravelerStepCreate, db: Session = Depends(
     operator_id=payload.operator_id,
     qa_required=payload.qa_required or False,
     status="pending" if not payload.status else payload.status,
-    qty_receive=payload.qty_receive or 0,
-    qty_accept=payload.qty_accept or 0,
-    qty_reject=payload.qty_reject or 0,
-    step_note=payload.step_note,          # 👈 ใหม่
-    step_detail=payload.step_detail or "",  
+    step_note=payload.step_note,
+    step_detail=payload.step_detail or "",
 )
     db.add(s)
     db.commit()
     db.refresh(s)
     return s
 
-
-@router.get("", response_model=List[ShopTravelerStepOut])
+@router.get("", response_model=List[dict])
 def list_traveler_steps(traveler_id: Optional[int] = None, db: Session = Depends(get_db)):
 
-    q = (
-        db.query(ShopTravelerStep, Employee)
-        .outerjoin(Employee, ShopTravelerStep.operator_id == Employee.id)
-    )
+    try:
+        from sqlalchemy.orm import joinedload
 
-    if traveler_id:
-        q = q.filter(ShopTravelerStep.traveler_id == traveler_id)
-
-    rows = q.order_by(ShopTravelerStep.seq.asc()).all()
-
-    result = []
-    for step, emp in rows:
-        step.operator_nickname = (
-            f"{emp.emp_code} - {emp.nickname}" if emp else None
+        q = (
+            db.query(ShopTravelerStep, Employee)
+            .options(joinedload(ShopTravelerStep.logs))
+            .outerjoin(Employee, ShopTravelerStep.operator_id == Employee.id)
         )
-        result.append(step)
 
-    return result
+        if traveler_id:
+            q = q.filter(ShopTravelerStep.traveler_id == traveler_id)
 
+        rows = q.order_by(ShopTravelerStep.seq.asc()).all()
+
+        result = []
+
+        for step, emp in rows:
+
+            logs = step.logs or []
+
+            result.append({
+                "id": step.id,
+                "traveler_id": step.traveler_id,
+                "seq": step.seq,
+                "step_name": step.step_name,
+                "step_code": step.step_code,
+                "station": step.station,
+                "status": step.status,
+                "operator_id": step.operator_id,
+                "operator_nickname": (
+                    f"{emp.emp_code} - {emp.nickname}" if emp else None
+                ),
+                "total_receive": sum((l.qty_receive or 0) for l in logs),
+                "total_accept":  sum((l.qty_accept or 0) for l in logs),
+                "total_reject":  sum((l.qty_reject or 0) for l in logs),
+            })
+
+        return result
+
+    except Exception as e:
+        print("🔥 ERROR in list_traveler_steps:", str(e))
+        return []   # 🔥 NEVER return None
 
 @router.get("/{step_id}", response_model=ShopTravelerStepOut)
 def get_traveler_step(step_id: int, db: Session = Depends(get_db)):
@@ -87,61 +107,6 @@ def get_traveler_step(step_id: int, db: Session = Depends(get_db)):
         raise HTTPException(404, "Step not found")
     return s
 
-
-# @router.put("/{step_id}", response_model=ShopTravelerStepOut)
-# def update_traveler_step(step_id: int, payload: ShopTravelerStepUpdate, db: Session = Depends(get_db)):
-#     s = db.get(ShopTravelerStep, step_id)
-#     if not s:
-#         raise HTTPException(404, "Step not found")
-
-#     data = payload.dict(exclude_unset=True)
-
-#     # ถ้ามีการเปลี่ยน seq ต้องไม่ชนภายใน traveler เดียวกัน
-#     if "seq" in data and data["seq"] is not None and data["seq"] != s.seq:
-#         dup = (
-#             db.query(ShopTravelerStep)
-#             .filter(
-#                 ShopTravelerStep.traveler_id == s.traveler_id,
-#                 ShopTravelerStep.seq == data["seq"],
-#             )
-#             .first()
-#         )
-#         if dup:
-#             raise HTTPException(409, "This seq already exists in traveler")
-
-#     # เปลี่ยน operator ต้องมีจริง
-#     if "operator_id" in data and data["operator_id"] is not None:
-#         if not db.get(Employee, data["operator_id"]):
-#             raise HTTPException(404, "Operator not found")
-        
-#     # 🔥 HANDLE operator_nickname
-#     if "operator_nickname" in data:
-#         nickname = data["operator_nickname"]
-
-#         if nickname == "" or nickname is None:
-#             s.operator_id = None
-#         else:
-#             emp = (
-#                 db.query(Employee)
-#                 .filter(func.lower(Employee.nickname) == nickname.lower())
-#                 .first()
-#             )
-
-#             if not emp:
-#                 raise HTTPException(400, f"Nickname '{nickname}' not found")
-
-#             s.operator_id = emp.id
-
-#         # ❗ IMPORTANT: remove it so loop won't override
-#         del data["operator_nickname"]
-
-#     # อัปเดตฟิลด์ที่เหลือ
-#     for k, v in data.items():
-#         setattr(s, k, v)
-
-#     db.commit()
-#     db.refresh(s)
-#     return s
 
 from fastapi import HTTPException, Depends
 from sqlalchemy.orm import Session
@@ -255,105 +220,11 @@ def start_step(step_id: int, db: Session = Depends(get_db)):
     return s
 
 
-# @router.post("/{step_id}/finish", response_model=ShopTravelerStepOut)
-# def finish_step(
-#     step_id: int,
-#     result: str = "passed",
-#     qa_result: Optional[str] = None,
-#     qa_notes: Optional[str] = None,
-#     qty_receive: Optional[Decimal] = None,
-#     qty_accept: Optional[Decimal] = None,
-#     qty_reject: Optional[Decimal] = None,
-#     db: Session = Depends(get_db),
-# ):
-    
-#     # print("Finishing step", step_id, "with result", result) 
-#     s = db.get(ShopTravelerStep, step_id)
-#     if not s:
-#         raise HTTPException(404, "Step not found")
-#     if result not in ["passed", "failed", "skipped"]:
-#         raise HTTPException(400, "result must be passed/failed/skipped")
-
-#     print("Updating step status to", result)
-#     # ✅ อัปเดต qty ถ้ามีส่งมา
-#     if qty_receive is not None: s.qty_receive = qty_receive
-#     if qty_accept  is not None: s.qty_accept  = qty_accept
-#     if qty_reject  is not None: s.qty_reject  = qty_reject
-
-#     # ✅ validation ง่ายๆ (ถ้ามีรับเข้า)
-#     if s.qty_receive is not None and (s.qty_accept or 0) + (s.qty_reject or 0) > (s.qty_receive or 0):
-#         raise HTTPException(400, "qty_accept + qty_reject must not exceed qty_receive")
-
-#     s.status = result
-#     s.finished_at = datetime.utcnow()
-#     if qa_result is not None: s.qa_result = qa_result
-#     if qa_notes  is not None: s.qa_notes  = qa_notes
-
-#     db.commit()
-#     db.refresh(s)
-#     return s
 
 
 from schemas import StepFinishRequest
 
-# @router.post("/{step_id}/finish", response_model=ShopTravelerStepOut)
-# def finish_step(
-#     step_id: int,
-#     payload: StepFinishRequest,   # ✅ รับ JSON
-#     db: Session = Depends(get_db),
-# ):
-#     s = db.get(ShopTravelerStep, step_id)
-#     if not s:
-#         raise HTTPException(404, "Step not found")
 
-#     result = payload.result or "passed"
-
-#     if result not in ["passed", "failed", "skipped"]:
-#         raise HTTPException(400, "Invalid result")
-
-#     # =========================
-#     # qty update
-#     # =========================
-#     if payload.qty_receive is not None:
-#         s.qty_receive = payload.qty_receive
-
-#     if payload.qty_accept is not None:
-#         s.qty_accept = payload.qty_accept
-
-#     if payload.qty_reject is not None:
-#         s.qty_reject = payload.qty_reject
-
-#     # =========================
-#     # validation
-#     # =========================
-#     if (
-#         s.qty_receive is not None and
-#         (s.qty_accept or 0) + (s.qty_reject or 0) > (s.qty_receive or 0)
-#     ):
-#         raise HTTPException(400, "qty_accept + qty_reject > qty_receive")
-
-#     # =========================
-#     # auto start (optional 🔥)
-#     # =========================
-#     if s.status == "pending":
-#         s.started_at = datetime.utcnow()
-
-#     # =========================
-#     # finish
-#     # =========================
-#     s.status = result
-#     s.finished_at = datetime.utcnow()
-
-#     if payload.qa_result is not None:
-#         s.qa_result = payload.qa_result
-
-#     if payload.qa_notes is not None:
-#         s.qa_notes = payload.qa_notes
-
-#     db.commit()
-#     db.refresh(s)
-
-#     return s
 @router.post("/{step_id}/finish", response_model=ShopTravelerStepOut)
 def finish_step(
     step_id: int,
@@ -383,23 +254,23 @@ def finish_step(
     # =========================
     # UPDATE QTY
     # =========================
-    if payload.qty_receive is not None:
-        s.qty_receive = payload.qty_receive
+  
 
-    if payload.qty_accept is not None:
-        s.qty_accept = payload.qty_accept
+    if payload.qty_accept is not None or payload.qty_reject is not None:
 
-    if payload.qty_reject is not None:
-        s.qty_reject = payload.qty_reject
+        accept = float(payload.qty_accept or 0)
+        reject = float(payload.qty_reject or 0)
 
-    # =========================
-    # VALIDATION
-    # =========================
-    if (
-        s.qty_receive is not None and
-        (s.qty_accept or 0) + (s.qty_reject or 0) > (s.qty_receive or 0)
-    ):
-        raise HTTPException(400, "qty_accept + qty_reject > qty_receive")
+        log = ShopTravelerStepLog(
+            step_id=s.id,
+            qty_receive=accept + reject,
+            qty_accept=accept,
+            qty_reject=reject,
+            work_date=datetime.utcnow().date()
+        )
+
+        db.add(log)
+
 
     # =========================
     # AUTO START
@@ -461,9 +332,9 @@ def finish_step(
         # 🧠 ZERO CASE (CLEAR ALL)
         # =========================
         if new_qty == 0:
-            s.qty_receive = 0
-            s.qty_accept = 0
-            s.qty_reject = 0
+            db.query(ShopTravelerStepLog).filter(
+                ShopTravelerStepLog.step_id == s.id
+            ).delete()
 
             if item:
                 db.delete(item)
@@ -476,7 +347,7 @@ def finish_step(
         # 🧠 CALCULATE AVAILABLE
         # =========================
         # 🔥 ใช้ step นี้เลย (สำคัญมาก)
-        finished_qty = float(s.qty_accept or 0)
+        finished_qty = sum((l.qty_accept or 0) for l in s.logs)
 
         shipped_qty = (
             db.query(func.coalesce(func.sum(CustomerShipmentItem.qty), 0))
@@ -546,7 +417,7 @@ def restart_step(step_id: int, db: Session = Depends(get_db)):
 
     # รีเซ็ตฟิลด์ของ "Step" ให้ตรง schema/model คุณ
     s.status = "pending"          # กลับมาเริ่มใหม่
-    s.result = None               # ถ้ามี field เก็บผล
+
     s.qa_result = None
     s.qa_notes = None
     s.operator_id = None          # จะเก็บคนเดิมไว้ก็ได้ (ถ้าอยาก)
@@ -612,3 +483,105 @@ async def import_steps(
     except Exception as e:
         raise HTTPException(500, str(e))
  
+
+@router.post("/shipment/update-from-ui")
+def update_shipment_from_ui(payload: dict, db: Session = Depends(get_db)):
+    from models import (
+        ShopTravelerStep,
+        ShopTravelerStepLog,
+        ShopTraveler,
+        ProductionLot,
+        CustomerShipment,
+        CustomerShipmentItem
+    )
+    from sqlalchemy import func
+
+    lot_id = payload.get("lot_id")
+    qty = float(payload.get("qty") or 0)
+
+    if qty < 0:
+        raise HTTPException(400, "qty cannot be negative")
+
+    # =========================
+    # GET LOT + LAST STEP
+    # =========================
+    traveler = (
+        db.query(ShopTraveler)
+        .filter(ShopTraveler.lot_id == lot_id)
+        .order_by(ShopTraveler.id.desc())
+        .first()
+    )
+
+    if not traveler:
+        raise HTTPException(404, "Traveler not found")
+
+    last_step = (
+        db.query(ShopTravelerStep)
+        .filter(ShopTravelerStep.traveler_id == traveler.id)
+        .order_by(ShopTravelerStep.seq.desc())
+        .first()
+    )
+
+    if not last_step:
+        raise HTTPException(404, "Last step not found")
+
+    # =========================
+    # 🔥 RESET LOGS (IMPORTANT)
+    # =========================
+    db.query(ShopTravelerStepLog).filter(
+        ShopTravelerStepLog.step_id == last_step.id
+    ).delete()
+
+    # =========================
+    # INSERT NEW LOG
+    # =========================
+    log = ShopTravelerStepLog(
+        step_id=last_step.id,
+        qty_receive=qty,
+        qty_accept=qty,
+        qty_reject=0,
+        work_date=datetime.utcnow().date()
+    )
+    db.add(log)
+
+    # =========================
+    # SHIPMENT UPDATE
+    # =========================
+    lot = db.get(ProductionLot, lot_id)
+
+    shipment = (
+        db.query(CustomerShipment)
+        .filter(CustomerShipment.lot_id == lot_id)
+        .order_by(CustomerShipment.id.desc())
+        .first()
+    )
+
+    if not shipment:
+        shipment = CustomerShipment(
+            po_id=lot.po_id,
+            lot_id=lot.id,
+            shipped_at=datetime.utcnow(),
+            status="pending",
+        )
+        db.add(shipment)
+        db.flush()
+
+    # delete old item
+    db.query(CustomerShipmentItem).filter(
+        CustomerShipmentItem.shipment_id == shipment.id,
+        CustomerShipmentItem.lot_allocate_id == lot_id
+    ).delete()
+
+    # insert new
+    item = CustomerShipmentItem(
+        shipment_id=shipment.id,
+        po_line_id=lot.po_line_id or 0,
+        lot_id=lot.id,
+        lot_allocate_id=lot.id,
+        qty=qty,
+    )
+    db.add(item)
+
+    db.commit()
+
+    return {"status": "ok"}

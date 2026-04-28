@@ -29,6 +29,19 @@ def get_lot_or_404(db: Session, lot_id: int) -> ProductionLot:
         raise HTTPException(status_code=404, detail="Lot not found")
     return lot
 
+def get_finished_qty(db, lot_id):
+    from models import ShopTraveler, ShopTravelerStep, ShopTravelerStepLog
+
+    return (
+        db.query(func.coalesce(func.sum(ShopTravelerStepLog.qty_accept), 0))
+        .join(ShopTravelerStep, ShopTravelerStep.id == ShopTravelerStepLog.step_id)
+        .join(ShopTraveler, ShopTraveler.id == ShopTravelerStep.traveler_id)
+        .filter(ShopTraveler.lot_id == lot_id)
+        .filter(ShopTravelerStep.status.in_(["passed", "completed"]))
+        .scalar()
+        or 0
+    )
+
 
 def get_part_inventory_data(db: Session, lot_id: int):
     lot = get_lot_or_404(db, lot_id)
@@ -51,19 +64,7 @@ def get_part_inventory_data(db: Session, lot_id: int):
         .subquery()
     )
 
-    finished_qty = (
-        db.query(func.coalesce(func.sum(ShopTravelerStep.qty_accept), 0))
-        .join(
-            sub_last_step,
-            (ShopTravelerStep.traveler_id == sub_last_step.c.traveler_id) &
-            (ShopTravelerStep.seq == sub_last_step.c.max_seq)
-        )
-        .join(ShopTraveler, ShopTraveler.id == ShopTravelerStep.traveler_id)
-        .filter(ShopTraveler.lot_id == lot.id)
-        .filter(ShopTravelerStep.status == "passed")
-        .scalar()
-        or 0
-    )
+    finished_qty = get_finished_qty(db, lot.id)
 
     # ===== shipped_qty จาก lot_allocate_id =====
     shipped_qty = (
@@ -257,37 +258,19 @@ def allocate_part(req: AllocatePartRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Quantity must be greater than zero")
 
     # --- คำนวณ available จาก source lot ---
-    sub_max_seq = (
-        db.query(
-            ShopTravelerStep.traveler_id,
-            func.max(ShopTravelerStep.seq).label("max_seq"),
-        )
-        .group_by(ShopTravelerStep.traveler_id)
-        .subquery()
-    )
+    
+    finished_qty = get_finished_qty(db, source_lot.id)
 
-    finished_qty = (
-        db.query(func.coalesce(func.sum(ShopTravelerStep.qty_accept), 0))
-        .join(
-            sub_max_seq,
-            (ShopTravelerStep.traveler_id == sub_max_seq.c.traveler_id)
-            & (ShopTravelerStep.seq == sub_max_seq.c.max_seq),
-        )
-        .join(ShopTraveler, ShopTraveler.id == ShopTravelerStep.traveler_id)
-        .filter(ShopTraveler.lot_id == source_lot.id)   # ✅ ใช้ source_lot
-        .filter(ShopTravelerStep.status.in_(["passed", "completed"]))
-        .scalar()
-        or 0
-    )
-   
+
     shipped_qty = (
         db.query(func.coalesce(func.sum(CustomerShipmentItem.qty), 0))
-        .filter(CustomerShipmentItem.lot_id == source_lot.id)   # ✅ แก้แล้ว
+        .filter(CustomerShipmentItem.lot_allocate_id == source_lot.id)  # 🔥 FIXED
         .scalar()
         or 0
     )
+  
 
-    available_qty = float(finished_qty) - float(shipped_qty)
+    available_qty = max(float(finished_qty) - float(shipped_qty), 0)
     if qty > available_qty:
         raise HTTPException(
             status_code=400,
@@ -556,12 +539,17 @@ def get_part_inventory_all_for_same_part(lot_id: int, db: Session = Depends(get_
             "lot_id": l.id,
             "lot_no": l.lot_no,
             "part_no": part.part_no,
+
+            # 👇 match shipment UI
+            "lot_shipped_qty": shipped,
+            "accept_input": finished,
+            "po_shipped_total": shipped,
+            "po_remaining_qty": available,
+
+            # optional
             "planned_qty": planned,
-            "finished_qty": finished,
-            "shipped_qty": shipped,
             "available_qty": available,
             "progress_percent": progress_percent,
-            "uom": getattr(part, "uom", "pcs"),
         })
 
     return results
@@ -1424,6 +1412,110 @@ def download_label(
         filename=filename,
     )
 
+
+
+
+@router.post("/shipment/update-from-ui")
+def update_shipment_from_ui(payload: dict, db: Session = Depends(get_db)):
+    from models import (
+        ShopTravelerStep,
+        ShopTravelerStepLog,
+        ShopTraveler,
+        ProductionLot,
+        CustomerShipment,
+        CustomerShipmentItem
+    )
+    from sqlalchemy import func
+
+    lot_id = payload.get("lot_id")
+    qty = float(payload.get("qty") or 0)
+
+    if qty < 0:
+        raise HTTPException(400, "qty cannot be negative")
+
+    # =========================
+    # GET LOT + LAST STEP
+    # =========================
+    traveler = (
+        db.query(ShopTraveler)
+        .filter(ShopTraveler.lot_id == lot_id)
+        .order_by(ShopTraveler.id.desc())
+        .first()
+    )
+
+    if not traveler:
+        raise HTTPException(404, "Traveler not found")
+
+    last_step = (
+        db.query(ShopTravelerStep)
+        .filter(ShopTravelerStep.traveler_id == traveler.id)
+        .order_by(ShopTravelerStep.seq.desc())
+        .first()
+    )
+
+    if not last_step:
+        raise HTTPException(404, "Last step not found")
+
+    # =========================
+    # 🔥 RESET LOGS (IMPORTANT)
+    # =========================
+    db.query(ShopTravelerStepLog).filter(
+        ShopTravelerStepLog.step_id == last_step.id
+    ).delete()
+
+    # =========================
+    # INSERT NEW LOG
+    # =========================
+    log = ShopTravelerStepLog(
+        step_id=last_step.id,
+        qty_receive=qty,
+        qty_accept=qty,
+        qty_reject=0,
+        work_date=datetime.utcnow().date()
+    )
+    db.add(log)
+
+    # =========================
+    # SHIPMENT UPDATE
+    # =========================
+    lot = db.get(ProductionLot, lot_id)
+
+    shipment = (
+        db.query(CustomerShipment)
+        .filter(CustomerShipment.lot_id == lot_id)
+        .order_by(CustomerShipment.id.desc())
+        .first()
+    )
+
+    if not shipment:
+        shipment = CustomerShipment(
+            po_id=lot.po_id,
+            lot_id=lot.id,
+            shipped_at=datetime.utcnow(),
+            status="pending",
+        )
+        db.add(shipment)
+        db.flush()
+
+    # delete old item
+    db.query(CustomerShipmentItem).filter(
+        CustomerShipmentItem.shipment_id == shipment.id,
+        CustomerShipmentItem.lot_allocate_id == lot_id
+    ).delete()
+
+    # insert new
+    item = CustomerShipmentItem(
+        shipment_id=shipment.id,
+        po_line_id=lot.po_line_id or 0,
+        lot_id=lot.id,
+        lot_allocate_id=lot.id,
+        qty=qty,
+    )
+    db.add(item)
+
+    db.commit()
+
+    return {"status": "ok"}
 # @router.get("/{shipment_id}/download/label/{size}")
 # def download_label(
 #     shipment_id: int,

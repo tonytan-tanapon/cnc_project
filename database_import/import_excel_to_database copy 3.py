@@ -127,9 +127,6 @@ def ensure_traveler_with_initial_step(db, lot_id: int, qty: float):
         .first()
     )
 
-    from datetime import datetime
-    from models import ShopTravelerStepLog
-
     if not step:
         step = ShopTravelerStep(
             traveler_id=traveler.id,
@@ -137,31 +134,22 @@ def ensure_traveler_with_initial_step(db, lot_id: int, qty: float):
             step_code="AUTO",
             step_name="Auto Generated (Import)",
             status="passed",
+            qty_receive=qty,
+            qty_accept=qty,
+            qty_reject=0,
             uom="pcs",
         )
         db.add(step)
-        db.flush()  # 🔥 required
+    else:
+        # 🔥 IMPORTANT: update qty
+        step.qty_receive = qty
+        step.qty_accept = qty
+        db.add(step)
 
-    # 🔥 overwrite logs (recommended)
-    db.query(ShopTravelerStepLog).filter(
-        ShopTravelerStepLog.step_id == step.id
-    ).delete()
-
-    log = ShopTravelerStepLog(
-        step_id=step.id,
-        qty_receive=qty,
-        qty_accept=qty,
-        qty_reject=0,
-        work_date=datetime.utcnow().date()
-    )
-
-    db.add(log)
     db.flush()
-
-
     return traveler
 
-from datetime import datetime
+
 def allocate_qty(db, lot_id: int, po_id: int, po_line_id: int, new_qty: float):
     from models import CustomerShipment, CustomerShipmentItem, ShopTravelerStep, ShopTraveler
     from sqlalchemy import func
@@ -176,13 +164,11 @@ def allocate_qty(db, lot_id: int, po_id: int, po_line_id: int, new_qty: float):
     # =========================
     # FINISHED
     # =========================
-    from models import ShopTravelerStepLog
-
     finished_qty = (
-        db.query(func.coalesce(func.sum(ShopTravelerStepLog.qty_accept), 0))
-        .join(ShopTravelerStep, ShopTravelerStep.id == ShopTravelerStepLog.step_id)
+        db.query(func.coalesce(func.sum(ShopTravelerStep.qty_accept), 0))
         .join(ShopTraveler, ShopTraveler.id == ShopTravelerStep.traveler_id)
         .filter(ShopTraveler.lot_id == lot_id)
+        .filter(ShopTravelerStep.status.in_(["passed", "completed"]))
         .scalar()
         or 0
     )
@@ -232,7 +218,7 @@ def allocate_qty(db, lot_id: int, po_id: int, po_line_id: int, new_qty: float):
 # -------------------------
 # lot importer
 # -------------------------
-from datetime import datetime, timedelta
+from datetime import timedelta
 from dateutil.relativedelta import relativedelta
 
 def upsert_lot(db, row):

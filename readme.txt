@@ -41,7 +41,7 @@ Initial Database
 Delete all version 
 then
 
-alembic revision --autogenerate -m "add tables"
+alembic revision --autogenerate -m "update tables"
 alembic upgrade head
 
 
