@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Factory Flat View</title>
+</head>
+
+<body>
+
+<h2>Traveler 1394</h2>
+
+<table border="1" cellpadding="6" id="tbl">
+  <thead>
+    <tr>
+      <th>OP</th>
+      <th>Date</th>
+      <th>Recv</th>
+      <th>Accept</th>
+      <th>Reject</th>
+      <th>Operator</th>
+      <th>Total Recv</th>
+      <th>Total Accept</th>
+      <th>Total Reject</th>
+    </tr>
+  </thead>
+  <tbody></tbody>
+</table>
+
+<script>
+async function load() {
+  const traveler_id = 1394;
+
+  const steps = await fetch(`/api/v1/traveler-steps?traveler_id=${traveler_id}`)
+    .then(r => r.json());
+
+  const tbody = document.querySelector("#tbl tbody");
+  tbody.innerHTML = "";
+
+  let totalRecv = 0;
+  let totalAccept = 0;
+  let totalReject = 0;
+
+  steps.forEach(step => {
+    (step.logs || []).forEach(log => {
+
+      const recv = Number(log.qty_receive || 0);
+      const acc  = Number(log.qty_accept || 0);
+      const rej  = Number(log.qty_reject || 0);
+
+      // 🔥 running total
+      totalRecv += recv;
+      totalAccept += acc;
+      totalReject += rej;
+
+      const tr = document.createElement("tr");
+
+      tr.innerHTML = `
+        <td>${step.seq}</td>
+        <td>${log.work_date}</td>
+        <td>${recv}</td>
+        <td>${acc}</td>
+        <td>${rej}</td>
+        <td>${log.operator_name || "-"}</td>
+        <td>${totalRecv}</td>
+        <td>${totalAccept}</td>
+        <td>${totalReject}</td>
+      `;
+
+      tbody.appendChild(tr);
+    });
+  });
+}
+
+load();
+</script>
+
+</body>
+</html>

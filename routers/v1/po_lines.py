@@ -7,7 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from models import ShopTravelerStep
 from database import get_db
-from models import POLine, ProductionLot, ShopTraveler,PartRevision
+from models import POLine, ProductionLot, ShopTraveler,PartRevision,ShopTravelerStepLog  
 
 # พยายามใช้ atomic generator (แนะนำให้มี utils/sequencer.py + ตาราง doc_counters)
 try:
@@ -44,56 +44,79 @@ def next_code_yearly(db: Session, prefix: str) -> str:
     if atomic_next_code_yearly:
         return atomic_next_code_yearly(db, prefix)
     return _fallback_gen_code(prefix, db)
-
-
 @router.post("/{po_line_id}/lot-traveler", response_model=LotTravelerOut)
 def create_lot_and_traveler(
     po_line_id: int,
     payload: LotTravelerCreateIn | None = None,
     db: Session = Depends(get_db),
 ):
-   
+    # =========================
+    # LOAD PO LINE
+    # =========================
     pl = db.get(POLine, po_line_id)
     if not pl:
-        raise HTTPException(status_code=404, detail="PO line not found")
+        raise HTTPException(404, "PO line not found")
 
+    # =========================
+    # QTY + DUE DATE
+    # =========================
     planned_qty = (
         payload.planned_qty
-        if (payload and payload.planned_qty is not None)
+        if payload and payload.planned_qty is not None
         else int(pl.qty_ordered or 0)
     )
+
     lot_due_date = (
         payload.lot_due_date
-        if (payload and payload.lot_due_date is not None)
+        if payload and payload.lot_due_date is not None
         else (pl.due_date.date() if pl.due_date else None)
     )
 
+    # =========================
+    # REVISION LOGIC
+    # =========================
     rev_id = None
 
     if payload and payload.part_revision_id:
         if isinstance(payload.part_revision_id, int):
             rev_id = payload.part_revision_id
         else:
-            # payload is like "A"
+            # เช่น "A"
             rev = db.execute(
-                select(PartRevision.id)
-                .where(
+                select(PartRevision.id).where(
                     PartRevision.part_id == pl.part_id,
-                    PartRevision.rev == payload.part_revision_id
+                    PartRevision.rev == payload.part_revision_id,
                 )
             ).scalar_one_or_none()
 
             if not rev:
                 raise HTTPException(
                     400,
-                    f"Revision '{payload.part_revision_id}' not found for this part"
+                    f"Revision '{payload.part_revision_id}' not found for this part",
                 )
 
             rev_id = rev
     else:
         rev_id = pl.revision_id
-    print(rev_id)
+
+    # 🔥 fallback ถ้าไม่มี revision เลย
+    if not rev_id:
+        rev = db.execute(
+            select(PartRevision.id).where(
+                PartRevision.part_id == pl.part_id,
+                PartRevision.is_current == True,
+            )
+        ).scalar_one_or_none()
+
+        if not rev:
+            raise HTTPException(400, "No revision found for this part")
+
+        rev_id = rev
+
     try:
+        # =========================
+        # GENERATE CODE
+        # =========================
         lot_no = next_code_yearly(db, "")
         traveler_no = next_code_yearly(db, "T")
 
@@ -111,7 +134,7 @@ def create_lot_and_traveler(
             status="not_start",
         )
         db.add(lot)
-        db.flush()
+        db.flush()  # 🔥 ต้อง flush เพื่อให้ได้ lot.id
 
         # =========================
         # CREATE TRAVELER
@@ -122,35 +145,43 @@ def create_lot_and_traveler(
             status="open",
         )
         db.add(trav)
-        db.flush()  # 🔥 สำคัญ ต้อง flush เพื่อให้ได้ trav.id
+        db.flush()  # 🔥 ต้อง flush เพื่อให้ได้ trav.id
 
         # =========================
         # CREATE FIRST STEP
         # =========================
         step = ShopTravelerStep(
             traveler_id=trav.id,
-            seq=1,                      # ✅ ใช้ seq ไม่ใช่ step_no
+            seq=1,
             step_code="START",
             step_name="Start",
             step_detail="Auto created first step",
             station="N/A",
-
             status="pending",
-
-            qty_receive=0,
-            qty_accept=0,
-            qty_reject=0,
-            qty_rework=0,
-
             uom="pcs",
         )
 
         db.add(step)
 
         # =========================
+        # CREATE FIRST LOG (🔥 ใช้ relationship)
+        # =========================
+        log = ShopTravelerStepLog(
+            step=step,  # ✅ สำคัญ ไม่ต้องใช้ step_id
+            work_date=date.today(),
+            qty_receive=0,
+            qty_accept=0,
+            qty_reject=0,
+        )
+
+        db.add(log)
+
+        # =========================
         # COMMIT
         # =========================
         db.commit()
+
+        # refresh
         db.refresh(lot)
         db.refresh(trav)
 
@@ -163,13 +194,11 @@ def create_lot_and_traveler(
 
     except IntegrityError as e:
         db.rollback()
-        # ถ้า generator ยังไม่ atomic อาจชน duplicate ได้ ให้ client แสดงข้อความและลองใหม่
-        raise HTTPException(status_code=409, detail=f"Duplicate detected: {e.orig}")
+        raise HTTPException(409, f"Duplicate detected: {e.orig}")
+
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
-
-
+        raise HTTPException(500, str(e))
 # ===== ดึงลิงก์ทั้งหมด (หลาย lot/traveler) สำหรับบรรทัดหนึ่ง =====
 class LineLinksOut(BaseModel):
     lots: list[dict] = []

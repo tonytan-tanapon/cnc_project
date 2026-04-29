@@ -440,7 +440,7 @@ function normalizeStep(row) {
     station: row.station ?? "",
     step_name: row.step_name ?? "",
     step_code: row.step_code ?? "",
-    step_detail: row.step_detail ?? "",
+
     total_receive: row.total_receive ?? 0,
     total_accept: row.total_accept ?? 0,
     total_reject: row.total_reject ?? 0,
@@ -600,7 +600,6 @@ function initStepsTable() {
       { title: "OP", field: "step_code", width: 100, editor: "input" },
 
       { title: "Step Name", field: "step_name", width: 220 },
-      { title: "Step Detail", field: "step_detail", width: 220 },
 
       { title: "Station", field: "station", width: 140 },
 
@@ -759,46 +758,46 @@ function initStepsTable() {
     ],
 
 
-  //   rowFormatter: function (row) {
-  //     const data = row.getData();
+    rowFormatter: function (row) {
+      const data = row.getData();
 
-  //     if (!data.logs || data.logs.length === 0) return;
+      if (!data.logs || data.logs.length === 0) return;
 
-  //     const holder = document.createElement("div");
-  //     holder.style.padding = "10px";
-  //     holder.style.background = "#f9fafb";
+      const holder = document.createElement("div");
+      holder.style.padding = "10px";
+      holder.style.background = "#f9fafb";
 
-  //     const table = document.createElement("table");
-  //     table.style.width = "100%";
-  //     table.style.borderCollapse = "collapse";
+      const table = document.createElement("table");
+      table.style.width = "100%";
+      table.style.borderCollapse = "collapse";
 
-  //     table.innerHTML = `
-  //   <thead>
-  //     <tr style="background:#e5e7eb">
-  //       <th>Date</th>
-  //       <th>Recv</th>
-  //       <th>Accept</th>
-  //       <th>Reject</th>
-  //     </tr>
-  //   </thead>
-  //   <tbody>
-  //     ${data.logs.map(l => `
-  //       <tr>
-  //         <td>${l.work_date}</td>
-  //         <td>${Math.round(l.qty_receive || 0)}</td>
-  //         <td>${Math.round(l.qty_accept || 0)}</td>
-  //         <td style="color:${l.qty_reject > 0 ? 'red' : 'black'}">
-  //           ${Math.round(l.qty_reject || 0)}
-  //         </td>
-  //       </tr>
-  //     `).join("")}
-  //   </tbody>
-  // `;
+      table.innerHTML = `
+    <thead>
+      <tr style="background:#e5e7eb">
+        <th>Date</th>
+        <th>Recv</th>
+        <th>Accept</th>
+        <th>Reject</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${data.logs.map(l => `
+        <tr>
+          <td>${l.work_date}</td>
+          <td>${Math.round(l.qty_receive || 0)}</td>
+          <td>${Math.round(l.qty_accept || 0)}</td>
+          <td style="color:${l.qty_reject > 0 ? 'red' : 'black'}">
+            ${Math.round(l.qty_reject || 0)}
+          </td>
+        </tr>
+      `).join("")}
+    </tbody>
+  `;
 
-  //     holder.appendChild(table);
+      holder.appendChild(table);
 
-  //     row.getElement().appendChild(holder);
-  //   },
+      row.getElement().appendChild(holder);
+    },
   });
 
 

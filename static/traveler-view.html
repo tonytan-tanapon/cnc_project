@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Traveler View</title>
+
+  <style>
+    body {
+      font-family: system-ui;
+      padding: 20px;
+      background: #f9fafb;
+    }
+
+    h2 { margin-bottom: 5px; }
+
+    .meta {
+      margin-bottom: 20px;
+      color: #555;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+    }
+
+    th {
+      background: #e5e7eb;
+      padding: 6px;
+    }
+
+    td {
+      padding: 6px;
+      border-bottom: 1px solid #eee;
+    }
+
+    tr.reject {
+      background: #fee2e2;
+    }
+
+
+    table {
+  width: 100%;
+  border-collapse: collapse; /* 🔥 สำคัญมาก */
+}
+
+th, td {
+  border: 1px solid #999;   /* เส้นตาราง */
+  padding: 6px;
+  text-align: center;
+}
+
+th {
+  background: #e5e7eb;
+}
+
+tr.reject {
+  background: #fee2e2;
+}
+  </style>
+</head>
+
+<body>
+
+<h2 id="title">Loading...</h2>
+<div class="meta" id="meta"></div>
+
+<table>
+  <thead>
+  <tr>
+    <th>OP</th>
+    <th>Date</th>
+    <th>Recv</th>
+    <th>Accept</th>
+    <th>Reject</th>
+    <th>Operator</th>
+    <th>Step Recv</th>
+    <th>Step Accept</th>
+    <th>Step Reject</th>
+    <th>Remain</th> <!-- 🔥 ADD THIS -->
+  </tr>
+</thead>
+  <tbody id="tbody"></tbody>
+</table>
+
+<script src="/static/js/traveler-view.js"></script>
+
+</body>
+</html>

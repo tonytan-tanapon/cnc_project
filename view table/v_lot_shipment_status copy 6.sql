@@ -73,22 +73,12 @@ last_step AS (
     SELECT DISTINCT ON (s.traveler_id)
         s.id AS step_id,
         s.traveler_id,
+        s.qty_receive,
+        s.qty_accept,
+        s.qty_reject,
         s.status AS step_status
     FROM shop_traveler_steps s
     ORDER BY s.traveler_id, s.seq DESC
-),
-
--- =========================
--- step totals (FROM LOGS)
--- =========================
-step_totals AS (
-    SELECT
-        l.step_id,
-        COALESCE(SUM(l.qty_receive), 0) AS qty_receive,
-        COALESCE(SUM(l.qty_accept), 0) AS qty_accept,
-        COALESCE(SUM(l.qty_reject), 0) AS qty_reject
-    FROM shop_traveler_step_logs l
-    GROUP BY l.step_id
 )
 
 -- =========================
@@ -98,23 +88,26 @@ SELECT
     b.*,
 
     -- =========================
-    -- step info (FROM LOGS)
+    -- step info
     -- =========================
     ls.step_id,
-    COALESCE(st.qty_receive, 0) AS receive_input,
-    COALESCE(st.qty_accept, 0) AS accept_input,
-    COALESCE(st.qty_reject, 0) AS reject_input,
+    COALESCE(ls.qty_receive, 0) AS receive_input,
+    COALESCE(ls.qty_accept, 0) AS accept_input,
+    COALESCE(ls.qty_reject, 0) AS reject_input,
     ls.step_status,
 
     -- =========================
-    -- PO aggregation
+    -- PO aggregation (FIXED)
     -- =========================
+
+    -- ✅ shipped_total: นับเฉพาะ lot ที่ไม่ใช่ not_start
     COALESCE(
         SUM(b.lot_shipped_qty)
         FILTER (WHERE b.lot_status <> 'not_start')
         OVER (PARTITION BY b.po_line_id),
     0) AS po_shipped_total,
 
+    -- ✅ remaining: คิดเฉพาะ lot ที่ not_start
     CASE 
         WHEN b.lot_status = 'not_start' THEN
             b.po_qty_total
@@ -127,7 +120,7 @@ SELECT
     END AS po_remaining_qty,
 
     -- =========================
-    -- shipment status
+    -- shipment status (FIXED)
     -- =========================
     CASE
         WHEN COALESCE(
@@ -162,5 +155,4 @@ SELECT
 
 FROM base b
 LEFT JOIN last_traveler lt ON lt.lot_id = b.lot_id
-LEFT JOIN last_step ls ON ls.traveler_id = lt.traveler_id
-LEFT JOIN step_totals st ON st.step_id = ls.step_id;
+LEFT JOIN last_step ls ON ls.traveler_id = lt.traveler_id;

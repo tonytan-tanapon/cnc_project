@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Factory View</title>
+
+<style>
+body {
+  font-family: system-ui;
+  background: #f3f4f6;
+  margin: 0;
+  padding: 20px;
+}
+
+.header {
+  font-size: 22px;
+  font-weight: bold;
+  margin-bottom: 20px;
+}
+
+.step-card {
+  background: white;
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 16px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+
+.step-title {
+  font-size: 18px;
+  font-weight: bold;
+}
+
+.meta {
+  font-size: 13px;
+  color: #6b7280;
+  margin-bottom: 10px;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table th {
+  background: #e5e7eb;
+  padding: 6px;
+  text-align: left;
+}
+
+.table td {
+  padding: 6px;
+  border-bottom: 1px solid #eee;
+}
+
+.badge {
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.pass { background: #dcfce7; }
+.fail { background: #fee2e2; }
+
+.summary {
+  margin-top: 8px;
+  font-size: 13px;
+  font-weight: bold;
+}
+</style>
+</head>
+
+<body>
+
+<div class="header" id="header">Loading...</div>
+
+<div id="stepsContainer"></div>
+
+<script>
+async function loadData() {
+  const traveler_id = new URLSearchParams(window.location.search).get("traveler_id");
+
+  const steps = await fetch(`/api/v1/traveler-steps?traveler_id=${traveler_id}`)
+    .then(r => r.json());
+
+  document.getElementById("header").innerText =
+    `Traveler ${traveler_id} | Steps: ${steps.length}`;
+
+  const container = document.getElementById("stepsContainer");
+  container.innerHTML = "";
+
+  steps.forEach(step => {
+    const card = document.createElement("div");
+    card.className = "step-card";
+
+    const totalAccept = step.total_accept || 0;
+    const totalReject = step.total_reject || 0;
+
+    card.innerHTML = `
+      <div class="step-title">
+        Step ${step.seq} - ${step.step_name || "-"}
+      </div>
+
+      <div class="meta">
+        Operator: ${step.operator_nickname || "-"} |
+        Machine: ${step.machine_id || "-"} |
+        Status: ${step.status}
+      </div>
+
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Recv</th>
+            <th>Accept</th>
+            <th>Reject</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${
+            (step.logs || []).map(l => `
+              <tr>
+                <td>${l.work_date}</td>
+                <td>${Math.round(l.qty_receive || 0)}</td>
+                <td>
+                  <span class="badge pass">
+                    ${Math.round(l.qty_accept || 0)}
+                  </span>
+                </td>
+                <td>
+                  <span class="badge fail">
+                    ${Math.round(l.qty_reject || 0)}
+                  </span>
+                </td>
+              </tr>
+            `).join("")
+          }
+        </tbody>
+      </table>
+
+      <div class="summary">
+        Total Accept: ${totalAccept} |
+        Reject: ${totalReject}
+      </div>
+    `;
+
+    container.appendChild(card);
+  });
+}
+
+loadData();
+</script>
+
+</body>
+</html>
