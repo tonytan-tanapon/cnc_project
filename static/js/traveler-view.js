@@ -22,95 +22,196 @@ async function load() {
   const tbody = document.getElementById("tbody");
   tbody.innerHTML = "";
 
-  let totalRecv = 0;
-  let totalAccept = 0;
-  let totalReject = 0;
-
   let prevStepAccept = traveler.planned_qty || 0;
 
   steps.forEach(step => {
 
-    let stepRecv = 0;
     let stepAccept = 0;
     let stepReject = 0;
 
     const logs = (step.logs && step.logs.length > 0)
       ? step.logs
-      : [null];
+      : [{}];
 
-    // 🔥 FIRST PASS → calculate totals first
     logs.forEach(log => {
-      const recv = Number(log?.qty_receive || 0);
-      const acc  = Number(log?.qty_accept || 0);
-      const rej  = Number(log?.qty_reject || 0);
-
-      stepRecv += recv;
-      stepAccept += acc;
-      stepReject += rej;
+      stepAccept += Number(log.qty_accept || 0);
+      stepReject += Number(log.qty_reject || 0);
     });
 
-    // 🔥 correct remain
-    const remain = prevStepAccept - stepRecv;
+    const stepRecv = prevStepAccept;
+    const remain = stepRecv - (stepAccept + stepReject);
 
     let firstRow = true;
     const rowspan = logs.length;
 
-    logs.forEach(log => {
+    logs.forEach((log, index) => {
 
-      const recv = Number(log?.qty_receive || 0);
-      const acc  = Number(log?.qty_accept || 0);
-      const rej  = Number(log?.qty_reject || 0);
-
-      totalRecv += recv;
-      totalAccept += acc;
-      totalReject += rej;
+      const acc = Number(log.qty_accept || 0);
+      const rej = Number(log.qty_reject || 0);
 
       const tr = document.createElement("tr");
-
       if (rej > 0) tr.classList.add("reject");
 
       let opCell = "";
       let remainCell = "";
+      let actionCell = "";
 
       if (firstRow) {
         opCell = `<td rowspan="${rowspan}"><b>${step.seq}</b></td>`;
         remainCell = `<td rowspan="${rowspan}"><b>${remain}</b></td>`;
+
+        // 🔥 ADD BUTTON HERE
+        actionCell = `
+          <td rowspan="${rowspan}">
+            <button onclick="addLog(${step.id})">➕</button>
+          </td>
+        `;
+
         firstRow = false;
       }
 
       tr.innerHTML = `
         ${opCell}
-        <td>${log?.work_date || "-"}</td>
-        <td>${recv}</td>
-        <td>${acc}</td>
-        <td>${rej}</td>
-        <td>${log?.operator_name || "-"}</td>
+        <td>${log.work_date || "-"}</td>
+
+        <!-- RECEIVE -->
+        <td>${stepRecv}</td>
+
+        ${buildEditableCell(log, step.id, "qty_accept", acc)}
+        ${buildEditableCell(log, step.id, "qty_reject", rej)}
+
+        <td>${log.operator_name || "-"}</td>
         <td>${stepRecv}</td>
         <td>${stepAccept}</td>
         <td>${stepReject}</td>
         ${remainCell}
+
+        ${log.id ? `
+          <td>
+            <button onclick="deleteLog(${log.id})">🗑</button>
+          </td>
+        ` : actionCell}
       `;
 
       tbody.appendChild(tr);
     });
 
-    // 🔥 update for next step
     prevStepAccept = stepAccept;
   });
-
-  const summary = document.createElement("tr");
-  summary.style.background = "#111";
-  summary.style.color = "#fff";
-
-  summary.innerHTML = `
-    <td colspan="6"><b>GRAND TOTAL</b></td>
-    <td><b>${totalRecv}</b></td>
-    <td><b>${totalAccept}</b></td>
-    <td><b>${totalReject}</b></td>
-    <td></td>
-  `;
-
-  tbody.appendChild(summary);
 }
 
 load();
+
+
+// =======================
+// BUILD CELL
+// =======================
+function buildEditableCell(log, step_id, field, value) {
+
+  if (log.id) {
+    return `
+      <td contenteditable="true"
+          onkeydown="if(event.key==='Enter'){this.blur(); return false;}"
+          onblur="updateField(${log.id}, '${field}', this.innerText)">
+        ${value}
+      </td>
+    `;
+  } else {
+    return `
+      <td contenteditable="true"
+          onkeydown="if(event.key==='Enter'){this.blur(); return false;}"
+          onblur="createFromInline(${step_id}, '${field}', this.innerText)">
+        ${value}
+      </td>
+    `;
+  }
+}
+
+
+// =======================
+// ADD LOG (🔥 BUTTON)
+// =======================
+async function addLog(step_id) {
+
+  await fetch(`/api/v1/step-logs`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      step_id,
+      qty_accept: 0,
+      qty_reject: 0
+    })
+  });
+
+  load();
+
+  // 🔥 focus first editable cell
+  setTimeout(() => {
+    const cell = document.querySelector("td[contenteditable]");
+    if (cell) cell.focus();
+  }, 100);
+}
+
+
+// =======================
+// CREATE FROM INLINE
+// =======================
+async function createFromInline(step_id, field, value) {
+  const num = Number(value);
+  if (isNaN(num) || num === 0) return;
+
+  let payload = {
+    step_id,
+    qty_accept: 0,
+    qty_reject: 0,
+  };
+
+  payload[field] = num;
+
+  await fetch(`/api/v1/step-logs`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+
+  load();
+}
+
+
+// =======================
+// UPDATE
+// =======================
+async function updateField(log_id, field, value) {
+  if (!log_id) return;
+
+  const num = Number(value);
+  if (isNaN(num)) {
+    alert("Invalid number");
+    load();
+    return;
+  }
+
+  await fetch(`/api/v1/step-logs/${log_id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      [field]: num
+    })
+  });
+
+  load();
+}
+
+
+// =======================
+// DELETE
+// =======================
+async function deleteLog(log_id) {
+  if (!confirm("Delete this log?")) return;
+
+  await fetch(`/api/v1/step-logs/${log_id}`, {
+    method: "DELETE"
+  });
+
+  load();
+}

@@ -23,39 +23,46 @@
       background: white;
     }
 
+    th, td {
+      border: 1px solid #999;
+      padding: 6px;
+      text-align: center;
+    }
+
     th {
       background: #e5e7eb;
-      padding: 6px;
     }
 
-    td {
-      padding: 6px;
-      border-bottom: 1px solid #eee;
-    }
-
+    /* 🔥 reject highlight */
     tr.reject {
       background: #fee2e2;
     }
 
+    /* 🔥 draft row (NEW) */
+    tr.draft {
+      background: #ecfeff;
+    }
 
-    table {
-  width: 100%;
-  border-collapse: collapse; /* 🔥 สำคัญมาก */
-}
+    /* 🔥 editable cell */
+    td[contenteditable="true"] {
+      background: #fff7ed;
+      cursor: text;
+    }
 
-th, td {
-  border: 1px solid #999;   /* เส้นตาราง */
-  padding: 6px;
-  text-align: center;
-}
+    td[contenteditable="true"]:focus {
+      outline: 2px solid orange;
+    }
 
-th {
-  background: #e5e7eb;
-}
+    button {
+      padding: 4px 6px;
+      margin: 1px;
+      cursor: pointer;
+    }
 
-tr.reject {
-  background: #fee2e2;
-}
+    /* 🔥 nicer button */
+    button:hover {
+      opacity: 0.8;
+    }
   </style>
 </head>
 
@@ -66,23 +73,26 @@ tr.reject {
 
 <table>
   <thead>
-  <tr>
-    <th>OP</th>
-    <th>Date</th>
-    <th>Recv</th>
-    <th>Accept</th>
-    <th>Reject</th>
-    <th>Operator</th>
-    <th>Step Recv</th>
-    <th>Step Accept</th>
-    <th>Step Reject</th>
-    <th>Remain</th> <!-- 🔥 ADD THIS -->
-  </tr>
-</thead>
+    <tr>
+      <th>OP</th>
+      <th>Date</th>
+      <th>Recv</th>
+      <th>Accept</th>
+      <th>Reject</th>
+      <th>Operator</th>
+      <th>Step Recv</th>
+      <th>Step Accept</th>
+      <th>Step Reject</th>
+      <th>Remain</th>
+      <th>Action</th>
+    </tr>
+  </thead>
+
   <tbody id="tbody"></tbody>
 </table>
 
-<script src="/static/js/traveler-view.js"></script>
+<!-- 🔥 IMPORTANT: version updated -->
+<script src="/static/js/traveler-view.js?v=6.0"></script>
 
 </body>
 </html>
