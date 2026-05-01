@@ -31,7 +31,7 @@ def get_step_logs(
 # =======================
 @router.post("")
 def create_step_log(payload: dict, db: Session = Depends(get_db)):
-
+    
     try:
         print("CREATE PAYLOAD:", payload)
 
@@ -39,7 +39,20 @@ def create_step_log(payload: dict, db: Session = Depends(get_db)):
         if not step_id:
             raise HTTPException(400, "step_id is required")
 
-        work_date = datetime.utcnow().date()
+        from datetime import datetime
+        import pytz
+
+        work_date_str = payload.get("work_date")
+
+        if work_date_str:
+            try:
+                work_date = datetime.fromisoformat(work_date_str).date()
+            except ValueError:
+                raise HTTPException(400, "Invalid work_date format")
+        else:
+            la = pytz.timezone("America/Los_Angeles")
+            work_date = datetime.now(la).date()
+
 
         # 🔥 CHECK EXISTING
         existing = db.query(ShopTravelerStepLog).filter(
@@ -49,6 +62,7 @@ def create_step_log(payload: dict, db: Session = Depends(get_db)):
 
         if existing:
             # 👉 UPDATE INSTEAD OF INSERT
+            print("Existing log found for step_id", step_id, "on", work_date, "- updating instead of creating new.")
             if "qty_accept" in payload:
                 existing.qty_accept = float(payload["qty_accept"])
             if "qty_reject" in payload:
@@ -83,26 +97,35 @@ def create_step_log(payload: dict, db: Session = Depends(get_db)):
 # =======================
 @router.patch("/{log_id}")
 def update_log(log_id: int, payload: dict, db: Session = Depends(get_db)):
-
+    print("UPDATE PAYLOAD:", payload)
     try:
         log = db.get(ShopTravelerStepLog, log_id)
+        print("Existing log:", log)
         if not log:
             raise HTTPException(404, "Log not found")
 
         print("Payload:", payload)
 
-        # 🔥 ONLY update provided fields
+        # qty_accept
         if "qty_accept" in payload:
             val = float(payload["qty_accept"])
             if val < 0:
                 raise HTTPException(400, "qty_accept must be >= 0")
             log.qty_accept = val
 
+        # qty_reject
         if "qty_reject" in payload:
             val = float(payload["qty_reject"])
             if val < 0:
                 raise HTTPException(400, "qty_reject must be >= 0")
             log.qty_reject = val
+
+        # 🔥 ADD THIS
+        if "work_date" in payload:
+            try:
+                log.work_date = datetime.fromisoformat(payload["work_date"]).date()
+            except:
+                raise HTTPException(400, "Invalid work_date")
 
         db.commit()
         db.refresh(log)

@@ -103,6 +103,7 @@ def list_traveler_steps(traveler_id: Optional[int] = None, db: Session = Depends
                 # 🔥 ADD THIS BLOCK
                 "logs": [
                     {
+                        "id": l.id,   # 🔥 ADD THIS LINE    
                         "work_date": l.work_date,
                         "qty_receive": float(l.qty_receive or 0),
                         "qty_accept": float(l.qty_accept or 0),
