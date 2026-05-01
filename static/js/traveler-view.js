@@ -24,12 +24,9 @@ async function load() {
 
   let prevStepAccept = Number(traveler.planned_qty || 0);
 
-  // 🔥 fallback (สำคัญมาก)
   if (prevStepAccept === 0) {
-    console.warn("⚠️ planned_qty is 0, fallback to first step logs");
-
     const firstStep = steps[0];
-    if (firstStep && firstStep.logs && firstStep.logs.length > 0) {
+    if (firstStep?.logs?.length > 0) {
       prevStepAccept = firstStep.logs.reduce((sum, l) => {
         return sum + Number(l.qty_accept || 0);
       }, 0);
@@ -47,35 +44,39 @@ async function load() {
     const remain = stepRecv - (stepAccept + stepReject);
 
     // =========================
-    // NO LOG CASE
+    // NO LOG
     // =========================
     if (logs.length === 0) {
       const tr = document.createElement("tr");
+
+      
+
+      // 🔥 ADD THIS
+      tr.setAttribute("data-receive", stepRecv);
+      tr.setAttribute("data-op", step.seq);
 
       tr.innerHTML = `
         <td><b>${step.seq}</b></td>
         <td></td>
 
-        
-
-        <td contenteditable="true"
+        <td data-field="qty_accept" contenteditable="true"
           onkeydown="if(event.key==='Enter'){
             createFromInline(${step.id}, 'qty_accept', this.innerText);
             this.blur(); return false;
           }">0</td>
 
-        <td contenteditable="true"
+        <td data-field="qty_reject" contenteditable="true"
           onkeydown="if(event.key==='Enter'){
             createFromInline(${step.id}, 'qty_reject', this.innerText);
             this.blur(); return false;
           }">0</td>
 
         <td>-</td>
+        <td>-</td>
 
-        <td>${stepRecv}</td>
+        <td data-field="receive">${stepRecv}</td>
         <td>${stepAccept}</td>
         <td>${stepReject}</td>
-
         <td>${remain}</td>
 
         <td>
@@ -99,25 +100,30 @@ async function load() {
       const rej = Number(log.qty_reject || 0);
 
       const tr = document.createElement("tr");
+
+      if (log.id) {
+        tr.setAttribute("data-log-id", log.id);
+      }
+
+      // 🔥 ADD THESE (CRITICAL)
+      tr.setAttribute("data-receive", stepRecv);
+      tr.setAttribute("data-op", step.seq);
+
       if (rej > 0) tr.classList.add("reject");
 
       let opCell = "";
-
       let stepRecvCell = "";
       let stepAcceptCell = "";
       let stepRejectCell = "";
       let remainCell = "";
       let actionCell = "";
 
-      // 🔥 MERGE HERE
       if (firstRow) {
         opCell = `<td rowspan="${rowspan}"><b>${step.seq}</b></td>`;
 
-
-        stepRecvCell = `<td rowspan="${rowspan}"><b>${stepRecv}</b></td>`;
+        stepRecvCell = `<td data-field="receive" rowspan="${rowspan}"><b>${stepRecv}</b></td>`;
         stepAcceptCell = `<td rowspan="${rowspan}"><b>${stepAccept}</b></td>`;
         stepRejectCell = `<td rowspan="${rowspan}"><b>${stepReject}</b></td>`;
-
         remainCell = `<td rowspan="${rowspan}"><b>${remain}</b></td>`;
 
         actionCell = `
@@ -138,16 +144,23 @@ async function load() {
             onchange="updateDate(${log.id}, this.value)">
         </td>
 
-
         ${buildEditableCell(log, step.id, "qty_accept", acc)}
         ${buildEditableCell(log, step.id, "qty_reject", rej)}
 
         <td>${log.operator_name || "-"}</td>
 
+        <td data-field="machine" contenteditable="true"
+          onkeydown="if(event.key==='Enter'){
+            updateField(${log.id}, 'machine', this.innerText);
+            this.blur();
+            return false;
+          }">
+          ${log.machine_name || ""}
+        </td>
+
         ${stepRecvCell}
         ${stepAcceptCell}
         ${stepRejectCell}
-
         ${remainCell}
 
         ${log.id ? `
@@ -164,10 +177,6 @@ async function load() {
   });
 }
 
-load();
-
-
-
 
 // =======================
 // BUILD CELL
@@ -176,7 +185,7 @@ function buildEditableCell(log, step_id, field, value) {
 
   if (log.id) {
     return `
-      <td contenteditable="true"
+      <td data-field="${field}" contenteditable="true"
         onkeydown="if(event.key==='Enter'){
           updateField(${log.id}, '${field}', this.innerText);
           this.blur();
@@ -187,7 +196,7 @@ function buildEditableCell(log, step_id, field, value) {
     `;
   } else {
     return `
-      <td contenteditable="true"
+      <td data-field="${field}" contenteditable="true"
         onkeydown="if(event.key==='Enter'){
           createFromInline(${step_id}, '${field}', this.innerText);
           this.blur();
@@ -201,30 +210,11 @@ function buildEditableCell(log, step_id, field, value) {
 
 
 // =======================
-// ADD LOG
-// =======================
-async function addLog(step_id) {
-
-  await fetch(`/api/v1/step-logs`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      step_id,
-      qty_accept: 0,
-      qty_reject: 0
-    })
-  });
-
-  load();
-}
-
-
-// =======================
 // CREATE INLINE
 // =======================
 async function createFromInline(step_id, field, value) {
   const num = Number(value);
-  if (isNaN(num) || num === 0) return;
+  if (isNaN(num)) return;
 
   let payload = {
     step_id,
@@ -245,79 +235,80 @@ async function createFromInline(step_id, field, value) {
 
 
 // =======================
-// UPDATE QTY ONLY
+// UPDATE FIELD (FIXED)
 // =======================
-function safeNum(v) {
-  const n = Number(v);
-  return isNaN(n) ? 0 : n;
-}
-
 async function updateField(log_id, field, value) {
 
-  if (!log_id) return;
+  const row = document.querySelector(`[data-log-id="${log_id}"]`);
+  if (!row) return;
 
-  const row = document.querySelector(`[data-log-id="${log_id}"]`) || event?.target?.closest("tr");
+  const acceptCell = row.querySelector('[data-field="qty_accept"]');
+  const rejectCell = row.querySelector('[data-field="qty_reject"]');
 
-  // 🔥 get current row values
-  const acceptCell = row.children[2];
-  const rejectCell = row.children[3];
-  const stepRecvCell = row.children[5];
+  if (!acceptCell || !rejectCell) return;
 
-  let accept = safeNum(acceptCell.innerText);
-  let reject = safeNum(rejectCell.innerText);
-  const receive = safeNum(stepRecvCell.innerText);
+  let accept = Number(acceptCell.innerText) || 0;
+  let reject = Number(rejectCell.innerText) || 0;
 
-  // update value being edited
-  if (field === "qty_accept") accept = safeNum(value);
-  if (field === "qty_reject") reject = safeNum(value);
+  if (field === "qty_accept") accept = Number(value) || 0;
+  if (field === "qty_reject") reject = Number(value) || 0;
 
-  console.log("VALIDATION:", { receive, accept, reject });
+  // 🔥 FIX: get from attribute (NOT DOM cell)
+  const receive = Number(row.getAttribute("data-receive")) || 0;
+  const op = Number(row.getAttribute("data-op")) || 0;
 
-  // 🔥 VALIDATION RULE
-  // 🔥 หา OP (step number)
-  const opCell = row.children[0];
-  const op = Number(opCell.innerText);
+  console.log("CHECK:", { accept, reject, receive, op });
 
-  // 🔥 skip validation ถ้าเป็น step แรก
+  // validation
   if (op !== 1 && (accept + reject > receive)) {
-    alert(`❌ Accept + Reject (${accept + reject}) > Receive (${receive})`);
+    alert(`❌ Accept + Reject > Receive`);
     load();
     return;
   }
 
-  // ✅ send to backend
-  await fetch(`/api/v1/step-logs/${log_id}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      [field]: Number(value)
-    })
-  });
+  let payload = {};
+
+    if (field === "qty_accept" || field === "qty_reject") {
+      payload[field] = Number(value) || 0;
+    } else {
+      payload[field] = value.trim() || null;
+    }
+
+    await fetch(`/api/v1/step-logs/${log_id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
 
   load();
 }
 
+
 // =======================
-// UPDATE DATE
+// OTHER
 // =======================
 async function updateDate(log_id, value) {
-  if (!log_id) return;
-
   await fetch(`/api/v1/step-logs/${log_id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      work_date: value
-    })
+    body: JSON.stringify({ work_date: value })
   });
-
   load();
 }
 
+async function addLog(step_id) {
+  await fetch(`/api/v1/step-logs`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      step_id,
+      qty_accept: 0,
+      qty_reject: 0
+    })
+  });
+  load();
+}
 
-// =======================
-// DELETE
-// =======================
 async function deleteLog(log_id) {
   if (!confirm("Delete this log?")) return;
 
@@ -327,3 +318,5 @@ async function deleteLog(log_id) {
 
   load();
 }
+
+load();
