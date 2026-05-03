@@ -109,6 +109,7 @@ def generate_traveler_from_db(template_path, data: dict, output_path):
     # --------------------------------------------------
     # HEADER
     # --------------------------------------------------
+    print(f"Exporting traveler doc for traveler {data['traveler']['traveler_no']} with data: {data}")
     header_map = {
         "{{part}}": data["lot"]["part_no"],
         "{{lot}}": data["lot"]["lot_no"],
@@ -117,6 +118,18 @@ def generate_traveler_from_db(template_path, data: dict, output_path):
         "{{cus}}": data["traveler"]["customer_code"],
         "{{qty}}": data["lot"]["planned_qty"],
         "{{material_detail}}": data["lot"]["material_detail"],
+
+        # "{{op}}": data["steps"][0]["step_code"] if data["steps"] else "",
+        # "{STEP_NAME}}": data["steps"][0]["step_name"] if data["steps"] else "",
+        # "{{STEP_NOTES}}": data["steps"][0]["notes"] if data["steps"] else "",
+        # "{{recv}}": data["steps"][0]["qty_receive"] if data["steps"] else "",	
+        # "{{oper}}": data["steps"][0]["operator"] if data["steps"] else "",	
+        # "{{note}}": data["steps"][0]["step_note"] if data["steps"] else "",
+        # "{{accept}}":   data["steps"][0]["qty_accept"] if data["steps"] else "",	
+        # "{{reject}}":  data["steps"][0]["qty_reject"] if data["steps"] else "",
+        # "{{date}}":  data["steps"][0]["date"] if data["steps"] else "",
+
+
     }
 
     replace_header(doc, header_map)

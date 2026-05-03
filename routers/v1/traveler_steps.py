@@ -74,12 +74,32 @@ def list_traveler_steps(traveler_id: Optional[int] = None, db: Session = Depends
 
         result = []
 
-        for step, emp in rows:
+        prev_accept = None
+
+        for i, (step, emp) in enumerate(rows):
+          
 
             logs = step.logs or []
 
-            # print("Creating step with processed logs:", step.id, len(logs))
+            total_accept = sum((l.qty_accept or 0) for l in logs)
+            total_reject = sum((l.qty_reject or 0) for l in logs)
 
+            # 🔥 NEW LOGIC
+            if i == 0:
+                receive = total_accept + total_reject
+            else:
+                receive = prev_accept or 0
+
+
+            is_first = (i == 0)
+
+            status = calculate_step_status(
+                receive,
+                total_accept,
+                total_reject,
+                is_first
+            )
+            print(f"Step {step.id} - receive: {receive}, accept: {total_accept}, reject: {total_reject} => status: {status}")
             result.append({
                 "id": step.id,
                 "traveler_id": step.traveler_id,
@@ -88,30 +108,47 @@ def list_traveler_steps(traveler_id: Optional[int] = None, db: Session = Depends
                 "step_detail": step.step_detail,
                 "step_code": step.step_code,
                 "station": step.station,
-                "status": step.status,
+                "status": status,
                 "operator_id": step.operator_id,
                 "machine_id": step.machine_id,
+                "machine_code": step.machine.code if step.machine else None,
+                "machine_name": step.machine.code if step.machine else None,
+                "operator_name": emp.name if emp else None,
+                
 
                 "operator_nickname": (
                     f"{emp.emp_code} - {emp.nickname}" if emp else None
                 ),
 
-                "total_receive": sum((l.qty_receive or 0) for l in logs),
-                "total_accept":  sum((l.qty_accept or 0) for l in logs),
-                "total_reject":  sum((l.qty_reject or 0) for l in logs),
+                # ✅ FIXED VALUES
+                "total_receive": receive,
+                "total_accept": total_accept,
+                "total_reject": total_reject,
 
-                # 🔥 ADD THIS BLOCK
+                "supplier_po": step.supplier_po,
+                "supplier_name": step.supplier_name,
+                "heat_lot": step.heat_lot,
+
                 "logs": [
                     {
-                        "id": l.id,   # 🔥 ADD THIS LINE    
+                        "id": l.id,
                         "work_date": l.work_date,
                         "qty_receive": float(l.qty_receive or 0),
                         "qty_accept": float(l.qty_accept or 0),
                         "qty_reject": float(l.qty_reject or 0),
+                        "machine_id": l.machine_id,
+                        "operator_id": l.operator_id,
+                        "machine_name": l.machine.code if l.machine else None,
+                        "operator_name": l.operator.name if l.operator else None,
+                        "operator_nickname": l.operator.nickname if l.operator else None,
+                        "note": l.note,
                     }
                     for l in logs
                 ],
             })
+
+            # 🔥 carry forward to next step
+            prev_accept = total_accept
 
         return result
 
@@ -137,6 +174,8 @@ def update_traveler_step(
     payload: ShopTravelerStepUpdate,
     db: Session = Depends(get_db)
 ):
+    
+    print("Update payload:", payload.dict())
     # -----------------------------
     # 1. Load step
     # -----------------------------
@@ -604,3 +643,25 @@ def update_shipment_from_ui(payload: dict, db: Session = Depends(get_db)):
     db.commit()
 
     return {"status": "ok"}
+
+
+def calculate_step_status(receive, accept, reject, is_first):
+    total = accept + reject
+
+    # Step 1 (no planned_qty)
+    if is_first:
+        if total == 0:
+            return "pending"
+        return "running"
+
+    # normal steps
+    if receive == 0 and total == 0:
+        return "pending"
+
+    if total > 0 and total < receive:
+        return "running"
+
+    if receive > 0 and total == receive:
+        return "passed"
+
+    return "pending"

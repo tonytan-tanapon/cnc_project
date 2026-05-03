@@ -565,7 +565,7 @@ class ShopTravelerStepUpdate(BaseModel):
     seq: Optional[int] = None
     step_code: Optional[str] = None
     step_name: Optional[str] = None
-    step_detail: Optional[str]
+    step_detail: Optional[str] = None
     station: Optional[str] = None
 
     operator_id: Optional[int] = None
@@ -579,6 +579,10 @@ class ShopTravelerStepUpdate(BaseModel):
     qty_reject: Optional[Decimal] = None
     status: Optional[str] = None
     step_note: Optional[str] = None
+
+    supplier_po: Optional[str] = None
+    supplier_name: Optional[str] = None
+    heat_lot: Optional[str] = None
 
 class ShopTravelerStepOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -1105,14 +1109,3 @@ class StepFinishRequest(BaseModel):
     qty_reject: Optional[Decimal] = 0
     qa_result: Optional[str] = None
     qa_notes: Optional[str] = None
-
-
-class StepLogOut(BaseModel):
-    id: int   # 🔥 REQUIRED
-    step_id: int
-    qty_accept: float
-    qty_reject: float
-    work_date: date
-
-    class Config:
-        from_attributes = True

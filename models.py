@@ -1143,7 +1143,7 @@ class Machine(Base):
     __tablename__ = "machines"
     id = Column(Integer, primary_key=True)
     code = Column(String, unique=True, index=True, nullable=False)   # e.g. CNC-01
-    name = Column(String, nullable=False)                            # e.g. HAAS VF-2
+    name = Column(String, nullable=True)                            # e.g. HAAS VF-2
     type = Column(String, nullable=True)                             # CNC_MILL / CNC_LATHE / ...
     controller = Column(String, nullable=True)                       # FANUC / HAAS / ...
     axis_count = Column(Integer, nullable=True)
@@ -1152,7 +1152,7 @@ class Machine(Base):
     max_travel_y = Column(Numeric(10, 3), nullable=True)
     max_travel_z = Column(Numeric(10, 3), nullable=True)
     location = Column(String, nullable=True)
-    status = Column(String, nullable=False, default="available")     # available / busy / maintenance / down / offline
+    status = Column(String, nullable=True, default="available")     # available / busy / maintenance / down / offline
     notes = Column(Text, nullable=True)
 
     step_assignments = relationship("ShopTravelerStep", back_populates="machine")

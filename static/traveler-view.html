@@ -63,6 +63,18 @@
     button:hover {
       opacity: 0.8;
     }
+
+
+    th:nth-child(8),
+td:nth-child(8) {
+  width: 180px;          /* fixed width */
+  max-width: 180px;
+  white-space: nowrap;   /* no wrap */
+  overflow: hidden;
+  
+}
+
+
   </style>
 </head>
 
@@ -71,17 +83,45 @@
 <h2 id="title">Loading...</h2>
 <div class="meta" id="meta"></div>
 
+
+<div style="margin-bottom:10px; padding:10px; background:#fff; border:1px solid #ccc;">
+  <b>Add Step Log</b>
+
+  <select id="input_step">
+    <option value="">Select OP</option>
+  </select>
+
+  <input type="date" id="input_date">
+
+  <input type="number" id="input_accept" placeholder="Good" style="width:80px">
+  <input type="number" id="input_reject" placeholder="Bad" style="width:80px">
+
+  <select id="input_operator"></select>
+  <select id="input_machine"></select>
+
+  <input type="text" id="input_note" placeholder="Note" style="width:180px">
+
+  <button onclick="submitTopInput()">➕ Add</button>
+</div>
+
 <table>
   <thead>
     <tr>
       <th>OP</th>
+      <th>Status</th>
       <th>Date</th>
       
       <th>Good</th>
       <th>Bad</th>
       <th>Operator</th>
       <th>Machine</th>
-      <th>Recvieve</th>
+      <th>Note</th>
+
+       <!-- 🔥 ADD THESE -->
+  <th>Supplier PO</th>
+  <th>Supplier</th>
+  <th>Heat Lot</th>
+      <th>Receive</th>
       <th>Accept</th>
       <th>Reject</th>
       <th>Remain</th>

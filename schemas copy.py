@@ -299,6 +299,10 @@ class ShopTravelerStepUpdate(APIBase):
     qa_result: Optional[str] = None
     qa_notes: Optional[str] = None
 
+    supplier_po: Optional[str] = None
+    supplier_name: Optional[str] = None
+    heat_lot: Optional[str] = None
+
 class ShopTravelerStepOut(APIBase):
     id: int
     traveler_id: int

@@ -437,15 +437,29 @@ function normalizeStep(row) {
   return {
     id: row.id,
     seq: row.seq ?? 1,
-    station: row.station ?? "",
+
     step_name: row.step_name ?? "",
     step_code: row.step_code ?? "",
     step_detail: row.step_detail ?? "",
+    station: row.station ?? "",
+
+    status: row.status || "pending",
+
+    // ✅ ADD THESE
+    operator_id: row.operator_id ?? null,
+    operator_nickname: row.operator_nickname ?? "",
+
+    machine_id: row.machine_id ?? null,
+    machine_name: row.machine_name ?? "",
+
     total_receive: row.total_receive ?? 0,
     total_accept: row.total_accept ?? 0,
     total_reject: row.total_reject ?? 0,
 
-    // 🔥 ADD THIS LINE
+    supplier_po: row.supplier_po ?? "",
+    supplier_name: row.supplier_name ?? "",
+    heat_lot: row.heat_lot ?? "",
+
     logs: row.logs || [],
   };
 }
@@ -589,39 +603,39 @@ function initStepsTable() {
 
     columns: [
 
-      {
-        formatter: "rowToggle",
-        width: 40,
-        hozAlign: "center",
-        headerSort: false
-      },
+ 
       { title: "#", field: "seq", width: 70, hozAlign: "center", editor: "number" },
 
       { title: "OP", field: "step_code", width: 100, editor: "input" },
 
-      { title: "Step Name", field: "step_name", width: 220 },
-      { title: "Step Detail", field: "step_detail", width: 220 },
+      { title: "Step Name", field: "step_name", width: 220, editor: "textarea" },
+{
+  title: "Step Detail",
+  field: "step_detail",
+  width: 300,
+  editor: "textarea",
+},
 
-      { title: "Station", field: "station", width: 140 },
+      // { title: "Station", field: "station", width: 140 },
 
       {
         title: "Operator",
-        field: "operator_nickname",
-        width: 140,
-      },
-      {
-        title: "Machine",
-        field: "machine_id",
-        width: 140,
+        width: 180,
+        maxWidth: 200,
+        formatter: (cell) => {
+          const logs = cell.getRow().getData().logs || [];
+
+          const unique = [...new Set(
+            logs.map(l => l.operator_nickname).filter(v => v)
+          )];
+
+          const text = unique.join(", ");
+
+          return `<span title="${text}">${text}</span>`;
+        }
       },
 
-      {
-        title: "Status",
-        field: "status",
-        width: 100,
-        formatter: (cell) => statusBadge(cell.getValue()),
-      },
-
+    
       // 🔥 TOTALS (READ ONLY)
       {
         title: "Recv",
@@ -644,46 +658,12 @@ function initStepsTable() {
         hozAlign: "right",
         formatter: (c) => Math.round(c.getValue() ?? 0)
       },
+      { title: "Supplier PO", field: "supplier_po", width: 140, editor: "input" },
+      { title: "Supplier", field: "supplier_name", width: 160, editor: "input" },
+      { title: "Heat Lot", field: "heat_lot", width: 140, editor: "input" },
+      
 
-      // 🔥 ADD LOG
-      {
-        title: "Log",
-        width: 120,
-        hozAlign: "center",
-        formatter: () =>
-          `<button class="btn-mini btn-primary">+ Log</button>`,
-        cellClick: async (e, cell) => {
-          const d = cell.getRow().getData();
-
-          const accept = Number(prompt("Accept qty?") || 0);
-          const reject = Number(prompt("Reject qty?") || 0);
-
-          if (accept === 0 && reject === 0) return;
-
-          try {
-            await jfetch(`/api/v1/step-logs`, {
-              method: "POST",
-              body: JSON.stringify({
-                step_id: d.id,
-                qty_receive: accept + reject, // 🔥 key logic
-                qty_accept: accept,
-                qty_reject: reject,
-                work_date: new Date().toISOString().slice(0, 10),
-              }),
-            });
-
-            toast("Log added");
-
-            await reloadSteps(); // refresh totals
-          } catch (err) {
-            toast(err?.message || "Failed", false);
-          }
-        },
-      },
-
-      // 🔥 VIEW HISTORY
-
-
+  
       // 🔥 DELETE STEP
       {
         title: "Manage",
@@ -710,28 +690,35 @@ function initStepsTable() {
           // 💾 SAVE
           // =========================
           if (action === "save") {
-            try {
-              await jfetch(`/traveler-steps/${d.id}`, {
-                method: "PUT",
-                body: JSON.stringify({
-                  seq: d.seq,
-                  step_code: d.step_code,
-                  step_name: d.step_name,
-                  station: d.station,
-                  operator_id: d.operator_id,
-                  status: d.status,
-                  step_note: d.step_note,
-                }),
-              });
+          try {
+            // 🔥 force commit edit
+            stepsTable.getEditedCells().forEach(c => c.cancelEdit()); // or blur
 
-              setDirtyClass(row, false); // remove highlight
-              toast("Saved");
+            const data = row.getData(); // safer than using d
 
-            } catch (err) {
-              console.error(err);
-              toast("Save failed", false);
-            }
+            await jfetch(`/traveler-steps/${data.id}`, {
+              method: "PUT",
+              body: JSON.stringify({
+                seq: data.seq,
+                step_code: data.step_code,
+                step_name: data.step_name,
+                step_detail: data.step_detail,
+                station: data.station,
+                operator_id: data.operator_id,
+                supplier_po: data.supplier_po,
+                supplier_name: data.supplier_name,
+                heat_lot: data.heat_lot,
+              }),
+            });
+
+            setDirtyClass(row, false);
+            toast("Saved");
+
+          } catch (err) {
+            console.error(err);
+            toast("Save failed", false);
           }
+        }
 
           // =========================
           // 🗑 DELETE
@@ -759,46 +746,46 @@ function initStepsTable() {
     ],
 
 
-  //   rowFormatter: function (row) {
-  //     const data = row.getData();
+    //   rowFormatter: function (row) {
+    //     const data = row.getData();
 
-  //     if (!data.logs || data.logs.length === 0) return;
+    //     if (!data.logs || data.logs.length === 0) return;
 
-  //     const holder = document.createElement("div");
-  //     holder.style.padding = "10px";
-  //     holder.style.background = "#f9fafb";
+    //     const holder = document.createElement("div");
+    //     holder.style.padding = "10px";
+    //     holder.style.background = "#f9fafb";
 
-  //     const table = document.createElement("table");
-  //     table.style.width = "100%";
-  //     table.style.borderCollapse = "collapse";
+    //     const table = document.createElement("table");
+    //     table.style.width = "100%";
+    //     table.style.borderCollapse = "collapse";
 
-  //     table.innerHTML = `
-  //   <thead>
-  //     <tr style="background:#e5e7eb">
-  //       <th>Date</th>
-  //       <th>Recv</th>
-  //       <th>Accept</th>
-  //       <th>Reject</th>
-  //     </tr>
-  //   </thead>
-  //   <tbody>
-  //     ${data.logs.map(l => `
-  //       <tr>
-  //         <td>${l.work_date}</td>
-  //         <td>${Math.round(l.qty_receive || 0)}</td>
-  //         <td>${Math.round(l.qty_accept || 0)}</td>
-  //         <td style="color:${l.qty_reject > 0 ? 'red' : 'black'}">
-  //           ${Math.round(l.qty_reject || 0)}
-  //         </td>
-  //       </tr>
-  //     `).join("")}
-  //   </tbody>
-  // `;
+    //     table.innerHTML = `
+    //   <thead>
+    //     <tr style="background:#e5e7eb">
+    //       <th>Date</th>
+    //       <th>Recv</th>
+    //       <th>Accept</th>
+    //       <th>Reject</th>
+    //     </tr>
+    //   </thead>
+    //   <tbody>
+    //     ${data.logs.map(l => `
+    //       <tr>
+    //         <td>${l.work_date}</td>
+    //         <td>${Math.round(l.qty_receive || 0)}</td>
+    //         <td>${Math.round(l.qty_accept || 0)}</td>
+    //         <td style="color:${l.qty_reject > 0 ? 'red' : 'black'}">
+    //           ${Math.round(l.qty_reject || 0)}
+    //         </td>
+    //       </tr>
+    //     `).join("")}
+    //   </tbody>
+    // `;
 
-  //     holder.appendChild(table);
+    //     holder.appendChild(table);
 
-  //     row.getElement().appendChild(holder);
-  //   },
+    //     row.getElement().appendChild(holder);
+    //   },
   });
 
 

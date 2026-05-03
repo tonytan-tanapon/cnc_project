@@ -384,11 +384,42 @@ def build_inspection_batch(traveler_id: int, db: Session = Depends(get_db)):
         f.write("\r\n".join(bat))
 
     return FileResponse(tmp, filename=filename)
-    
+
+
 def build_traveler_data_from_db(traveler: ShopTraveler) -> dict:
     lot = traveler.lot
     po = lot.po
     customer = po.customer if po else None
+
+    print(f"Building traveler data for traveler {traveler.traveler_no}, lot {lot.lot_no if lot else 'N/A'}")
+
+    # 🔥 FIX: compute receive correctly
+    steps = []
+    prev_accept = lot.planned_qty or 0
+
+    for s in traveler.steps:
+        receive = prev_accept
+        accept = int(s.total_accept or 0)
+        reject = int(s.total_reject or 0)
+
+        steps.append({
+            "seq": s.seq,
+            "step_code": s.step_code or "",
+            "step_type": s.station or "",
+            "step_name": s.step_name or "",
+            "step_detail": s.step_detail or "",
+            "qa_required": bool(s.qa_required),
+
+            # ✅ CORRECT LOGIC
+            "qty_receive": receive,
+            "qty_accept": accept,
+            "qty_reject": reject,
+
+            "step_note": s.step_note or "",
+            "uom": s.uom or "pcs",
+        })
+
+        prev_accept = accept  # next step receive
 
     return {
         "lot": {
@@ -407,23 +438,7 @@ def build_traveler_data_from_db(traveler: ShopTraveler) -> dict:
             "customer_code": customer.code if customer else "",
             "status": traveler.status,
         },
-        "steps": [
-            {
-                "seq": s.seq,
-                "step_code": s.step_code or "",
-                "step_type": s.station or "",   # material / process / inspect
-                "step_name": s.step_name or "",
-                "step_detail": s.step_detail or "",
-               
-                "qa_required": bool(s.qa_required),
-                "qty_receive": float(s.qty_receive or 0),
-                "qty_accept": float(s.qty_accept or 0),
-                "qty_reject": float(s.qty_reject or 0),
-                "step_note": s.step_note or "",
-                "uom": s.uom or "pcs",
-            }
-            for s in traveler.steps
-        ],
+        "steps": steps,  # ✅ use computed steps
     }
 
 from services.traveler_docx import generate_traveler_from_db
@@ -445,6 +460,7 @@ def export_traveletdoc(traveler_id: int, db: Session = Depends(get_db)):
         raise HTTPException(404, "Traveler not found")
 
     data = build_traveler_data_from_db(traveler)
+    # print(f"Exporting traveler doc for traveler {traveler.traveler_no} with data: {data}")
 
     # 🔹 BASE DIR = project root
     BASE_DIR = Path(__file__).resolve().parents[2]
