@@ -42,13 +42,13 @@ def create_traveler_step(payload: ShopTravelerStepCreate, db: Session = Depends(
         seq=payload.seq,
         step_name=payload.step_name,
         step_code=payload.step_code,
-        station=payload.station,
-        operator_id=payload.operator_id,
+        # station=payload.station,
+        # operator_id=payload.operator_id,
         qa_required=payload.qa_required or False,
         status="pending" if not payload.status else payload.status,
         step_note=payload.step_note,
         step_detail=payload.step_detail or "",
-        machaine_id=payload.machine_id,
+        # machaine_id=payload.machine_id,
     )
     db.add(s)
     db.commit()

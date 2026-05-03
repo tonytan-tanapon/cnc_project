@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, joinedload
 from fastapi.responses import FileResponse
 from database import get_db
-from models import ShopTraveler, ProductionLot, Part, PartRevision, PO, Customer,ShopTravelerStep
+from models import ShopTraveler, ProductionLot, Part, PartRevision, PO, Customer
 import os
 import tempfile
 from datetime import datetime
@@ -82,7 +82,7 @@ def latest_file(folder, prefix, extensions=["pdf"]):
 @router.post("/drawing/{traveler_id}")
 def build_drawing_batch(traveler_id: int, db: Session = Depends(get_db)):
 
-    # print(f"Building drawing batch for traveler {traveler_id}")
+    print(f"Building drawing batch for traveler {traveler_id}")
     data = get_traveler_full(traveler_id, db)
 
     lot_no = data["lot"]["lot_no"]
@@ -170,7 +170,7 @@ def build_drawing_batch(traveler_id: int, db: Session = Depends(get_db)):
     #     bat.append(f'start "" "{folder}"')
     # else:
     #     bat.append("echo PDF not found.")
-    # print(bat)
+    print(bat)
     filename = f"drawing_{lot_no}.bat"
 
     # ใช้ temp folder ของ Windows
@@ -186,7 +186,7 @@ def build_drawing_batch(traveler_id: int, db: Session = Depends(get_db)):
 @router.post("/traveletdoc/{traveler_id}")
 def build_traveler_doc_batch(traveler_id: int, db: Session = Depends(get_db)):
 
-    # print(f"Building drawing batch for traveler {traveler_id}")
+    print(f"Building drawing batch for traveler {traveler_id}")
     data = get_traveler_full(traveler_id, db)
 
     lot_no = data["lot"]["lot_no"]
@@ -294,7 +294,7 @@ import tempfile
 @router.post("/inspection/{traveler_id}")
 def build_inspection_batch(traveler_id: int, db: Session = Depends(get_db)):
 
-    # print(f"Building inspection batch for traveler {traveler_id}")
+    print(f"Building inspection batch for traveler {traveler_id}")
     data = get_traveler_full(traveler_id, db)
 
     lot_no = data["lot"]["lot_no"]
@@ -376,7 +376,7 @@ def build_inspection_batch(traveler_id: int, db: Session = Depends(get_db)):
 
 
 
-    # print(bat)
+    print(bat)
     filename = f"inspection_{lot_no}.bat"
     tmp = os.path.join(tempfile.gettempdir(), filename)
 
@@ -385,127 +385,62 @@ def build_inspection_batch(traveler_id: int, db: Session = Depends(get_db)):
 
     return FileResponse(tmp, filename=filename)
 
+
 def build_traveler_data_from_db(traveler: ShopTraveler) -> dict:
     lot = traveler.lot
     po = lot.po
     customer = po.customer if po else None
 
-    steps = []
+    print(f"Building traveler data for traveler {traveler.traveler_no}, lot {lot.lot_no if lot else 'N/A'}")
 
+    # 🔥 FIX: compute receive correctly
+    steps = []
     prev_accept = lot.planned_qty or 0
 
     for s in traveler.steps:
-
-        # -------------------------
-        # ACCEPT / REJECT (จาก total)
-        # -------------------------
+        receive = prev_accept
         accept = int(s.total_accept or 0)
         reject = int(s.total_reject or 0)
 
-        # -------------------------
-        # RECEIVE
-        # -------------------------
-        if s.seq == 1:
-            receive = lot.planned_qty if (lot.planned_qty and lot.planned_qty > 0) else accept
-        else:
-            receive = prev_accept
-
-        # ==================================================
-        # 🔥 STEP LOG (สำคัญ)
-        # ==================================================
-        logs = s.logs or []
-
-        # -------------------------
-        # 🔥 operator รวม (ไม่ซ้ำ)
-        # -------------------------
-        operators = []
-        for log in logs:
-            if log.operator:
-                # ใช้ name หรือ emp_code แล้วแต่คุณ
-                if getattr(log.operator, "nickname", None):
-                    operators.append(log.operator.nickname)
-                elif getattr(log.operator, "emp_code", None):
-                    operators.append(log.operator.emp_code)
-
-        operator_str = ", ".join(sorted(set(operators)))
-
-        # -------------------------
-        # 🔥 date = วันแรก
-        # -------------------------
-        dates = [
-            log.work_date
-            for log in logs
-            if log.work_date
-        ]
-
-        created_at_str = (
-            min(dates).strftime("%m/%d/%y")
-            if dates else ""
-        )
-
-        # ==================================================
-        # BUILD STEP
-        # ==================================================
         steps.append({
             "seq": s.seq,
             "step_code": s.step_code or "",
+            "step_type": s.station or "",
             "step_name": s.step_name or "",
             "step_detail": s.step_detail or "",
+            "qa_required": bool(s.qa_required),
 
-            "operator": operator_str,        # 🔥 จาก log
-            "created_at": created_at_str,    # 🔥 จาก log
-
+            # ✅ CORRECT LOGIC
             "qty_receive": receive,
             "qty_accept": accept,
             "qty_reject": reject,
 
-            "remain": receive - accept - reject,
+            "step_note": s.step_note or "",
+            "uom": s.uom or "pcs",
         })
 
-        prev_accept = accept
+        prev_accept = accept  # next step receive
 
-    # ==================================================
-    # HEADER
-    # ==================================================
     return {
-        "header": {
+        "lot": {
             "part_no": lot.part.part_no,
-            "part_name": lot.part.name,
-            "part_rev": lot.part_revision.rev if lot.part_revision else "",
-
-            "customer": customer.name if customer else "",
-            "customer_code": customer.code if customer else "",
-
             "lot_no": lot.lot_no,
             "po_no": po.po_number if po else "",
-
             "due_date": (
-                lot.lot_due_date.strftime("%m/%d/%y")
+                lot.lot_due_date.strftime("%Y-%m-%d")
                 if lot.lot_due_date else ""
             ),
-
-            "planned_qty": to_int(
-                lot.planned_qty
-                if lot.planned_qty
-                else (traveler.steps[0].total_accept if traveler.steps else 0)
-            ),
-
-            "release_date": (
-                traveler.created_at.strftime("%m/%d/%y")
-                if traveler.created_at else ""
-            ),
-
+            "planned_qty": lot.planned_qty or 0,
             "material_detail": lot.note or "",
         },
-
-        "steps": steps
+        "traveler": {
+            "traveler_no": traveler.traveler_no,
+            "customer_code": customer.code if customer else "",
+            "status": traveler.status,
+        },
+        "steps": steps,  # ✅ use computed steps
     }
 
-def to_int(v):
-    try:
-        return int(v)
-    except (TypeError, ValueError):
-        return 0
 from services.traveler_docx import generate_traveler_from_db
 
 
@@ -517,60 +452,46 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from fastapi.responses import FileResponse
 
-from sqlalchemy.orm import joinedload
+
 
 @router.post("/export_traveletdoc/{traveler_id}")
 def export_traveletdoc(traveler_id: int, db: Session = Depends(get_db)):
 
-    traveler = (
-        db.query(ShopTraveler)
-        .options(
-            joinedload(ShopTraveler.lot)
-                .joinedload(ProductionLot.part),
-
-            joinedload(ShopTraveler.lot)
-                .joinedload(ProductionLot.part_revision),
-
-            joinedload(ShopTraveler.lot)
-                .joinedload(ProductionLot.po)
-                .joinedload(PO.customer),
-
-            joinedload(ShopTraveler.steps)
-                .joinedload(ShopTravelerStep.logs)
-        )
-        .filter(ShopTraveler.id == traveler_id)
-        .first()
-    )
-
+    traveler = db.get(ShopTraveler, traveler_id)
     if not traveler:
         raise HTTPException(404, "Traveler not found")
+    
+    print(f"traveler: {traveler}")
 
-    # 🔥 1. build data
     data = build_traveler_data_from_db(traveler)
+    print(f"Exporting traveler doc for traveler {traveler.traveler_no} with data: {data}")
 
-    # print("Built traveler data:", data)
-
-    # 🔥 2. template path
+    # 🔹 BASE DIR = project root
     BASE_DIR = Path(__file__).resolve().parents[2]
+
+    # 🔹 TEMPLATE PATH (สำคัญมาก)
     template_path = BASE_DIR / "templates" / "shop_templete.docx"
+    print("Template path:", template_path)
 
-    # 🔥 3. temp output file
-    tmp = NamedTemporaryFile(suffix=".docx", delete=False)
-    tmp_path = Path(tmp.name)
-    tmp.close()
+    if not template_path.exists():
+        raise HTTPException(500, f"Template not found: {template_path}")
 
-    # 🔥 4. generate docx
+    # 🔹 Temp output file
+    tmp_file = NamedTemporaryFile(suffix=".docx", delete=False)
+    tmp_path = Path(tmp_file.name)
+    tmp_file.close()
+
+    # 🔹 Generate DOCX
     generate_traveler_from_db(
         template_path=template_path,
         data=data,
-        output_path=tmp_path
+        output_path=tmp_path,
     )
 
-    print("Generated file:", tmp_path)
+    print("Generated file exists:", tmp_path.exists())
 
-    # 🔥 5. return file download
     return FileResponse(
         tmp_path,
-        filename=f"traveler_{data['header']['lot_no']}.docx",
+        filename=f"traveler_{traveler.traveler_no}.docx",
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     )

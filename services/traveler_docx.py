@@ -98,7 +98,37 @@ def safe_text(v):
 # MAIN GENERATOR (DB-BASED)
 # ==================================================
 
+
+from docx import Document
+from pathlib import Path
+import qrcode
+from docx.shared import Inches
+
+def generate_qr(data, path):
+    img = qrcode.make(data)
+    img.save(path)
+
+
+def replace_qr(doc, placeholder, image_path):
+    for p in doc.paragraphs:
+        if placeholder in p.text:
+            p.text = p.text.replace(placeholder, "")
+            run = p.add_run()
+            run.add_picture(image_path, width=Inches(1))
+
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                for p in cell.paragraphs:
+                    if placeholder in p.text:
+                        p.text = p.text.replace(placeholder, "")
+                        run = p.add_run()
+                        run.add_picture(image_path, width=Inches(1))
+
 def generate_traveler_from_db(template_path, data: dict, output_path):
+    from docx import Document
+    from pathlib import Path
+
     template_path = Path(template_path)
     output_path = Path(output_path)
 
@@ -109,136 +139,150 @@ def generate_traveler_from_db(template_path, data: dict, output_path):
     # --------------------------------------------------
     # HEADER
     # --------------------------------------------------
-    print(f"Exporting traveler doc for traveler {data['traveler']['traveler_no']} with data: {data}")
     header_map = {
-        "{{part}}": data["lot"]["part_no"],
-        "{{lot}}": data["lot"]["lot_no"],
-        "{{po}}": data["lot"]["po_no"],
-        "{{due}}": data["lot"]["due_date"],
-        "{{cus}}": data["traveler"]["customer_code"],
-        "{{qty}}": data["lot"]["planned_qty"],
-        "{{material_detail}}": data["lot"]["material_detail"],
-
-        # "{{op}}": data["steps"][0]["step_code"] if data["steps"] else "",
-        # "{STEP_NAME}}": data["steps"][0]["step_name"] if data["steps"] else "",
-        # "{{STEP_NOTES}}": data["steps"][0]["notes"] if data["steps"] else "",
-        # "{{recv}}": data["steps"][0]["qty_receive"] if data["steps"] else "",	
-        # "{{oper}}": data["steps"][0]["operator"] if data["steps"] else "",	
-        # "{{note}}": data["steps"][0]["step_note"] if data["steps"] else "",
-        # "{{accept}}":   data["steps"][0]["qty_accept"] if data["steps"] else "",	
-        # "{{reject}}":  data["steps"][0]["qty_reject"] if data["steps"] else "",
-        # "{{date}}":  data["steps"][0]["date"] if data["steps"] else "",
-
-
+        "{{part}}": data["header"]["part_no"],
+        "{{part_name}}": data["header"]["part_name"],
+        "{{rev}}": data["header"]["part_rev"],
+        "{{lot}}": data["header"]["lot_no"],
+        "{{po}}": data["header"]["po_no"],
+        "{{cus}}": data["header"]["customer_code"],
+        "{{due}}": data["header"]["due_date"],
+        "{{qty}}": data["header"]["planned_qty"],
+        "{{release}}": data["header"]["release_date"],
+        "{{material_detail}}": data["header"]["material_detail"],
     }
 
     replace_header(doc, header_map)
     replace_body_fuzzy(doc, header_map)
 
-    # --------------------------------------------------
-    # MATERIAL (M1 / M2)
-    # --------------------------------------------------
-    for step in data["steps"]:
-        if step["step_code"] in ("M1", "M2"):
-            prefix = step["step_code"]
+    # -------------------------
+    # QR CODE
+    # -------------------------
+    from tempfile import NamedTemporaryFile
 
-            mat_map = {
-                f"{{{{{prefix}_MATERIAL_SIZE}}}}": step.get("material_size", ""),
-                f"{{{{{prefix}_TOTAL_LENGTH}}}}": step.get("total_length", ""),
-                f"{{{{{prefix}_SUPPLIER}}}}": step.get("supplier", ""),
-                f"{{{{{prefix}_PO}}}}": step.get("po", ""),
-                f"{{{{{prefix}_HT}}}}": step.get("ht", ""),
-            }
+    qr_text = data["header"]["lot_no"]
 
-            for table in doc.tables:
-                for row in table.rows:
-                    for cell in row.cells:
-                        for p in cell.paragraphs:
-                            for k, v in mat_map.items():
-                                replace_placeholder_fuzzy(p, k, v)
+    tmp_qr = NamedTemporaryFile(suffix=".png", delete=False)
+    qr_path = tmp_qr.name
+    tmp_qr.close()
+
+    generate_qr(qr_text, qr_path)
+
+    replace_qr(doc, "{{QR}}", qr_path)
 
     # --------------------------------------------------
-    # FIND STEP TABLE + M2 ROW
+    # FIND STEP TABLE + TEMPLATE MARKER
     # --------------------------------------------------
     step_table = None
-    m2_row_idx = None
-    op_row_idx  = None
+    template_row_idx = None
 
-    
     for table in doc.tables:
         for i, row in enumerate(table.rows):
             text = "\n".join(cell.text for cell in row.cells)
 
-            if "{RR}" in text.strip():
-                m2_row_idx = i
-
-            if "{op}" in text:
+            if "{STEP_TEMPLATE}" in text:
                 step_table = table
-                op_row_idx = i
+                template_row_idx = i
+                break
 
-        if step_table  is not None and m2_row_idx is not None and op_row_idx is not None:
+        if step_table:
             break
 
-    if step_table is None or step_table is None  or op_row_idx is None:
-        raise RuntimeError("Cannot find M2 or {OP} row")
+    if step_table is None or template_row_idx is None:
+        raise RuntimeError("❌ Cannot find {STEP_TEMPLATE} in Word template")
 
     # --------------------------------------------------
-    # INSERT PROCESS STEPS AFTER M2
+    # START INSERT AFTER MARKER
     # --------------------------------------------------
-    insert_at = m2_row_idx +1
+    insert_at = template_row_idx + 1
 
+    # --------------------------------------------------
+    # SORT STEPS (🔥 FIX M1 missing)
+    # --------------------------------------------------
+    steps_sorted = sorted(data["steps"], key=lambda x: x.get("seq", 0))
 
-    for step in data["steps"]:
-        # if step.get("step_type") != "process":
-        #     continue
+    # print("DEBUG steps:", steps_sorted)
+
+    # --------------------------------------------------
+    # INSERT STEPS
+    # --------------------------------------------------
+    for step in steps_sorted:
+        # print(f"Inserting: {step.get('step_code')}")
 
         new_row = clone_row(step_table, insert_at)
 
-        # OP code
-        new_row.cells[0].text = safe_text(step["step_code"])
-        
-        new_row.cells[2].text =  safe_text(step["qty_receive"])
-        new_row.cells[3].text =  safe_text(step["qty_receive"])
-        new_row.cells[4].text =  safe_text(step["step_note"])
-        new_row.cells[5].text =  safe_text(step["qty_accept"])
-        new_row.cells[6].text =  safe_text(step["qty_reject"])
-        new_row.cells[7].text =  safe_text(step["qa_required"])
-       
-        
-        # 👉 จัด cell ให้อยู่ตรงกลาง
-        for idx in [0, 2, 3, 5, 6, 7]:
-            center_cell(new_row.cells[idx])
+        # -------------------------
+        # OP CODE
+        # -------------------------
+        new_row.cells[0].text = str(step.get("step_code", ""))  #  op col 1
 
-        cell = new_row.cells[1]
-        cell.text = ""
+        # -------------------------
+        # DESCRIPTION (bold support)
+        # -------------------------
+        desc_cell = new_row.cells[1]        ## Step description col 2
+        desc_cell.text = ""
 
-        # Step name
-        p_name = cell.paragraphs[0]
-        add_text_with_bold(p_name, step["step_name"] + "\n"+step["step_detail"])
+        p = desc_cell.paragraphs[0]
 
-        # Notes
-        if step.get("notes"):
-            p = cell.add_paragraph()
-            add_text_with_bold(p, step["notes"])
+        text = step.get("step_name", "") or ""
+
+        if step.get("step_detail"):
+            text += "\n" + step["step_detail"]
+
+        add_text_with_bold(p, text)
+
+        # -------------------------
+        # RECEIVE / ACCEPT / REJECT
+        # -------------------------
+        new_row.cells[2].text = str(step.get("qty_receive", ""))    # receive col 3
+
+        new_row.cells[3].text = str(step.get("operator", ""))   # accept col 6
+        new_row.cells[4].text = "\nSUPPLIER: _________\nPO#: _________\nHT#: _________" if "M1" in step.get("step_code", "") or "M2" in step.get("step_code", "") else ""   # Description
+
+
+        new_row.cells[5].text = str(step.get("qty_accept", ""))   # accept col 6
+        new_row.cells[6].text = str(step.get("qty_reject", ""))   # reject col 7
+
+        new_row.cells[7].text = str(step.get("created_at", ""))   # date col 8
+
+        # -------------------------
+        # QA (optional)
+        # -------------------------
+        # if len(new_row.cells) > 5:
+        #     new_row.cells[5].text = str(step.get("qa_required", ""))
+
+        # -------------------------
+        # CENTER ALIGN
+        # -------------------------
+        for idx in [0, 2, 3, 5,6, 7]:  # center align for op, receive, accept, reject, qa
+            if idx < len(new_row.cells):
+                center_cell(new_row.cells[idx])
 
         insert_at += 1
 
-    # # --------------------------------------------------
-    # # REMOVE {op} TEMPLATE ROW
-    # # --------------------------------------------------
-    for table in doc.tables:
-        for row in table.rows:
-            if "{op}" in "\n".join(c.text for c in row.cells):
-                table._tbl.remove(row._tr)
-                break
+    # --------------------------------------------------
+    # REMOVE TEMPLATE ROWS (🔥 FIX {STEP_TEMPLATE} issue)
+    # --------------------------------------------------
 
-    for table in doc.tables:
-        for row in table.rows:
-            if "{RR}" in "\n".join(c.text for c in row.cells):
-                table._tbl.remove(row._tr)
-                break
+    # remove marker row
+    for row in step_table.rows:
+        text = "\n".join(cell.text for cell in row.cells)
+        if "{STEP_TEMPLATE}" in text:
+            step_table._tbl.remove(row._tr)
+            break
 
-    # # --------------------------------------------------
-    # # SAVE
-    # # --------------------------------------------------
+    # remove template row ({{op}})
+    for row in step_table.rows:
+        text = "\n".join(cell.text for cell in row.cells)
+        if "{{op}}" in text:
+            step_table._tbl.remove(row._tr)
+            break
+
+    # ✅ remove row 2 (index = 1)
+    if len(step_table.rows) > 1:
+        step_table._tbl.remove(step_table.rows[1]._tr)
+
+    # --------------------------------------------------
+    # SAVE
+    # --------------------------------------------------
     doc.save(str(output_path))

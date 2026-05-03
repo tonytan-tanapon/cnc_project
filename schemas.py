@@ -551,6 +551,7 @@ class ShopTravelerStepCreate(BaseModel):
     step_name: str
     station: Optional[str] = None
     operator_id: Optional[int] = None
+    machine_id: Optional[int] = None   # 🔥 เพิ่มบรรทัดนี้
     qa_required: Optional[bool] = None
     qty_receive: Optional[Decimal] = None
     qty_accept: Optional[Decimal] = None

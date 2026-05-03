@@ -314,6 +314,9 @@ async function fillTraveler(t) {
   } catch (err) {
     console.error("❌ Failed to load lot:", err);
   }
+
+
+
 }
 
 function readTraveler() {
@@ -602,19 +605,64 @@ function initStepsTable() {
     index: "id",
 
     columns: [
+      // =====================
+      // 💾 SAVE COLUMN
+      // =====================
+      {
+        title: "Save",
+        width: 100,
+        hozAlign: "center",
 
- 
+        formatter: () => `
+    <button class="btn-mini btn-success" data-action="save">💾</button>
+  `,
+
+        cellClick: async (e, cell) => {
+          const action = e.target.getAttribute("data-action");
+          if (action !== "save") return;
+
+          const row = cell.getRow();
+          const data = row.getData();
+
+          try {
+            await jfetch(`/traveler-steps/${data.id}`, {
+              method: "PUT",
+              body: JSON.stringify({
+                seq: data.seq,
+                step_code: data.step_code,
+                step_name: data.step_name,
+                step_detail: data.step_detail,
+                station: data.station,
+                operator_id: data.operator_id,
+                supplier_po: data.supplier_po,
+                supplier_name: data.supplier_name,
+                heat_lot: data.heat_lot,
+              }),
+            });
+
+            setDirtyClass(row, false);
+            row.getTable().redraw(true);
+
+            toast("Saved");
+
+          } catch (err) {
+            console.error(err);
+            toast("Save failed", false);
+          }
+        }
+      },
+
       { title: "#", field: "seq", width: 70, hozAlign: "center", editor: "number" },
 
       { title: "OP", field: "step_code", width: 100, editor: "input" },
 
       { title: "Step Name", field: "step_name", width: 220, editor: "textarea" },
-{
-  title: "Step Detail",
-  field: "step_detail",
-  width: 300,
-  editor: "textarea",
-},
+      {
+        title: "Step Detail",
+        field: "step_detail",
+        width: 300,
+        editor: "textarea",
+      },
 
       // { title: "Station", field: "station", width: 140 },
 
@@ -635,7 +683,7 @@ function initStepsTable() {
         }
       },
 
-    
+
       // 🔥 TOTALS (READ ONLY)
       {
         title: "Recv",
@@ -658,93 +706,105 @@ function initStepsTable() {
         hozAlign: "right",
         formatter: (c) => Math.round(c.getValue() ?? 0)
       },
-      { title: "Supplier PO", field: "supplier_po", width: 140, editor: "input" },
-      { title: "Supplier", field: "supplier_name", width: 160, editor: "input" },
-      { title: "Heat Lot", field: "heat_lot", width: 140, editor: "input" },
-      
-
-  
-      // 🔥 DELETE STEP
       {
-        title: "Manage",
-        width: 180,
+        title: "Supplier",
+        field: "supplier",
+        width: 240,
+
+        formatter: function (cell) {
+          const data = cell.getRow().getData();
+
+          const lines = [];
+
+          if (data.supplier_po) {
+            lines.push(`Supplier PO: ${data.supplier_po}`);
+          }
+
+          if (data.supplier_name) {
+            lines.push(`Supplier: ${data.supplier_name}`);
+          }
+
+          if (data.heat_lot) {
+            lines.push(`Heat Lot: ${data.heat_lot}`);
+          }
+
+          return lines.join("<br>");
+        }
+      },
+
+
+      // 🔥 DELETE STEP
+
+      // =====================
+      // 🗑 DELETE COLUMN
+      // =====================
+      {
+        title: "Del",
+        width: 80,
         hozAlign: "center",
 
-        formatter: (cell) => {
-          return `
-      <div style="display:flex; gap:6px; justify-content:center;">
-        <button class="btn-mini btn-success" data-action="save">💾</button>
-        <button class="btn-mini btn-danger" data-action="delete">🗑</button>
-      </div>
-    `;
-        },
+        formatter: () => `
+    <button class="btn-mini btn-danger" data-action="delete">🗑</button>
+  `,
 
         cellClick: async (e, cell) => {
           const action = e.target.getAttribute("data-action");
+          if (action !== "delete") return;
+
           const row = cell.getRow();
-          const d = row.getData();
+          const data = row.getData();
 
-          if (!action) return;
+          if (!confirm("Delete this step?")) return;
 
-          // =========================
-          // 💾 SAVE
-          // =========================
-          if (action === "save") {
           try {
-            // 🔥 force commit edit
-            stepsTable.getEditedCells().forEach(c => c.cancelEdit()); // or blur
-
-            const data = row.getData(); // safer than using d
-
             await jfetch(`/traveler-steps/${data.id}`, {
-              method: "PUT",
-              body: JSON.stringify({
-                seq: data.seq,
-                step_code: data.step_code,
-                step_name: data.step_name,
-                step_detail: data.step_detail,
-                station: data.station,
-                operator_id: data.operator_id,
-                supplier_po: data.supplier_po,
-                supplier_name: data.supplier_name,
-                heat_lot: data.heat_lot,
-              }),
+              method: "DELETE",
             });
 
-            setDirtyClass(row, false);
-            toast("Saved");
+            row.delete();
+            toast("Deleted");
 
           } catch (err) {
             console.error(err);
-            toast("Save failed", false);
+            toast("Delete failed", false);
           }
         }
-
-          // =========================
-          // 🗑 DELETE
-          // =========================
-          if (action === "delete") {
-            if (!confirm("Delete this step?")) return;
-
-            try {
-              await jfetch(`/traveler-steps/${d.id}`, {
-                method: "DELETE",
-              });
-
-              row.delete();
-              toast("Deleted");
-
-            } catch (err) {
-              console.error(err);
-              toast("Delete failed", false);
-            }
-          }
-        },
       },
+
 
 
     ],
 
+    formatter: (cell) => {
+      const row = cell.getRow();
+      const isDirty = row.getElement().classList.contains("is-dirty");
+
+      if (isDirty) {
+        return `
+      <div style="display:flex; gap:6px; justify-content:center;">
+        <button class="btn-mini btn-success" data-action="save">💾</button>
+        <button class="btn-mini" data-action="cancel">✖</button>
+        <button class="btn-mini btn-danger" data-action="delete">🗑</button>
+      </div>
+    `;
+      }
+
+      return `
+    <div style="display:flex; gap:6px; justify-content:center;">
+      <button class="btn-mini btn-danger" data-action="delete">🗑</button>
+    </div>
+  `;
+    },
+
+
+
+    cellEdited: function (cell) {
+      const row = cell.getRow();
+      setDirtyClass(row, true);
+
+      // 🔥 refresh ปุ่ม
+      row.getTable().redraw(true);
+    },
 
     //   rowFormatter: function (row) {
     //     const data = row.getData();
@@ -789,11 +849,14 @@ function initStepsTable() {
   });
 
 
-}
 
+
+}
 
 async function loadTemplateVersions(part_id, part_revision_id) {
   const select = document.getElementById("templateSelect");
+
+  console.log("select:", select);
   if (!select) return;
 
   try {
@@ -815,11 +878,42 @@ async function loadTemplateVersions(part_id, part_revision_id) {
       select.appendChild(opt);
     });
 
-    // ⭐ AUTO SELECT ACTIVE
+    // ⭐ auto select active
     const active = res.find(t => t.is_active);
     if (active) {
       select.value = String(active.id);
     }
+
+    // 🔥 👉 ใส่ตรงนี้ (ถูกตำแหน่ง)
+    select.onchange = async () => {
+      const templateId = select.value;
+
+      if (!templateId) return;
+
+      if (!confirm("Apply template? Current steps will be replaced")) {
+        select.value = "";
+        return;
+      }
+
+      try {
+        setBusyT(true);
+
+        await jfetch(
+          `/travelers/apply-template/${travelerId}?template_id=${templateId}`,
+          { method: "POST" }
+        );
+
+        toast("Template applied");
+
+        await reloadSteps();
+
+      } catch (err) {
+        console.error(err);
+        toast("Apply template failed", false);
+      } finally {
+        setBusyT(false);
+      }
+    };
 
   } catch (err) {
     console.error("loadTemplateVersions error:", err);
@@ -1292,6 +1386,52 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   });
 
+  document.getElementById("btnUseTemplate")?.addEventListener("click", async () => {
+  const select = document.getElementById("templateSelect");
+  const templateId = select?.value;
+
+  console.log("🔥 click use template:", templateId);
+
+  if (!templateId) {
+    toast("Please select template", false);
+    return;
+  }
+
+  if (!confirm("Apply template? Current steps will be replaced")) {
+    return;
+  }
+
+  try {
+    setBusyT(true);
+
+    await jfetch(
+      `/travelers/apply-template/${travelerId}?template_id=${templateId}`,
+      { method: "POST" }
+    );
+
+    toast("Template applied");
+
+    await reloadSteps();
+
+  } catch (err) {
+    console.error(err);
+    toast("Apply template failed", false);
+  } finally {
+    setBusyT(false);
+  }
+});
+document.getElementById("btnSTdetail")?.addEventListener("click", () => {
+  if (!travelerId) {
+    toast("Traveler not loaded", false);
+    return;
+  }
+
+  const url = `/static/traveler-view.html?traveler_id=${travelerId}`;
+
+  console.log("Go to:", url);
+
+  window.open(url, "_blank");
+});
   document.getElementById("btnAddStep")?.addEventListener("click", async () => {
     if (!travelerId) {
       toast("Missing traveler id", false);
