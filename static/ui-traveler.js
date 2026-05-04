@@ -384,6 +384,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Load first data
   loadOperation();
+  console.log("UI Traveler loaded with traveler_no:", travelerNo);
 });
 
 /* ===== AUTO-SAVE REMARK ===== */
