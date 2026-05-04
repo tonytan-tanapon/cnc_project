@@ -450,3 +450,191 @@ def generate_traveler_from_db_blank(template_path, data: dict, output_path):
     # SAVE
     # --------------------------------------------------
     doc.save(str(output_path))
+
+def generate_inspection_from_db(template_path, data: dict, output_path):
+    from docx import Document
+    from pathlib import Path
+    from collections import defaultdict
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.enum.table import WD_CELL_VERTICAL_ALIGNMENT
+
+    template_path = Path(template_path)
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    print("Inspection data:", data)
+
+    # =========================
+    # SAFE INT
+    # =========================
+    def safe_int(v):
+        try:
+            return int(v)
+        except:
+            return 9999
+
+    # =========================
+    # GROUP BY OP
+    # =========================
+    grouped = defaultdict(list)
+
+    for item in data["items"]:
+        if item.get("bb_no") in ["Bubble #", None]:
+            continue
+        grouped[item["op_no"]].append(item)
+
+    # =========================
+    # SORT OP + BUBBLE
+    # =========================
+    ops = sorted(grouped.keys(), key=lambda x: safe_int(x))
+
+    for op in grouped:
+        grouped[op].sort(key=lambda x: safe_int(x.get("bb_no")))
+
+    # =========================
+    # SPLIT INTO PAGES (3 OP)
+    # =========================
+    def chunk(lst, n=3):
+        for i in range(0, len(lst), n):
+            yield lst[i:i+n]
+
+    pages = list(chunk(ops, 3))
+
+    # =========================
+    # TEMPLATE CONFIG
+    # =========================
+    MAX_DATA_ROWS = 13   # row 14 = Note
+
+    # =========================
+    # HELPERS
+    # =========================
+    def find_header_row(table):
+        for i, row in enumerate(table.rows):
+            texts = [c.text.strip() for c in row.cells]
+            if any("B/B" in t for t in texts):
+                return i
+        return 2
+
+    def clear_data_rows(table, start_row):
+        for r in range(start_row, len(table.rows)):
+            for c in range(len(table.columns)):
+                table.cell(r, c).text = ""
+
+    def center(cell):
+        cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
+        for p in cell.paragraphs:
+            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+    # =========================
+    # HEADER MAP
+    # =========================
+    header_map = {
+        "{{part}}": data["lot"].get("part_no", ""),
+        "{{rev}}": data["lot"].get("part_rev", ""),
+        "{{lot}}": data["lot"].get("lot_no", ""),
+        "{{po}}": data["lot"].get("po_no", ""),
+    }
+
+    # =========================
+    # MAIN LOOP
+    # =========================
+    final_doc = None
+
+    for page_idx, page_ops in enumerate(pages):
+
+        # 🔥 IMPORTANT: new doc per page
+        doc = Document(str(template_path))
+        replace_header(doc, header_map)
+
+        table = doc.tables[0]
+
+        header_row = find_header_row(table)
+        DATA_START_ROW = header_row + 1
+        NOTE_ROW_IDX = DATA_START_ROW + MAX_DATA_ROWS
+
+        clear_data_rows(table, DATA_START_ROW)
+
+        # =========================
+        # OP HEADER
+        # =========================
+        op_header_row = header_row - 1
+
+        for col_idx, op in enumerate(page_ops):
+            base_col = col_idx * 4
+
+            table.cell(op_header_row, base_col).text = "date"
+            table.cell(op_header_row, base_col + 1).text = op
+            table.cell(op_header_row, base_col + 2).text = "emp"
+
+            
+
+        # =========================
+        # LIMIT ROWS (avoid NOTE overwrite)
+        # =========================
+        max_rows = min(
+            max(len(grouped[op]) for op in page_ops),
+            MAX_DATA_ROWS
+        )
+
+        # =========================
+        # FILL DATA
+        # =========================
+        for row_idx in range(max_rows):
+            for col_idx, op in enumerate(page_ops):
+
+                base_col = col_idx * 4
+                items = grouped[op]
+
+                if row_idx < len(items):
+                    item = items[row_idx]
+                    r = DATA_START_ROW + row_idx
+
+                    table.cell(r, base_col + 0).text = str(item.get("bb_no", "") or "")
+                    table.cell(r, base_col + 1).text = str(item.get("dimension", "") or "")
+                    table.cell(r, base_col + 2).text = str(item.get("tqw", "") or "")
+                    table.cell(r, base_col + 3).text = "✓" if item.get("fa") else ""
+
+                    for i in range(4):
+                        center(table.cell(r, base_col + i))
+
+        # =========================
+        # NOTE ROW (PER OP)
+        # =========================
+        for col_idx, op in enumerate(page_ops):
+
+            base_col = col_idx * 4
+
+            # ✅ Column 1 → "Note"
+            note_cell = table.cell(NOTE_ROW_IDX, base_col)
+            note_cell.text = "Note"
+
+            for p in note_cell.paragraphs:
+                p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+
+            # ✅ Columns 2–4 → merge into one
+            merge_cell = table.cell(NOTE_ROW_IDX, base_col + 1)
+
+            for i in range(2, 4):
+                merge_cell = merge_cell.merge(
+                    table.cell(NOTE_ROW_IDX, base_col + i)
+                )
+
+            merge_cell.text = ""  # empty space for writing
+
+            for p in merge_cell.paragraphs:
+                p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+
+        # =========================
+        # MERGE DOCS
+        # =========================
+        if page_idx == 0:
+            final_doc = doc
+        else:
+            final_doc.add_page_break()
+            for el in doc.element.body:
+                final_doc.element.body.append(el)
+
+    # =========================
+    # SAVE
+    # =========================
+    final_doc.save(str(output_path))

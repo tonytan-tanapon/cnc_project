@@ -207,7 +207,7 @@ async function fillTraveler(t) {
 
   $("status").value = t.status ?? "";
   $("notes").value = t.notes ?? "";
-  console.log("t", t);
+  // console.log("t", t);
   $("t_sub").textContent = `#${t.traveler_no}`;
   document.title = `Traveler · #${t.id}`;
   markHeaderDirty(false);
@@ -363,7 +363,7 @@ function buildStepPayload(d) {
   if (d.qty_reject != null) p.qty_reject = Number(d.qty_reject) || 0;
   if (d.step_note != null) p.step_note = String(d.step_note); // 👈 เพิ่ม
 
-  console.log(p);
+  // console.log(p);
   return p;
 }
 
@@ -925,7 +925,7 @@ async function downloadDrawingBatch() {
       toast("Download failed");
       return;
     }
-    console.log(res);
+    // console.log(res);
     const blob = await res.blob();
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
@@ -1044,21 +1044,22 @@ async function exportTraveler() {
 }
 
 async function exportInspection() {
-  // const res = await fetch(
-  //   `/api/v1/traveler_drawing/export_inspection/${travelerId}`, {
-  //     method: "POST",
-  //   }
-  // );
-  // if (!res.ok) {
-  //   const err = await res.json();
-  //   alert(err.detail || "File not found");
-  //   return;
-  // }
-  // const blob = await res.blob();
-  // const a = document.createElement("a");
-  // a.href = URL.createObjectURL(blob);
-  // a.download = `export_inspection_${travelerId}.zip`;
-  // a.click();
+  
+  const res = await fetch(
+    `/api/v1/traveler_drawing/export_inspection/${travelerId}`, {
+      method: "POST",
+    }
+  );
+  if (!res.ok) {
+    const err = await res.json();
+    alert(err.detail || "File not found");
+    return;
+  }
+  const blob = await res.blob();
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `export_inspection_${travelerId}.zip`;
+  a.click();
 }
 // async function downloadInspection() {
 //   const res = await fetch(`/traveler_drawing/inspection/${travelerId}`, {
@@ -1218,7 +1219,45 @@ async function loadInspectionItems() {
 
   const rows = await jfetch(`/qa-inspections/${currentInspection.id}/items`);
 
-  qaTable.setData(rows || []);
+  const safeOp = (v) => {
+  if (!v) return 9999;
+  const m = String(v).match(/\d+/);
+  return m ? parseInt(m[0]) : 9999;
+};
+
+const safeBb = (v) => {
+  if (!v) return 9999;
+  const m = String(v).match(/\d+/);
+  return m ? parseInt(m[0]) : 9999;
+};
+
+const rowsClean = (rows || [])
+  .filter(r => r.bb_no && r.bb_no !== "Bubble #");
+
+// ✅ STEP 1: GROUP BY OP
+const grouped = {};
+rowsClean.forEach(r => {
+  const op = r.op_no || "999";
+  if (!grouped[op]) grouped[op] = [];
+  grouped[op].push(r);
+});
+
+// ✅ STEP 2: SORT OP
+const sortedOps = Object.keys(grouped).sort((a, b) => safeOp(a) - safeOp(b));
+
+// ✅ STEP 3: SORT BB inside each OP + FLATTEN
+const final = [];
+
+sortedOps.forEach(op => {
+  const items = grouped[op];
+
+  items.sort((a, b) => safeBb(a.bb_no) - safeBb(b.bb_no));
+
+  final.push(...items);
+});
+
+// ✅ FINAL
+qaTable.setData(final);
 }
 
 // /* ---------- Autocomplete ---------- */
@@ -1264,22 +1303,34 @@ function initQATable() {
   if (!holder) return;
 
   qaTable = new Tabulator(holder, {
-    layout: "fitColumns",
-    height: "100%",
-    reactiveData: true,
+  layout: "fitColumns",
+  height: "100%",
+  reactiveData: true,
 
-    rowFormatter: function (row) {
-      const data = row.getData();
-      const op = data.op_no;
-      console.log(data, op);
-      if (!op) return;
+  groupBy: function(row){
+    return row.op_no || "Unknown";
+  },
 
-      const cls = getOpColor(op);
-      console.log(cls);
-      const el = row.getElement();
-      el.classList.remove("op-group-a", "op-group-b"); // reset
-      el.classList.add(cls);
-    },
+  groupHeader: function(value, count){
+    return `OP ${value} (${count})`;
+  },
+
+//   initialSort: [
+//   { column: "op_no", dir: "asc" },
+//   { column: "bb_no", dir: "asc" }
+// ],
+
+  rowFormatter: function (row) {
+    const data = row.getData();
+    const op = data.op_no;
+    if (!op) return;
+
+    const cls = getOpColor(op);
+    const el = row.getElement();
+    el.classList.remove("op-group-a", "op-group-b");
+    el.classList.add(cls);
+  },
+
 
     columns: [
       { title: "Seq", field: "seq", width: 80, editor: "number" },
@@ -1434,7 +1485,7 @@ async function btnAddTemplate() {
         inspectionId,
       )}`,
     );
-    console.log(tmpl);
+    // console.log(tmpl);
     const templateId = tmpl.id;
     console.log("Using QA templateId:", templateId);
 
@@ -1462,6 +1513,58 @@ async function btnAddTemplate() {
 }
 
 async function btnExportInspection() {
+  console.log("Export inspection", currentInspection?.id);
+  
+  if (!currentInspection?.id) {
+    alert("Inspection not loaded");
+    return;
+  }
+
+  try {
+    const res = await fetch(
+      `/api/v1/traveler_drawing/export_inspection/${currentInspection.id}`,
+      { method: "POST" }
+    );
+
+    // ❌ error from backend
+    if (!res.ok) {
+      let msg = "Export failed";
+      try {
+        const err = await res.json();
+        msg = err.detail || msg;
+      } catch (_) {}
+      alert(msg);
+      return;
+    }
+
+    // ✅ filename
+    let filename = `inspection_${currentInspection.id}.docx`;
+    const disposition = res.headers.get("Content-Disposition");
+    if (disposition) {
+      const match = disposition.match(/filename="?([^"]+)"?/);
+      if (match) filename = match[1];
+    }
+
+    // ✅ download
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+
+    a.remove();
+    URL.revokeObjectURL(url);
+
+    console.log("✅ Export completed:", filename);
+  } catch (err) {
+    console.error("Export error", err);
+    alert("Unexpected error while exporting inspection");
+  }
+}
+// async function btnExportInspection() {
   // try {
   //   const res = await fetch(`/api/v1/traveler_drawing/drawing/${travelerId}`, {
   //     method: "POST",
@@ -1483,7 +1586,7 @@ async function btnExportInspection() {
   //   console.error("Download exception:", err);
   //   toast("Download failed (exception)");
   // }
-}
+// }
 /* ---------- Boot ---------- */
 document.addEventListener("DOMContentLoaded", async () => {
   initTopbar();

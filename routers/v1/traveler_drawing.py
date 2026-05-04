@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, joinedload
 from fastapi.responses import FileResponse
 from database import get_db
-from models import ShopTraveler, ProductionLot, Part, PartRevision, PO, Customer,ShopTravelerStep
+from models import ShopTraveler, ProductionLot, Part, PartRevision, PO, Customer,ShopTravelerStep, QAInspection, QAInspectionItem
 import os
 import tempfile
 from datetime import datetime
@@ -293,8 +293,8 @@ import tempfile
 
 @router.post("/inspection/{traveler_id}")
 def build_inspection_batch(traveler_id: int, db: Session = Depends(get_db)):
-
-    # print(f"Building inspection batch for traveler {traveler_id}")
+ 
+    print(f"Building inspection batch for traveler {traveler_id}")
     data = get_traveler_full(traveler_id, db)
 
     lot_no = data["lot"]["lot_no"]
@@ -501,12 +501,53 @@ def build_traveler_data_from_db(traveler: ShopTraveler) -> dict:
         "steps": steps
     }
 
+def build_inspection_data_from_db(inspection: QAInspection) -> dict:
+    lot = inspection.lot
+    po = lot.po
+    customer = po.customer if po else None
+
+    steps = []
+
+    for item in inspection.items:
+        
+
+        steps.append({
+            "seq": item.seq,
+            "op_no": item.op_no,
+            "bb_no": item.bb_no,
+            "dimension": item.dimension,
+            "tqw": item.tqw,
+            "fa": item.fa,
+            "actual_value": item.actual_value,
+            "result": item.result,
+            "notes": item.notes,
+            "employee": item.employee.name if item.employee else None,
+            "qa_time_stamp": item.qa_time_stamp,
+        })
+
+    return {
+        "lot": {
+            "lot_no": lot.lot_no,
+            "po_no": po.po_number if po else "",
+            "customer": customer.name if customer else "",
+            "part_no": lot.part.part_no,
+            "part_rev": lot.part_revision.rev if lot.part_revision else "",
+        },
+        "inspection": {
+            "id": inspection.id,
+            "date": inspection.inspection_date,
+            "status": inspection.status,
+            "remarks": inspection.remarks,
+        },
+        "items": steps
+    }
+
 def to_int(v):
     try:
         return int(v)
     except (TypeError, ValueError):
         return 0
-from services.traveler_docx import generate_traveler_from_db, generate_traveler_from_db_blank
+from services.traveler_docx import generate_traveler_from_db, generate_traveler_from_db_blank, generate_inspection_from_db
 
 
 from tempfile import TemporaryDirectory
@@ -634,3 +675,68 @@ def export_traveler_blank(traveler_id: int, db: Session = Depends(get_db)):
         filename=f"traveler_{data['header']['lot_no']}.docx",
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     )
+
+
+
+from fastapi.responses import FileResponse
+from sqlalchemy.orm import joinedload
+from tempfile import NamedTemporaryFile
+from pathlib import Path
+import csv
+
+@router.post("/export_inspection/{inspection_id}")
+def export_inspection(inspection_id: int, db: Session = Depends(get_db)):
+
+    print(f"Exporting inspection {inspection_id}")
+
+    # ✅ find inspection by traveler → lot → inspection
+    inspection = (
+        db.query(QAInspection)
+        .join(ProductionLot, QAInspection.lot_id == ProductionLot.id)
+        .options(joinedload(QAInspection.items))
+        .filter(QAInspection.id == inspection_id)
+        .first()
+    )
+    
+    # print(f"Queried inspection: {inspection}")
+    if not inspection:
+        raise HTTPException(404, "Inspection not found")
+    
+    # print(f"Found inspection {inspection.id} for lot {inspection.lot.lot_no}")
+    # 🔥 1. build data
+    data = build_inspection_data_from_db(inspection)
+
+    # print("Built inspection data:", data)
+
+    # # 🔥 2. template path
+    BASE_DIR = Path(__file__).resolve().parents[2]
+    template_path = BASE_DIR / "templates" / "inspection_template.docx"
+
+    # # 🔥 3. temp output file
+    tmp = NamedTemporaryFile(suffix=".docx", delete=False)
+    tmp_path = Path(tmp.name)
+    tmp.close()
+
+    # # 🔥 4. generate docx
+    generate_inspection_from_db(
+        template_path=template_path,
+        data=data,
+        output_path=tmp_path
+    )
+
+    from fastapi.responses import FileResponse
+
+    return FileResponse(
+        path=str(tmp_path),
+        filename=f"inspection_{inspection_id}.docx",
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    )
+
+    # print("Generated file:", tmp_path)
+
+    # # 🔥 5. return file download
+    # return FileResponse(
+    #     tmp_path,
+    #     filename=f"inspection_{data['header']['lot_no']}.docx",
+    #     media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    # )
