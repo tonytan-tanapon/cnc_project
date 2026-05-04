@@ -1040,6 +1040,55 @@ async function downloadInspectionBatch() {
   }
 }
 
+async function exportTravelerBlank() {
+  console.log("Export blank traveler", travelerId);
+
+  try {
+    const res = await fetch(
+      `/api/v1/traveler_drawing/export_traveler_blank/${travelerId}`,
+      { method: "POST" }
+    );
+
+    // ❌ backend error
+    if (!res.ok) {
+      let msg = "Export failed";
+      try {
+        const err = await res.json();
+        msg = err.detail || msg;
+      } catch (_) { }
+      alert(msg);
+      return;
+    }
+
+    // ✅ get filename from header (if provided)
+    let filename = `traveler_blank_${travelerId}.docx`;
+    const disposition = res.headers.get("Content-Disposition");
+    if (disposition) {
+      const match = disposition.match(/filename="?([^"]+)"?/);
+      if (match) filename = match[1];
+    }
+
+    // ✅ download blob
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+
+    // cleanup
+    a.remove();
+    URL.revokeObjectURL(url);
+
+    console.log("Export completed:", filename);
+  } catch (err) {
+    console.error("Export error", err);
+    alert("Unexpected error while exporting traveler");
+  }
+}
+
 async function exportTraveler() {
   console.log("Export traveler", travelerId);
 
@@ -1341,6 +1390,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("btnTraveler").addEventListener("click", downloadTravelerBatch);
   $("btnInspection").addEventListener("click", downloadInspectionBatch);
   $("btnExportTraveler").addEventListener("click", exportTraveler);
+  $("btnExportTravelerBlank").addEventListener("click", exportTravelerBlank);
 
 
   const btnUpdate = document.getElementById("btnUpdateTravelerStep");

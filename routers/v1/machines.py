@@ -1,5 +1,5 @@
 # routers/machines.py
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
 from pydantic import BaseModel, ConfigDict
@@ -37,3 +37,18 @@ def get_machines(db: Session = Depends(get_db)):
         }
         for m in machines
     ]
+
+@router.get("/{machine_id}", response_model=MachineOut)
+def get_machine_by_id(machine_id: int, db: Session = Depends(get_db)):
+    machine = db.get(Machine, machine_id)
+    if not machine:
+        raise HTTPException(status_code=404, detail="Machine not found")
+    return machine
+
+# /api/v1/machines/by_code/{code}
+@router.get("/by_code/{code}", response_model=MachineOut)
+def get_machine_by_code(code: str, db: Session = Depends(get_db)):
+    machine = db.query(Machine).filter(Machine.code == code).first()
+    if not machine:
+        raise HTTPException(status_code=404, detail="Machine not found")
+    return machine

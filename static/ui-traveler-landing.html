@@ -66,41 +66,64 @@
         }
 
 
-    .pin-dot {
-  color: #cbd5f5; /* empty = light gray */
+        .pin-dot {
+            color: #cbd5f5;
+            /* empty = light gray */
+        }
+
+        .pin-dot.filled {
+            color: #2563eb;
+            /* typing = blue */
+        }
+
+        #pinKeys {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+        }
+
+        .pin-btn {
+            font-size: 18px;
+            padding: 16px;
+            border-radius: 10px;
+            border: none;
+            background: #e2e8f0;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        .pin-btn:active {
+            background: #cbd5f5;
+        }
+
+        /* Special buttons */
+        .pin-btn:nth-last-child(3) {
+            /* DEL */
+            background: #fecaca;
+        }
+
+        .pin-btn:nth-last-child(1) {
+            /* CLEAR */
+            background: #fde68a;
+        }
+
+        .machine-btn {
+  padding:18px 10px;
+  border-radius:12px;
+  border:none;
+  background:#e2e8f0;
+  font-weight:700;
+  font-size:16px;
+  cursor:pointer;
+  transition:0.15s;
 }
 
-.pin-dot.filled {
-  color: #2563eb; /* typing = blue */
+.machine-btn:hover {
+  background:#cbd5f5;
 }
 
-#pinKeys {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
-}
-
-.pin-btn {
-  font-size: 18px;
-  padding: 16px;
-  border-radius: 10px;
-  border: none;
-  background: #e2e8f0;
-  cursor: pointer;
-  font-weight: 600;
-}
-
-.pin-btn:active {
-  background: #cbd5f5;
-}
-
-/* Special buttons */
-.pin-btn:nth-last-child(3) { /* DEL */
-  background: #fecaca;
-}
-
-.pin-btn:nth-last-child(1) { /* CLEAR */
-  background: #fde68a;
+.machine-btn:active {
+  transform:scale(0.95);
 }
     </style>
 </head>
@@ -166,8 +189,25 @@
                 <!-- numbers injected by JS -->
             </div>
 
-            
 
+
+        </div>
+    </div>
+
+    <!-- MACHINE SELECT -->
+    <div id="machineOverlay"
+        style=" display:none; position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:9999; align-items:center; justify-content:center; ">
+        <div style=" background:#fff; width:320px; border-radius:14px; padding:20px; text-align:center; ">
+            <h3>Select Machine</h3>
+            <div id="machineList" style="
+  display:grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap:12px;
+  margin-top:16px;
+  max-height:320px;
+  overflow-y:auto;
+"></div>
+            <button onclick="document.getElementById('machineOverlay').style.display='none'"> Cancel </button>
         </div>
     </div>
     <script type="module" src="/static/ui-traveler-landing.js"></script>

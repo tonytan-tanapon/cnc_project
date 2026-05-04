@@ -20,13 +20,16 @@ router = APIRouter(prefix="/step-logs", tags=["step-logs"])
 from typing import List
 
 def calculate_step_status(receive, accept, reject, is_first=False):
+    print(f"Calculating status with receive={receive}, accept={accept}, reject={reject}, is_first={is_first}")
     total = accept + reject
 
     # 🔥 Step 1 (no input source)
     if is_first:
+        if accept > 0:
+            return "passed"   # ✅ FIX
         if total == 0:
             return "pending"
-        return "running"
+        return "pending"
 
     # 🔥 normal steps
     if receive == 0 and total == 0:
@@ -83,6 +86,8 @@ def recalc_step_status(db: Session, step_id: int):
         total_reject,
         is_first
     )
+
+    print(f"Recalculated step {step.id} status: {step.status} (receive={receive}, accept={total_accept}, reject={total_reject})")
 
     db.commit()
     db.refresh(step)
@@ -234,7 +239,7 @@ def create_step_log(payload: dict, db: Session = Depends(get_db)):
             db.commit()
             db.refresh(existing)
 
-            recalc_step_status(db, step_id)
+            # recalc_step_status(db, step_id)
             db.commit()
 
             return existing
@@ -289,8 +294,8 @@ def update_log(log_id: int, payload: dict, db: Session = Depends(get_db)):
         # =========================
         # NEW VALUES
         # =========================
-        new_accept = Decimal(str(payload.get("qty_accept", log.qty_accept or 0)))
-        new_reject = Decimal(str(payload.get("qty_reject", log.qty_reject or 0)))
+        new_accept = Decimal(str(payload["qty_accept"])) if "qty_accept" in payload else log.qty_accept
+        new_reject = Decimal(str(payload["qty_reject"])) if "qty_reject" in payload else log.qty_reject
         if new_accept < 0:
             raise HTTPException(400, "qty_accept must be >= 0")
 
@@ -348,10 +353,13 @@ def update_log(log_id: int, payload: dict, db: Session = Depends(get_db)):
         # APPLY UPDATE
         # =========================
         if "qty_accept" in payload:
-            log.qty_accept = new_accept
+            log.qty_accept = payload["qty_accept"]
 
         if "qty_reject" in payload:
-            log.qty_reject = new_reject
+            log.qty_reject = payload["qty_reject"]
+
+        if "note" in payload:
+            log.note = payload["note"]
 
         if "work_date" in payload:
             log.work_date = datetime.fromisoformat(payload["work_date"]).date()
@@ -362,8 +370,7 @@ def update_log(log_id: int, payload: dict, db: Session = Depends(get_db)):
         if "machine_id" in payload:
             log.machine_id = int(payload["machine_id"]) if payload["machine_id"] else None
 
-        if "note" in payload:
-            log.note = payload["note"] if payload["note"] else None
+       
 
         db.commit()
         db.refresh(log)

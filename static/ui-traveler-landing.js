@@ -72,13 +72,42 @@ async function handleCode(value, source = "scan") {
 
   // 🎯 SUCCESS
   //   alert(`✅ Access granted\nCode: ${code}`);
-
+  openMachineSelect(code, pin);
   // 👉 REAL ACTION
-  location.href = `/static/ui-traveler.html?traveler_no=${encodeURIComponent(
-    traveler_no
-  )}&seq=${encodeURIComponent(0)}&traveler_emp=${encodeURIComponent(pin)}`;
+  // location.href = `/static/ui-traveler.html?traveler_no=${encodeURIComponent(
+  //   traveler_no
+  // )}&seq=${encodeURIComponent(0)}&traveler_emp=${encodeURIComponent(pin)}`;
 }
 
+async function openMachineSelect(code, pin) {
+  console.log("🔥 OPEN MACHINE SELECT");
+
+  const res = await fetch("/api/v1/machines");
+  const machines = await res.json();
+
+  const list = document.getElementById("machineList");
+  list.innerHTML = "";
+
+  machines.forEach(m => {
+    const btn = document.createElement("button");
+    btn.className = "machine-btn";
+    btn.innerText = m.code || m.name;
+
+    btn.onclick = () => {
+      console.log("SELECT MACHINE:", m);
+
+      location.href =
+        `/static/ui-traveler.html?traveler_no=${encodeURIComponent(traveler_no)}`
+        + `&seq=0`
+        + `&traveler_emp=${encodeURIComponent(pin)}`
+        + `&machine_id=${m.id}`;
+    };
+
+    list.appendChild(btn);
+  });
+
+  document.getElementById("machineOverlay").style.display = "flex";
+}
 // Default focus = scanner
 window.addEventListener("DOMContentLoaded", () => {
   scanInput.focus();

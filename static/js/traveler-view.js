@@ -68,11 +68,13 @@ async function load() {
         <td>-</td>
         <td>-</td>
 
-        <td contenteditable="true"
-          onkeydown="if(event.key==='Enter'){
-            createFromInline(${step.id}, 'note', this.innerText);
-            this.blur(); return false;
-          }"></td>
+        <td>
+  <textarea
+    rows="2"
+    style="width:100%; resize:vertical"
+    onblur="createFromInline(${step.id}, 'note', this.value)"
+  ></textarea>
+</td>
 
         <!-- 🔥 SUPPLIER -->
         <td contenteditable="true"
@@ -218,13 +220,13 @@ async function load() {
           </select>
         </td>
 
-        <td contenteditable="true"
-          onkeydown="if(event.key==='Enter'){
-            event.preventDefault();
-            const val = this.innerText.trim();
-            updateField(${log.id}, 'note', val);
-            this.blur();
-          }">${log.note || ""}</td>
+       <td>
+  <textarea
+    rows="2"
+    style="width:100%; resize:vertical"
+    onblur="updateField(${log.id}, 'note', this.value)"
+  >${log.note || ""}</textarea>
+</td>
 
         ${supplierCells}
         ${stepRecvCell}
@@ -249,7 +251,12 @@ async function load() {
     steps.map(s => `<option value="${s.id}">OP ${s.seq}</option>`).join("");
 }
 
-
+document.addEventListener("input", function(e) {
+  if (e.target.tagName === "TEXTAREA") {
+    e.target.style.height = "auto";
+    e.target.style.height = e.target.scrollHeight + "px";
+  }
+});
 async function updateStepField(step_id, field, value) {
   const payload = {};
   payload[field] = value.trim() || null;
@@ -389,7 +396,7 @@ function createFromInline(step_id, field, value) {
 // UPDATE FIELD (FIXED)
 // =======================
 async function updateField(log_id, field, value) {
-
+  console.log("UPDATE FIELD >>:", { log_id, field, value });
   const row = document.querySelector(`[data-log-id="${log_id}"]`);
   if (!row) return;
 
@@ -499,7 +506,7 @@ function addLog(step_id) {
     step_id,
     qty_accept: 0,
     qty_reject: 0,
-    work_date: new Date().toISOString().slice(0,10) // today
+    work_date: new Date().toISOString().slice(0, 10) // today
   };
 
   fetch(`/api/v1/step-logs`, {
@@ -507,14 +514,14 @@ function addLog(step_id) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
   })
-  .then(async res => {
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      alert("❌ " + (err.detail || "Create failed"));
-      return;
-    }
-    load();
-  });
+    .then(async res => {
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert("❌ " + (err.detail || "Create failed"));
+        return;
+      }
+      load();
+    });
 }
 
 async function deleteLog(log_id) {
@@ -568,18 +575,18 @@ async function submitTopInput() {
     machine_id: machine_id ? Number(machine_id) : null,
     note
   };
-     
-  const res = await fetch(`/api/v1/step-logs`, {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify(payload)
-});
 
-if (!res.ok) {
-  const err = await res.json().catch(() => ({}));
-  alert("❌ " + (err.detail || "Create failed"));
-  return;
-}
+  const res = await fetch(`/api/v1/step-logs`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    alert("❌ " + (err.detail || "Create failed"));
+    return;
+  }
 
   // 🔥 clear inputs
   document.getElementById("input_accept").value = "";

@@ -506,7 +506,7 @@ def to_int(v):
         return int(v)
     except (TypeError, ValueError):
         return 0
-from services.traveler_docx import generate_traveler_from_db
+from services.traveler_docx import generate_traveler_from_db, generate_traveler_from_db_blank
 
 
 from tempfile import TemporaryDirectory
@@ -565,6 +565,66 @@ def export_traveletdoc(traveler_id: int, db: Session = Depends(get_db)):
         data=data,
         output_path=tmp_path
     )
+
+    print("Generated file:", tmp_path)
+
+    # 🔥 5. return file download
+    return FileResponse(
+        tmp_path,
+        filename=f"traveler_{data['header']['lot_no']}.docx",
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    )
+
+
+
+@router.post("/export_traveler_blank/{traveler_id}")
+def export_traveler_blank(traveler_id: int, db: Session = Depends(get_db)):
+
+    traveler = (
+        db.query(ShopTraveler)
+        .options(
+            joinedload(ShopTraveler.lot)
+                .joinedload(ProductionLot.part),
+
+            joinedload(ShopTraveler.lot)
+                .joinedload(ProductionLot.part_revision),
+
+            joinedload(ShopTraveler.lot)
+                .joinedload(ProductionLot.po)
+                .joinedload(PO.customer),
+
+            joinedload(ShopTraveler.steps)
+                .joinedload(ShopTravelerStep.logs)
+        )
+        .filter(ShopTraveler.id == traveler_id)
+        .first()
+    )
+
+    if not traveler:
+        raise HTTPException(404, "Traveler not found")
+
+    # 🔥 1. build data
+    data = build_traveler_data_from_db(traveler)
+
+    # print("Built traveler data:", data)
+
+    # 🔥 2. template path
+    BASE_DIR = Path(__file__).resolve().parents[2]
+    template_path = BASE_DIR / "templates" / "shop_templete.docx"
+
+    # 🔥 3. temp output file
+    tmp = NamedTemporaryFile(suffix=".docx", delete=False)
+    tmp_path = Path(tmp.name)
+    tmp.close()
+
+    # 🔥 4. generate docx
+    generate_traveler_from_db_blank(
+        template_path=template_path,
+        data=data,
+        output_path=tmp_path
+    )
+
+    
 
     print("Generated file:", tmp_path)
 

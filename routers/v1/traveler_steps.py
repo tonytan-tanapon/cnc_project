@@ -650,6 +650,8 @@ def calculate_step_status(receive, accept, reject, is_first):
 
     # Step 1 (no planned_qty)
     if is_first:
+        if accept > 0:
+            return "passed"   # ✅ FIX
         if total == 0:
             return "pending"
         return "running"
