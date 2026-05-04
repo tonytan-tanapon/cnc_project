@@ -196,7 +196,9 @@ def create_step_log(payload: dict, db: Session = Depends(get_db)):
         # =========================
         # 🔥 VALIDATION (ROW LEVEL)
         # =========================
-        if step.seq != 1 and (incoming_accept + incoming_reject > receive):
+        is_first = step.seq == min(s.seq for s in step.traveler.steps)
+
+        if not is_first and (incoming_accept + incoming_reject > receive):
             raise HTTPException(
                 400,
                 f"Accept + Reject ({incoming_accept + incoming_reject}) > Receive ({receive})"
@@ -213,7 +215,7 @@ def create_step_log(payload: dict, db: Session = Depends(get_db)):
         total_accept += incoming_accept
         total_reject += incoming_reject
 
-        if step.seq != 1 and (total_accept + total_reject > receive):
+        if not is_first and (total_accept + total_reject > receive):
             raise HTTPException(
                 400,
                 f"Total Accept + Reject ({total_accept + total_reject}) > Receive ({receive})"
@@ -343,7 +345,8 @@ def update_log(log_id: int, payload: dict, db: Session = Depends(get_db)):
         # =========================
         # 🔥 FINAL VALIDATION (CORRECT)
         # =========================
-        if step.seq != 1 and (total_accept + total_reject > receive):
+        is_first = step.seq == min(s.seq for s in step.traveler.steps)
+        if not is_first and (total_accept + total_reject > receive):
             raise HTTPException(
                 400,
                 f"Total Accept + Reject ({total_accept + total_reject}) > Receive ({receive})"
