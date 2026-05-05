@@ -1064,6 +1064,7 @@ class QAInspectionItemCreate(BaseModel):
     result: Optional[str] = None
     notes: Optional[str] = None
     emp_id: Optional[int] = None
+    qa_time_stamp: Optional[datetime] = None
 
 
 class QAInspectionItemUpdate(BaseModel):
@@ -1077,6 +1078,8 @@ class QAInspectionItemUpdate(BaseModel):
     result: Optional[str] = None
     notes: Optional[str] = None
     emp_id: Optional[int] = None
+    # 🔥 เพิ่มตรงนี้
+    qa_time_stamp: Optional[datetime] = None
 
 
 class QAInspectionItemOut(BaseModel):

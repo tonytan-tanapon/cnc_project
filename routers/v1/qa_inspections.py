@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from database import get_db
-from models import QAInspection, QAInspectionItem
+from models import QAInspection, QAInspectionItem,ProductionLot
 from schemas import (
     QAInspectionCreate,
     QAInspectionItemCreate,
@@ -60,18 +60,43 @@ def add_item(
     db.refresh(item)
     return item
 
+from datetime import datetime
+import pytz
+
+from datetime import datetime
+import pytz
+
+from datetime import datetime
+import pytz
+
 @router.put("/qa-items/{item_id}")
-def update_item(
-    item_id: int,
-    payload: QAInspectionItemUpdate,
-    db: Session = Depends(get_db),
-):
+def update_item(item_id: int, payload: QAInspectionItemUpdate, db: Session = Depends(get_db)):
     item = db.get(QAInspectionItem, item_id)
     if not item:
         raise HTTPException(404, "Item not found")
 
-    for k, v in payload.dict(exclude_unset=True).items():
+    from datetime import datetime
+    import pytz
+
+    la = pytz.timezone("America/Los_Angeles")
+
+    updated_fields = payload.dict(exclude_unset=True)
+
+    # apply update
+    for k, v in updated_fields.items():
         setattr(item, k, v)
+
+    # 🟢 1. user override
+    if "qa_time_stamp" in updated_fields and updated_fields["qa_time_stamp"]:
+        print("User set timestamp:", updated_fields["qa_time_stamp"])
+        item.qa_time_stamp = updated_fields["qa_time_stamp"]
+
+    # 🟡 2. auto update
+    elif "actual_value" in updated_fields or "tqw" in updated_fields:
+        print("Auto update timestamp")
+        item.qa_time_stamp = datetime.now(la)
+
+    print("Updated item", item.id, "qa_time_stamp:", item.qa_time_stamp)
 
     db.commit()
     db.refresh(item)
@@ -93,17 +118,31 @@ from models import (
     QAInspectionTemplate,
     QAInspectionTemplateItem,
 )
+
 @router.get("/templates/active")
-def get_active_template(db: Session = Depends(get_db)):
-    print("inspection")
+def get_active_template(inspection_id: int, db: Session = Depends(get_db)):
+
+    # 1. หา inspection
+    inspection = db.get(QAInspection, inspection_id)
+    if not inspection:
+        raise HTTPException(404, "Inspection not found")
+
+    # 2. หา lot
+    lot = inspection.lot
+    if not lot:
+        raise HTTPException(400, "Inspection has no lot")
+
+    # 3. filter template ตาม part + rev
     tmpl = (
         db.query(QAInspectionTemplate)
         .filter(QAInspectionTemplate.active == True)
+        .filter(QAInspectionTemplate.part_id == lot.part_id)
+        .filter(QAInspectionTemplate.rev_id == lot.part_revision_id)
         .first()
     )
 
     if not tmpl:
-        raise HTTPException(404, "No active QA template found")
+        raise HTTPException(404, "No active template for this part/rev")
 
     return tmpl
 
@@ -150,3 +189,117 @@ def apply_template(
     db.commit()
 
     return {"ok": True, "count": len(items)}
+
+# qa_inspections/${inspectionId}/create-template-version
+@router.post("/{inspection_id}/create-template-version")
+def create_template_version(
+    inspection_id: int,
+    db: Session = Depends(get_db),
+):
+    print("Creating template version from inspection", inspection_id)
+
+    from sqlalchemy.orm import joinedload
+    from sqlalchemy import func
+
+    # =========================
+    # 1. LOAD INSPECTION + LOT
+    # =========================
+    inspection = (
+        db.query(QAInspection)
+        .options(
+            joinedload(QAInspection.lot)
+            .joinedload(ProductionLot.part),
+            joinedload(QAInspection.lot)
+            .joinedload(ProductionLot.part_revision),
+        )
+        .filter(QAInspection.id == inspection_id)
+        .first()
+    )
+
+    if not inspection:
+        raise HTTPException(404, "Inspection not found")
+
+    lot = inspection.lot
+    if not lot:
+        raise HTTPException(400, "Inspection has no lot")
+
+    # =========================
+    # 2. LOAD ITEMS
+    # =========================
+    items = (
+        db.query(QAInspectionItem)
+        .filter(QAInspectionItem.inspection_id == inspection_id)
+        .order_by(QAInspectionItem.seq)
+        .all()
+    )
+
+    if not items:
+        raise HTTPException(404, "Inspection has no items")
+
+    try:
+        # =========================
+        # 3. CALCULATE VERSION
+        # =========================
+        last_version = (
+            db.query(func.max(QAInspectionTemplate.version))
+            .filter(QAInspectionTemplate.part_id == lot.part_id)
+            .filter(QAInspectionTemplate.rev_id == lot.part_revision_id)
+            .scalar()
+        ) or 0
+
+        new_version = last_version + 1
+
+        # =========================
+        # 4. DISABLE OLD TEMPLATE
+        # =========================
+        db.query(QAInspectionTemplate).filter(
+            QAInspectionTemplate.part_id == lot.part_id,
+            QAInspectionTemplate.rev_id == lot.part_revision_id,
+        ).update({QAInspectionTemplate.active: False})
+
+        # =========================
+        # 5. CREATE TEMPLATE
+        # =========================
+        tmpl = QAInspectionTemplate(
+            part_id=lot.part_id,
+            rev_id=lot.part_revision_id,
+            version=new_version,
+            step_code=None,
+            name=f"Template from Inspection {inspection.id} (Lot {lot.lot_no})",
+            active=True,
+            is_latest=True,   # 🔥 เพิ่มตรงนี้
+        )
+        db.add(tmpl)
+        db.flush()   # 🔥 สำคัญ: ได้ tmpl.id โดยยังไม่ commit
+
+        # =========================
+        # 6. COPY ITEMS
+        # =========================
+        
+        for it in items:
+
+           
+            db.add(QAInspectionTemplateItem(
+                template_id=tmpl.id,
+                seq=it.seq,
+                op_no=it.op_no or "",
+                bb_no=it.bb_no or "",
+                dimension=(it.dimension or "").strip(),
+            ))
+
+        # =========================
+        # 7. COMMIT ALL
+        # =========================
+        db.commit()
+
+        return {
+            "ok": True,
+            "template_id": tmpl.id,
+            "version": new_version,
+            "item_count": len(items),
+        }
+
+    except Exception as e:
+        db.rollback()
+        print("❌ create_template_version error:", e)
+        raise HTTPException(500, str(e))

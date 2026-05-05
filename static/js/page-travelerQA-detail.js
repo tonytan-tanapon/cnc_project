@@ -57,9 +57,8 @@ async function searchLots(term) {
 
 async function searchEmployees(term) {
   const q = (term || "").trim();
-  const url = `/employees/keyset?limit=10${
-    q ? `&q=${encodeURIComponent(q)}` : ""
-  }`;
+  const url = `/employees/keyset?limit=10${q ? `&q=${encodeURIComponent(q)}` : ""
+    }`;
   try {
     const res = await jfetch(url);
     const items = Array.isArray(res) ? res : res.items || [];
@@ -401,7 +400,7 @@ function autosaveStepRow(row, { immediate = false } = {}) {
         setTimeout(() => {
           try {
             stepsTable.redraw(true);
-          } catch {}
+          } catch { }
         }, 0);
       });
     return;
@@ -437,14 +436,14 @@ function autosaveStepRow(row, { immediate = false } = {}) {
             (x) => Number(x.id) === Number(dd.id),
           );
           if (found) row.update(normalizeStep(found));
-        } catch {}
+        } catch { }
         toast(e?.message || "Save failed", false);
       })
       .finally(() =>
         setTimeout(() => {
           try {
             stepsTable.redraw(true);
-          } catch {}
+          } catch { }
         }, 0),
       );
   };
@@ -607,7 +606,7 @@ function initStepsTable() {
     if (!ready || !holder.offsetWidth) return;
     try {
       stepsTable.redraw(true);
-    } catch {}
+    } catch { }
   };
 
   stepsTable = new Tabulator(holder, {
@@ -872,6 +871,12 @@ function initStepsTable() {
   ro.observe(holder);
   window.addEventListener("resize", safeRedraw);
 }
+function showLatestBadge(isLatest) {
+  const el = document.getElementById("latestBadge");
+  if (!el) return;
+  el.style.display = isLatest ? "inline-block" : "none";
+}
+
 
 async function reloadSteps() {
   if (!travelerId) {
@@ -1009,7 +1014,7 @@ async function exportTraveler() {
       try {
         const err = await res.json();
         msg = err.detail || msg;
-      } catch (_) {}
+      } catch (_) { }
       alert(msg);
       return;
     }
@@ -1044,11 +1049,11 @@ async function exportTraveler() {
 }
 
 async function exportInspection() {
-  
+
   const res = await fetch(
     `/api/v1/traveler_drawing/export_inspection/${travelerId}`, {
-      method: "POST",
-    }
+    method: "POST",
+  }
   );
   if (!res.ok) {
     const err = await res.json();
@@ -1121,8 +1126,8 @@ function printTravelerQR(travelerNo, qrLink) {
     <body style="text-align:center; font-family:sans-serif;">
       <h2>Traveler ${travelerNo}</h2>
       <img src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(
-        qrLink,
-      )}" alt="QR">
+    qrLink,
+  )}" alt="QR">
       <p style="margin-top:10px;font-size:14px;">${qrLink}</p>
       <script>window.onload = () => { window.print(); }</script>
     </body></html>
@@ -1208,6 +1213,18 @@ async function loadInspection() {
 
   const title = $("inspectionTitle");
   if (title) title.textContent = `QA Inspection · Lot ${lotId}`;
+
+  // 🔥 เพิ่มตรงนี้
+  try {
+    const tmpl = await jfetch(
+      `/api/v1/qa-inspections/templates/active?inspection_id=${qa.id}`
+    );
+
+    showLatestBadge(tmpl.is_latest);
+  } catch (e) {
+    console.warn("No template / latest not found");
+    showLatestBadge(false);
+  }
 }
 
 /* ---------- Load Items ---------- */
@@ -1220,44 +1237,44 @@ async function loadInspectionItems() {
   const rows = await jfetch(`/qa-inspections/${currentInspection.id}/items`);
 
   const safeOp = (v) => {
-  if (!v) return 9999;
-  const m = String(v).match(/\d+/);
-  return m ? parseInt(m[0]) : 9999;
-};
+    if (!v) return 9999;
+    const m = String(v).match(/\d+/);
+    return m ? parseInt(m[0]) : 9999;
+  };
 
-const safeBb = (v) => {
-  if (!v) return 9999;
-  const m = String(v).match(/\d+/);
-  return m ? parseInt(m[0]) : 9999;
-};
+  const safeBb = (v) => {
+    if (!v) return 9999;
+    const m = String(v).match(/\d+/);
+    return m ? parseInt(m[0]) : 9999;
+  };
 
-const rowsClean = (rows || [])
-  .filter(r => r.bb_no && r.bb_no !== "Bubble #");
+  const rowsClean = (rows || [])
+    .filter(r => r.bb_no && r.bb_no !== "Bubble #");
 
-// ✅ STEP 1: GROUP BY OP
-const grouped = {};
-rowsClean.forEach(r => {
-  const op = r.op_no || "999";
-  if (!grouped[op]) grouped[op] = [];
-  grouped[op].push(r);
-});
+  // ✅ STEP 1: GROUP BY OP
+  const grouped = {};
+  rowsClean.forEach(r => {
+    const op = r.op_no || "999";
+    if (!grouped[op]) grouped[op] = [];
+    grouped[op].push(r);
+  });
 
-// ✅ STEP 2: SORT OP
-const sortedOps = Object.keys(grouped).sort((a, b) => safeOp(a) - safeOp(b));
+  // ✅ STEP 2: SORT OP
+  const sortedOps = Object.keys(grouped).sort((a, b) => safeOp(a) - safeOp(b));
 
-// ✅ STEP 3: SORT BB inside each OP + FLATTEN
-const final = [];
+  // ✅ STEP 3: SORT BB inside each OP + FLATTEN
+  const final = [];
 
-sortedOps.forEach(op => {
-  const items = grouped[op];
+  sortedOps.forEach(op => {
+    const items = grouped[op];
 
-  items.sort((a, b) => safeBb(a.bb_no) - safeBb(b.bb_no));
+    items.sort((a, b) => safeBb(a.bb_no) - safeBb(b.bb_no));
 
-  final.push(...items);
-});
+    final.push(...items);
+  });
 
-// ✅ FINAL
-qaTable.setData(final);
+  // ✅ FINAL
+  qaTable.setData(final);
 }
 
 // /* ---------- Autocomplete ---------- */
@@ -1297,39 +1314,44 @@ function initInspectorAutocomplete() {
   });
 }
 
+function toISO(v) {
+  if (!v) return null;
+  return new Date(v).toISOString();
+}
+
 /* ---------- Build QA Table ---------- */
 function initQATable() {
   const holder = document.getElementById("qa_table");
   if (!holder) return;
 
   qaTable = new Tabulator(holder, {
-  layout: "fitColumns",
-  height: "100%",
-  reactiveData: true,
+    layout: "fitColumns",
+    height: "100%",
+    reactiveData: true,
 
-  groupBy: function(row){
-    return row.op_no || "Unknown";
-  },
+    groupBy: function (row) {
+      return row.op_no || "Unknown";
+    },
 
-  groupHeader: function(value, count){
-    return `OP ${value} (${count})`;
-  },
+    groupHeader: function (value, count) {
+      return `OP ${value} (${count})`;
+    },
 
-//   initialSort: [
-//   { column: "op_no", dir: "asc" },
-//   { column: "bb_no", dir: "asc" }
-// ],
+    //   initialSort: [
+    //   { column: "op_no", dir: "asc" },
+    //   { column: "bb_no", dir: "asc" }
+    // ],
 
-  rowFormatter: function (row) {
-    const data = row.getData();
-    const op = data.op_no;
-    if (!op) return;
+    rowFormatter: function (row) {
+      const data = row.getData();
+      const op = data.op_no;
+      if (!op) return;
 
-    const cls = getOpColor(op);
-    const el = row.getElement();
-    el.classList.remove("op-group-a", "op-group-b");
-    el.classList.add(cls);
-  },
+      const cls = getOpColor(op);
+      const el = row.getElement();
+      el.classList.remove("op-group-a", "op-group-b");
+      el.classList.add(cls);
+    },
 
 
     columns: [
@@ -1350,22 +1372,40 @@ function initQATable() {
         editor: "input",
       },
       { title: "TQW", field: "tqw", width: 120, editor: "input" },
+
       {
         title: "Date",
-        field: "qa_time_stamp", // 👈 ใช้จาก backend
-        width: 160,
+        field: "qa_time_stamp",
+        width: 180,
+
+        editor: function (cell, onRendered, success, cancel) {
+          const input = document.createElement("input");
+          input.type = "datetime-local";   // 🔥 สำคัญ
+          input.style.width = "100%";
+
+          const v = cell.getValue();
+          if (v) {
+            const d = new Date(v);
+            input.value = d.toISOString().slice(0, 16); // yyyy-MM-ddTHH:mm
+          }
+
+          onRendered(() => input.focus());
+
+          input.addEventListener("change", () => {
+            success(input.value);
+          });
+
+          return input;
+        },
+
         formatter: (cell) => {
           const v = cell.getValue();
           if (!v) return "";
           const d = new Date(v);
-
-          const mm = String(d.getMonth() + 1).padStart(2, "0");
-          const dd = String(d.getDate()).padStart(2, "0");
-          const yy = String(d.getFullYear()).slice(-2);
-
-          return `${mm}/${dd}/${yy}`;
-        },
+          return d.toLocaleString(); // 👈 เห็นเวลา
+        }
       },
+
       {
         title: "Result",
         field: "result",
@@ -1405,16 +1445,27 @@ function initQATable() {
     const d = row.getData();
     const inspectionId = currentInspection.id;
 
+    const field = cell.getField();
+
+    // 🔥 ถ้าแก้ actual_value หรือ tqw → set timestamp
+
+
     const payload = {
       seq: Number(d.seq),
       op_no: d.op_no || null,
       bb_no: d.bb_no || null,
-      dimension: d.dimension || null,
-      actual_value: d.actual_value || null,
+      dimension: d.dimension || "",
+      actual_value: d.actual_value || "",
+      tqw: d.tqw || "",
       result: d.result || null,
       notes: d.notes || null,
       emp_id: d.emp_id ? Number(d.emp_id) : null,
     };
+
+    // 🔥 ส่งเฉพาะตอน user แก้ Date
+    if (field === "qa_time_stamp") {
+      payload.qa_time_stamp = toISO(d.qa_time_stamp);
+    }
 
     try {
       if (!d.id) {
@@ -1423,13 +1474,13 @@ function initQATable() {
           body: JSON.stringify(payload),
         });
         row.update(created);
-        toast("Item added");
       } else {
-        await jfetch(`/qa-inspections/qa-items/${d.id}`, {
+        const updated = await jfetch(`/qa-inspections/qa-items/${d.id}`, {
           method: "PUT",
           body: JSON.stringify(payload),
         });
-        toast("Saved");
+
+        row.update(updated);   // 🔥 สำคัญมาก
       }
     } catch (err) {
       console.error("QA save error:", err);
@@ -1514,7 +1565,7 @@ async function btnAddTemplate() {
 
 async function btnExportInspection() {
   console.log("Export inspection", currentInspection?.id);
-  
+
   if (!currentInspection?.id) {
     alert("Inspection not loaded");
     return;
@@ -1532,7 +1583,7 @@ async function btnExportInspection() {
       try {
         const err = await res.json();
         msg = err.detail || msg;
-      } catch (_) {}
+      } catch (_) { }
       alert(msg);
       return;
     }
@@ -1564,29 +1615,61 @@ async function btnExportInspection() {
     alert("Unexpected error while exporting inspection");
   }
 }
-// async function btnExportInspection() {
-  // try {
-  //   const res = await fetch(`/api/v1/traveler_drawing/drawing/${travelerId}`, {
-  //     method: "POST",
-  //   });
-  //   if (!res.ok) {
-  //     const txt = await res.text().catch(() => "");
-  //     console.error("Download error:", res.status, txt);
-  //     toast("Download failed");
-  //     return;
-  //   }
-  //   console.log(res);
-  //   const blob = await res.blob();
-  //   const a = document.createElement("a");
-  //   a.href = URL.createObjectURL(blob);
-  //   a.download = `drawing_${travelerId}.bat`;
-  //   a.click();
-  //   URL.revokeObjectURL(a.href);
-  // } catch (err) {
-  //   console.error("Download exception:", err);
-  //   toast("Download failed (exception)");
-  // }
-// }
+function setBusyT(on) {
+  const body = document.body;
+
+  if (on) {
+    body.style.pointerEvents = "none";
+    body.style.opacity = "0.6";
+  } else {
+    body.style.pointerEvents = "";
+    body.style.opacity = "";
+  }
+}
+async function btnUpdateInspection() {
+  console.log("Update inspection", currentInspection?.id);
+
+  if (!currentInspection?.id) {
+    toast("Inspection not loaded", false);
+    return;
+  }
+
+  if (!confirm("Create new template version from this inspection?")) return;
+
+  try {
+    setBusyT(true);
+
+    const res = await jfetch(
+      `/api/v1/qa-inspections/${currentInspection?.id}/create-template-version`,
+      { method: "POST" }
+    );
+
+    toast(`✅ Template created (ID: ${res.template_id})`);
+
+    // // 🔥 IMPORTANT → reload template dropdown
+    // await loadTemplateVersions(
+    //   originalTraveler.part_id,
+    //   originalTraveler.part_revision_id
+    // );
+
+  } catch (err) {
+    console.error(err);
+    toast(err?.message || "Failed to create template", false);
+  } finally {
+    setBusyT(false);
+  }
+
+
+
+}
+
+async function btnExportBlank() {
+  console.log("Export blank inspection", currentInspection?.id);
+
+
+
+}
+
 /* ---------- Boot ---------- */
 document.addEventListener("DOMContentLoaded", async () => {
   initTopbar();
@@ -1597,6 +1680,9 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   $("btnAddTemplate").addEventListener("click", btnAddTemplate);
   $("btnExportInspection").addEventListener("click", btnExportInspection);
+
+  $("btnExportBlank").addEventListener("click", btnExportBlank);
+  $("btnUpdateInspection").addEventListener("click", btnUpdateInspection);
   try {
     await loadInspection();
     await loadInspectionItems();

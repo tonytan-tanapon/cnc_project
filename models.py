@@ -833,6 +833,8 @@ class TravelerTemplate(Base):
     materail = Column(String, nullable=True) # type spec
     risk_level = Column(String, nullable=True) # low/medium/high 
 
+    is_latest = Column(Boolean, nullable=False, default=False, index=True)  # 🔥 ใส่ตรงนี้
+
     # relationships
     steps = relationship(
         "TravelerTemplateStep",
@@ -968,23 +970,28 @@ class QAInspectionTemplate(Base):
     part_id = Column(Integer, ForeignKey("parts.id"), nullable=False, index=True)
     rev_id = Column(Integer, ForeignKey("part_revisions.id"), nullable=True, index=True)
 
-    step_code = Column(String, nullable=True)  
-    # optional: ใช้เฉพาะ step (เช่น INSPECT / FINAL)
+    step_code = Column(String, nullable=True)
+    name = Column(String, nullable=False)
 
-    name = Column(String, nullable=False)  
-    # เช่น "IN-PROCESS INSPECTION", "FINAL INSPECTION"
-
-    active = Column(Boolean, nullable=False, default=True)
+    active = Column(Boolean, nullable=False, default=True, index=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    version = Column(Integer, nullable=False)
 
     part = relationship("Part")
-    revision = relationship("PartRevision")
+    part_revision = relationship("PartRevision")
+    is_latest = Column(Boolean, nullable=False, default=False, index=True)  # 🔥 ใส่ตรงนี้
+
     items = relationship(
         "QAInspectionTemplateItem",
         back_populates="template",
         cascade="all, delete-orphan",
         order_by="QAInspectionTemplateItem.seq",
+    )
+
+    # 🔥 เพิ่มตรงนี้
+    __table_args__ = (
+        UniqueConstraint("part_id", "rev_id", "version", name="uq_template_version"),
     )
 
 class QAInspectionTemplateItem(Base):
