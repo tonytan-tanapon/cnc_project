@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
+from sqlalchemy import log
 from sqlalchemy.orm import Session
 from typing import Optional
 from datetime import datetime
@@ -8,7 +9,7 @@ from database import get_db
 from models import ShopTravelerStepLog
 from pydantic import BaseModel
 from datetime import date
-
+from utils.step_utils import calculate_step_status
 from decimal import Decimal
 
 router = APIRouter(prefix="/step-logs", tags=["step-logs"])
@@ -19,29 +20,6 @@ router = APIRouter(prefix="/step-logs", tags=["step-logs"])
 # =======================
 from typing import List
 
-def calculate_step_status(receive, accept, reject, is_first=False):
-    print(f"Calculating status with receive={receive}, accept={accept}, reject={reject}, is_first={is_first}")
-    total = accept + reject
-
-    # 🔥 Step 1 (no input source)
-    if is_first:
-        if accept > 0:
-            return "passed"   # ✅ FIX
-        if total == 0:
-            return "pending"
-        return "pending"
-
-    # 🔥 normal steps
-    if receive == 0 and total == 0:
-        return "pending"
-
-    if total > 0 and total < receive:
-        return "running"
-
-    if receive > 0 and total == receive:
-        return "passed"
-
-    return "pending"
 
 def recalc_step_status(db: Session, step_id: int):
     from models import ShopTravelerStep
@@ -73,7 +51,7 @@ def recalc_step_status(db: Session, step_id: int):
         )
 
         if prev_step:
-            receive = sum((l.qty_accept or 0) + (l.qty_reject or 0) for l in prev_step.logs)
+            receive = sum((l.qty_accept or 0)  for l in prev_step.logs)
         else:
             receive = 0
 
@@ -103,7 +81,9 @@ class StepLogOut(BaseModel):
     machine_id: Optional[int] = None
 
     operator_name: Optional[str] = None
+    operator_nickname: Optional[str] = None
     machine_name: Optional[str] = None
+    note: Optional[str] = None
 
 
     class Config:
@@ -124,6 +104,7 @@ def get_step_logs(
     # 🔥 ADD THIS BLOCK (CRITICAL)
     for log in logs:
         log.operator_name = log.operator.name if log.operator else None
+        log.operator_nickname = log.operator.nickname if log.operator else None
         log.machine_name = log.machine.code if log.machine else None
 
     return logs
@@ -346,11 +327,13 @@ def update_log(log_id: int, payload: dict, db: Session = Depends(get_db)):
         # 🔥 FINAL VALIDATION (CORRECT)
         # =========================
         is_first = step.seq == min(s.seq for s in step.traveler.steps)
-        if not is_first and (total_accept + total_reject > receive):
-            raise HTTPException(
-                400,
-                f"Total Accept + Reject ({total_accept + total_reject}) > Receive ({receive})"
-            )
+
+        #
+        # if not is_first and (total_accept + total_reject > receive):
+        #     raise HTTPException(
+        #         400,
+        #         f"Total Accept + Reject ({total_accept + total_reject}) > Receive ({receive})"
+        #     )
 
         # =========================
         # APPLY UPDATE

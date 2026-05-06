@@ -6,12 +6,8 @@ let activeTarget = null;
 let activeType = null;
 let currentUOM = "pcs";
 let originalValue = null;
-let currentReceive = 0;
 let manualRejectEdit = false; // tracks if user manually edits reject
-let selectedLogDate = null;
-let selectedLogId = null;
-let currentLotId = null;
-let manualRowSelected = false;
+
 let currentStepData = null;   // ✅ FIX สำคัญ
 let currentMachineId = null;
 
@@ -20,24 +16,23 @@ const machineIdFromURL = new URLSearchParams(location.search).get("machine_id");
 const travelerNo = new URLSearchParams(location.search).get("traveler_no");
 const travelerStep = new URLSearchParams(location.search).get("seq");
 const travelerEmp = new URLSearchParams(location.search).get("traveler_emp");
-
+console.log("Traveler No:", travelerNo, travelerStep, travelerEmp);
 
 
 function getLADate() {
-  return new Date()
-    .toLocaleString("sv-SE", {
-      timeZone: "America/Los_Angeles"
-    })
-    .slice(0, 10);
+  const now = new Date();
+
+  const la = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Los_Angeles",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(now);
+
+  return la; // YYYY-MM-DD
 }
 /* ===== KEYPAD CONTROL ===== */
 function showKeypad(target, type) {
-
-  // ⭐ reset old row selection
-  if (!document.querySelector(".active-row")) {
-    selectedLogDate = null;
-  }
-
   // ✅ Prevent tablet keyboard from appearing
   if (document.activeElement && document.activeElement.blur) {
     document.activeElement.blur();
@@ -71,7 +66,7 @@ function showKeypad(target, type) {
   }
 
   document.querySelector("#keypad").style.display = "flex";
-  document.querySelector("#uomLabel").textContent = "PCS";
+  document.querySelector("#uomLabel").textContent = `${currentUOM}`;
 
   const currentVal = activeTarget.textContent.trim() || "0";
   document.querySelector("#keypadDisplay").textContent = currentVal;
@@ -169,13 +164,22 @@ function toastCenter(message, success = true, duration = 1500) {
   }, duration);
 }
 
-
-
 document.addEventListener("DOMContentLoaded", () => {
-
+  // ===== UNIT SELECTION =====
+  document.querySelectorAll(".unit-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document
+        .querySelectorAll(".unit-btn")
+        .forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      currentUOM = btn.dataset.uom;
+      document.querySelector("#uomLabel").textContent = `${currentUOM}`;
+      // toastCenter(`📏 Unit set to ${currentUOM}`, true);
+    });
+  });
 
   // ✅ Default to PCS
-  // document.querySelector('.unit-btn[data-uom="pcs"]').classList.add("active");
+  document.querySelector('.unit-btn[data-uom="pcs"]').classList.add("active");
 
   // ✅ Only show custom keypad (no keyboard)
   document.querySelectorAll(".action-box").forEach((box) => {
@@ -196,32 +200,16 @@ document.addEventListener("DOMContentLoaded", () => {
       showKeypad(target, type);
     });
   });
-  // ===== Backspace button =====
-  document.querySelector(".backspace-btn").addEventListener("click", () => {
-    if (!activeTarget) return;
 
-    let val = activeTarget.textContent.trim();
-
-    // remove last character
-    val = val.slice(0, -1);
-
-    // if empty -> 0
-    if (val === "") val = "0";
-
-    activeTarget.textContent = val;
-    updateDisplay(val);
-  });
   // ===== Keypad numeric keys =====
   document.querySelectorAll(".key").forEach((btn) => {
     btn.addEventListener("click", () => {
       if (!activeTarget) return;
       let val = activeTarget.textContent.trim();
-
-      if (isFirstKeyPress || val === "0") {
+      if (isFirstKeyPress) {
         val = "";
         isFirstKeyPress = false;
       }
-
       val = val + btn.textContent.trim();
       activeTarget.textContent = val;
       updateDisplay(val);
@@ -241,69 +229,55 @@ document.addEventListener("DOMContentLoaded", () => {
   document.querySelector(".ok-btn").addEventListener("click", async () => {
     if (!activeTarget || !activeType) return;
 
+    const val = Number(activeTarget.textContent.trim()) || 0;
+
+    // 🔥 ดึงค่าจริงล่าสุดจาก DB ก่อน
     const stepId = currentStepData?.id;
+
     if (!stepId) {
       toastCenter("Step not ready", false);
       return;
     }
 
-    const val = parseInt(activeTarget.textContent.trim());
-    if (isNaN(val) || val < 0) {
-      toastCenter("Invalid number", false);
-      return;
-    }
+    const logs = await jfetch(`/api/v1/step-logs?step_id=${stepId}`);
+    console.log("STEP ID:", currentStepData?.id);
+
+    const today = getLADate();
+
+    const existing = logs.find(
+      (l) => l.work_date?.slice(0, 10) === today
+    );
+
+    let qty_accept = existing?.qty_accept || 0;
+    let qty_reject = existing?.qty_reject || 0;
+
+    const remark = document.querySelector("#remarkInput")?.value.trim() || "";
+    const operator_code = new URLSearchParams(location.search).get("traveler_emp");
+
+    if (activeType === "accept") qty_accept = val;
+    if (activeType === "reject") qty_reject = val;
 
     try {
-
-
-      // 🔥 LOAD LOGS ONCE
-      const logs = await jfetch(`/api/v1/step-logs?step_id=${stepId}`);
-
-      const targetDate =
-        manualRowSelected
-          ? selectedLogDate
-          : getLADate();
-
-      const existing = logs.find((l) => {
-        const logDate = formatLADate(l.work_date);
-
-        return logDate === targetDate;
-      });
-
-      let qty_accept = existing?.qty_accept || 0;
-      let qty_reject = existing?.qty_reject || 0;
-
-      // 🔥 APPLY CHANGE
-      if (activeType === "accept") qty_accept = val;
-      if (activeType === "reject") qty_reject = val;
-
-      // 🔥 VALIDATION (IMPORTANT)
-      const receive = currentReceive;
-
-      const old_accept = existing?.qty_accept || 0;
-      const old_reject = existing?.qty_reject || 0;
-
-      // remove old value first
-
-      const new_total =
-        (qty_accept + qty_reject) - (old_accept + old_reject);
-
-      const current_total = old_accept + old_reject;
-
-      if (current_total + new_total > receive) {
-        toastCenter("❌ Accept + Reject > Receive", false);
-        // return;
-      }
-
-      const remark = document.querySelector("#remarkInput")?.value.trim() || "";
-
       let operator_id = null;
-      if (travelerEmp) {
-        const emp = await jfetch(`/api/v1/employees/by-code/${travelerEmp}`);
+      if (operator_code) {
+        const emp = await jfetch(`/api/v1/employees/by-code/${operator_code}`);
         operator_id = emp?.id || null;
       }
 
-      // 🔥 SAVE
+      const stepId = currentStepData?.id;
+
+      if (!stepId) {
+        toastCenter("No active step found", false);
+        return;
+      }
+
+      const today = getLADate();
+      const logs = await jfetch(`/api/v1/step-logs?step_id=${stepId}`);
+
+      const existing = logs.find(
+        (l) => l.work_date?.slice(0, 10) === today
+      );
+
       if (existing) {
         await jfetch(`/api/v1/step-logs/${existing.id}`, {
           method: "PATCH",
@@ -316,11 +290,13 @@ document.addEventListener("DOMContentLoaded", () => {
           }),
         });
       } else {
+        const today = getLADate();
+
         await jfetch(`/api/v1/step-logs`, {
           method: "POST",
           body: JSON.stringify({
             step_id: stepId,
-            work_date: targetDate,
+            work_date: today,          // ⭐ FIX สำคัญ
             qty_accept,
             qty_reject,
             operator_id,
@@ -331,24 +307,8 @@ document.addEventListener("DOMContentLoaded", () => {
       }
 
       toastCenter(`💾 Saved ${activeType} = ${val}`, true);
-      console.log("Updating lot status for:", currentLotId);
-      // ⭐ UPDATE LOT STATUS
-      if (currentLotId) {
-        await jfetch(`/api/v1/lots/${currentLotId}/status`, {
-          method: "PUT",
-          body: JSON.stringify({
-            status: "in_process"
-          })
-        });
-        console.log("Lot status updated to in_process");
-      }
-
-
-
-
+      setTimeout(loadOperation, 500);
       hideKeypad();
-
-      setTimeout(loadOperation, 300);
 
     } catch (err) {
       console.error("❌ ERROR", err);
@@ -369,11 +329,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const data = await jfetch(`/api/v1/travelers/by_no/${travelerNo}${qs}`);
 
-      currentLotId = data.lot_id;
-      console.log("✅ Lot ID loaded:", currentLotId);
-
-
-
       // 🔥 FIX: ใช้ตัวเดียว
       const stepId = currentStepData?.id || data?.active_step?.id;
 
@@ -384,18 +339,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const remark = document.querySelector("#remarkInput").value.trim();
 
-
       const logs = await jfetch(`/api/v1/step-logs?step_id=${stepId}`);
-      const targetDate =
-        manualRowSelected
-          ? selectedLogDate
-          : getLADate();
+      const today = getLADate();
 
-      const existing = logs.find((l) => {
-        const logDate = formatLADate(l.work_date);
-
-        return logDate === targetDate;
-      });
+      const existing = logs.find(
+        (l) => l.work_date?.slice(0, 10) === today
+      );
 
       const qty_accept = existing?.qty_accept || 0;
       const qty_reject = existing?.qty_reject || 0;
@@ -417,7 +366,6 @@ document.addEventListener("DOMContentLoaded", () => {
           method: "POST",
           body: JSON.stringify({
             step_id: stepId,
-            work_date: targetDate,
             qty_accept,
             qty_reject,
             note: remark || "",
@@ -426,7 +374,6 @@ document.addEventListener("DOMContentLoaded", () => {
       }
 
       toastCenter("💬 Remark saved", true);
-
       setTimeout(loadOperation, 400);
 
     } catch (err) {
@@ -457,15 +404,11 @@ document.querySelector("#remarkInput").addEventListener("input", () => {
       const logs = await jfetch(`/api/v1/step-logs?step_id=${stepId}`);
 
       // 🔥 FIX DATE
-      const targetDate =
-        manualRowSelected
-          ? selectedLogDate
-          : getLADate();
+      const today = getLADate();
 
-      const existing = logs.find((l) => {
-        const logDate = formatLADate(l.work_date);
-        return logDate === targetDate;
-      });
+      const existing = logs.find(
+        (l) => l.work_date?.slice(0, 10) === today
+      );
 
       if (existing) {
         await jfetch(`/api/v1/step-logs/${existing.id}`, {
@@ -479,7 +422,6 @@ document.querySelector("#remarkInput").addEventListener("input", () => {
           method: "POST",
           body: JSON.stringify({
             step_id: stepId,
-            work_date: targetDate,
             note: remark || "",
           }),
         });
@@ -507,57 +449,12 @@ function getFirstActiveStatus(steps) {
 
   return firstActive.status;
 }
-
-function formatLADate(date) {
-  if (!date) return "";
-
-  // ✅ already YYYY-MM-DD
-  if (typeof date === "string" && date.length >= 10) {
-    return date.slice(0, 10);
-  }
-
-  return new Date(date)
-    .toLocaleString("sv-SE", {
-      timeZone: "America/Los_Angeles"
-    })
-    .slice(0, 10);
-}
-
-
 /* ===== LOAD CURRENT STEP ===== */
-function getTodayLog(logs) {
-  const today = getLADate();
-
-  return logs.find(
-    l => l.work_date && formatLADate(l.work_date) === today
-  );
-}
-
-function calcReceive(step, steps, allLogs, todayAccept, todayReject) {
-  // STEP 1
-  if (step.seq === 1) {
-    return todayAccept + todayReject;
-  }
-
-  const prevStep = steps
-    ?.filter(s => s.seq < step.seq)
-    .sort((a, b) => b.seq - a.seq)[0];
-
-  if (!prevStep?.id) return 0;
-
-  const prevLogs = allLogs[prevStep.id] || [];
-
-  return prevLogs.reduce(
-    (sum, l) => sum + (Number(l.qty_accept || 0) + Number(l.qty_reject || 0)),
-    0
-  );
-}
-
-
 async function loadOperation() {
 
+
   // =========================
-  // MACHINE
+  // ✅ MACHINE FROM LANDING ONLY
   // =========================
   let machineText = "-";
 
@@ -566,8 +463,11 @@ async function loadOperation() {
 
     try {
       const m = await jfetch(`/api/v1/machines/${currentMachineId}`);
+
       machineText = m.name || m.code || currentMachineId;
-    } catch {
+
+    } catch (err) {
+      console.error("machine fetch error", err);
       machineText = currentMachineId;
     }
   }
@@ -576,295 +476,155 @@ async function loadOperation() {
     "Machine: " + machineText;
 
   try {
-    const qs = travelerStep ? `?seq=${encodeURIComponent(travelerStep)}` : "";
+    const travelerStep = new URLSearchParams(location.search).get("seq");
+    const qs =
+      travelerStep !== null ? `?seq=${encodeURIComponent(travelerStep)}` : "";
+
+    // 🔥 เพิ่มบรรทัดนี้
     const data = await jfetch(`/api/v1/travelers/by_no/${travelerNo}${qs}`);
 
-    currentLotId = data.lot_id;
-    console.log("✅ currentLotId loaded:", currentLotId);
 
-    // ⭐ SHOW LOT + PART (CORRECT PLACE)
-    document.querySelector("#lot_no").textContent =
-      `Lot: ${data.lot?.lot_no || "-"}`;
-
-    document.querySelector("#part_no").textContent =
-      `Part: ${data.lot?.part?.part_no || "-"}`;
-
-    document.querySelector("#part_rev").textContent =
-      `Rev: ${data.lot?.part?.part_rev || "-"}`;
-
+    console.log("🔥 FULL DATA:", data);
     if (!data) return;
 
-    // =========================
-    // 🔥 OP LIST (INSIDE loadOperation)
-    // =========================
-    const opListEl = document.querySelector("#op_list");
-
-    if (opListEl) {
-      opListEl.innerHTML = "";
-
-      const steps = data.steps || [];
-
-      steps.forEach((s) => {
-        const div = document.createElement("div");
-
-        div.className = "op-item";
-
-        if (Number(s.seq) === Number(travelerStep)) {
-          div.classList.add("active");
-        }
-
-        div.style.borderLeft = `10px solid ${statusColor(s.status)}`;
-
-        div.innerHTML = `
-  <div style="font-size:25px;font-weight:700;">${s.step_code}</div>
- </div>
-`;
-
-        div.onclick = () => {
-          location.href =
-            `/static/ui-traveler.html?traveler_no=${encodeURIComponent(travelerNo)}`
-            + `&seq=${encodeURIComponent(s.seq)}`
-            + `&traveler_emp=${encodeURIComponent(travelerEmp)}`
-            + `&machine_id=${currentMachineId}`;
-        };
-
-        opListEl.appendChild(div);
-      });
-    }
-    // =========================
-    // STEP
-    // =========================
     let step = data.active_step || {};
+    currentStepData = step;   // ⭐ FIX ตัวนี้
 
-    if (!step.id && data.steps?.length) {
-      step = data.steps.find(s => s.seq == travelerStep) || data.steps[0];
+    if (data.steps && step.id) {
+      const full = data.steps.find((s) => s.id === step.id);
+      if (full) step = { ...step, ...full };
     }
 
-    currentStepData = step;
+    const receive = step.qty_receive ?? 0;
+    const accept = step.qty_accept ?? 0;
+    const reject = step.qty_reject ?? 0;
 
-    // =========================
-    // 🔥 LOAD ALL LOGS (KEY FIX)
-    // =========================
-    const allLogs = {};
-
-    for (const s of data.steps || []) {
-      if (s.id) {
-        allLogs[s.id] = await jfetch(`/api/v1/step-logs?step_id=${s.id}`);
-      }
-    }
-
-    const logs = allLogs[step.id] || [];
-
-    const todayLog = getTodayLog(logs);
-    const activeLog = selectedLogDate
-      ? logs.find(l =>
-        formatLADate(l.work_date) === selectedLogDate
-      )
-      : getTodayLog(logs);
-
-    const today = getLADate();
-
-    // =========================
-    // LEFT SIDE (TODAY)
-    // =========================
-    const accept = activeLog?.qty_accept || 0;
-    const reject = activeLog?.qty_reject || 0;
-
-    document.querySelector("#acceptQty").textContent = parseInt(accept || 0);
-    document.querySelector("#rejectQty").textContent = parseInt(reject || 0);
-
-    // =========================
-    // RECEIVE (FIXED)
-    // =========================
-    const stepData = data.steps.find(s => s.id === step.id) || {};
-    // console.log("Current Step Data:", stepData);
-
-
-    const receive = stepData.qty_receive || 0;
-    const remain = stepData.qty_remain || 0;
-
-    currentReceive = receive;
+    const remain = receive - (accept + reject);
 
     const el = document.querySelector("#remainText");
+
     if (el) {
       el.textContent = `Remain/Receive : ${remain} / ${receive}`;
-      el.style.color = remain === 0 ? "#16a34a" : "#dc2626";
-    }
 
-    // =========================
-    // 🔥 TOTAL (ADD HERE)
-    // =========================
-    const totalAccept = stepData.qty_accept || 0;
-    const totalReject = stepData.qty_reject || 0;
-
-    const elTotalAccept = document.querySelector("#totalAccept");
-    const elTotalReject = document.querySelector("#totalReject");
-
-    if (elTotalAccept) elTotalAccept.textContent = parseInt(totalAccept || 0);
-    if (elTotalReject) elTotalReject.textContent = parseInt(totalReject || 0);
-
-    // =========================
-    // RIGHT SIDE TABLE
-    // =========================
-    const tbody = document.querySelector("#logTable tbody");
-
-    if (tbody) {
-      tbody.innerHTML = "";
-
-      if (logs.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" style="color:#999">No data</td></tr>`;
+      if (remain === 0) {
+        el.style.color = "#16a34a";
       } else {
-        const totalAccept = logs.reduce(
-          (sum, l) => sum + Number(l.qty_accept || 0),
-          0
-        );
-
-        const totalReject = logs.reduce(
-          (sum, l) => sum + Number(l.qty_reject || 0),
-          0
-        );
-
-        logs
-          .sort((a, b) => new Date(b.work_date) - new Date(a.work_date))
-          .forEach((l) => {
-
-            const tr = document.createElement("tr");
-
-            const logDate = formatLADate(l.work_date);
-            const today = getLADate();
-
-            // ⭐ highlight on load
-            if (
-              selectedLogDate === logDate ||
-              (!selectedLogDate && logDate === today)
-            ) {
-              tr.classList.add("active-row");
-            }
-            tr.style.cursor = "pointer";
-
-            tr.onclick = () => {
-              manualRowSelected = true;
-              selectedLogDate = formatLADate(l.work_date);
-
-              // remove old
-              document.querySelectorAll("#logTable tbody tr")
-                .forEach(r => r.classList.remove("active-row"));
-
-              // add new
-              tr.classList.add("active-row");
-
-              document.querySelector("#acceptQty").textContent =
-                parseInt(l.qty_accept || 0);
-
-              document.querySelector("#rejectQty").textContent =
-                parseInt(l.qty_reject || 0);
-
-              // ✅ FIX REMARK
-              document.querySelector("#remarkInput").value =
-                l.note || "";
-
-              toastCenter(`Editing ${selectedLogDate}`, true);
-            };
-
-            tr.innerHTML = `
-      <td>
-  ${l.work_date
-                ? new Date(l.work_date).toLocaleDateString("en-US", {
-                  timeZone: "America/Los_Angeles",
-                  month: "2-digit",
-                  day: "2-digit",
-                  year: "2-digit",
-                })
-                : "-"
-              }
-</td>
-      <td>${parseInt(l.qty_accept || 0)}</td>
-      <td>${parseInt(l.qty_reject || 0)}</td>
-      <td>${l.operator_nickname || l.operator_name || "-"}</td>
-      <td>${l.machine_name || "-"}</td>
-    `;
-
-            tbody.appendChild(tr);
-          });
-
-        // 🔥 ADD TOTAL ROW HERE
-        const totalRow = document.createElement("tr");
-
-        totalRow.innerHTML = `
-  <td style="font-weight:700;">Total</td>
-  <td style="font-weight:700; color:#16a34a;">${parseInt(totalAccept || 0)}</td>
-<td style="font-weight:700; color:#ef4444;">${parseInt(totalReject || 0)}</td>
-  <td></td>
-  <td></td>
-`;
-
-        totalRow.style.background = "#f9fafb";
-        totalRow.style.borderTop = "2px solid #111";
-
-        tbody.appendChild(totalRow);
+        el.style.color = "#dc2626";
       }
     }
-
     // =========================
-    // REMARK
+    // 🔥 LOAD REMARK FROM STEP LOG (TODAY)
     // =========================
+    if (step.id) {
+      const logs = await jfetch(`/api/v1/step-logs?step_id=${step.id}`);
 
+      const today = getLADate();
 
-    let currentRemark = "";
+      const todayLog = logs.find(
+        (l) => l.work_date?.slice(0, 10) === today
+      );
 
-    if (selectedLogDate) {
-      
-
-      const selectedLog = logs.find(l => {
-        const logDate = formatLADate(l.work_date);
-
-
-
-
-        return logDate === selectedLogDate;
-      });
-
-      currentRemark = selectedLog?.note || "";
-    } else {
-      currentRemark = todayLog?.note || step.note || "";
+      document.querySelector("#remarkInput").value =
+        todayLog?.note || step.note || "";
     }
+    // =========================
+    // 🔥 LOAD REMARK FROM STEP LOG (TODAY)
+    // =========================
 
-
-    document.querySelector("#remarkInput").value = currentRemark;
 
     // =========================
     // OPERATOR
     // =========================
     const operator = step.operator || {};
+    const emp_op = operator.emp_op || "—";
+    const nickname = operator.nickname || "—";
 
-    document.querySelector("#operatorName").textContent =
-      `Operator:  (${operator.nickname || "—"})`;
+    currentUOM = step.uom || "pcs";
 
-    // document.querySelector("#loginOP").textContent =
-    //   `Login: ${travelerEmp}`;
+    const opLabel = step.seq ? `OP#${step.seq}` : "-";
+    const step_list = data.steps || [];
+
+    let op_status;
+    if (travelerStep) {
+      op_status = step.status || "pending";
+    } else {
+      op_status = getFirstActiveStatus(step_list);
+    }
 
     // =========================
-    // STATUS
+    // UI
     // =========================
-    const op_status = travelerStep
-      ? step.status
-      : getFirstActiveStatus(data.steps);
+    const opListEl = document.querySelector("#op_list");
+    opListEl.innerHTML = "";
+
+    const header = document.createElement("div");
+    header.className = "op-item header";
+    header.innerHTML = `<div style="font-weight:700;">OP</div>`;
+    opListEl.appendChild(header);
+
+    step_list.forEach((s) => {
+      const div = document.createElement("div");
+      div.className = "op-item";
+      div.style.borderLeft = `6px solid ${statusColor(s.status)}`;
+
+      if (Number(s.seq) === Number(travelerStep)) {
+        div.classList.add("active");
+      }
+
+      div.innerHTML = `<div style="font-weight:700;">${s.seq}</div>`;
+
+      // 🔥 IMPORTANT: carry machine_id forward
+      div.onclick = () => {
+        location.href =
+          `/static/ui-traveler.html?traveler_no=${encodeURIComponent(data.traveler_no)}`
+          + `&seq=${encodeURIComponent(s.seq)}`
+          + `&traveler_emp=${encodeURIComponent(travelerEmp)}`
+          + `&machine_id=${currentMachineId}`;
+      };
+
+      opListEl.appendChild(div);
+    });
+
+    document.querySelector("#opCode").textContent = opLabel;
 
     const opStatusEl = document.querySelector("#op_status");
-    opStatusEl.textContent = "status: " + op_status;
+    opStatusEl.textContent = op_status;
+    opStatusEl.style.display = "inline-block";
+    opStatusEl.style.padding = "6px 14px";
+    opStatusEl.style.borderRadius = "999px";
+    opStatusEl.style.fontWeight = "700";
+    opStatusEl.style.fontSize = "14px";
     opStatusEl.style.backgroundColor = statusColor(op_status);
+    opStatusEl.style.color = "#fff";
 
-    document.querySelector("#opName").textContent =
-      step.step_name || "-";
+    document.querySelector("#opName").textContent = step.step_name || "-";
+    document.querySelector("#loginOP").textContent = `Login: ${travelerEmp}`;
+    document.querySelector("#operatorName").textContent =
+      `Operator: ${emp_op} (${nickname})`;
 
-    document.querySelector("#opCode").textContent =
-      step.seq ? `OP#${step.step_code}` : "-";
+    // ✅ MACHINE DISPLAY (FINAL)
+    document.querySelector("#machinename").textContent =
+      "Machine: " + machineText;
+
+    // document.querySelector("#receiveQty").textContent =
+    //   step.qty_receive ?? 0;
+
+    document.querySelector("#acceptQty").textContent =
+      step.qty_accept ?? 0;
+
+    document.querySelector("#rejectQty").textContent =
+      step.qty_reject ?? 0;
+
+
+    //     document.querySelector("#remainQty").textContent =
+    // step.qty_remain ?? 0;
 
   } catch (err) {
     console.error("❌ loadOperation failed", err);
     toast(err.message || "Load failed", false);
   }
 }
+
 
 function statusColor(status) {
   return (
@@ -877,10 +637,6 @@ function statusColor(status) {
     }[status] || "#6b7280"
   );
 }
-
-
-
-
 /* ===== SCANNER INPUT HANDLING ===== */
 let typingTimer;
 const doneTypingInterval = 200;
@@ -956,17 +712,9 @@ async function handleInput() {
     input.value = "";
     input.focus();
   }, doneTypingInterval);
-
-
 }
 window.handleInput = handleInput;
 
 window.showKeypad = showKeypad;
 window.activeType = activeType;
 window.activeTarget = activeTarget;
-
-
-document.getElementById("exitBtn").onclick = () => {
-  window.location.href = "/static/ui-traveler-landing.html";
-  // 🔁 change to your main page
-};

@@ -72,11 +72,10 @@
     }
 
     .action-inputs {
-      display: flex;
-      width: 100%;
-      gap: 12px;
-      /* ลด gap */
-    }
+  display: flex;
+  width: 100%;
+  gap: 12px;              /* ลด gap */
+}
 
     .action-box {
       background: var(--panel);
@@ -91,13 +90,10 @@
     }
 
     .action-box {
-      flex: 1;
-      /* ⭐ สำคัญ */
-      height: 160px;
-      /* ⭐ สูงขึ้น */
-      justify-content: center;
-    }
-
+  flex: 1;               /* ⭐ สำคัญ */
+  height: 160px;         /* ⭐ สูงขึ้น */
+  justify-content: center;
+}
     .remain-text {
       margin-top: 10px;
       text-align: center;
@@ -109,8 +105,7 @@
 
 
     .qty-display {
-      font-size: 42px;
-      /* ⭐ ใหญ่ขึ้น */
+      font-size: 42px;       /* ⭐ ใหญ่ขึ้น */
       text-align: center;
       font-weight: 800;
       padding: 12px;
@@ -408,286 +403,152 @@
     }
 
     /* ===== ACCEPT (GREEN) ===== */
-    .action-box[data-type="accept"] {
-      background: #dcfce7;
-      /* เขียวอ่อน */
-      border: 2px solid #22c55e;
-    }
-
-    .action-box[data-type="accept"] .qty-display {
-      background: #22c55e;
-      /* เขียวเข้ม */
-      color: #fff;
-    }
-
-    /* ===== REJECT (RED) ===== */
-    .action-box[data-type="reject"] {
-      background: #fee2e2;
-      /* แดงอ่อน */
-      border: 2px solid #ef4444;
-    }
-
-    .action-box[data-type="reject"] .qty-display {
-      background: #ef4444;
-      /* แดงเข้ม */
-      color: #fff;
-    }
-
-    .action-box:active {
-      transform: scale(0.96);
-      box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.2);
-    }
-
-    .action-box:hover {
-      filter: brightness(0.95);
-    }
-
-    .action-layout {
-      display: flex;
-      gap: 16px;
-    }
-
-    /* LEFT */
-    .action-left {
-      width: 400px;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-
-    /* RIGHT */
-    .log-table {
-      flex: 1;
-      background: white;
-      border-radius: 6px;
-      padding: 10px;
-      overflow-y: auto;
-      max-height: 260px;
-    }
-
-    /* TABLE */
-    #logTable {
-      width: 100%;
-      border-collapse: collapse;
-    }
-
-    #logTable th,
-    #logTable td {
-      border: 1px solid #e5e7eb;
-      padding: 6px;
-      text-align: center;
-    }
-
-    #logTable th {
-      background: #f3f4f6;
-      font-weight: 600;
-    }
-
-    .op-item {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-
-      padding: 12px 8px;
-      margin-bottom: 6px;
-
-      background: #fff;
-      border-radius: 8px;
-
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-
-    .op-item:hover {
-      background: #f3f4f6;
-      transform: scale(1.05);
-    }
-
-    .op-item.active {
-      background: #2563eb;
-      color: white;
-    }
-
-    .active-row {
-      background: #dbeafe;
-    }
-
-    .op {
-      font-weight: 700;
-      font-size: 28px;
-      /* 🔥 increase this */
-    }
-
-    #exitBtn {
-  background: #ef4444;   /* red */
-  color: white;
-  border: none;
-  border-radius: 6px;
-  padding: 6px 12px;
-  font-size: 14px;
-  cursor: pointer;
-  font-weight: 600;
+.action-box[data-type="accept"] {
+  background: #dcfce7;           /* เขียวอ่อน */
+  border: 2px solid #22c55e;
 }
 
-#exitBtn:hover {
-  background: #dc2626;
+.action-box[data-type="accept"] .qty-display {
+  background: #22c55e;           /* เขียวเข้ม */
+  color: #fff;
 }
 
-.backspace-btn {
-  background: #e5e7eb;
-  border: none;
-  border-radius: var(--radius);
-  height: 70px;
-  font-weight: 700;
-  font-size: 20px;
-  cursor: pointer;
+/* ===== REJECT (RED) ===== */
+.action-box[data-type="reject"] {
+  background: #fee2e2;           /* แดงอ่อน */
+  border: 2px solid #ef4444;
+}
+
+.action-box[data-type="reject"] .qty-display {
+  background: #ef4444;           /* แดงเข้ม */
+  color: #fff;
+}
+
+.action-box:active {
+  transform: scale(0.96);
+  box-shadow: inset 0 0 10px rgba(0,0,0,0.2);
+}
+.action-box:hover {
+  filter: brightness(0.95);
 }
   </style>
 </head>
 
-
 <body>
-  <!-- ===== MAIN LAYOUT ===== -->
-  <div class="layout">
 
-    <!-- ===== LEFT : OP LIST ===== -->
-    <aside class="op-list" id="op_list">
-      <!-- ❗ JS จะ inject OP item ที่นี่ -->
-    </aside>
+  <body>
 
-    <!-- ===== RIGHT : OPERATION PANEL (ของเดิม) ===== -->
-    <main class="wrap">
+    <!-- ===== MAIN LAYOUT ===== -->
+    <div class="layout">
 
-      <div class="note">
-        <div class="note-header">
-          <div class="op" id="opCode"></div>
-          <div class="loginOP" id="loginOP"></div>
-          <div class="lot_no" id="lot_no"></div>
-          <div class="part_no" id="part_no"></div>
-          <div class="part_rev" id="part_rev"></div>
-          <div class="op_status" id="op_status"></div>
-          <div class="manchine" id="machinename"></div>
-          <div class="operator" id="operatorName"></div>
+      <!-- ===== LEFT : OP LIST ===== -->
+      <aside class="op-list" id="op_list">
+        <!-- ❗ JS จะ inject OP item ที่นี่ -->
+      </aside>
 
-          <div style="display:flex; align-items:center; gap:10px;">
+      <!-- ===== RIGHT : OPERATION PANEL (ของเดิม) ===== -->
+      <main class="wrap">
 
-            <button id="exitBtn">Exit</button>
+        <div class="note">
+          <div class="note-header">
+            <div class="op" id="opCode"></div>
+            <div class="loginOP" id="loginOP"></div>
+            <div class="lot_no" id="lot_no"></div>
+            <div class="part_no" id="part_no"></div>
+            <div class="op_status" id="op_status"></div>
+            <div class="manchine" id="machinename"></div>
+            <div class="operator" id="operatorName"></div>
           </div>
+
+          <div class="title" id="opName"></div>
         </div>
+        <!-- 🔥 TEXT ONLY -->
+        <div class="remain-text" id="remainText">
+          Remain/Receive : 0 / 0
+        </div>
+        <div class="action-inputs">
 
-        <div class="title" id="opName"></div>
-      </div>
-      <!-- 🔥 TEXT ONLY -->
-      <div class="remain-text" id="remainText">
-        Remain/Receive : 0 / 0
-      </div>
-
-
-
-      <div class="action-layout">
-
-        <!-- LEFT SIDE -->
-        <div class="action-left">
+          <!-- 🔼 TOP -->
           <div class="action-box" data-type="accept">
             <div class="action-title">Accept</div>
-            <div class="qty-display" id="acceptQty">0</div>
+            <div class="action-value">
+              <div class="qty-display" id="acceptQty">0</div>
+              <div class="uom">Pcs</div>
+            </div>
           </div>
 
           <div class="action-box" data-type="reject">
             <div class="action-title">Reject</div>
-            <div class="qty-display" id="rejectQty">0</div>
-          </div>
-        </div>
-
-        <!-- RIGHT SIDE -->
-        <div class="log-table">
-          <table id="logTable">
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Accept</th>
-                <th>Reject</th>
-                <th>Operator</th>
-                <th>Machine</th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
-
-          <!-- 🔥 TOTAL UNDER TABLE -->
-          <div style="
-    margin-top:10px;
-    padding-top:8px;
-    border-top:2px solid #e5e7eb;
-    font-size:16px;
-    font-weight:600;
-    display:flex;
-    justify-content:space-between;
-  ">
-
+            <div class="action-value">
+              <div class="qty-display" id="rejectQty">0</div>
+              <div class="uom">Pcs</div>
+            </div>
           </div>
 
         </div>
 
-      </div>
-
-      <div class="remarks">
-        <label for="remarkInput">Remarks</label>
-        <textarea id="remarkInput" placeholder="Add notes..."></textarea>
-      </div>
-
-      <button class="confirm-btn" id="btnConfirm">Confirm</button>
-
-    </main>
-  </div>
 
 
-  <!-- Keypad -->
-  <div class="keypad-overlay" id="keypad">
 
-    <!-- ✅ Add this label -->
+        <div class="remarks">
+          <label for="remarkInput">Remarks</label>
+          <textarea id="remarkInput" placeholder="Add notes..."></textarea>
+        </div>
 
+        <button class="confirm-btn" id="btnConfirm">Confirm</button>
 
-    <!-- existing display + unit row -->
-    <div class="keypad-header">
-      <div id="keypadTypeLabel">—</div>
-      <div id="keypadDisplay">0</div>
-      <div id="uomLabel">Unit: pcs</div>
+      </main>
     </div>
 
-    <div class="pad-container">
-      <!-- ✅ Number pad on LEFT -->
-      <div class="pad">
-        <button class="key">7</button>
-        <button class="key">8</button>
-        <button class="key">9</button>
-        <button class="key">4</button>
-        <button class="key">5</button>
-        <button class="key">6</button>
-        <button class="key">1</button>
-        <button class="key">2</button>
-        <button class="key">3</button>
-        <button class="backspace-btn">⌫</button>
-        <button class="key">0</button>
-        <button class="key-wide">Clear</button>
+
+    <!-- Keypad -->
+    <div class="keypad-overlay" id="keypad">
+
+      <!-- ✅ Add this label -->
+
+
+      <!-- existing display + unit row -->
+      <div class="keypad-header">
+        <div id="keypadTypeLabel">—</div>
+        <div id="keypadDisplay">0</div>
+        <div id="uomLabel">Unit: pcs</div>
       </div>
 
-      <!-- ✅ Unit selector on RIGHT -->
-     
+      <div class="pad-container">
+        <!-- ✅ Number pad on LEFT -->
+        <div class="pad">
+          <button class="key">7</button>
+          <button class="key">8</button>
+          <button class="key">9</button>
+          <button class="key">4</button>
+          <button class="key">5</button>
+          <button class="key">6</button>
+          <button class="key">1</button>
+          <button class="key">2</button>
+          <button class="key">3</button>
+          <button class="key">0</button>
+          <button class="key-wide">Clear</button>
+        </div>
+
+        <!-- ✅ Unit selector on RIGHT -->
+        <div class="unit-select">
+          <button class="unit-btn" data-uom="pcs">PCS</button>
+          <button class="unit-btn" data-uom="inch">INCH</button>
+          <button class="unit-btn" data-uom="mm">MM</button>
+        </div>
+      </div>
+
+      <div class="pad-footer">
+        <button class="ok-btn">OK</button>
+        <button class="close-btn">Close</button>
+      </div>
     </div>
 
-    <div class="pad-footer">
-      <button class="ok-btn">OK</button>
-      <button class="close-btn">Close</button>
-    </div>
-  </div>
-
-  <script type="module" src="/static/ui-traveler.js"></script>
-  </script>
+    <script type="module" src="/static/ui-traveler.js?v="+Date.now()+"></script>
+    </script>
 
 
 
-</body>
+  </body>
 
 </html>

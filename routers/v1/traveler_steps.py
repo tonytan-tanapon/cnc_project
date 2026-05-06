@@ -6,6 +6,8 @@ from typing import List, Optional
 from decimal import Decimal
 from database import get_db
 from models import ShopTravelerStep, ShopTraveler, Employee
+
+from utils.step_utils import calculate_step_status
 from schemas import (
     ShopTravelerStepCreate, ShopTravelerStepUpdate, ShopTravelerStepOut
 )
@@ -57,7 +59,7 @@ def create_traveler_step(payload: ShopTravelerStepCreate, db: Session = Depends(
 
 @router.get("", response_model=List[dict])
 def list_traveler_steps(traveler_id: Optional[int] = None, db: Session = Depends(get_db)):
-
+    
     try:
         from sqlalchemy.orm import joinedload
 
@@ -90,6 +92,8 @@ def list_traveler_steps(traveler_id: Optional[int] = None, db: Session = Depends
             else:
                 receive = prev_accept or 0
 
+            remain = receive - total_accept - total_reject
+  
 
             is_first = (i == 0)
 
@@ -99,7 +103,7 @@ def list_traveler_steps(traveler_id: Optional[int] = None, db: Session = Depends
                 total_reject,
                 is_first
             )
-            print(f"Step {step.id} - receive: {receive}, accept: {total_accept}, reject: {total_reject} => status: {status}")
+            # print(f"Step {step.id} - receive: {receive}, accept: {total_accept}, reject: {total_reject} => status: {status}")
             result.append({
                 "id": step.id,
                 "traveler_id": step.traveler_id,
@@ -124,6 +128,7 @@ def list_traveler_steps(traveler_id: Optional[int] = None, db: Session = Depends
                 "total_receive": receive,
                 "total_accept": total_accept,
                 "total_reject": total_reject,
+                "total_remain": remain,   # 🔥 ADD THIS
 
                 "supplier_po": step.supplier_po,
                 "supplier_name": step.supplier_name,
@@ -647,7 +652,7 @@ def update_shipment_from_ui(payload: dict, db: Session = Depends(get_db)):
 
 def calculate_step_status(receive, accept, reject, is_first):
     total = accept + reject
-
+    # print(f"Calculating status - receive: {receive}, accept: {accept}, reject: {reject}, total: {total}, is_first: {is_first}")
     # Step 1 (no planned_qty)
     if is_first:
         if accept > 0:
@@ -665,5 +670,8 @@ def calculate_step_status(receive, accept, reject, is_first):
 
     if receive > 0 and total == receive:
         return "passed"
+    
+    # if receive < 0 and total >= receive:
+    #     return "passed"
 
     return "pending"

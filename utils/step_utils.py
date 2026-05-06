@@ -19,5 +19,8 @@ def calculate_step_status(receive, accept, reject, is_first):
 
     if receive > 0 and total == receive:
         return "passed"
+    
+    if receive > 0 and total > receive:
+        return "passed"
 
     return "pending"
