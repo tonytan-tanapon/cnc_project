@@ -111,6 +111,7 @@ function ensureHeaderButtons() {
   btnHdrSave.textContent = "💾 Save";
   btnHdrSave.style.display = "none";
   btnHdrSave.onclick = async () => {
+    await savePartRevisionMaterial();
     await saveLot();        // 🔥 save lot fields
     await saveTraveler();   // existing logic
   };
@@ -133,6 +134,26 @@ function ensureHeaderButtons() {
   titleRow.appendChild(wrap);
 
   console.log("✅ Header buttons added");
+}
+
+async function savePartRevisionMaterial() {
+
+  const revId = originalTraveler?.part_revision_id;
+
+  if (!revId) return;
+
+  await jfetch(
+    `/parts/part-revision/${revId}/material`,
+    {
+      method: "PUT",
+
+      body: JSON.stringify({
+        material: strOrNull(
+          $("material")?.value
+        ),
+      }),
+    }
+  );
 }
 
 async function saveLot() {
@@ -179,6 +200,7 @@ function wireHeaderDirtyOnly() {
     "notes",
     "lot_po_qty",
     "lot_planned_qty",
+    "material",
     "lot_release_date",     // 🔥 add
     "lot_po_duedate"        // 🔥 add
   ].forEach((id) => {
@@ -266,6 +288,9 @@ async function fillTraveler(t) {
   // ---------- Basic fields ----------
   // $("status").value = t.status ?? "";
   $("notes").value = t.notes ?? "";
+  $("material").value =
+  t.lot?.part_revision?.material ??
+  "";
 
   $("t_sub").textContent = `#${t.traveler_no}`;
   const badge = $("latestBadge");
@@ -358,10 +383,11 @@ async function loadTraveler() {
   try {
     setBusyT(true);
     let t = null;
-
+    console.log("Loading traveler with travelerId:", travelerId, "or lotId:", lotId);
     if (travelerId) {
       // Normal case
       t = await jfetch(`/travelers/${encodeURIComponent(travelerId)}`);
+      console.log("Fetched traveler by ID:", t);  
     } else if (lotId) {
       // Find by lot_id
       const list = await jfetch(

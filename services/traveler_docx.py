@@ -50,7 +50,11 @@ def replace_placeholder_fuzzy(paragraph, placeholder, value):
     if not re.search(pattern, full_text):
         return
 
-    new_text = re.sub(pattern, str(value), full_text)
+    new_text = re.sub(
+    pattern,
+    str(value).upper(),
+    full_text
+)
 
     for run in paragraph.runs:
         run.text = ""
@@ -151,6 +155,7 @@ def generate_traveler_from_db(template_path, data: dict, output_path):
         "{{release}}": data["header"]["release_date"],
         "{{material_detail}}": data["header"]["material_detail"],
     }
+
 
     replace_header(doc, header_map)
     replace_body_fuzzy(doc, header_map)

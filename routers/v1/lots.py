@@ -311,7 +311,8 @@ def get_lot(lot_id: int, db: Session = Depends(get_db)):
         } if lot.part else None,
 
         "part_revision": {
-            "rev": lot.part_revision.rev
+            "rev": lot.part_revision.rev,
+            "material": lot.part_revision.material,
         } if lot.part_revision else None,
         "all": lot,
     }
@@ -350,9 +351,14 @@ def update_lot_put(lot_id: int, payload: ProductionLotUpdate, db: Session = Depe
         part_id = data.get("part_id", lot.part_id)
         if prv.part_id != part_id:
             raise HTTPException(400, "part_revision_id does not belong to part_id")
+        
+    data = {
+        k: v
+        for k, v in payload.dict(exclude_unset=True).items()
+        if v is not None
+    }
 
     for k, v in data.items():
-        print(k, v)
         setattr(lot, k, v)
 
     db.commit()

@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import or_
 from typing import List, Optional
 from datetime import date
+from models import PartRevision
 from doc.docx_to_db import (
     create_template_from_parsed_result,
 )
@@ -61,6 +62,7 @@ class ShopTravelerRowOut(BaseModel):
     latest_template: Optional[bool] = False
     latest_template_name: Optional[str] = None
     latest_template_version: Optional[int] = None
+    lot: Optional[dict] = None
 
 # ---------- Helpers ----------
 def to_row_out(t: ShopTraveler, db: Session) -> ShopTravelerRowOut:
@@ -85,6 +87,15 @@ def to_row_out(t: ShopTraveler, db: Session) -> ShopTravelerRowOut:
     tmpl = t.template
 
     data["latest_template"] = bool(tmpl and tmpl.is_latest)
+    data["lot"] = {
+        "id": t.lot.id,
+
+        "part_revision": {
+            "id": t.lot.part_revision.id,
+            "rev": t.lot.part_revision.rev,
+            "material": t.lot.part_revision.material,
+        } if t.lot and t.lot.part_revision else None,
+    }
 
     if tmpl:
         
@@ -205,9 +216,11 @@ def list_travelers(
     db: Session = Depends(get_db),
 ):
     query = db.query(ShopTraveler).options(
-        selectinload(ShopTraveler.lot),
-        selectinload(ShopTraveler.template),
-    )
+    selectinload(ShopTraveler.lot)
+        .selectinload(ProductionLot.part_revision),
+
+    selectinload(ShopTraveler.template),
+)
 
     # 🔍 ถ้ามี q (ค้นหาด้วย lot_no หรือ lot_code)
     if q:
@@ -232,9 +245,11 @@ def get_traveler_by_lot_no(lot_no: str, db: Session = Depends(get_db)):
     t = (
         db.query(ShopTraveler)
           .options(
-                selectinload(ShopTraveler.lot),
-                selectinload(ShopTraveler.template),
-            )
+    selectinload(ShopTraveler.lot)
+        .selectinload(ProductionLot.part_revision),
+
+    selectinload(ShopTraveler.template),
+)
           .join(ProductionLot)
           .filter(ProductionLot.lot_no == lot_no)
           .first()
@@ -251,7 +266,7 @@ def get_traveler(traveler_id: int, db: Session = Depends(get_db)):
     t = (
         db.query(ShopTraveler)
           .options(
-                selectinload(ShopTraveler.lot),
+                selectinload(ShopTraveler.lot).selectinload(ProductionLot.part_revision),
                 selectinload(ShopTraveler.template),
             )
           .filter(ShopTraveler.id == traveler_id)
@@ -405,7 +420,7 @@ def create_template_version(
         traveler = (
             db.query(ShopTraveler)
             .options(
-                selectinload(ShopTraveler.lot),
+                selectinload(ShopTraveler.lot).selectinload(ProductionLot.part_revision),
                 selectinload(ShopTraveler.steps)
             )
             .filter(
@@ -725,7 +740,10 @@ def get_traveler_by_no(
             },
 
             "part_revision": {
+                "id": traveler.lot.part_revision.id,
                 "part_rev": traveler.lot.part_revision.rev
+                if traveler.lot and traveler.lot.part_revision else None,
+                "material": traveler.lot.part_revision.material
                 if traveler.lot and traveler.lot.part_revision else None,
             }
         },

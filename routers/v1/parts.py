@@ -44,6 +44,7 @@ class RevOut(BaseModel):
     spec: Optional[str] = None
     drawing_file: Optional[str] = None
     is_current: bool
+    material: Optional[str] = None
 
 class PartOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -376,6 +377,28 @@ def create_revision(part_id: int, payload: RevCreate, db: Session = Depends(get_
 
     return RevOut.model_validate(r)
 
+
+@parts_router.put("/part-revision/{rev_id}/material")
+def update_part_revision_material(
+    rev_id: int,
+    payload: dict,
+    db: Session = Depends(get_db),
+):
+
+    rev = db.get(PartRevision, rev_id)
+
+    if not rev:
+        raise HTTPException(404, "PartRevision not found")
+
+    rev.material = payload.get("material")
+
+    db.commit()
+
+    return {
+        "ok": True,
+        "material": rev.material,
+    }
+
 @parts_router.patch("/revisions/{rev_id}", response_model=RevOut)
 def update_revision(rev_id: int, payload: RevUpdate, db: Session = Depends(get_db)):
     r = db.query(PartRevision).get(rev_id)
@@ -428,3 +451,4 @@ def list_revisions_qs(part_id: int, db: Session = Depends(get_db)):
 @parts_router.get("/part-revisions", response_model=List[RevOut])
 def list_revisions_dash(part_id: int, db: Session = Depends(get_db)):
     return list_revisions(part_id, db)
+

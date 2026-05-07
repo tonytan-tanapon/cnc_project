@@ -431,7 +431,11 @@ def build_traveler_data_from_db(traveler: ShopTraveler) -> dict:
                 if lot.lot_due_date else ""
             ),
             "planned_qty": lot.planned_qty or 0,
-            "material_detail": lot.note or "",
+            "material_detail": (
+    lot.part_revision.material
+    if lot and lot.part_revision
+    else ""
+),
         },
         "traveler": {
             "traveler_no": traveler.traveler_no,

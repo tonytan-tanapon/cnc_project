@@ -410,8 +410,13 @@ class POTiny(BaseModel):
 
 class PartRevisionTiny(BaseModel):
     model_config = ConfigDict(from_attributes=True)
+
     id: int
     rev: str
+
+    # 🔥 ADD THIS
+    material: Optional[str] = None
+
     is_current: Optional[bool] = None
 
 
@@ -492,16 +497,30 @@ class ShopTravelerUpdate(BaseModel):
     production_due_date: Optional[date] = None
 
 class ShopTravelerRowOut(BaseModel):
-    traveler_no: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
+
     id: int
+    traveler_no: Optional[str] = None
     lot_id: int
     lot_no: Optional[str] = None
+
     created_by_id: Optional[int] = None
     status: str
     notes: Optional[str] = None
+
     production_due_date: Optional[date] = None
-    created_at: Optional[str] = None  # or datetime, ตามที่คุณใช้เดิม
+    created_at: Optional[str] = None
+
+    part_id: Optional[int] = None
+    part_revision_id: Optional[int] = None
+
+    latest_template: Optional[bool] = False
+    latest_template_name: Optional[str] = None
+    latest_template_version: Optional[int] = None
+
+    # 🔥 ADD THIS
+    lot: Optional[dict] = None
+    
 
 # --- เพิ่มส่วนนี้ด้านบนที่ประกาศ schemas ---
 from pydantic import BaseModel, ConfigDict

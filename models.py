@@ -411,6 +411,7 @@ class PartRevision(Base):
     drawing_file = Column(String)
     spec = Column(String)
     is_current = Column(Boolean, default=False, nullable=False)
+    material = Column(String, nullable=True) # type spec
 
     part = relationship("Part", back_populates="revisions", foreign_keys=[part_id])
 
@@ -838,6 +839,7 @@ class TravelerTemplate(Base):
     note = Column(Text, nullable=True)
 
     materail = Column(String, nullable=True) # type spec
+    material = Column(String, nullable=True) # type spec
     risk_level = Column(String, nullable=True) # low/medium/high 
 
     is_latest = Column(Boolean, nullable=False, default=False, index=True)  # 🔥 ใส่ตรงนี้

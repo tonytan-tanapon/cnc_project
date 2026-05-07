@@ -495,7 +495,11 @@ def build_traveler_data_from_db(traveler: ShopTraveler) -> dict:
                 if traveler.created_at else ""
             ),
 
-            "material_detail": lot.note or "",
+            "material_detail": (
+                lot.part_revision.material
+                if lot and lot.part_revision
+                else ""
+            ),
         },
 
         "steps": steps
@@ -585,7 +589,7 @@ def export_traveletdoc(traveler_id: int, db: Session = Depends(get_db)):
 
     if not traveler:
         raise HTTPException(404, "Traveler not found")
-
+  
     # 🔥 1. build data
     data = build_traveler_data_from_db(traveler)
 
