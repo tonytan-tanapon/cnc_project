@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from decimal import Decimal
 from database import get_db
-from models import ShopTravelerStep, ShopTraveler, Employee
+from models import ShopTravelerStep, ShopTraveler, Employee,TravelerTemplate
 
 from utils.step_utils import calculate_step_status
 from schemas import (
@@ -493,6 +493,19 @@ def restart_step(step_id: int, db: Session = Depends(get_db)):
 
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from tempfile import NamedTemporaryFile
+from pathlib import Path
+from tempfile import NamedTemporaryFile
+from pathlib import Path
+
+from doc.docx_to_db import (
+    parse_docx,
+    update_database,
+    create_template_from_parsed_result,
+    get_part_and_revision,
+    convert_doc_to_docx,
+)
+
 @router.post("/import")
 async def import_steps(
     traveler_id: int = Form(...),
@@ -500,53 +513,161 @@ async def import_steps(
     db: Session = Depends(get_db),
 ):
 
-    print("import")
     try:
+
+        print("📥 import")
+
+        filename = (file.filename or "").lower()
+
+        if not (
+            filename.endswith(".docx") or
+            filename.endswith(".doc")
+        ):
+            raise HTTPException(
+                400,
+                "Only .doc/.docx supported"
+            )
+
+        # =========================
+        # SAVE TEMP FILE
+        # =========================
         content = await file.read()
-        print(content)
-    #     filename = file.filename.lower()
 
-    #     import csv, io, json
+        suffix = Path(filename).suffix
 
-    #     if filename.endswith(".json"):
-    #         rows = json.loads(content.decode("utf-8"))
+        with NamedTemporaryFile(
+            delete=False,
+            suffix=".docx"
+        ) as tmp:
 
-    #     elif filename.endswith(".csv"):
-    #         text = content.decode("utf-8")
-    #         reader = csv.DictReader(io.StringIO(text))
-    #         rows = list(reader)
+            tmp.write(content)
+            tmp.flush()
+            temp_path = Path(tmp.name)
 
-    #     else:
-    #         raise HTTPException(400, "Unsupported file format")
+        print("Temp path:", temp_path)
 
-    #     steps = []
+        # =========================
+        # DOC -> DOCX
+        # =========================
+        if suffix == ".doc":
 
-    #     for i, r in enumerate(rows):
-    #         step = ShopTravelerStep(
-    #             traveler_id=traveler_id,
-    #             seq=(i + 1) * 10,
-    #             step_name=r.get("step_name") or r.get("Step"),
-    #             step_detail=r.get("step_detail"),
-    #             step_code=r.get("step_code"),
-    #             qty_receive=int(r.get("qty_receive") or 0),
-    #             qty_accept=int(r.get("qty_accept") or 0),
-    #             qty_reject=int(r.get("qty_reject") or 0),
-    #             status="pending",
-    #             station=r.get("station"),
-    #             step_note=r.get("step_note"),
-    #         )
+            temp_path = convert_doc_to_docx(
+                temp_path
+            )
 
-    #         db.add(step)
-    #         steps.append(step)
+        # =========================
+        # PARSE
+        # =========================
+        result = parse_docx(temp_path)
 
-    #     db.commit()
+        part, part_rev = get_part_and_revision(
+            db,
+            result["lot"]["part_no"],
+            result["lot"].get("rev"),
+        )
 
-    #     return {"inserted": len(steps)}
+        template = create_template_from_parsed_result(
+            db,
+            result,
+            part,
+            part_rev,
+        )
+
+        db.commit()
+
+        # apply latest template to traveler
+        apply_template_logic(
+            db,
+            traveler_id,
+        )
+
+        return {
+            "success": True,
+            "template_version": template.version,
+            "count": len(result["steps"]),
+        }
 
     except Exception as e:
-        raise HTTPException(500, str(e))
- 
 
+        print("❌ import error:", e)
+
+        raise HTTPException(
+            500,
+            str(e)
+        )
+def apply_template_logic(
+    db: Session,
+    traveler_id: int,
+):
+
+    traveler = db.get(
+        ShopTraveler,
+        traveler_id
+    )
+
+    if not traveler:
+        raise HTTPException(
+            404,
+            "Traveler not found"
+        )
+
+    tmpl = (
+        db.query(TravelerTemplate)
+        .filter(
+            TravelerTemplate.part_id ==
+                traveler.lot.part_id,
+
+            TravelerTemplate.part_revision_id ==
+                traveler.lot.part_revision_id,
+
+            TravelerTemplate.is_active == True,
+        )
+        .first()
+    )
+
+    if not tmpl:
+        raise HTTPException(
+            404,
+            "Template not found"
+        )
+
+    # =========================
+    # DELETE OLD STEPS
+    # =========================
+    db.query(ShopTravelerStep)\
+        .filter(
+            ShopTravelerStep.traveler_id ==
+                traveler_id
+        )\
+        .delete()
+
+    db.flush()
+
+    # =========================
+    # CREATE NEW STEPS
+    # =========================
+    for s in tmpl.steps:
+
+        db.add(
+            ShopTravelerStep(
+                traveler_id=traveler_id,
+
+                seq=s.seq,
+
+                step_code=s.step_code,
+
+                step_name=s.step_name,
+
+                step_detail=s.step_detail,
+
+              
+            )
+        )
+
+    db.commit()
+
+    return tmpl
+    
 @router.post("/shipment/update-from-ui")
 def update_shipment_from_ui(payload: dict, db: Session = Depends(get_db)):
     from models import (

@@ -223,6 +223,17 @@
       /* ✅ แสดง \n */
       line-height: 1.3;
     }
+
+    /* Badge */
+    #latestBadge {
+      display: none;
+      background: #16a34a;
+      color: white;
+      font-size: 12px;
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-weight: 600;
+    }
   </style>
 </head>
 
@@ -246,13 +257,16 @@
       <section class="panel panel--edge" id="travPanel">
         <!-- Title row -->
         <div style="
-              display: flex;
-              align-items: center;
-              gap: 8px;
-              padding: 8px 0 6px 0;
-            ">
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 0 6px 0;
+    ">
           <h2 style="margin: 0">🧾 Traveler:</h2>
           <h2 id="t_sub">(loading…)</h2>
+
+          <!-- 🔥 Badge -->
+          <span id="latestBadge">LATEST</span>
         </div>
         <div id="lot_summary" style="
   padding: 6px 0 10px;
@@ -318,19 +332,16 @@
 
           <button id="btnAddStep" class="btn-mini">+ Add Step</button>
 
-          <!-- Dropdown (เลือก template) -->
-          <select id="templateSelect" class="btn-mini">
-            <option value="">Select Version</option>
-          </select>
+         
 
           <!-- Confirm button -->
           <button id="btnUseTemplate" class="btn-mini">Use Template</button>
-          <input type="file" id="fileInput" accept=".json,.xlsx,.csv" style="display:none" />
+          <input type="file" id="fileInput" accept=".doc,.docx" style="display:none" />
 
           <button id="btnImportFile" class="btn-mini">
             📂 Import File
           </button>
-          <button id="btnUpdateTravelerStep" class="btn-mini">Update Traveler</button>
+          <button id="btnUpdateTravelerStep" class="btn-mini">💾 Update Traveler</button>
           <button id="btnExportTraveler" class="btn-mini">📝 Export Traveler</button>
           <button id="btnExportTravelerBlank" class="btn-mini">📝 Export Blank</button>
           <button id="btnSTdetail" class="btn-mini">📝 Details</button>

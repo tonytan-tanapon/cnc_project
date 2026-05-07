@@ -359,6 +359,193 @@ def activate_latest_template(db, part_id: int, part_revision_id: int | None):
         )\
         .update({TravelerTemplate.is_active: True}, synchronize_session=False)
 
+from datetime import datetime
+from sqlalchemy import func
+
+def create_template_from_parsed_result(
+    db,
+    result,
+    part,
+    part_rev,
+):
+
+    # =========================
+    # VERSION = YYYYMMDD
+    # =========================
+    version = int(datetime.now().strftime("%Y%m%d"))
+
+    version_str = datetime.now().strftime("%m-%d-%y")
+
+    print("Version:", version)
+
+    # =========================
+    # FIND EXISTING TEMPLATE
+    # =========================
+    query = db.query(TravelerTemplate).filter(
+        TravelerTemplate.part_id == part.id,
+        TravelerTemplate.version == version,
+    )
+
+    if part_rev:
+        query = query.filter(
+            TravelerTemplate.part_revision_id == part_rev.id
+        )
+    else:
+        query = query.filter(
+            TravelerTemplate.part_revision_id.is_(None)
+        )
+
+    existing_template = query.first()
+
+    # =========================
+    # REPLACE SAME DAY VERSION
+    # =========================
+    if existing_template:
+
+        print(
+            f"♻️ Replacing existing template "
+            f"(ID={existing_template.id})"
+        )
+
+        # ---------------------
+        # delete old steps
+        # ---------------------
+        db.query(TravelerTemplateStep)\
+            .filter(
+                TravelerTemplateStep.template_id ==
+                    existing_template.id
+            )\
+            .delete()
+
+        db.flush()
+
+        template = existing_template
+
+        template.is_active = True
+        template.is_latest = True
+
+        template.template_name = (
+            f"{part.part_no} REV "
+            f"{part_rev.rev if part_rev else '-'} "
+            f"V{version}"
+        )
+
+        template.note = (
+            f"Imported from DOCX "
+            f"({version_str})"
+        )
+
+        template.materail = result["lot"].get(
+            "material_detail"
+        )
+
+        template.risk_level = result["traveler"].get(
+            "risk"
+        )
+
+    # =========================
+    # CREATE NEW TEMPLATE
+    # =========================
+    else:
+
+        print("🆕 Creating new template")
+
+        # ---------------------
+        # deactivate old latest
+        # ---------------------
+        deactivate_query = db.query(
+            TravelerTemplate
+        ).filter(
+            TravelerTemplate.part_id == part.id
+        )
+
+        if part_rev:
+            deactivate_query = deactivate_query.filter(
+                TravelerTemplate.part_revision_id ==
+                    part_rev.id
+            )
+        else:
+            deactivate_query = deactivate_query.filter(
+                TravelerTemplate.part_revision_id.is_(None)
+            )
+
+        deactivate_query.update(
+            {
+                "is_latest": False,
+                "is_active": False,
+            },
+            synchronize_session=False
+        )
+
+        template = TravelerTemplate(
+            part_id=part.id,
+
+            part_revision_id=
+                part_rev.id if part_rev else None,
+
+            template_name=
+                f"{part.part_no} REV "
+                f"{part_rev.rev if part_rev else '-'} "
+                f"V{version}",
+
+            version=version,
+
+            is_active=True,
+
+            is_latest=True,
+
+            note=
+                f"Imported from DOCX "
+                f"({version_str})",
+
+            materail=result["lot"].get(
+                "material_detail"
+            ),
+
+            risk_level=result["traveler"].get(
+                "risk"
+            ),
+        )
+
+        db.add(template)
+
+        db.flush()
+
+    # =========================
+    # INSERT TEMPLATE STEPS
+    # =========================
+    for step in result.get("steps", []):
+
+        db.add(
+            TravelerTemplateStep(
+                template_id=template.id,
+
+                seq=int(step["order"]),
+
+                step_code=step.get(
+                    "step_code"
+                ),
+
+                step_name=step.get(
+                    "step_name"
+                ),
+
+                
+
+              
+            )
+        )
+
+    db.flush()
+
+    print(
+        f"✅ Template ready "
+        f"(ID={template.id}, "
+        f"version={version})"
+    )
+
+    return template
+
 
 def update_database(result, date_create):
     from datetime import datetime
@@ -482,6 +669,23 @@ def update_database(result, date_create):
 
     print("✅ Done updating database.")
 
+
+
+from pathlib import Path
+
+
+def convert_doc_to_docx(path: Path) -> Path:
+
+    import win32com.client
+
+    path = Path(path)
+
+    if path.suffix.lower() != ".doc":
+        return path
+
+    word = win32com.client.Dispatch(
+        "Word.Application"
+    )
 # -----------------------------
 # CLI runner
 # -----------------------------

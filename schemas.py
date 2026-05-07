@@ -1055,16 +1055,16 @@ class QAInspectionOut(BaseModel):
 
 class QAInspectionItemCreate(BaseModel):
     seq: int
-    op_no: Optional[str] = None
-    bb_no: Optional[str] = None
-    dimension: Optional[str] = None
+    op_no: Optional[str] = ""
+    bb_no: Optional[str] = ""
+    dimension: Optional[str] = ""
     tqw: Optional[str] = None
     fa: Optional[bool] = None
     actual_value: Optional[str] = None
     result: Optional[str] = None
     notes: Optional[str] = None
     emp_id: Optional[int] = None
-    qa_time_stamp: Optional[datetime] = None
+    # qa_time_stamp: Optional[datetime] = None
 
 
 class QAInspectionItemUpdate(BaseModel):

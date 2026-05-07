@@ -140,20 +140,6 @@ def list_employees(
 
 from sqlalchemy.orm import joinedload
 
-@router.get("/{emp_id}", response_model=EmployeeOut)
-def get_employee(emp_id: int, db: Session = Depends(get_db)):
-    e = (
-        db.query(Employee)
-        .options(
-            joinedload(Employee.payroll_emp),
-            joinedload(Employee.payroll_dependents)
-        )
-        .get(emp_id)
-    )
-    if not e:
-        raise HTTPException(404, "Employee not found")
-    return e
-
 @router.get("/by-code/{emp_code}", response_model=EmployeeOut)
 def get_employee_by_code(emp_code: str, db: Session = Depends(get_db)):
     e = (
@@ -170,6 +156,21 @@ def get_employee_by_code(emp_code: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Employee not found")
 
     return e
+@router.get("/{emp_id}", response_model=EmployeeOut)
+def get_employee(emp_id: int, db: Session = Depends(get_db)):
+    e = (
+        db.query(Employee)
+        .options(
+            joinedload(Employee.payroll_emp),
+            joinedload(Employee.payroll_dependents)
+        )
+        .get(emp_id)
+    )
+    if not e:
+        raise HTTPException(404, "Employee not found")
+    return e
+
+
 @router.patch("/{emp_id}", response_model=EmployeeOut)
 def update_employee(emp_id: int, payload: EmployeeUpdate, db: Session = Depends(get_db)):
     print(payload.dict())

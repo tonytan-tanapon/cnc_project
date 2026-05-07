@@ -150,7 +150,7 @@ def find_col(headers, keyword):
             return i
     raise ValueError(f"Column not found: {keyword}")
 def parse_docx_to_rows(docx_path):
-    doc = Document(docx_path)
+    doc = Document(str(docx_path))
     op_map = {}
 
     for table in doc.tables:
@@ -163,14 +163,15 @@ def parse_docx_to_rows(docx_path):
         # -------- Version A (Multi OP) --------
         if is_multi_op_qa_table(rows):
             print("Detected: MULTI OP QA TABLE")
-
+            
             op_row = rows[1]
+            op_blocks = []
             op_blocks = [
-                {"op": op_row[2], "start": 0},
-                {"op": op_row[7], "start": 5},
-                {"op": op_row[12], "start": 10},
+                {"op": op_row[1], "start": 0},
+                {"op": op_row[5], "start": 4},
+                {"op": op_row[9], "start": 8},
             ]
-
+            print("OP Blocks:", op_blocks)
             for block in op_blocks:
                 op = block["op"].strip()
                 if not op:
@@ -185,7 +186,7 @@ def parse_docx_to_rows(docx_path):
                     bb = r[block["start"]]
                     dim = r[block["start"] + 1]
 
-                    if bb.upper().startswith("NOTE"):
+                    if str(bb).upper().startswith("NOTE"):
                         continue
                     if not (bb or dim):
                         continue
@@ -326,7 +327,11 @@ if __name__ == "__main__":
     i = 0
     for filename in os.listdir(FOLDER_PATH):
 
-        if filename.lower().endswith(".docx"):
+        if (
+    filename.lower().endswith(".docx")
+    or
+    filename.lower().endswith(".doc")
+):
             full_path = os.path.join(FOLDER_PATH, filename)
 
             print("📄 Processing:", full_path)

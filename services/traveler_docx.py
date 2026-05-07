@@ -560,11 +560,46 @@ def generate_inspection_from_db(template_path, data: dict, output_path):
         op_header_row = header_row - 1
 
         for col_idx, op in enumerate(page_ops):
+
             base_col = col_idx * 4
 
-            table.cell(op_header_row, base_col).text = "date"
-            table.cell(op_header_row, base_col + 1).text = op
-            table.cell(op_header_row, base_col + 2).text = "emp"
+            items = grouped[op]
+
+            # =========================
+            # GET FIRST ITEM
+            # =========================
+            first_item = items[0] if items else {}
+
+            # =========================
+            # DATE
+            # =========================
+            date_str = ""
+
+            dt = first_item.get("qa_time_stamp")
+
+            if dt:
+                try:
+                    date_str = dt.strftime("%m/%d/%y")
+                except:
+                    date_str = str(dt)
+
+            # =========================
+            # EMPLOYEE
+            # =========================
+            emp = first_item.get("employee") or ""
+
+            # =========================
+            # HEADER
+            # =========================
+            table.cell(op_header_row, base_col).text = date_str
+
+            table.cell(op_header_row, base_col + 1).text = str(op)
+
+            table.cell(op_header_row, base_col + 2).text = emp
+
+            # center
+            for i in range(3):
+                center(table.cell(op_header_row, base_col + i))
 
             
 
@@ -592,8 +627,7 @@ def generate_inspection_from_db(template_path, data: dict, output_path):
                     table.cell(r, base_col + 0).text = str(item.get("bb_no", "") or "")
                     table.cell(r, base_col + 1).text = str(item.get("dimension", "") or "")
                     table.cell(r, base_col + 2).text = str(item.get("tqw", "") or "")
-                    table.cell(r, base_col + 3).text = "✓" if item.get("fa") else ""
-
+                    table.cell(r, base_col + 3).text = str(    item.get("actual_value", "") or "")
                     for i in range(4):
                         center(table.cell(r, base_col + i))
 

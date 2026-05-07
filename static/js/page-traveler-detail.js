@@ -268,52 +268,60 @@ async function fillTraveler(t) {
   $("notes").value = t.notes ?? "";
 
   $("t_sub").textContent = `#${t.traveler_no}`;
+  const badge = $("latestBadge");
+
+  if (badge) {
+
+    if (t.latest_template_version) {
+
+      const badge = $("latestBadge");
+
+      if (badge) {
+
+        // ✅ version exists
+        if (t.latest_template_version != null) {
+
+          badge.style.display = "inline-flex";
+
+          if (t.latest_template) {
+
+            badge.textContent =
+              `LATEST · ${
+  t.template?.name || t.latest_template_name
+    ? `${t.template?.name || t.latest_template_name} ${
+        t.latest_template_version
+          ? `(V${t.latest_template_version})`
+          : ""
+      }`
+    : `V${t.latest_template_version}`
+}`
+
+          } else {
+
+            badge.textContent =
+  `${t.latest_template_name || ""} ${t.latest_template_version ? `(V${t.latest_template_version})` : ""}`.trim();
+          }
+
+        } else {
+
+          badge.style.display = "none";
+        }
+      }
+
+    } else {
+
+      badge.style.display = "none";
+    }
+  }
+
+
+
   document.title = `Traveler · #${t.id}`;
 
   markHeaderDirty(false);
 
   selectedLot = null;
   selectedCreator = null;
-
-  // ---------- Load template versions ----------
-  await loadTemplateVersions(t.part_id, t.part_revision_id);
-
-  // ---------- Load LOT summary ----------
-  if (!t.lot_id) return;
-
-  try {
-    const lot = await jfetch(`/lots/${t.lot_id}`);
-    console.log("Fetched lot for header:", lot);
-
-    // ✅ SET HEADER INPUT VALUES
-    const elPoQty = $("lot_po_qty");
-    const elPlanQty = $("lot_planned_qty");
-    const elRelease = $("lot_release_date");
-    const elDue = $("lot_po_duedate");
-
-    if (elPoQty) elPoQty.value = lot.lot_po_qty ?? "";
-    if (elPlanQty) elPlanQty.value = lot.lot_planned_qty ?? "";
-    if (elRelease) elRelease.value = lot.lot_po_date?.slice(0, 10) ?? "";
-    if (elDue) elDue.value = lot.lot_po_duedate?.slice(0, 10) ?? "";
-
-    const el = $("lot_summary");
-    if (!el) return;
-
-    // ✅ Option 1: clean string builder (recommended)
-    const summary = [
-      `<b>LOT:</b> ${lot.lot_no || "-"}`,
-      `<b>Customer:</b> ${lot.customer?.code || "-"}`,
-      `<b>PO:</b> ${lot.po?.po_number || "-"}`,
-      `<b>Part:</b> ${lot.part?.part_no || "-"}`,
-      `<b>Part Name:</b> ${lot.part?.part_name || "-"}`,
-      `<b>Rev:</b> ${lot.part_revision?.rev || "-"}`
-    ].join(" | ");
-
-    el.innerHTML = summary;
-
-  } catch (err) {
-    console.error("❌ Failed to load lot:", err);
-  }
 
 
 
@@ -853,73 +861,6 @@ function initStepsTable() {
 
 }
 
-async function loadTemplateVersions(part_id, part_revision_id) {
-  const select = document.getElementById("templateSelect");
-
-  console.log("select:", select);
-  if (!select) return;
-
-  try {
-    const res = await jfetch(
-      `/travelers/template-versions?part_id=${part_id}&part_revision_id=${part_revision_id}`
-    );
-
-    select.innerHTML = `<option value="">Select Version</option>`;
-
-    res.forEach((t) => {
-      const opt = document.createElement("option");
-      opt.value = t.id;
-      opt.textContent = `${t.name} (v${t.version})`;
-
-      if (t.is_active) {
-        opt.textContent += " ⭐";
-      }
-
-      select.appendChild(opt);
-    });
-
-    // ⭐ auto select active
-    const active = res.find(t => t.is_active);
-    if (active) {
-      select.value = String(active.id);
-    }
-
-    // 🔥 👉 ใส่ตรงนี้ (ถูกตำแหน่ง)
-    select.onchange = async () => {
-      const templateId = select.value;
-
-      if (!templateId) return;
-
-      if (!confirm("Apply template? Current steps will be replaced")) {
-        select.value = "";
-        return;
-      }
-
-      try {
-        setBusyT(true);
-
-        await jfetch(
-          `/travelers/apply-template/${travelerId}?template_id=${templateId}`,
-          { method: "POST" }
-        );
-
-        toast("Template applied");
-
-        await reloadSteps();
-
-      } catch (err) {
-        console.error(err);
-        toast("Apply template failed", false);
-      } finally {
-        setBusyT(false);
-      }
-    };
-
-  } catch (err) {
-    console.error("loadTemplateVersions error:", err);
-  }
-}
-
 async function reloadSteps() {
   if (!travelerId) {
     stepsTable?.setData([]);
@@ -1334,50 +1275,106 @@ function makeLotLinks(lotId) {
 }
 
 
+let isImporting = false;
+
 async function handleImportFile(e) {
+
   const file = e.target.files[0];
+
   if (!file) return;
+
+  if (isImporting) return;
 
   if (!travelerId) {
     toast("Traveler ID missing", false);
     return;
   }
 
-  console.log("import");
+  // ✅ validate extension
+  const name = file.name.toLowerCase();
 
+  if (!name.endsWith(".docx")) {
+    toast("Only .docx supported", false);
+    e.target.value = "";
+    return;
+  }
+
+  // ✅ confirm replace
+  const ok = confirm(
+    "Import traveler steps?\nCurrent steps may be replaced."
+  );
+
+  if (!ok) {
+    e.target.value = "";
+    return;
+  }
 
   try {
+
+    isImporting = true;
+
+    setBusyT(true);
+
+    console.log("📥 importing:", file.name);
+
     const formData = new FormData();
+
     formData.append("file", file);
     formData.append("traveler_id", travelerId);
 
-    const res = await fetch("/api/v1/traveler-steps/import", {
-      method: "POST",
-      body: formData,
-    });
+    const res = await fetch(
+      "/api/v1/traveler-steps/import",
+      {
+        method: "POST",
+        body: formData,
+      }
+    );
 
+    // ✅ better error handling
     if (!res.ok) {
-      throw new Error(await res.text());
+
+      let msg = "Import failed";
+
+      try {
+        const err = await res.json();
+        msg = err.detail || msg;
+      } catch {
+        msg = await res.text();
+      }
+
+      throw new Error(msg);
     }
 
     const result = await res.json();
 
-    console.log("Import result:", result);
+    console.log("✅ Import result:", result);
 
-    toast("File imported");
+    toast(
+      `Imported ${result.count || 0} steps`
+    );
 
-    // ✅ reload steps from DB
+    // ✅ reload after success only
     await reloadSteps();
 
   } catch (err) {
+
     console.error(err);
-    toast("Import failed: " + err.message, false);
+
+    toast(
+      err?.message || "Import failed",
+      false
+    );
+
+  } finally {
+
+    isImporting = false;
+
+    setBusyT(false);
+
+    // ✅ reset file input
+    e.target.value = "";
   }
-
-  e.target.value = "";
 }
-
-
 
 /* ---------- Boot ---------- */
 document.addEventListener("DOMContentLoaded", async () => {
@@ -1412,12 +1409,10 @@ document.addEventListener("DOMContentLoaded", async () => {
       );
 
       toast(`✅ Template V${res.version} created`);
+      await loadTraveler();
+
 
       // 🔥 IMPORTANT → reload template dropdown
-      await loadTemplateVersions(
-        originalTraveler.part_id,
-        originalTraveler.part_revision_id
-      );
 
     } catch (err) {
       console.error(err);
@@ -1437,51 +1432,45 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
 
   document.getElementById("btnUseTemplate")?.addEventListener("click", async () => {
-  const select = document.getElementById("templateSelect");
-  const templateId = select?.value;
 
-  console.log("🔥 click use template:", templateId);
+    if (!confirm("Apply latest template? Current steps will be replaced")) {
+      return;
+    }
 
-  if (!templateId) {
-    toast("Please select template", false);
-    return;
-  }
+    try {
+      setBusyT(true);
 
-  if (!confirm("Apply template? Current steps will be replaced")) {
-    return;
-  }
 
-  try {
-    setBusyT(true);
 
-    await jfetch(
-      `/travelers/apply-template/${travelerId}?template_id=${templateId}`,
-      { method: "POST" }
-    );
+      const res = await jfetch(
+        `/api/v1/travelers/apply-template/${travelerId}`,
+        { method: "POST" }
+      );
 
-    toast("Template applied");
+      toast("Latest template applied");
+      await loadTraveler();   // 🔥 reload badge/version
+      await reloadSteps();
 
-    await reloadSteps();
+    } catch (err) {
+      console.error(err);
+      toast("Apply template failed", false);
+    } finally {
+      setBusyT(false);
+    }
+  });
 
-  } catch (err) {
-    console.error(err);
-    toast("Apply template failed", false);
-  } finally {
-    setBusyT(false);
-  }
-});
-document.getElementById("btnSTdetail")?.addEventListener("click", () => {
-  if (!travelerId) {
-    toast("Traveler not loaded", false);
-    return;
-  }
+  document.getElementById("btnSTdetail")?.addEventListener("click", () => {
+    if (!travelerId) {
+      toast("Traveler not loaded", false);
+      return;
+    }
 
-  const url = `/static/traveler-view.html?traveler_id=${travelerId}`;
+    const url = `/static/traveler-view.html?traveler_id=${travelerId}`;
 
-  console.log("Go to:", url);
+    console.log("Go to:", url);
 
-  window.open(url, "_blank");
-});
+    window.open(url, "_blank");
+  });
   document.getElementById("btnAddStep")?.addEventListener("click", async () => {
     if (!travelerId) {
       toast("Missing traveler id", false);

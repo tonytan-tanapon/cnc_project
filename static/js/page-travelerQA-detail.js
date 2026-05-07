@@ -644,14 +644,14 @@ function initStepsTable() {
         },
       },
 
-      {
-        title: "#Seq",
-        field: "seq",
-        width: 80,
-        hozAlign: "center",
-        editor: "number",
-        editorParams: { step: 1 },
-      },
+      // {
+      //   title: "#Seq",
+      //   field: "seq",
+      //   width: 80,
+      //   hozAlign: "center",
+      //   editor: "number",
+      //   editorParams: { step: 1 },
+      // },
 
       {
         title: "OP",
@@ -1355,9 +1355,9 @@ function initQATable() {
 
 
     columns: [
-      { title: "Seq", field: "seq", width: 80, editor: "number" },
 
-      { title: "OP", field: "op_no", width: 100, editor: "input" },
+
+      { title: "OP#", field: "op_no", width: 100, editor: "input" },
       { title: "Bubble", field: "bb_no", width: 100, editor: "input" },
       {
         title: "Dimension",
@@ -1365,14 +1365,22 @@ function initQATable() {
         width: 300,
         editor: "input",
       },
+
+      { title: "TQW", field: "tqw", width: 120, editor: "input" },
       {
-        title: "Actual",
+        title: "FA",
         field: "actual_value",
         width: 120,
         editor: "input",
       },
-      { title: "TQW", field: "tqw", width: 120, editor: "input" },
+      // {
+      //   title: "Operator",
+      //   field: "emp_id",
+      //   width: 120,
+      //   editor: "input",
+      // },
 
+      { title: "Notes", field: "notes", width: 200, editor: "input" },
       {
         title: "Date",
         field: "qa_time_stamp",
@@ -1406,20 +1414,15 @@ function initQATable() {
         }
       },
 
-      {
-        title: "Result",
-        field: "result",
-        width: 100,
-        editor: "select",
-        editorParams: { values: ["pass", "fail"] },
-      },
-      { title: "Notes", field: "notes", width: 200, editor: "input" },
-      {
-        title: "Operator",
-        field: "emp_id",
-        width: 120,
-        editor: "number",
-      },
+      // {
+      //   title: "Result",
+      //   field: "result",
+      //   width: 100,
+      //   editor: "select",
+      //   editorParams: { values: ["pass", "fail"] },
+      // },
+
+
       {
         title: "Del",
         width: 80,
@@ -1488,7 +1491,110 @@ function initQATable() {
     }
   });
 }
+function initImportInspection() {
 
+  const btn = $("btnImportInspection");
+  const input = $("inspectionFileInput");
+
+  if (!btn || !input) return;
+
+  btn.addEventListener("click", () => {
+    input.click();
+  });
+
+  input.addEventListener(
+    "change",
+    handleImportInspection
+  );
+}
+async function handleImportInspection(e) {
+
+  const file = e.target.files[0];
+
+  if (!file) return;
+
+  if (!currentInspection?.id) {
+    toast("Inspection not loaded", false);
+    return;
+  }
+
+  const ok = confirm(
+    "Import inspection template?\n" +
+    "Current template may be replaced."
+  );
+
+  if (!ok) {
+    e.target.value = "";
+    return;
+  }
+
+  try {
+
+    setBusyT(true);
+
+    const formData = new FormData();
+
+    console.log(file);
+    console.log(file.name);
+    console.log(file.size);
+
+    formData.append("file", file);
+
+    formData.append(
+      "inspection_id",
+      currentInspection.id
+    );
+
+    const res = await fetch(
+      "/api/v1/qa-inspections/import",
+      {
+        method: "POST",
+        body: formData,
+      }
+    );
+
+    if (!res.ok) {
+
+      let msg = "Import failed";
+
+      try {
+        const err = await res.json();
+        msg = err.detail || msg;
+      } catch {
+        msg = await res.text();
+      }
+
+      throw new Error(msg);
+    }
+
+    const result = await res.json();
+
+    console.log(result);
+
+    toast(
+      `Imported ${result.count} items`
+    );
+
+    await loadInspection();
+
+    await loadInspectionItems();
+
+  } catch (err) {
+
+    console.error(err);
+
+    toast(
+      err?.message || "Import failed",
+      false
+    );
+
+  } finally {
+
+    setBusyT(false);
+
+    e.target.value = "";
+  }
+}
 /* ---------- Add Row ---------- */
 function initAddRowButton() {
   const btn = $("btnAddRow");
@@ -1523,6 +1629,16 @@ function initAddRowButton() {
 async function btnAddTemplate() {
   if (!currentInspection?.id) {
     alert("Inspection ID not found");
+    return;
+  }
+
+  // ✅ confirm
+  const ok = confirm(
+    "Apply QA template?\n\n" +
+    "Current inspection items will be replaced."
+  );
+
+  if (!ok) {
     return;
   }
 
@@ -1677,6 +1793,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   initQATable();
   initAddRowButton();
   makeLotLinks(lotId);
+  initImportInspection();
 
   $("btnAddTemplate").addEventListener("click", btnAddTemplate);
   $("btnExportInspection").addEventListener("click", btnExportInspection);

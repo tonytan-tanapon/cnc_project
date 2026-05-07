@@ -436,6 +436,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // Load first data
+ 
   loadOperation();
   console.log("UI Traveler loaded with traveler_no:", travelerNo);
 });
@@ -511,14 +512,15 @@ function getFirstActiveStatus(steps) {
 function formatLADate(date) {
   if (!date) return "";
 
-  // ✅ already YYYY-MM-DD
-  if (typeof date === "string" && date.length >= 10) {
-    return date.slice(0, 10);
+  // ✅ pure DATE from backend
+  if (typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return date;
   }
 
+  // datetime fallback
   return new Date(date)
     .toLocaleString("sv-SE", {
-      timeZone: "America/Los_Angeles"
+      timeZone: "America/Los_Angeles",
     })
     .slice(0, 10);
 }
@@ -527,7 +529,7 @@ function formatLADate(date) {
 /* ===== LOAD CURRENT STEP ===== */
 function getTodayLog(logs) {
   const today = getLADate();
-
+  console.log("Looking for today's log. Today =", today);
   return logs.find(
     l => l.work_date && formatLADate(l.work_date) === today
   );
@@ -556,6 +558,7 @@ function calcReceive(step, steps, allLogs, todayAccept, todayReject) {
 
 async function loadOperation() {
 
+  
   // =========================
   // MACHINE
   // =========================
@@ -634,7 +637,11 @@ async function loadOperation() {
     // =========================
     // STEP
     // =========================
+
+
     let step = data.active_step || {};
+
+
 
     if (!step.id && data.steps?.length) {
       step = data.steps.find(s => s.seq == travelerStep) || data.steps[0];
@@ -768,16 +775,14 @@ async function loadOperation() {
 
             tr.innerHTML = `
       <td>
-  ${l.work_date
-                ? new Date(l.work_date).toLocaleDateString("en-US", {
-                  timeZone: "America/Los_Angeles",
-                  month: "2-digit",
-                  day: "2-digit",
-                  year: "2-digit",
-                })
+    ${l.work_date
+                ? (() => {
+                  const [y, m, d] = l.work_date.split("-");
+                  return `${m}/${d}/${y.slice(2)}`;
+                })()
                 : "-"
               }
-</td>
+  </td>
       <td>${parseInt(l.qty_accept || 0)}</td>
       <td>${parseInt(l.qty_reject || 0)}</td>
       <td>${l.operator_nickname || l.operator_name || "-"}</td>
@@ -813,7 +818,7 @@ async function loadOperation() {
     let currentRemark = "";
 
     if (selectedLogDate) {
-      
+
 
       const selectedLog = logs.find(l => {
         const logDate = formatLADate(l.work_date);
@@ -835,10 +840,38 @@ async function loadOperation() {
     // =========================
     // OPERATOR
     // =========================
-    const operator = step.operator || {};
+
+    let operatorText = travelerEmp || "—";
+
+    console.log("Loading operator for code:", travelerEmp);
+
+    try {
+
+      if (travelerEmp) {
+
+        const emp = await jfetch(
+          `/api/v1/employees/by-code/${travelerEmp}`
+        );
+
+        console.log("emp =", emp);
+    
+        operatorText =
+          
+          emp.nickname ||
+          emp.name ||
+          emp.emp_code ||
+          travelerEmp;
+
+        console.log("operatorText =", operatorText);
+      }
+
+    } catch (err) {
+
+      console.warn("Failed to load employee", err);
+    }
 
     document.querySelector("#operatorName").textContent =
-      `Operator:  (${operator.nickname || "—"})`;
+      `Operator: (${operatorText})`;
 
     // document.querySelector("#loginOP").textContent =
     //   `Login: ${travelerEmp}`;

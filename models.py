@@ -604,6 +604,13 @@ class ShopTraveler(Base):
     qr_code = Column(String, nullable=True, unique=True, index=True)  # ใช้ encode ใน QR
     materail = Column(String, nullable=True) # type spec
     risk_level = Column(String, nullable=True) # low/medium/high
+    template_id = Column(
+        Integer,
+        ForeignKey("traveler_templates.id"),
+        nullable=True
+    )
+
+    template = relationship("TravelerTemplate")
   
 
     lot = relationship("ProductionLot", back_populates="travelers")

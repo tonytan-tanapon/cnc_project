@@ -2,6 +2,13 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from doc.docx_to_db import (
+    convert_doc_to_docx,
+)
+from doc.inspection.docx_to_db import (
+    parse_docx_to_rows,
+)
+
 from database import get_db
 from models import QAInspection, QAInspectionItem,ProductionLot
 from schemas import (
@@ -182,7 +189,9 @@ def apply_template(
             actual_value=None,
             result=None,
             notes=None,
-            emp_id=None,
+            emp_id=38,
+            qa_time_stamp=None,   # ✅ เพิ่มตรงนี้
+               
         )
         db.add(new_item)
 
@@ -303,3 +312,362 @@ def create_template_version(
         db.rollback()
         print("❌ create_template_version error:", e)
         raise HTTPException(500, str(e))
+    
+from fastapi import (
+    Depends,
+    HTTPException,
+    UploadFile,
+    File,
+    Form,
+)
+
+from pathlib import Path
+from tempfile import NamedTemporaryFile
+from sqlalchemy.orm import joinedload
+
+@router.post("/import")
+async def import_inspection(
+    inspection_id: int = Form(...),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+
+    print("📥 Import inspection")
+
+    try:
+
+        # =========================
+        # VALIDATE
+        # =========================
+        filename = (file.filename or "").lower()
+
+        if not (
+            filename.endswith(".docx") or
+            filename.endswith(".doc")
+        ):
+
+            raise HTTPException(
+                400,
+                "Only .doc/.docx supported"
+            )
+
+        # =========================
+        # LOAD INSPECTION
+        # =========================
+        inspection = (
+            db.query(QAInspection)
+            .options(
+                joinedload(QAInspection.lot)
+                .joinedload(ProductionLot.part),
+
+                joinedload(QAInspection.lot)
+                .joinedload(
+                    ProductionLot.part_revision
+                ),
+            )
+            .filter(
+                QAInspection.id == inspection_id
+            )
+            .first()
+        )
+
+        if not inspection:
+            raise HTTPException(
+                404,
+                "Inspection not found"
+            )
+
+        lot = inspection.lot
+
+        if not lot:
+            raise HTTPException(
+                400,
+                "Inspection has no lot"
+            )
+
+        # =========================
+        # SAVE TEMP FILE
+        # =========================
+        content = await file.read()
+
+        suffix = Path(filename).suffix
+
+        with NamedTemporaryFile(
+            delete=False,
+            suffix=suffix
+        ) as tmp:
+
+            tmp.write(content)
+
+            tmp.flush()
+
+            temp_path = Path(tmp.name)
+
+        print("Temp path:", temp_path)
+
+        print("File exists:", temp_path.exists())
+
+        print(
+            "File size:",
+            temp_path.stat().st_size
+        )
+
+        # =========================
+        # DOC -> DOCX
+        # =========================
+        if suffix == ".doc":
+
+            print("🔄 converting .doc")
+
+            temp_path = convert_doc_to_docx(
+                temp_path
+            )
+
+            print(
+                "✅ converted:",
+                temp_path
+            )
+
+        # =========================
+        # VALIDATE DOCX
+        # =========================
+        from docx import Document
+
+        Document(str(temp_path))
+
+        print("✅ DOCX opened OK")
+
+        # =========================
+        # PARSE DOCX
+        # =========================
+        rows = parse_docx_to_rows(
+            str(temp_path)
+        )
+
+        print("Parsed rows:", rows)
+
+        if not rows:
+
+            raise HTTPException(
+                400,
+                "No inspection rows found"
+            )
+
+        # =========================
+        # SAME DAY VERSION
+        # =========================
+        from datetime import datetime
+        import pytz
+
+        la = pytz.timezone(
+            "America/Los_Angeles"
+        )
+
+        version = int(
+            datetime.now(la).strftime(
+                "%Y%m%d"
+            )
+        )
+
+        # =========================
+        # FIND EXISTING TEMPLATE
+        # =========================
+        tmpl = (
+            db.query(QAInspectionTemplate)
+            .filter(
+                QAInspectionTemplate.part_id ==
+                    lot.part_id,
+
+                QAInspectionTemplate.rev_id ==
+                    lot.part_revision_id,
+
+                QAInspectionTemplate.version ==
+                    version,
+            )
+            .first()
+        )
+
+        # =========================
+        # REPLACE SAME DAY
+        # =========================
+        if tmpl:
+
+            print(
+                "♻️ Replacing existing template"
+            )
+
+            tmpl.active = True
+            tmpl.is_latest = True
+
+            db.query(
+                QAInspectionTemplateItem
+            ).filter(
+                QAInspectionTemplateItem
+                .template_id == tmpl.id
+            ).delete()
+
+            db.flush()
+
+        # =========================
+        # CREATE NEW TEMPLATE
+        # =========================
+        else:
+
+            print(
+                "🆕 Creating new template"
+            )
+
+            db.query(
+                QAInspectionTemplate
+            ).filter(
+                QAInspectionTemplate.part_id ==
+                    lot.part_id,
+
+                QAInspectionTemplate.rev_id ==
+                    lot.part_revision_id,
+            ).update({
+
+                QAInspectionTemplate.active:
+                    False,
+
+                QAInspectionTemplate.is_latest:
+                    False,
+            })
+
+            tmpl = QAInspectionTemplate(
+
+                part_id=lot.part_id,
+
+                rev_id=lot.part_revision_id,
+
+                version=version,
+
+                name=(
+                    f"{lot.part.part_no} "
+                    f"REV "
+                    f"{lot.part_revision.rev if lot.part_revision else '-'} "
+                    f"V{version}"
+                ),
+
+                active=True,
+
+                is_latest=True,
+            )
+
+            db.add(tmpl)
+
+            db.flush()
+
+        # =========================
+        # INSERT TEMPLATE ITEMS
+        # =========================
+        seq = 1
+
+        for row in rows:
+
+            op = row.get("Op#")
+
+            for b in row.get(
+                "Bubble",
+                []
+            ):
+
+                bb = b.get("bb")
+                dim = b.get("dimension")
+
+                if not bb:
+                    continue
+
+                db.add(
+                    QAInspectionTemplateItem(
+
+                        template_id=tmpl.id,
+
+                        seq=seq,
+
+                        op_no=op or "",
+
+                        bb_no=bb or "",
+
+                        dimension=(
+                            dim or ""
+                        ).strip(),
+                    )
+                )
+
+                seq += 1
+
+        db.flush()
+
+        # =========================
+        # APPLY TEMPLATE
+        # =========================
+        db.query(QAInspectionItem)\
+            .filter(
+                QAInspectionItem.inspection_id ==
+                    inspection_id
+            )\
+            .delete()
+
+        db.flush()
+
+        template_items = (
+            db.query(
+                QAInspectionTemplateItem
+            )
+            .filter(
+                QAInspectionTemplateItem
+                .template_id == tmpl.id
+            )
+            .order_by(
+                QAInspectionTemplateItem.seq
+            )
+            .all()
+        )
+
+        for it in template_items:
+
+            db.add(
+                QAInspectionItem(
+
+                    inspection_id=
+                        inspection_id,
+
+                    seq=it.seq,
+
+                    op_no=it.op_no,
+
+                    bb_no=it.bb_no,
+
+                    dimension=it.dimension,
+                    qa_time_stamp=None,   # ✅ สำคัญ
+                    emp_id=38,   # ✅ ADD
+                )
+            )
+
+        db.commit()
+
+        return {
+
+            "success": True,
+
+            "template_id": tmpl.id,
+
+            "version": tmpl.version,
+
+            "count": len(template_items),
+        }
+
+    except Exception as e:
+
+        db.rollback()
+
+        print(
+            "❌ import inspection error:",
+            e
+        )
+
+        raise HTTPException(
+            500,
+            str(e)
+        )
