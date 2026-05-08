@@ -756,3 +756,39 @@ def get_traveler_by_no(
             None
         )
     }
+
+# ---------- DELETE ALL STEPS ----------
+@router.delete("/{traveler_id}/delete-all-steps")
+def delete_all_steps(
+    traveler_id: int,
+    db: Session = Depends(get_db)
+):
+    traveler = db.get(ShopTraveler, traveler_id)
+
+    if not traveler:
+        raise HTTPException(404, "Traveler not found")
+
+    # 🔥 get all step ids
+    step_ids = [
+        s.id
+        for s in db.query(ShopTravelerStep)
+        .filter(ShopTravelerStep.traveler_id == traveler_id)
+        .all()
+    ]
+
+    # 🔥 delete logs first
+    if step_ids:
+        db.query(ShopTravelerStepLog).filter(
+            ShopTravelerStepLog.step_id.in_(step_ids)
+        ).delete(synchronize_session=False)
+
+    # 🔥 delete steps
+    db.query(ShopTravelerStep).filter(
+        ShopTravelerStep.traveler_id == traveler_id
+    ).delete(synchronize_session=False)
+
+    db.commit()
+
+    return {
+        "message": "All traveler steps deleted"
+    }

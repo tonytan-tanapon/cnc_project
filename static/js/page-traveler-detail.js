@@ -601,6 +601,48 @@ function operatorAutocompleteEditor(cell, onRendered, success, cancel) {
   return input;
 }
 
+
+async function saveAllSteps() {
+
+  const rows = Array.from(dirtyRows.values());
+
+  if (!rows.length) {
+    toast("No changes");
+    return;
+  }
+
+  try {
+    console.log(
+      "Saving rows:",
+      Array.from(dirtyRows.values())
+    );
+
+    for (const row of rows) {
+
+      await jfetch(`/api/v1/traveler-steps/${row.id}`, {
+        method: "PUT",
+        body: JSON.stringify(row),
+        headers: {
+          "Content-Type": "application/json"
+        }
+      });
+    }
+
+    toast("All steps updated");
+
+    dirtyRows.clear();
+
+    stepsTable.getRows().forEach(r => {
+      r.getElement().classList.remove("is-dirty");
+    });
+
+  } catch (err) {
+
+    console.error(err);
+
+    toast("Save failed", false);
+  }
+}
 let logTable = null;
 
 
@@ -613,57 +655,58 @@ function initStepsTable() {
     layout: "fitColumns",
     height: "calc(100vh - 480px)",
     placeholder: "No steps",
-    reactiveData: true,
+    reactiveData: false,
     index: "id",
-    
+    editTriggerEvent: "dblclick",
+
 
     columns: [
       // =====================
       // 💾 SAVE COLUMN
       // =====================
-      {
-        title: "Save",
-        width: 100,
-        hozAlign: "center",
+      //   {
+      //     title: "Save",
+      //     width: 100,
+      //     hozAlign: "center",
 
-        formatter: () => `
-    <button class="btn-mini btn-success" data-action="save">💾</button>
-  `,
+      //     formatter: () => `
+      // <button class="btn-mini btn-success" data-action="save">💾</button>
+      // `,
 
-        cellClick: async (e, cell) => {
-          const action = e.target.getAttribute("data-action");
-          if (action !== "save") return;
+      //       cellClick: async (e, cell) => {
+      //         const action = e.target.getAttribute("data-action");
+      //         if (action !== "save") return;
 
-          const row = cell.getRow();
-          const data = row.getData();
+      //         const row = cell.getRow();
+      //         const data = row.getData();
 
-          try {
-            await jfetch(`/traveler-steps/${data.id}`, {
-              method: "PUT",
-              body: JSON.stringify({
-                seq: data.seq,
-                step_code: data.step_code,
-                step_name: data.step_name,
-                step_detail: data.step_detail,
-                station: data.station,
-                operator_id: data.operator_id,
-                supplier_po: data.supplier_po,
-                supplier_name: data.supplier_name,
-                heat_lot: data.heat_lot,
-              }),
-            });
+      //         try {
+      //           await jfetch(`/traveler-steps/${data.id}`, {
+      //             method: "PUT",
+      //             body: JSON.stringify({
+      //               seq: data.seq,
+      //               step_code: data.step_code,
+      //               step_name: data.step_name,
+      //               step_detail: data.step_detail,
+      //               station: data.station,
+      //               operator_id: data.operator_id,
+      //               supplier_po: data.supplier_po,
+      //               supplier_name: data.supplier_name,
+      //               heat_lot: data.heat_lot,
+      //             }),
+      //           });
 
-            setDirtyClass(row, false);
-            row.getTable().redraw(true);
+      //           setDirtyClass(row, false);
+      //           row.getTable().redraw(true);
 
-            toast("Saved");
+      //           toast("Saved");
 
-          } catch (err) {
-            console.error(err);
-            toast("Save failed", false);
-          }
-        }
-      },
+      //         } catch (err) {
+      //           console.error(err);
+      //           toast("Save failed", false);
+      //         }
+      //       }
+      //     },
 
       { title: "#", field: "seq", width: 70, hozAlign: "center", editor: "number" },
 
@@ -791,36 +834,16 @@ function initStepsTable() {
 
     ],
 
-    formatter: (cell) => {
-      const row = cell.getRow();
-      const isDirty = row.getElement().classList.contains("is-dirty");
-
-      if (isDirty) {
-        return `
-      <div style="display:flex; gap:6px; justify-content:center;">
-        <button class="btn-mini btn-success" data-action="save">💾</button>
-        <button class="btn-mini" data-action="cancel">✖</button>
-        <button class="btn-mini btn-danger" data-action="delete">🗑</button>
-      </div>
-    `;
-      }
-
-      return `
-    <div style="display:flex; gap:6px; justify-content:center;">
-      <button class="btn-mini btn-danger" data-action="delete">🗑</button>
-    </div>
-  `;
-    },
 
 
 
-    cellEdited: function (cell) {
-      const row = cell.getRow();
-      setDirtyClass(row, true);
+    // cellEdited: function (cell) {
+    //   const row = cell.getRow();
+    //   setDirtyClass(row, true);
 
-      // 🔥 refresh ปุ่ม
-      row.getTable().redraw(true);
-    },
+    //   // 🔥 refresh ปุ่ม
+    //   row.getTable().redraw(true);
+    // },
 
     //   rowFormatter: function (row) {
     //     const data = row.getData();
@@ -862,6 +885,23 @@ function initStepsTable() {
 
     //     row.getElement().appendChild(holder);
     //   },
+  });
+
+  stepsTable.on("cellEdited", function (cell) {
+
+    const row = cell.getRow();
+
+    const data = row.getData();
+
+    console.log("CELL EDITED");
+
+    dirtyRows.set(
+      data.id,
+      JSON.parse(JSON.stringify(data))
+    );
+
+    row.getElement().classList.add("is-dirty");
+
   });
 
 
@@ -1351,40 +1391,47 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("btnExportTravelerBlank").addEventListener("click", exportTravelerBlank);
 
 
+
+
   const btnUpdateST = document.getElementById("btnUpdateTravelerStep");
 
   btnUpdateST?.addEventListener("click", async () => {
-    if (!travelerId) {
-      toast("Traveler not loaded", false);
+
+    // 🔥 force commit current editing cell
+    document.activeElement?.blur();
+
+    // 🔥 wait next tick
+    await new Promise(r => setTimeout(r, 50));
+
+    await saveAllSteps();
+
+  });
+
+  const btnDeleteAllSteps = document.getElementById("btnDeleteAllSteps");
+
+  btnDeleteAllSteps?.addEventListener("click", async () => {
+    if (!confirm("Delete all steps?")) {
       return;
     }
-
-    
 
     try {
       setBusyT(true);
 
-      const res = await jfetch(
-        `/api/v1/travelers/${travelerId}/create-template-version`,
-        { method: "POST" }
-      );
+      const res = await jfetch(`/api/v1/travelers/${travelerId}/delete-all-steps`, {
+        method: "DELETE"
+      });
 
-      toast(`✅ Template V${res.version} created`);
-      await loadTraveler();
-
-
-      // 🔥 IMPORTANT → reload template dropdown
+      toast("All steps deleted");
+      await reloadSteps();
 
     } catch (err) {
       console.error(err);
-      toast(err?.message || "Failed to create template", false);
+      toast(err?.message || "Failed to delete steps", false);
     } finally {
       setBusyT(false);
     }
   });
 
-
-  
   const btnUpdateTemplate = document.getElementById("btnUpdateTravelerTemplate");
 
   btnUpdateTemplate?.addEventListener("click", async () => {

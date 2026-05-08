@@ -365,7 +365,7 @@
           <button id="btnImportFile" class="btn-mini">
             📂 Import File
           </button>
-          <button id="btnUpdateTravelerStep" class="btn-mini">💾 Update Traveler</button>
+          
           <button id="btnUpdateTravelerTemplate" class="btn-mini">💾 Update Template</button>
           <button id="btnExportTraveler" class="btn-mini">📝 Export Traveler</button>
           <button id="btnExportTravelerBlank" class="btn-mini">📝 Export Blank</button>
@@ -374,7 +374,13 @@
           <b>Bold</b> -> **Text**, Alt + 0216(Ø), 0177(±), 0176(°)
 
         </div>
-Save every row when editing
+
+        <div class="list-topbar">
+          <button id="btnUpdateTravelerStep" class="btn-mini">💾 Save Traveler</button>
+          <button id="btnDeleteAllSteps" class="btn-mini">🗑 Delete All Steps</button>
+        </div>
+        
+
         <!-- Steps table mount -->
         <div id="steps_wrap">
           <div id="steps_table"></div>
@@ -399,7 +405,7 @@ Save every row when editing
   <!-- QRCode library (global variable) -->
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
   <!-- Page script -->
-  <script type="module" src="/static/js/page-traveler-detail.js?v=132"></script>
+  <script type="module" src="/static/js/page-traveler-detail.js?v=5"></script>
 
   <!-- ===== QR Code Modal ===== -->
   <style>
