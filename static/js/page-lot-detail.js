@@ -64,6 +64,11 @@ function makeLotLinks(lotId) {
       title: "Materials",
     },
     {
+      id: "inspection_link",
+      href: `/static/travelerQA-detail.html?lot_id=${encodeURIComponent(lotId)}`,
+      title: "Inspection",
+    },
+    {
       id: "shippment_link",
       href: `/static/manage-lot-shippments.html?lot_id=${encodeURIComponent(lotId)}`,
       title: "Shipment",
@@ -98,7 +103,7 @@ async function loadLotDetail() {
   const lot = res.items?.[0];
 
   if (!lot) return;
-
+  console.log("Lot detail:", lot);
   renderLotTable(lot);
 }
 function editableField(field, value, lotId, type = "text") {
@@ -206,7 +211,7 @@ function displayToISO(dateStr) {
 }
 
 function renderLotTable(d) {
-  console.log("test",d)
+  // console.log("test",d)
   const tbody = document.getElementById("lotDetailBody");
   tbody.innerHTML = "";
   console.log("CREATE:",d.created_at)
@@ -264,7 +269,7 @@ function renderLotTable(d) {
 
   ["Part Name", d.part_name],
   // ["Revision Code", d.lot_revision_code],
-   ["Revision Code", d.rev_from_po],
+   ["Revision Code", d.revision_code],
   ["Customer Code", d.customer_code],
   // ["Customer Name", d.customer_name],
 
@@ -289,8 +294,8 @@ function renderLotTable(d) {
 
 
 document.addEventListener("DOMContentLoaded", () => {
-  loadLotDetail();
-
+ 
+loadLotDetail();
   
   const lotId = new URLSearchParams(location.search).get("lot_id");
    makeLotLinks(lotId);
@@ -302,7 +307,7 @@ document.addEventListener("DOMContentLoaded", () => {
   
   // boot
  
-  loadLotDetail();
+  
 
 
 });

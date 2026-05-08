@@ -194,6 +194,7 @@ def get_active_template(
             TravelerTemplate.part_id == part_id,
             TravelerTemplate.part_revision_id == part_revision_id,
             TravelerTemplate.is_active.is_(True),
+            TravelerTemplate.is_latest == True,   # ✅ PUT BACK
         )
         .order_by(TravelerTemplate.version.desc()).first()
     )
@@ -471,7 +472,7 @@ def create_template_version(
 
                 "step_name": s.step_name,
 
-                "notes": s.step_detail,
+                "step_detail": s.step_detail,
 
                 "step_type": s.station,
 
@@ -544,7 +545,7 @@ def apply_template(
             TravelerTemplate.part_id == traveler.lot.part_id,
             TravelerTemplate.part_revision_id == traveler.lot.part_revision_id,
             TravelerTemplate.is_active == True,
-            # TravelerTemplate.is_latest == True,
+            TravelerTemplate.is_latest == True,
         )
         .first()
     )
@@ -580,7 +581,7 @@ def apply_template(
 
     # 🔥 copy template steps
     for s in tmpl.steps:
-
+        
         row = ShopTravelerStep(
             traveler_id=traveler_id,
 

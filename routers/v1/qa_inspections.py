@@ -128,7 +128,7 @@ from models import (
 
 @router.get("/templates/active")
 def get_active_template(inspection_id: int, db: Session = Depends(get_db)):
-
+    print(f"Getting active template for inspection {inspection_id}")
     # 1. หา inspection
     inspection = db.get(QAInspection, inspection_id)
     if not inspection:

@@ -875,6 +875,11 @@ function makeLotLinks(lotId) {
       title: "Materials",
     },
     {
+      id: "inspection_link",
+      href: `/static/travelerQA-detail.html?lot_id=${encodeURIComponent(lotId)}`,
+      title: "Inspection",
+    },
+    {
       id: "shippment_link",
       href: `/static/manage-lot-shippments.html?lot_id=${encodeURIComponent(lotId)}`,
       title: "Shipment",

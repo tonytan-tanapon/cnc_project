@@ -235,7 +235,7 @@ def parse_docx(path: str) -> dict:
             data["traveler"]["risk"] = m.group(1)
 
         elif m := MAT_RE.search(raw_line):
-            # print("Found MATERIAL in header:", m.group(1))
+            # `print`("Found MATERIAL in header:", m.group(1))
             data["lot"]["material_detail"] = m.group(1)
 
         elif m := PART_NAME_RE.search(raw_line):
@@ -258,7 +258,8 @@ def parse_docx(path: str) -> dict:
                 "step_code": raw_line,   # ✅ ใช้ raw_line
                 "step_type": "material" if raw_line.startswith("M") else "process",
                 "step_name": "",
-                "notes": "",
+                "step_detail": "",   # 🔥 FIX
+              
                 "qa_required": False
             }
 
@@ -278,8 +279,7 @@ def parse_docx(path: str) -> dict:
             if not current_step["step_name"]:
                 current_step["step_name"] = line
             else:
-                current_step["notes"] += line + "\n"
-
+                current_step["step_detail"] += line + "\n"
 
     if current_step:
         data["steps"].append(current_step)
@@ -529,6 +529,9 @@ def create_template_from_parsed_result(
                 step_name=step.get(
                     "step_name"
                 ),
+                 step_detail=step.get(
+            "step_detail", ""
+        ),
 
                 
 
@@ -637,7 +640,7 @@ def update_database(result, date_create):
                     seq=int(step["order"]),
                     step_code=step.get("step_code"),
                     step_name=step.get("step_name"),
-                    step_detail=step.get("notes"),
+                    step_detail=step.get("step_detail"),
                     station=step.get("step_type"),
                     qa_required=bool(step.get("qa_required", False)),
                 )

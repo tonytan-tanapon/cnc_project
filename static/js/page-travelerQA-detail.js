@@ -1742,6 +1742,7 @@ function setBusyT(on) {
     body.style.opacity = "";
   }
 }
+
 async function btnUpdateInspection() {
   console.log("Update inspection", currentInspection?.id);
 
@@ -1781,7 +1782,56 @@ async function btnUpdateInspection() {
 
 async function btnExportBlank() {
   console.log("Export blank inspection", currentInspection?.id);
+ 
 
+  if (!currentInspection?.id) {
+    alert("Inspection not loaded");
+    return;
+  }
+
+  try {
+    const res = await fetch(
+      `/api/v1/traveler_drawing/export_inspection_blank/${currentInspection.id}`,
+      { method: "POST" }
+    );
+    console.log("template export response", res );
+    // ❌ error from backend
+    if (!res.ok) {
+      let msg = "Export failed";
+      try {
+        const err = await res.json();
+        msg = err.detail || msg;
+      } catch (_) { }
+      alert(msg);
+      return;
+    }
+
+    // ✅ filename
+    let filename = `inspection_${currentInspection.id}.docx`;
+    const disposition = res.headers.get("Content-Disposition");
+    if (disposition) {
+      const match = disposition.match(/filename="?([^"]+)"?/);
+      if (match) filename = match[1];
+    }
+
+    // ✅ download
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+
+    a.remove();
+    URL.revokeObjectURL(url);
+
+    console.log("✅ Export completed:", filename);
+  } catch (err) {
+    console.error("Export error", err);
+    alert("Unexpected error while exporting inspection");
+  }
 
 
 }

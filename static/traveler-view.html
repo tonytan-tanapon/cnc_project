@@ -177,6 +177,29 @@ div[style*="Add Step Log"] {
 tbody tr:nth-child(even) {
   background: #fafafa;
 }
+
+/* =========================
+   STEP NAME COLUMN
+========================= */
+th:nth-child(2),
+td:nth-child(2) {
+  width: 200px;
+  max-width: 200px;
+
+  white-space: normal;
+  word-break: break-word;
+
+  font-size: 13px;
+}
+
+/* =========================
+   MACHINE COLUMN
+========================= */
+th:nth-child(8),
+td:nth-child(8) {
+  width: 90px;
+  max-width: 90px;
+}
 </style>
 
   
@@ -212,6 +235,7 @@ tbody tr:nth-child(even) {
   <thead>
     <tr>
       <th>OP</th>
+      <th>Name</th>
       <th>Status</th>
       <th>Date</th>
       

@@ -1,152 +1,164 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Lot Detail · Topnotch – MFG</title>
 
-    <link rel="stylesheet" href="/static/css/app.css" />
-    <link
-      rel="stylesheet"
-      href="/static/vendor/tabulator/tabulator_modern.min.css"
-    />
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Lot Detail · Topnotch – MFG</title>
 
-    <style>
-      body {
-        background: #f9fafb;
-        margin: 0;
-        font-family: system-ui, sans-serif;
-      }
+  <link rel="stylesheet" href="/static/css/app.css" />
+  <link rel="stylesheet" href="/static/vendor/tabulator/tabulator_modern.min.css" />
 
-      .main--edge {
-        height: 100vh;
-        overflow: hidden;
-        display: flex;
-        flex-direction: column;
-      }
+  <style>
+    body {
+      background: #f9fafb;
+      margin: 0;
+      font-family: system-ui, sans-serif;
+    }
 
-      /* ===== LOT HEADER ===== */
-      .lot-info {
-        padding: 14px 18px;
-        border-bottom: 1px solid #e5e7eb;
-        font-size: 15px;
-        background: #fff;
-      }
+    .main--edge {
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
 
-      .lot-info h2 {
-        margin: 0 0 6px 0;
-        font-size: 16px;
-        color: #111827;
-      }
+    /* ===== LOT HEADER ===== */
+    .lot-info {
+      padding: 14px 18px;
+      border-bottom: 1px solid #e5e7eb;
+      font-size: 15px;
+      background: #fff;
+    }
 
-      .lot-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-        gap: 8px;
-        font-size: 14px;
-      }
+    .lot-info h2 {
+      margin: 0 0 6px 0;
+      font-size: 16px;
+      color: #111827;
+    }
 
-      .progress {
-        margin-top: 10px;
-        height: 10px;
-        background: #e5e7eb;
-        border-radius: 6px;
-        overflow: hidden;
-      }
+    .lot-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 8px;
+      font-size: 14px;
+    }
 
-      .progress-bar {
-        height: 100%;
-        background: #10b981;
-        width: 0%;
-        transition: width 0.4s ease;
-      }
+    .progress {
+      margin-top: 10px;
+      height: 10px;
+      background: #e5e7eb;
+      border-radius: 6px;
+      overflow: hidden;
+    }
 
-      .progress-label {
-        font-size: 13px;
-        color: #374151;
-        margin-top: 4px;
-      }
+    .progress-bar {
+      height: 100%;
+      background: #10b981;
+      width: 0%;
+      transition: width 0.4s ease;
+    }
 
-      /* ===== TOOLBAR ===== */
-      .toolbar {
-        padding: 10px 16px;
-        background: #fff;
-        border-bottom: 1px solid #e5e7eb;
-        display: flex;
-        gap: 8px;
-        flex-wrap: wrap;
-      }
+    .progress-label {
+      font-size: 13px;
+      color: #374151;
+      margin-top: 4px;
+    }
 
-      button {
-        border: none;
-        border-radius: 6px;
-        padding: 6px 12px;
-        cursor: pointer;
-        font-size: 14px;
-        color: #fff;
-        transition: background 0.2s;
-      }
+    /* ===== TOOLBAR ===== */
+    .toolbar {
+      padding: 10px 16px;
+      background: #fff;
+      border-bottom: 1px solid #e5e7eb;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
 
-      button.warning {
-        background: #f59e0b;
-        color: #111;
-      }
+    button {
+      border: none;
+      border-radius: 6px;
+      padding: 6px 12px;
+      cursor: pointer;
+      font-size: 14px;
+      color: #fff;
+      transition: background 0.2s;
+    }
 
-      button.success {
-        background: #16a34a;
-      }
+    button.warning {
+      background: #f59e0b;
+      color: #111;
+    }
 
-      button.secondary {
-        background: #6b7280;
-      }
+    button.success {
+      background: #16a34a;
+    }
 
-      button:hover {
-        opacity: 0.9;
-      }
+    button.secondary {
+      background: #6b7280;
+    }
 
-      /* ===== PANELS ===== */
-      .panel {
-        margin: 12px 16px;
-        display: flex;
-        flex-direction: column;
-        background: #fff;
-        border: 1px solid #e5e7eb;
-        border-radius: 6px;
-        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
-        overflow: hidden;
-      }
+    button:hover {
+      opacity: 0.9;
+    }
 
-      .panel h3 {
-        margin: 0;
-        padding: 8px 10px;
-        background: #f3f4f6;
-        border-bottom: 1px solid #e5e7eb;
-        font-size: 15px;
-        display: flex;
-        align-items: center;
-        gap: 6px;
-      }
+    /* ===== PANELS ===== */
+    .panel {
+      margin: 12px 16px;
+      display: flex;
+      flex-direction: column;
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+      overflow: hidden;
+    }
 
-      .table-wrap {
-        flex: 1;
-        overflow: auto;
-      }
+    .panel h3 {
+      margin: 0;
+      padding: 8px 10px;
+      background: #f3f4f6;
+      border-bottom: 1px solid #e5e7eb;
+      font-size: 15px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
 
-      .toast {
-        position: fixed;
-        bottom: 16px;
-        right: 16px;
-        background: rgba(17, 24, 39, 0.95);
-        color: #fff;
-        padding: 10px 14px;
-        border-radius: 6px;
-        font-size: 14px;
-        display: none;
-        z-index: 9999;
-      }
+    .table-wrap {
+      flex: 1;
+      overflow: auto;
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 16px;
+      right: 16px;
+      background: rgba(17, 24, 39, 0.95);
+      color: #fff;
+      padding: 10px 14px;
+      border-radius: 6px;
+      font-size: 14px;
+      display: none;
+      z-index: 9999;
+    }
 
 
-       .quick-links a {
+    .quick-links a {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 8px;
+      background: #f3f4f6;
+      font-weight: 600;
+    }
+
+    .quick-links a:hover {
+      background: #e5e7eb;
+    }
+
+    .quick-links div {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -155,50 +167,46 @@
   background: #f3f4f6;
   font-weight: 600;
 }
+  </style>
+</head>
 
-.quick-links a:hover {
-  background: #e5e7eb;
-}
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div id="navSlot" data-nav-slot></div>
+    </aside>
 
+    <main class="main main--edge">
 
-
-    </style>
-  </head>
-
-  <body>
-    <div class="app">
-      <aside class="sidebar">
-        <div id="navSlot" data-nav-slot></div>
-      </aside>
-
-      <main class="main main--edge">
-
-         <section class="quick-links">
+      <section class="quick-links">
         <div id="lot_link">🧾 LOT</div>
         <!-- <div id="part_link">🧾 Part</div> -->
-          <div id="material_link">🔩 Material</div>
-  <div id="traveler_link">🧾 Traveler</div>
+        <!-- <div id="material_link">🔩 Material</div> -->
+        <div id="traveler_link">🧾 Traveler</div>
+        <div id="inspection_link">🧾 Inspection</div>
+        <div id="shippment_link">📦 Shipment</div>
 
-  <div id="shippment_link">📦 Shipment</div>
-</section>
-
-        
-         <div>Search</div><input>
-        <!-- ===== Lot ===== -->
-        <section class="panel">
-          <h3>🧱 Lot Usage</h3>
-          <div class="table-wrap">
-  <table id="lotDetailTable" cellpadding="8" style="width:100%; border-collapse:collapse;">
-    <tbody id="lotDetailBody"></tbody>
-  </table>
-</div>
-        </section>
+  
+      </section>
 
 
-    <div class="toast" id="toast"><span id="toastText"></span></div>
+      <div>Search</div><input>
+      <!-- ===== Lot ===== -->
+      <section class="panel">
+        <h3>🧱 Lot Usage</h3>
+        <div class="table-wrap">
+          <table id="lotDetailTable" cellpadding="8" style="width:100%; border-collapse:collapse;">
+            <tbody id="lotDetailBody"></tbody>
+          </table>
+        </div>
+      </section>
 
-    <script type="module" src="/static/js/nav-loader.js" defer></script>
-    <script src="/static/vendor/tabulator/tabulator.min.js" defer></script>
-    <script type="module" src="/static/js/page-lot-detail.js" defer></script>
-  </body>
+
+      <div class="toast" id="toast"><span id="toastText"></span></div>
+
+      <script type="module" src="/static/js/nav-loader.js" defer></script>
+      <script src="/static/vendor/tabulator/tabulator.min.js" defer></script>
+      <script type="module" src="/static/js/page-lot-detail.js?version=1.0.0" defer></script>
+</body>
+
 </html>

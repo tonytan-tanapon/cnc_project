@@ -10,6 +10,7 @@ let travelerId = qs.get("id"); // ✅ must be let so we can reassign later
 const lotId = qs.get("lot_id"); // ✅ add this line
 
 let originalTraveler = null;
+let originalLot = null;
 let isSubmitting = false;
 
 /* ---- Header autocomplete state ---- */
@@ -195,7 +196,7 @@ function markHeaderDirty(on) {
 function wireHeaderDirtyOnly() {
   [
     "lot_id",
-    "created_by_id",
+
     "status",
     "notes",
     "lot_po_qty",
@@ -214,7 +215,7 @@ function wireHeaderDirtyOnly() {
 /* ---------- Header Autocomplete ---------- */
 function initHeaderAutocomplete() {
   const elLot = $("lot_id");
-  const elCreator = $("created_by_id");
+
 
 
 
@@ -242,114 +243,90 @@ function initHeaderAutocomplete() {
     });
   }
 
-  // CREATED BY → emp_code only
-  if (elCreator) {
-    attachAutocomplete(elCreator, {
-      fetchItems: searchEmployees,
-      getDisplayValue: (it) => (it ? it.label : ""),
-      renderItem: (it) => `<div class="ac-row">${escapeHtml(it.label)}</div>`,
-      openOnFocus: true,
-      minChars: 0,
-      debounceMs: 200,
-      maxHeight: 260,
-      onPick: (it) => {
-        selectedCreator = it;
-        elCreator.value = it.label; // show emp_code
-        elCreator.dataset.id = String(it.id); // keep id
-        markHeaderDirty(true);
-      },
-    });
-    elCreator.addEventListener("input", () => {
-      selectedCreator = null;
-      delete elCreator.dataset.id;
-      markHeaderDirty(true);
-    });
-  }
+
 }
 
-
+/* ---------- Traveler IO ---------- */
 
 /* ---------- Traveler IO ---------- */
+
 async function fillTraveler(t) {
+
   console.log("🔥 fillTraveler called", t);
 
-  // ---------- Lot ----------
-  const lotLabel = t.lot_no ? String(t.lot_no) : t.lot_id ?? "";
-  $("lot_id").value = lotLabel;
-  $("lot_id").dataset.id = t.lot_id ?? "";
+  // =====================
+  // HEADER
+  // =====================
 
-  // ---------- Creator ----------
-  const creatorCode = t.created_by_id
-    ? await fetchEmpCodeById(t.created_by_id)
-    : "";
-  $("created_by_id").value = creatorCode;
-  $("created_by_id").dataset.id = t.created_by_id ?? "";
+  const sub = $("t_sub");
 
-  // ---------- Basic fields ----------
-  // $("status").value = t.status ?? "";
-  $("notes").value = t.notes ?? "";
-  $("material").value =
-  t.lot?.part_revision?.material ??
-  "";
+  if (sub) {
 
-  $("t_sub").textContent = `#${t.traveler_no}`;
-  const badge = $("latestBadge");
+    let badge = "";
 
-  if (badge) {
+    if (t.latest_template) {
 
-    if (t.latest_template_version) {
-
-      const badge = $("latestBadge");
-
-      if (badge) {
-
-        // ✅ version exists
-        if (t.latest_template_version != null) {
-
-          badge.style.display = "inline-flex";
-
-          if (t.latest_template) {
-
-            badge.textContent =
-              `LATEST · ${
-  t.template?.name || t.latest_template_name
-    ? `${t.template?.name || t.latest_template_name} ${
-        t.latest_template_version
-          ? `(V${t.latest_template_version})`
-          : ""
-      }`
-    : `V${t.latest_template_version}`
-}`
-
-          } else {
-
-            badge.textContent =
-  `${t.latest_template_name || ""} ${t.latest_template_version ? `(V${t.latest_template_version})` : ""}`.trim();
-          }
-
-        } else {
-
-          badge.style.display = "none";
-        }
-      }
-
-    } else {
-
-      badge.style.display = "none";
+      badge = `
+        <span
+          style="
+            margin-left:10px;
+            padding:4px 10px;
+            border-radius:999px;
+            background:#16a34a;
+            color:white;
+            font-size:12px;
+            font-weight:600;
+          "
+        >
+          LATEST · ${t.latest_template_name || ""}
+          (V${t.latest_template_version || ""})
+        </span>
+      `;
     }
+
+    sub.innerHTML = `
+      #${t.traveler_no || ""}
+      ${badge}
+    `;
   }
 
+  // =====================
+  // BASIC
+  // =====================
+
+  $("notes").value =
+    t.notes || "";
+
+  $("material").value =
+    t.lot?.part_revision?.material || "";
 
 
-  document.title = `Traveler · #${t.id}`;
+
+
+  // =====================
+  // CREATOR
+  // =====================
+
+  const creatorCode =
+    t.created_by_id
+      ? await fetchEmpCodeById(
+        t.created_by_id
+      )
+      : "";
+
+  const createdByEl =
+    $("created_by_id");
+
+  if (createdByEl) {
+
+    createdByEl.value =
+      creatorCode;
+
+    createdByEl.dataset.id =
+      t.created_by_id ?? "";
+  }
 
   markHeaderDirty(false);
-
-  selectedLot = null;
-  selectedCreator = null;
-
-
-
 }
 
 function readTraveler() {
@@ -387,7 +364,7 @@ async function loadTraveler() {
     if (travelerId) {
       // Normal case
       t = await jfetch(`/travelers/${encodeURIComponent(travelerId)}`);
-      console.log("Fetched traveler by ID:", t);  
+      console.log("Fetched traveler by ID:", t);
     } else if (lotId) {
       // Find by lot_id
       const list = await jfetch(
@@ -403,6 +380,7 @@ async function loadTraveler() {
 
     travelerId = t.id; // ✅ assign travelerId from response
     originalTraveler = t;
+    console.log("Original traveler data:", originalTraveler);
     await fillTraveler(t);
   } catch (e) {
     setError(e?.message || "Load failed");
@@ -637,6 +615,7 @@ function initStepsTable() {
     placeholder: "No steps",
     reactiveData: true,
     index: "id",
+    
 
     columns: [
       // =====================
@@ -698,6 +677,33 @@ function initStepsTable() {
         editor: "textarea",
       },
 
+      {
+        title: "Supplier",
+        field: "supplier",
+        width: 240,
+
+        formatter: function (cell) {
+          const data = cell.getRow().getData();
+
+          const lines = [];
+
+          if (data.supplier_po) {
+            lines.push(`Supplier PO: ${data.supplier_po}`);
+          }
+
+          if (data.supplier_name) {
+            lines.push(`Supplier: ${data.supplier_name}`);
+          }
+
+          if (data.heat_lot) {
+            lines.push(`Heat Lot: ${data.heat_lot}`);
+          }
+
+          return lines.join("<br>");
+        }
+      },
+
+
       // { title: "Station", field: "station", width: 140 },
 
       {
@@ -740,31 +746,7 @@ function initStepsTable() {
         hozAlign: "right",
         formatter: (c) => Math.round(c.getValue() ?? 0)
       },
-      {
-        title: "Supplier",
-        field: "supplier",
-        width: 240,
 
-        formatter: function (cell) {
-          const data = cell.getRow().getData();
-
-          const lines = [];
-
-          if (data.supplier_po) {
-            lines.push(`Supplier PO: ${data.supplier_po}`);
-          }
-
-          if (data.supplier_name) {
-            lines.push(`Supplier: ${data.supplier_name}`);
-          }
-
-          if (data.heat_lot) {
-            lines.push(`Heat Lot: ${data.heat_lot}`);
-          }
-
-          return lines.join("<br>");
-        }
-      },
 
 
       // 🔥 DELETE STEP
@@ -1105,92 +1087,7 @@ async function exportTraveler() {
   }
 }
 
-async function exportInspection() {
-  // const res = await fetch(
-  //   `/api/v1/traveler_drawing/export_inspection/${travelerId}`, {
-  //     method: "POST",
-  //   }
-  // );
-  // if (!res.ok) {
-  //   const err = await res.json();
-  //   alert(err.detail || "File not found");
-  //   return;
-  // }
-  // const blob = await res.blob();
-  // const a = document.createElement("a");
-  // a.href = URL.createObjectURL(blob);
-  // a.download = `export_inspection_${travelerId}.zip`;
-  // a.click();
-}
-// async function downloadInspection() {
-//   const res = await fetch(`/traveler_drawing/inspection/${travelerId}`, {
-//     method: "POST",
-//   });
 
-//   if (!res.ok) {
-//     const err = await res.json();
-//     alert(err.detail || "File not found");
-//     return;
-//   }
-
-//   const blob = await res.blob();
-//   const a = document.createElement("a");
-//   a.href = URL.createObjectURL(blob);
-//   a.download = `inspection_${travelerId}.bat`;
-//   a.click();
-// }
-
-/* ---------- QR Code Popup ---------- */
-
-// function showTravelerQR() {
-//   if (!originalTraveler) {
-//     toast("Traveler not loaded", false);
-//     return;
-//   }
-
-//   const qrModal = document.getElementById("qrModal");
-//   const qrBox = document.getElementById("qrCode");
-//   qrBox.innerHTML = "";
-
-//   const travelerNo = originalTraveler.traveler_no || `TRAV-${travelerId}`;
-
-//   // ✅ ใช้ IP LAN ชั่วคราว
-//   const baseUrl = `${window.location.protocol}//${window.location.host}`;
-//   const qrLink = `${baseUrl}/static/ui-traveler.html?traveler_no=${encodeURIComponent(
-//     travelerNo
-//   )}`;
-
-//   new QRCode(qrBox, {
-//     text: qrLink,
-//     width: 180,
-//     height: 180,
-//     correctLevel: QRCode.CorrectLevel.M,
-//   });
-
-//   document.getElementById("qrText").textContent = travelerNo;
-//   qrModal.style.display = "flex";
-
-//   document.getElementById("qrPrintBtn").onclick = () =>
-//     printTravelerQR(travelerNo, qrLink);
-//   document.getElementById("qrCloseBtn").onclick = () =>
-//     (qrModal.style.display = "none");
-// }
-
-// function printTravelerQR(travelerNo, qrLink) {
-//   const w = window.open("", "_blank");
-//   w.document.write(`
-//     <html><head><title>QR - ${travelerNo}</title></head>
-//     <body style="text-align:center; font-family:sans-serif;">
-//       <h2>Traveler ${travelerNo}</h2>
-//       <img src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(
-//         qrLink
-//       )}" alt="QR">
-//       <p style="margin-top:10px;font-size:14px;">${qrLink}</p>
-//       <script>window.onload = () => { window.print(); }</script>
-//     </body></html>
-//   `);
-//   w.document.close();
-// }
 function showTravelerQR() {
   if (!originalTraveler || !originalTraveler.lot_no) {
     toast("Lot not loaded", false);
@@ -1225,21 +1122,60 @@ function showTravelerQR() {
   });
 }
 
-
 async function loadLotDetail() {
+  console.log("Loading lot detail for lotId:", lotId);
   if (!lotId) return;
 
   try {
-    const lot = await jfetch(`/lots/${encodeURIComponent(lotId)}`);
 
-    console.log("lot detail:", lot);
+    const lot = await jfetch(
+      `/lots/${encodeURIComponent(lotId)}`
+    );
+    originalLot = lot;
+    console.log("lot detail:", originalLot);
 
-    $("customer_name").value = lot.customer?.name || "";
-    $("part_no").value = lot.part?.part_no || "";
-    $("rev").value = lot.revision?.rev || "";
+    const partEl = $("part_no");
+    const revEl = $("rev");
+    const lotEl = $("lot_no");
+    const poEl = $("po_no");
+    const customerEl = $("customer_code");
+
+
+
+    if (partEl) {
+
+      partEl.value = originalLot.part?.part_no || "";
+    }
+    if (revEl) {
+      revEl.value = originalLot.part_revision?.rev || "";
+    }
+    if (lotEl) {
+      lotEl.value = originalLot.all?.lot_no || "";
+    }
+    if (poEl) {
+      poEl.value = originalLot.po?.po_number || "";
+    }
+    if (customerEl) {
+      customerEl.value = originalLot.customer?.code || "";
+    }
+    $("lot_po_qty").value = originalLot.all.lot_po_qty || "";
+    $("lot_planned_qty").value = originalLot.all.planned_qty || "";
+
+    $("lot_release_date").value =
+      originalLot.lot_po_date
+        ? originalLot.lot_po_date.slice(0, 10)
+        : "";
+
+    $("lot_po_duedate").value =
+      originalLot.lot_po_duedate
+        ? originalLot.lot_po_duedate.slice(0, 10)
+        : "";
+
 
   } catch (err) {
+
     console.error(err);
+
     toast("Failed to load lot", false);
   }
 }
@@ -1316,37 +1252,30 @@ async function handleImportFile(e) {
     return;
   }
 
-  // ✅ validate extension
-  const name = file.name.toLowerCase();
-
-  if (!name.endsWith(".docx")) {
-    toast("Only .docx supported", false);
-    e.target.value = "";
-    return;
-  }
-
-  // ✅ confirm replace
-  const ok = confirm(
-    "Import traveler steps?\nCurrent steps may be replaced."
-  );
-
-  if (!ok) {
-    e.target.value = "";
-    return;
-  }
-
   try {
 
     isImporting = true;
 
     setBusyT(true);
 
-    console.log("📥 importing:", file.name);
-
     const formData = new FormData();
 
     formData.append("file", file);
+
     formData.append("traveler_id", travelerId);
+
+    // ✅ ADD THESE
+    const partNo =
+      originalLot?.part?.part_no || "";
+
+    const rev =
+      originalLot?.part_revision?.rev || "";
+
+    formData.append("part_no", partNo);
+    formData.append("rev", rev);
+
+    console.log("part_no =", partNo);
+    console.log("rev =", rev);
 
     const res = await fetch(
       "/api/v1/traveler-steps/import",
@@ -1356,7 +1285,6 @@ async function handleImportFile(e) {
       }
     );
 
-    // ✅ better error handling
     if (!res.ok) {
 
       let msg = "Import failed";
@@ -1373,14 +1301,21 @@ async function handleImportFile(e) {
 
     const result = await res.json();
 
-    console.log("✅ Import result:", result);
+    toast(`Imported ${result.count || 0} steps`);
 
-    toast(
-      `Imported ${result.count || 0} steps`
-    );
-
-    // ✅ reload after success only
     await reloadSteps();
+
+
+    // ⭐ UPDATE LOT STATUS
+    if (lotId) {
+      await jfetch(`/api/v1/lots/${lotId}/status`, {
+        method: "PUT",
+        body: JSON.stringify({
+          status: "in_process"
+        })
+      });
+      console.log("Lot status updated to in_process");
+    }
 
   } catch (err) {
 
@@ -1397,11 +1332,11 @@ async function handleImportFile(e) {
 
     setBusyT(false);
 
-    // ✅ reset file input
     e.target.value = "";
   }
 }
 
+const dirtyRows = new Map();
 /* ---------- Boot ---------- */
 document.addEventListener("DOMContentLoaded", async () => {
   initTopbar();
@@ -1416,9 +1351,43 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("btnExportTravelerBlank").addEventListener("click", exportTravelerBlank);
 
 
-  const btnUpdate = document.getElementById("btnUpdateTravelerStep");
+  const btnUpdateST = document.getElementById("btnUpdateTravelerStep");
 
-  btnUpdate?.addEventListener("click", async () => {
+  btnUpdateST?.addEventListener("click", async () => {
+    if (!travelerId) {
+      toast("Traveler not loaded", false);
+      return;
+    }
+
+    
+
+    try {
+      setBusyT(true);
+
+      const res = await jfetch(
+        `/api/v1/travelers/${travelerId}/create-template-version`,
+        { method: "POST" }
+      );
+
+      toast(`✅ Template V${res.version} created`);
+      await loadTraveler();
+
+
+      // 🔥 IMPORTANT → reload template dropdown
+
+    } catch (err) {
+      console.error(err);
+      toast(err?.message || "Failed to create template", false);
+    } finally {
+      setBusyT(false);
+    }
+  });
+
+
+  
+  const btnUpdateTemplate = document.getElementById("btnUpdateTravelerTemplate");
+
+  btnUpdateTemplate?.addEventListener("click", async () => {
     if (!travelerId) {
       toast("Traveler not loaded", false);
       return;
@@ -1448,7 +1417,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   });
 
-
   // Keyboard: Ctrl+Delete → (optional) delete traveler
   document.addEventListener("keydown", (e) => {
     if (e.ctrlKey && e.key.toLowerCase() === "delete") {
@@ -1477,12 +1445,27 @@ document.addEventListener("DOMContentLoaded", async () => {
       await loadTraveler();   // 🔥 reload badge/version
       await reloadSteps();
 
+      // ⭐ UPDATE LOT STATUS
+      if (lotId) {
+        await jfetch(`/api/v1/lots/${lotId}/status`, {
+          method: "PUT",
+          body: JSON.stringify({
+            status: "in_process"
+          })
+        });
+        console.log("Lot status updated to in_process");
+      }
+
     } catch (err) {
       console.error(err);
       toast("Apply template failed", false);
     } finally {
       setBusyT(false);
     }
+
+
+
+
   });
 
   document.getElementById("btnSTdetail")?.addEventListener("click", () => {
@@ -1530,6 +1513,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
 
   initStepsTable();
+  await loadLotDetail();
   await loadTraveler();
   await reloadSteps();
   makeLotLinks(lotId);

@@ -111,6 +111,7 @@ def list_traveler_steps(traveler_id: Optional[int] = None, db: Session = Depends
                 "step_name": step.step_name,
                 "step_detail": step.step_detail,
                 "step_code": step.step_code,
+             
                 "station": step.station,
                 "status": status,
                 "operator_id": step.operator_id,
@@ -506,16 +507,28 @@ from doc.docx_to_db import (
     convert_doc_to_docx,
 )
 
+
+
 @router.post("/import")
 async def import_steps(
+
     traveler_id: int = Form(...),
+
+    # ✅ ADD THESE
+    part_no: str = Form(None),
+    rev: str = Form(None),
+
     file: UploadFile = File(...),
+
     db: Session = Depends(get_db),
 ):
 
     try:
 
-        print("📥 import")
+        print("📥 import traveler steps")
+
+        print("part_no =", part_no)
+        print("rev =", rev)
 
         filename = (file.filename or "").lower()
 
@@ -542,6 +555,7 @@ async def import_steps(
 
             tmp.write(content)
             tmp.flush()
+
             temp_path = Path(tmp.name)
 
         print("Temp path:", temp_path)
@@ -560,6 +574,21 @@ async def import_steps(
         # =========================
         result = parse_docx(temp_path)
 
+        print("Parsed result:", result)
+
+        # ✅ OVERRIDE FROM FRONTEND
+        if part_no:
+            result["lot"]["part_no"] = part_no
+
+        if rev:
+            result["lot"]["rev"] = rev
+
+        print("Final part_no =", result["lot"]["part_no"])
+        print("Final rev =", result["lot"].get("rev"))
+
+        # =========================
+        # GET PART
+        # =========================
         part, part_rev = get_part_and_revision(
             db,
             result["lot"]["part_no"],
@@ -575,7 +604,6 @@ async def import_steps(
 
         db.commit()
 
-        # apply latest template to traveler
         apply_template_logic(
             db,
             traveler_id,
@@ -595,6 +623,7 @@ async def import_steps(
             500,
             str(e)
         )
+
 def apply_template_logic(
     db: Session,
     traveler_id: int,

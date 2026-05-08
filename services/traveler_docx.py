@@ -130,6 +130,7 @@ def replace_qr(doc, placeholder, image_path):
                         run.add_picture(image_path, width=Inches(1))
 
 def generate_traveler_from_db(template_path, data: dict, output_path):
+    
     from docx import Document
     from pathlib import Path
 
@@ -211,20 +212,21 @@ def generate_traveler_from_db(template_path, data: dict, output_path):
     # --------------------------------------------------
     # INSERT STEPS
     # --------------------------------------------------
-    for step in steps_sorted:
-        # print(f"Inserting: {step.get('step_code')}")
+    total_steps = len(steps_sorted)
+
+    for i, step in enumerate(steps_sorted):
 
         new_row = clone_row(step_table, insert_at)
 
         # -------------------------
         # OP CODE
         # -------------------------
-        new_row.cells[0].text = str(step.get("step_code", ""))  #  op col 1
+        new_row.cells[0].text = str(step.get("step_code", ""))
 
         # -------------------------
-        # DESCRIPTION (bold support)
+        # DESCRIPTION
         # -------------------------
-        desc_cell = new_row.cells[1]        ## Step description col 2
+        desc_cell = new_row.cells[1]
         desc_cell.text = ""
 
         p = desc_cell.paragraphs[0]
@@ -237,31 +239,90 @@ def generate_traveler_from_db(template_path, data: dict, output_path):
         add_text_with_bold(p, text)
 
         # -------------------------
-        # RECEIVE / ACCEPT / REJECT
+        # RECEIVE / OPERATOR
         # -------------------------
-        new_row.cells[2].text = str(step.get("qty_receive", ""))    # receive col 3
+        new_row.cells[2].text = str(
+            step.get("qty_receive", "")
+        )
 
-        new_row.cells[3].text = str(step.get("operator", ""))   # accept col 6
-        new_row.cells[4].text = "\nSUPPLIER: _________\nPO#: _________\nHT#: _________" if "M1" in step.get("step_code", "") or "M2" in step.get("step_code", "") else ""   # Description
-
-
-        new_row.cells[5].text = str(step.get("qty_accept", ""))   # accept col 6
-        new_row.cells[6].text = str(step.get("qty_reject", ""))   # reject col 7
-
-        new_row.cells[7].text = str(step.get("created_at", ""))   # date col 8
+        new_row.cells[3].text = str(
+            step.get("operator", "")
+        )
 
         # -------------------------
-        # QA (optional)
+        # SUPPLIER INFO
         # -------------------------
-        # if len(new_row.cells) > 5:
-        #     new_row.cells[5].text = str(step.get("qa_required", ""))
+        detail = ""
+
+        supplier_lines = []
+
+        if step.get("supplier_po"):
+
+            supplier_lines.append(
+                f"Supplier PO: {step['supplier_po']}"
+            )
+
+        if step.get("supplier_name"):
+
+            supplier_lines.append(
+                f"Supplier: {step['supplier_name']}"
+            )
+
+        if step.get("heat_lot"):
+
+            supplier_lines.append(
+                f"Heat Lot: {step['heat_lot']}"
+            )
+
+        if supplier_lines:
+
+            detail += "\n".join(supplier_lines)
+
+        else:
+
+            detail += "\n\n\n"
+
+        new_row.cells[4].text = detail
+
+        # -------------------------
+        # ACCEPT / REJECT
+        # -------------------------
+        new_row.cells[5].text = str(
+            step.get("qty_accept", "")
+        )
+
+        new_row.cells[6].text = str(
+            step.get("qty_reject", "")
+        )
+
+        # -------------------------
+        # DATE + NAME
+        # -------------------------
+
+        # ✅ last 3 rows
+        if i >= total_steps - 3:
+
+            who = "Trip"
+
+        else:
+
+            who = "Eric"
+
+        new_row.cells[7].text = (
+            f"{who}\n"
+            f"{step.get('created_at', '')}"
+        )
 
         # -------------------------
         # CENTER ALIGN
         # -------------------------
-        for idx in [0, 2, 3, 5,6, 7]:  # center align for op, receive, accept, reject, qa
+        for idx in [0, 2, 3, 5, 6, 7]:
+
             if idx < len(new_row.cells):
-                center_cell(new_row.cells[idx])
+
+                center_cell(
+                    new_row.cells[idx]
+                )
 
         insert_at += 1
 
@@ -406,10 +467,35 @@ def generate_traveler_from_db_blank(template_path, data: dict, output_path):
         # new_row.cells[2].text = str(step.get("qty_receive", ""))    # receive col 3
 
         # new_row.cells[3].text = str(step.get("operator", ""))   # accept col 6
-        new_row.cells[4].text = "\nSUPPLIER: _________\nPO#: _________\nHT#: _________" if "M1" in step.get("step_code", "") or "M2" in step.get("step_code", "") else ""   # Description
+        # -------------------------
+        # SUPPLIER INFO
+        # -------------------------
+        detail = ""
+        supplier_lines = []
+        # print("Step supplier info:", step.get("supplier_po"), step.get("supplier_name"), step.get("heat_lot"))
+        if step.get("supplier_po"):
+            print("Adding supplier PO:", step['supplier_po'])
+            supplier_lines.append(
+                f"Supplier PO: {step['supplier_po']}"
+            )
 
+        if step.get("supplier_name"):
+            supplier_lines.append(
+                f"Supplier: {step['supplier_name']}"
+            )
 
-        # new_row.cells[5].text = str(step.get("qty_accept", ""))   # accept col 6
+        if step.get("heat_lot"):
+            supplier_lines.append(
+                f"Heat Lot: {step['heat_lot']}"
+            )
+
+        if supplier_lines:
+            print("Adding supplier lines to detail:", supplier_lines)
+            detail +=  "\n".join(supplier_lines)
+        else:
+           detail +=  "\n\n\n"
+        new_row.cells[4].text = detail
+         # new_row.cells[5].text = str(step.get("qty_accept", ""))   # accept col 6
         # new_row.cells[6].text = str(step.get("qty_reject", ""))   # reject col 7
 
         # new_row.cells[7].text = str(step.get("created_at", ""))   # date col 8
@@ -633,6 +719,229 @@ def generate_inspection_from_db(template_path, data: dict, output_path):
                     table.cell(r, base_col + 1).text = str(item.get("dimension", "") or "")
                     table.cell(r, base_col + 2).text = str(item.get("tqw", "") or "")
                     table.cell(r, base_col + 3).text = str(    item.get("actual_value", "") or "")
+                    for i in range(4):
+                        center(table.cell(r, base_col + i))
+
+        # =========================
+        # NOTE ROW (PER OP)
+        # =========================
+        for col_idx, op in enumerate(page_ops):
+
+            base_col = col_idx * 4
+
+            # ✅ Column 1 → "Note"
+            note_cell = table.cell(NOTE_ROW_IDX, base_col)
+            note_cell.text = "Note"
+
+            for p in note_cell.paragraphs:
+                p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+
+            # ✅ Columns 2–4 → merge into one
+            merge_cell = table.cell(NOTE_ROW_IDX, base_col + 1)
+
+            for i in range(2, 4):
+                merge_cell = merge_cell.merge(
+                    table.cell(NOTE_ROW_IDX, base_col + i)
+                )
+
+            merge_cell.text = ""  # empty space for writing
+
+            for p in merge_cell.paragraphs:
+                p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+
+        # =========================
+        # MERGE DOCS
+        # =========================
+        if page_idx == 0:
+            final_doc = doc
+        else:
+            final_doc.add_page_break()
+            for el in doc.element.body:
+                final_doc.element.body.append(el)
+
+    # =========================
+    # SAVE
+    # =========================
+    final_doc.save(str(output_path))
+
+
+def generate_inspection_from_db_blank(template_path, data: dict, output_path):
+    from docx import Document
+    from pathlib import Path
+    from collections import defaultdict
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.enum.table import WD_CELL_VERTICAL_ALIGNMENT
+
+    template_path = Path(template_path)
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # print("Inspection data:", data)
+
+    # =========================
+    # SAFE INT
+    # =========================
+    def safe_int(v):
+        try:
+            return int(v)
+        except:
+            return 9999
+
+    # =========================
+    # GROUP BY OP
+    # =========================
+    grouped = defaultdict(list)
+
+    for item in data["items"]:
+        if item.get("bb_no") in ["Bubble #", None]:
+            continue
+        grouped[item["op_no"]].append(item)
+
+    # =========================
+    # SORT OP + BUBBLE
+    # =========================
+    ops = sorted(grouped.keys(), key=lambda x: safe_int(x))
+
+    for op in grouped:
+        grouped[op].sort(key=lambda x: safe_int(x.get("bb_no")))
+
+    # =========================
+    # SPLIT INTO PAGES (3 OP)
+    # =========================
+    def chunk(lst, n=3):
+        for i in range(0, len(lst), n):
+            yield lst[i:i+n]
+
+    pages = list(chunk(ops, 3))
+
+    # =========================
+    # TEMPLATE CONFIG
+    # =========================
+    MAX_DATA_ROWS = 13   # row 14 = Note
+
+    # =========================
+    # HELPERS
+    # =========================
+    def find_header_row(table):
+        for i, row in enumerate(table.rows):
+            texts = [c.text.strip() for c in row.cells]
+            if any("B/B" in t for t in texts):
+                return i
+        return 2
+
+    def clear_data_rows(table, start_row):
+        for r in range(start_row, len(table.rows)):
+            for c in range(len(table.columns)):
+                table.cell(r, c).text = ""
+
+    def center(cell):
+        cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
+        for p in cell.paragraphs:
+            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+    # =========================
+    # HEADER MAP
+    # =========================
+    header_map = {
+        "{{part}}": data["lot"].get("part_no", ""),
+        "{{rev}}": data["lot"].get("part_rev", ""),
+        "{{lot}}": data["lot"].get("lot_no", ""),
+        "{{po}}": data["lot"].get("po_no", ""),
+    }
+
+    # =========================
+    # MAIN LOOP
+    # =========================
+    final_doc = None
+
+    for page_idx, page_ops in enumerate(pages):
+
+        # 🔥 IMPORTANT: new doc per page
+        doc = Document(str(template_path))
+        replace_header(doc, header_map)
+
+        table = doc.tables[0]
+
+        header_row = find_header_row(table)
+        DATA_START_ROW = header_row + 1
+        NOTE_ROW_IDX = DATA_START_ROW + MAX_DATA_ROWS
+
+        clear_data_rows(table, DATA_START_ROW)
+
+        # =========================
+        # OP HEADER
+        # =========================
+        op_header_row = header_row - 1
+
+        for col_idx, op in enumerate(page_ops):
+
+            base_col = col_idx * 4
+
+            items = grouped[op]
+
+            # =========================
+            # GET FIRST ITEM
+            # =========================
+            first_item = items[0] if items else {}
+
+            # =========================
+            # DATE
+            # =========================
+            date_str = ""
+
+            dt = first_item.get("qa_time_stamp")
+
+            if dt:
+                try:
+                    date_str = dt.strftime("%m/%d/%y")
+                except:
+                    date_str = str(dt)
+
+            # =========================
+            # EMPLOYEE
+            # =========================
+            emp = first_item.get("employee") or ""
+
+            # =========================
+            # HEADER
+            # =========================
+            # table.cell(op_header_row, base_col).text = date_str
+
+            table.cell(op_header_row, base_col + 1).text = str(op)
+
+            # table.cell(op_header_row, base_col + 2).text = emp
+
+            # center
+            for i in range(3):
+                center(table.cell(op_header_row, base_col + i))
+
+            
+
+        # =========================
+        # LIMIT ROWS (avoid NOTE overwrite)
+        # =========================
+        max_rows = min(
+            max(len(grouped[op]) for op in page_ops),
+            MAX_DATA_ROWS
+        )
+
+        # =========================
+        # FILL DATA
+        # =========================
+        for row_idx in range(max_rows):
+            for col_idx, op in enumerate(page_ops):
+
+                base_col = col_idx * 4
+                items = grouped[op]
+
+                if row_idx < len(items):
+                    item = items[row_idx]
+                    r = DATA_START_ROW + row_idx
+
+                    table.cell(r, base_col + 0).text = str(item.get("bb_no", "") or "")
+                    table.cell(r, base_col + 1).text = str(item.get("dimension", "") or "")
+                    # table.cell(r, base_col + 2).text = str(item.get("tqw", "") or "")
+                    # table.cell(r, base_col + 3).text = str(    item.get("actual_value", "") or "")
                     for i in range(4):
                         center(table.cell(r, base_col + i))
 

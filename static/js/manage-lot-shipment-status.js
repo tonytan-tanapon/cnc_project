@@ -674,13 +674,13 @@ function makeColumns() {
         <span style="font-weight:600;">
           ${shipped}
         </span>
-        
-<!--
+        -->
+
         <a href="/static/traveler-detail.html?lot_id=${encodeURIComponent(lotId)}"
-           target="_blank">🧾</a>
--->
+           target="_blank">🧾ST</a>
+|
         <a href="/static/manage-lot-shippments.html?lot_id=${encodeURIComponent(lotId)}"
-           target="_blank">📦</a>
+           target="_blank">📦Ship</a>
       </div>
     `;
       },

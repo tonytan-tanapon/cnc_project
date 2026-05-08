@@ -29,7 +29,7 @@ async function load() {
 
 
   steps.forEach(step => {
-
+    console.log("Processing step:", step);
     const logs = step.logs || [];
 
     const stepAccept = Number(step.total_accept || 0);
@@ -49,7 +49,8 @@ async function load() {
       tr.style.background = getStatusColor(step.status);
 
       tr.innerHTML = `
-        <td><b>${step.seq}</b></td>
+        <td><b>${step.step_code}</b></td>
+        <td>  ${step.step_name || ""}</td>
         <td>${buildStatusDropdown(step)}</td>
         <td>-</td>
 
@@ -127,7 +128,9 @@ async function load() {
       }
 
       tr.setAttribute("data-receive", stepRecv);
+
       tr.setAttribute("data-op", step.seq);
+
 
       if (rej > 0) tr.classList.add("reject");
 
@@ -139,16 +142,23 @@ async function load() {
       let stepRejectCell = "";
       let remainCell = "";
       let actionCell = "";
+      let stepNameCell = "";
 
       if (firstRow) {
 
-        opCell = `<td rowspan="${rowspan}"><b>${step.seq}</b></td>`;
+        opCell = `<td rowspan="${rowspan}"><b>${step.step_code}</b></td>`;
 
         statusCell = `
           <td rowspan="${rowspan}">
             ${buildStatusDropdown(step)}
           </td>
         `;
+
+        stepNameCell = `
+  <td rowspan="${rowspan}">
+    ${step.step_name || ""}
+  </td>
+`;
 
         // 🔥 FIX: ONLY HERE
         supplierCells = `
@@ -187,6 +197,7 @@ async function load() {
 
       tr.innerHTML = `
         ${opCell}
+        ${stepNameCell}
         ${statusCell}
 
         <td>
@@ -203,7 +214,7 @@ async function load() {
             <option value="">-</option>
             ${employees.map(e => `
               <option value="${e.id}" ${Number(e.id) === Number(log.operator_id) ? "selected" : ""}>
-                ${e.emp_code}
+                ${e.name || e.emp_code}
               </option>
             `).join("")}
           </select>
@@ -251,7 +262,7 @@ async function load() {
     steps.map(s => `<option value="${s.id}">OP ${s.seq}</option>`).join("");
 }
 
-document.addEventListener("input", function(e) {
+document.addEventListener("input", function (e) {
   if (e.target.tagName === "TEXTAREA") {
     e.target.style.height = "auto";
     e.target.style.height = e.target.scrollHeight + "px";

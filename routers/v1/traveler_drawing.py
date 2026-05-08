@@ -442,7 +442,7 @@ def build_traveler_data_from_db(traveler: ShopTraveler) -> dict:
             min(dates).strftime("%m/%d/%y")
             if dates else ""
         )
-
+        print("step",s)
         # ==================================================
         # BUILD STEP
         # ==================================================
@@ -458,6 +458,11 @@ def build_traveler_data_from_db(traveler: ShopTraveler) -> dict:
             "qty_receive": receive,
             "qty_accept": accept,
             "qty_reject": reject,
+
+            # ✅ ADD THESE
+            "supplier_po": s.supplier_po or "",
+            "supplier_name": s.supplier_name or "",
+            "heat_lot": s.heat_lot or "",
 
             "remain": receive - accept - reject,
         })
@@ -551,7 +556,7 @@ def to_int(v):
         return int(v)
     except (TypeError, ValueError):
         return 0
-from services.traveler_docx import generate_traveler_from_db, generate_traveler_from_db_blank, generate_inspection_from_db
+from services.traveler_docx import generate_traveler_from_db, generate_traveler_from_db_blank, generate_inspection_from_db, generate_inspection_from_db_blank
 
 
 from tempfile import TemporaryDirectory
@@ -593,8 +598,7 @@ def export_traveletdoc(traveler_id: int, db: Session = Depends(get_db)):
     # 🔥 1. build data
     data = build_traveler_data_from_db(traveler)
 
-    # print("Built traveler data:", data)
-
+    
     # 🔥 2. template path
     BASE_DIR = Path(__file__).resolve().parents[2]
     template_path = BASE_DIR / "templates" / "shop_templete.docx"
@@ -736,11 +740,51 @@ def export_inspection(inspection_id: int, db: Session = Depends(get_db)):
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     )
 
-    # print("Generated file:", tmp_path)
+   
+@router.post("/export_inspection_blank/{inspection_id}")
+def export_inspection_blank(inspection_id: int, db: Session = Depends(get_db)):
 
-    # # 🔥 5. return file download
-    # return FileResponse(
-    #     tmp_path,
-    #     filename=f"inspection_{data['header']['lot_no']}.docx",
-    #     media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    # )
+    # print(f"Exporting inspection {inspection_id}")
+
+    # ✅ find inspection by traveler → lot → inspection
+    inspection = (
+        db.query(QAInspection)
+        .join(ProductionLot, QAInspection.lot_id == ProductionLot.id)
+        .options(joinedload(QAInspection.items))
+        .filter(QAInspection.id == inspection_id)
+        .first()
+    )
+    
+    # print(f"Queried inspection: {inspection}")
+    if not inspection:
+        raise HTTPException(404, "Inspection not found")
+    
+    # print(f"Found inspection {inspection.id} for lot {inspection.lot.lot_no}")
+    # 🔥 1. build data
+    data = build_inspection_data_from_db(inspection)
+
+    # print("Built inspection data:", data)
+
+    # # 🔥 2. template path
+    BASE_DIR = Path(__file__).resolve().parents[2]
+    template_path = BASE_DIR / "templates" / "inspection_template.docx"
+
+    # # 🔥 3. temp output file
+    tmp = NamedTemporaryFile(suffix=".docx", delete=False)
+    tmp_path = Path(tmp.name)
+    tmp.close()
+
+    # # 🔥 4. generate docx
+    generate_inspection_from_db_blank(
+        template_path=template_path,
+        data=data,
+        output_path=tmp_path
+    )
+
+    from fastapi.responses import FileResponse
+
+    return FileResponse(
+        path=str(tmp_path),
+        filename=f"inspection_{inspection_id}.docx",
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    )

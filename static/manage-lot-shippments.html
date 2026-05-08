@@ -1,263 +1,274 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Lot Shipments · Topnotch – MFG</title>
 
-    <!-- Styles -->
-    <link rel="stylesheet" href="/static/css/app.css" />
-    <link
-      rel="stylesheet"
-      href="/static/vendor/tabulator/tabulator_modern.min.css"
-    />
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Lot Shipments · Topnotch – MFG</title>
 
-    <style>
-      body {
-        background: #f9fafb;
-        margin: 0;
-        font-family: system-ui, sans-serif;
-        height: 100vh;
-        overflow: auto; /* ← ให้ scroll ได้ตามปกติ */
-      }
-      /* ===== LAYOUT ROOT ===== */
-      .app {
-        display: flex;
-        height: 150vh;
-        width: 100%;
-        overflow: hidden;
-      }
+  <!-- Styles -->
+  <link rel="stylesheet" href="/static/css/app.css" />
+  <link rel="stylesheet" href="/static/vendor/tabulator/tabulator_modern.min.css" />
 
-      /* ===== SIDEBAR (NAV) ===== */
-      .sidebar {
-        width: 240px;
-        background: #0f172a;
-        color: #fff;
-        padding: 12px;
-        overflow-y: auto;
-      }
+  <style>
+    body {
+      background: #f9fafb;
+      margin: 0;
+      font-family: system-ui, sans-serif;
+      height: 100vh;
+      overflow: auto;
+      /* ← ให้ scroll ได้ตามปกติ */
+    }
 
-      /* NAV SLOT */
-      [data-nav-slot] {
-        width: 100%;
-      }
+    /* ===== LAYOUT ROOT ===== */
+    .app {
+      display: flex;
+      height: 150vh;
+      width: 100%;
+      overflow: hidden;
+    }
 
-      /* ===== MAIN CONTENT ===== */
-      .main {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        overflow: hidden;
-      }
+    /* ===== SIDEBAR (NAV) ===== */
+    .sidebar {
+      width: 240px;
+      background: #0f172a;
+      color: #fff;
+      padding: 12px;
+      overflow-y: auto;
+    }
 
-      /* Header (Lot Info) */
-      .lot-info {
-        padding: 14px 18px;
-        border-bottom: 1px solid #e5e7eb;
-        background: #fff;
-        flex-shrink: 0;
-      }
+    /* NAV SLOT */
+    [data-nav-slot] {
+      width: 100%;
+    }
 
-      .lot-info h2 {
-        margin: 0 0 8px;
-        font-size: 16px;
-      }
+    /* ===== MAIN CONTENT ===== */
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
 
-      .lot-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-        gap: 8px;
-        font-size: 14px;
-      }
+    /* Header (Lot Info) */
+    .lot-info {
+      padding: 14px 18px;
+      border-bottom: 1px solid #e5e7eb;
+      background: #fff;
+      flex-shrink: 0;
+    }
 
-      /* Toolbar */
-      .toolbar {
-        padding: 10px 16px;
-        background: #fff;
-        border-bottom: 1px solid #e5e7eb;
-        display: flex;
-        gap: 8px;
-        flex-shrink: 0;
-      }
-      .btn {
-        border: none;
-        border-radius: 6px;
-        padding: 8px 12px;
-        font-size: 14px;
-        cursor: pointer;
-        color: #fff;
-      }
-      .btn.primary {
-        background: #16a34a;
-      }
-      .btn.secondary {
-        background: #6b7280;
-      }
+    .lot-info h2 {
+      margin: 0 0 8px;
+      font-size: 16px;
+    }
 
-      /* Scrollable content area */
-      .content {
-        flex: 1;
-        overflow-y: auto;
-        padding: 16px;
-        display: flex;
-        flex-direction: column;
-        gap: 24px;
-      }
+    .lot-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 8px;
+      font-size: 14px;
+    }
 
-      /* Panel */
-      /* Panel */
-      .panel {
-        background: #fff;
-        border: 1px solid #e5e7eb;
-        border-radius: 8px;
-        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
-        padding-bottom: 10px;
-        display: flex;
-        flex-direction: column;
-        height: auto;
-      }
+    /* Toolbar */
+    .toolbar {
+      padding: 10px 16px;
+      background: #fff;
+      border-bottom: 1px solid #e5e7eb;
+      display: flex;
+      gap: 8px;
+      flex-shrink: 0;
+    }
 
-      /* Wrapper for tables – same height for both */
-      .table-wrap {
-        height: 600px; /* ← ความสูงเท่า Part Inventory */
-        overflow-y: auto; /* ← ให้ scroll ได้ */
-        overflow-x: hidden;
-        padding: 4px;
-      }
+    .btn {
+      border: none;
+      border-radius: 6px;
+      padding: 8px 12px;
+      font-size: 14px;
+      cursor: pointer;
+      color: #fff;
+    }
 
-      /* Force Tabulator to fill wrapper height */
-      #partTable,
-      #shipmentTable {
-        height: 100% !important;
-      }
+    .btn.primary {
+      background: #16a34a;
+    }
 
-      .panel-header {
-        display: flex;
-        justify-content: flex-start; /* ← ให้ชิดซ้ายหมด */
-        align-items: center;
-        gap: 10px; /* ← ระยะห่างระหว่างหัวข้อกับปุ่ม (ไม่ต้องเยอะ) */
-        padding: 8px 12px;
-        border-bottom: 1px solid var(--border);
-      }
+    .btn.secondary {
+      background: #6b7280;
+    }
 
-      .panel-header h3 {
-        margin: 0;
-        font-size: 16px;
-        font-weight: 600;
-      }
+    /* Scrollable content area */
+    .content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
 
-      .btn-disabled {
-        opacity: 0.5;
-        pointer-events: none;
-        cursor: not-allowed;
-      }
+    /* Panel */
+    /* Panel */
+    .panel {
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+      padding-bottom: 10px;
+      display: flex;
+      flex-direction: column;
+      height: auto;
+    }
 
-      /* ===== Shipment type radio (Tabulator-safe) ===== */
+    /* Wrapper for tables – same height for both */
+    .table-wrap {
+      height: 600px;
+      /* ← ความสูงเท่า Part Inventory */
+      overflow-y: auto;
+      /* ← ให้ scroll ได้ */
+      overflow-x: hidden;
+      padding: 4px;
+    }
 
-.ship-type-group {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
+    /* Force Tabulator to fill wrapper height */
+    #partTable,
+    #shipmentTable {
+      height: 100% !important;
+    }
 
-.ship-radio {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  cursor: pointer;
-  white-space: nowrap;
-  line-height: 1;
-}
+    .panel-header {
+      display: flex;
+      justify-content: flex-start;
+      /* ← ให้ชิดซ้ายหมด */
+      align-items: center;
+      gap: 10px;
+      /* ← ระยะห่างระหว่างหัวข้อกับปุ่ม (ไม่ต้องเยอะ) */
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border);
+    }
 
-.ship-radio input[type="radio"] {
-  margin: 0;
-  transform: none; /* IMPORTANT: prevents overlap */
-}
+    .panel-header h3 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .btn-disabled {
+      opacity: 0.5;
+      pointer-events: none;
+      cursor: not-allowed;
+    }
+
+    /* ===== Shipment type radio (Tabulator-safe) ===== */
+
+    .ship-type-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .ship-radio {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      cursor: pointer;
+      white-space: nowrap;
+      line-height: 1;
+    }
+
+    .ship-radio input[type="radio"] {
+      margin: 0;
+      transform: none;
+      /* IMPORTANT: prevents overlap */
+    }
 
 
 
-   .quick-links a {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  border-radius: 8px;
-  background: #f3f4f6;
-  font-weight: 600;
-}
+    .quick-links a {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 8px;
+      background: #f3f4f6;
+      font-weight: 600;
+    }
 
-.quick-links a:hover {
-  background: #e5e7eb;
-}
+    .quick-links a:hover {
+      background: #e5e7eb;
+    }
 
-.label-buttons {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);  /* 3 per row */
-  gap: 6px;
-  justify-items: center;
-}
+    .label-buttons {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      /* 3 per row */
+      gap: 6px;
+      justify-items: center;
+    }
 
-.lot-vertical {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-    </style>
-  </head>
+    .lot-vertical {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+  </style>
+</head>
 
-  <body>
-    <div class="app">
-      <!-- ========== SIDEBAR NAV ========== -->
-      <aside class="sidebar">
-        <div id="navSlot" data-nav-slot></div>
-      </aside>
+<body>
+  <div class="app">
+    <!-- ========== SIDEBAR NAV ========== -->
+    <aside class="sidebar">
+      <div id="navSlot" data-nav-slot></div>
+    </aside>
 
-      <!-- ========== MAIN AREA ========== -->
-      <main class="main">
+    <!-- ========== MAIN AREA ========== -->
+    <main class="main">
 
-        <section class="quick-links">
+      <section class="quick-links">
         <div id="lot_link">🧾 LOT</div>
-         <div id="material_link">🔩 Material</div>
-  <div id="traveler_link">🧾 Traveler</div>
-  <div id="shippment_link">📦 Shipment</div>
-</section>
-        <!-- Lot Header -->
-        <section class="lot-info">
-          <h2>🚚 Lot Shipments</h2>
-          <div id="lotHeader" class="lot-grid">Loading lot information...</div>
+        <!-- <div id="material_link">🔩 Material</div> -->
+        <div id="traveler_link">🧾 Traveler</div>
+        <div id="inspection_link">🧾 Inspection</div>
+        <div id="shippment_link">📦 Shipment</div>
+      </section>
+      <!-- Lot Header -->
+      <section class="lot-info">
+        <h2>🚚 Lot Shipments</h2>
+        <div id="lotHeader" class="lot-grid">Loading lot information...</div>
+      </section>
+
+      <!-- Scrollable Content -->
+      <div class="content">
+        <!-- Part Inventory -->
+        <section class="panel">
+          <h3>📦 Part Inventory</h3>
+          <div class="table-wrap">
+            <div id="partTable"></div>
+          </div>
         </section>
 
-        <!-- Scrollable Content -->
-        <div class="content">
-          <!-- Part Inventory -->
-          <section class="panel">
-            <h3>📦 Part Inventory</h3>
-            <div class="table-wrap">
-              <div id="partTable"></div>
-            </div>
-          </section>
+        <!-- Shipment Records -->
+        <!-- Shipment Records -->
+        <section class="panel">
+          <div class="panel-header">
+            <h3>📦 Shipment Records</h3>
+            <button id="btnCreateShipment" class="btn primary btn-mini">
+              ➕ Create Shipment
+            </button>
+          </div>
 
-          <!-- Shipment Records -->
-          <!-- Shipment Records -->
-          <section class="panel">
-            <div class="panel-header">
-              <h3>📦 Shipment Records</h3>
-              <button id="btnCreateShipment" class="btn primary btn-mini">
-                ➕ Create Shipment
-              </button>
-            </div>
+          <div class="table-wrap">
+            <div id="shipmentTable"></div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
 
-            <div class="table-wrap">
-              <div id="shipmentTable"></div>
-            </div>
-          </section>
-        </div>
-      </main>
-    </div>
+  <!-- JS -->
+  <script type="module" src="/static/js/nav-loader.js"></script>
+  <script src="/static/vendor/tabulator/tabulator.min.js"></script>
+  <script type="module" src="/static/js/manage-lot-shippments.js"></script>
+</body>
 
-    <!-- JS -->
-    <script type="module" src="/static/js/nav-loader.js"></script>
-    <script src="/static/vendor/tabulator/tabulator.min.js"></script>
-    <script type="module" src="/static/js/manage-lot-shippments.js"></script>
-  </body>
 </html>
