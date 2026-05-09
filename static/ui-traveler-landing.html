@@ -77,29 +77,29 @@
         }
 
         #pinKeys {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 24px;
-    margin-top: 30px;
-    width: 100%;
-}
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+            margin-top: 30px;
+            width: 100%;
+        }
 
-.pin-btn {
-    font-size: 32px;
-    padding: 28px 0;
-    border-radius: 18px;
-    border: none;
-    background: #e2e8f0;
-    cursor: pointer;
-    font-weight: 800;
-    min-height: 90px;
-    transition: 0.15s;
-}
+        .pin-btn {
+            font-size: 32px;
+            padding: 28px 0;
+            border-radius: 18px;
+            border: none;
+            background: #e2e8f0;
+            cursor: pointer;
+            font-weight: 800;
+            min-height: 90px;
+            transition: 0.15s;
+        }
 
-.pin-btn:active {
-    transform: scale(0.95);
-    background: #cbd5f5;
-}
+        .pin-btn:active {
+            transform: scale(0.95);
+            background: #cbd5f5;
+        }
 
         .pin-btn:active {
             background: #cbd5f5;
@@ -116,25 +116,115 @@
             background: #fde68a;
         }
 
-       .machine-btn {
-  padding: 28px 14px;
-  border-radius: 18px;
-  border: none;
-  background: #e2e8f0;
-  font-weight: 800;
-  font-size: 26px;
-  cursor: pointer;
-  transition: 0.15s;
-  min-height: 100px;
-}
+        .machine-btn {
+            padding: 28px 14px;
+            border-radius: 18px;
+            border: none;
+            background: #e2e8f0;
+            font-weight: 800;
+            font-size: 26px;
+            cursor: pointer;
+            transition: 0.15s;
+            min-height: 100px;
+        }
 
-.machine-btn:hover {
-  background:#cbd5f5;
-}
+        .machine-btn:hover {
+            background: #cbd5f5;
+        }
 
-.machine-btn:active {
-  transform:scale(0.95);
-}
+        .machine-btn:active {
+            transform: scale(0.95);
+        }
+
+        .lot-panel {
+            width: 100%;
+            max-width: 900px;
+
+            margin-top: 20px;
+
+            background: #fff;
+            border-radius: 18px;
+
+            padding: 20px;
+
+            box-shadow: 0 4px 16px rgba(0, 0, 0, .08);
+        }
+
+        .lot-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+
+            margin-bottom: 14px;
+        }
+
+        .lot-header h3 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 800;
+        }
+
+        #refreshLotsBtn {
+            border: none;
+            background: #2563eb;
+            color: white;
+
+            padding: 10px 16px;
+
+            border-radius: 10px;
+            cursor: pointer;
+        }
+
+        #lotTable {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        #lotTable th {
+            background: #f1f5f9;
+            padding: 14px;
+            text-align: left;
+        }
+
+        #lotTable td {
+            padding: 14px;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        #lotTable tr {
+            cursor: pointer;
+            transition: .15s;
+        }
+
+        #lotTable tr:hover {
+            background: #eff6ff;
+        }
+
+        .status-badge {
+            display: inline-block;
+
+            padding: 6px 10px;
+
+            border-radius: 999px;
+
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .status-running {
+            background: #dbeafe;
+            color: #1d4ed8;
+        }
+
+        .status-passed {
+            background: #dcfce7;
+            color: #15803d;
+        }
+
+        .status-pending {
+            background: #e5e7eb;
+            color: #374151;
+        }
     </style>
 </head>
 
@@ -150,6 +240,31 @@
             <button id="btnGo" style="padding:10px 16px; font-size:16px; cursor:pointer;">
                 Go
             </button>
+        </div>
+
+        <div class="lot-panel">
+
+            <div class="lot-header">
+                <h3>Lots In Process</h3>
+
+                <button id="refreshLotsBtn">
+                    Refresh
+                </button>
+            </div>
+
+            <table id="lotTable">
+                <thead>
+                    <tr>
+                        <th>Lot</th>
+                        <th>Part</th>
+                        <th>Rev</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+
+                <tbody></tbody>
+            </table>
+
         </div>
 
         <!-- Scanner (CSS-hidden but focusable) -->
@@ -185,8 +300,8 @@
   font-size:38px;
   font-weight:800;
 ">
-  Enter PIN
-</h3>
+                    Enter PIN
+                </h3>
                 <button id="pinClose" style="font-size:20px;">✕</button>
             </div>
 
@@ -228,8 +343,8 @@
   font-size:38px;
   font-weight:800;
 ">
-  Select Machine
-</h3>
+                Select Machine
+            </h3>
             <div id="machineList" style="
   display:grid;
   grid-template-columns: repeat(4, 1fr);
@@ -241,7 +356,7 @@
             <button onclick="document.getElementById('machineOverlay').style.display='none'"> Cancel </button>
         </div>
     </div>
-    <script type="module" src="/static/ui-traveler-landing.js?v="+Date.now()+"></script>
+    <script type="module" src="/static/ui-traveler-landing.js"></script>
 
 </body>
 

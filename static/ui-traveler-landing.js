@@ -78,7 +78,76 @@ async function handleCode(value, source = "scan") {
   //   traveler_no
   // )}&seq=${encodeURIComponent(0)}&traveler_emp=${encodeURIComponent(pin)}`;
 }
+async function loadInProcessLots() {
 
+  try {
+
+    const rows = await jfetch(
+      api("api/v1/lots/in-process")
+    );
+
+    console.log("LOTS =", rows);
+
+    const tbody = document.querySelector("#lotTable tbody");
+
+    tbody.innerHTML = "";
+
+    rows.forEach(row => {
+
+      const tr = document.createElement("tr");
+
+      const statusClass =
+        row.status === "in_process"
+          ? "status-running"
+          : row.status === "passed"
+            ? "status-passed"
+            : "status-pending";
+
+      tr.innerHTML = `
+        <td>${row.lot_no || "-"}</td>
+        <td>${row.part_no || "-"}</td>
+        <td>${row.part_rev || "-"}</td>
+
+        <td>
+          <span class="status-badge ${statusClass}">
+            ${row.status || "-"}
+          </span>
+        </td>
+      `;
+
+      // ⭐ CLICK ROW
+      tr.onclick = async () => {
+
+        console.log("OPEN LOT =", row);
+
+        traveler_no = row.traveler_no;
+
+        // 🔐 ask PIN first
+        const pin = await showPinPad();
+
+        if (!pin) return;
+
+        const isValid = await verifyPin(pin);
+
+        if (!isValid) {
+          alert("❌ Invalid PIN");
+          return;
+        }
+
+        openMachineSelect(row.lot_no, pin);
+
+      };
+
+      tbody.appendChild(tr);
+
+    });
+
+  } catch(err){
+
+    console.error(err);
+
+  }
+}
 async function openMachineSelect(code, pin) {
   console.log("🔥 OPEN MACHINE SELECT");
 
@@ -109,8 +178,12 @@ async function openMachineSelect(code, pin) {
   document.getElementById("machineOverlay").style.display = "flex";
 }
 // Default focus = scanner
-window.addEventListener("DOMContentLoaded", () => {
+window.addEventListener("DOMContentLoaded", async () => {
+
   scanInput.focus();
+
+  await loadInProcessLots();
+
 });
 
 // Click outside manual -> refocus scan
@@ -234,10 +307,10 @@ function updatePinDisplay() {
   display.innerHTML = html;
 }
 // Clear
-document.getElementById("pinClear").onclick = () => {
-  pinValue = "";
-  updatePinDisplay();
-};
+// document.getElementById("pinClear").onclick = () => {
+//   pinValue = "";
+//   updatePinDisplay();
+// };
 
 // Close
 document.getElementById("pinClose").onclick = () => {

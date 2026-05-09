@@ -108,6 +108,42 @@ def create_lot(payload: ProductionLotCreate, db: Session = Depends(get_db)):
                 raise HTTPException(409, "Lot number already exists")
     raise HTTPException(500, "Failed to generate unique lot number")
 
+@router.get("/in-process")
+def list_in_process_lots(
+    db: Session = Depends(get_db)
+):
+
+    rows = (
+        db.query(ProductionLot)
+        .options(
+            joinedload(ProductionLot.part),
+            joinedload(ProductionLot.part_revision),
+        )
+        .filter(
+            ProductionLot.status == "in_process"
+        )
+        .order_by(ProductionLot.id.desc())
+        .all()
+    )
+
+    return [
+        {
+            "id": lot.id,
+
+            "lot_no": lot.lot_no,
+
+            "status": lot.status,
+
+            "part_no":
+                lot.part.part_no
+                if lot.part else None,
+
+            "part_rev":
+                lot.part_revision.rev
+                if lot.part_revision else None,
+        }
+        for lot in rows
+    ]
 
 @router.get("", response_model=LotPage)
 def list_lots(

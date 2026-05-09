@@ -63,6 +63,8 @@ class ShopTravelerRowOut(BaseModel):
     latest_template_name: Optional[str] = None
     latest_template_version: Optional[int] = None
     lot: Optional[dict] = None
+    part_no: Optional[str] = None
+    part_rev: Optional[str] = None
 
 # ---------- Helpers ----------
 def to_row_out(t: ShopTraveler, db: Session) -> ShopTravelerRowOut:
@@ -79,6 +81,17 @@ def to_row_out(t: ShopTraveler, db: Session) -> ShopTravelerRowOut:
         created_at=t.created_at.isoformat() if t.created_at else None,
         part_id=t.lot.part_id if t.lot else None,
         part_revision_id=t.lot.part_revision_id if t.lot else None,
+        part_no=(
+            t.lot.part.part_no
+            if t.lot and t.lot.part
+            else None
+        ),
+
+        part_rev=(
+            t.lot.part_revision.rev
+            if t.lot and t.lot.part_revision
+            else None
+        ),
     )
 
     data = row.model_dump()
@@ -214,6 +227,8 @@ def get_active_template(
 def list_travelers(
     q: Optional[str] = Query(None, description="ค้นหา lot_code / lot_no"),
     lot_id: Optional[int] = Query(None, description="Filter by lot ID"),
+    # ✅ ADD THIS
+    status: Optional[str] = Query(None),
     db: Session = Depends(get_db),
 ):
     query = db.query(ShopTraveler).options(
@@ -230,11 +245,19 @@ def list_travelers(
             query.join(ShopTraveler.lot)
             .filter(or_(ProductionLot.lot_no.ilike(ql), ProductionLot.lot_code.ilike(ql)))
         )
-
+    print("Filtering travelers with q:", q, "lot_id:", lot_id, "status:", status)  
     # 🔍 ถ้ามี lot_id (กรองเฉพาะ lot_id นั้น)
+    # 🔍 lot_id
     if lot_id:
-        query = query.filter(ShopTraveler.lot_id == lot_id)
+        query = query.filter(
+            ShopTraveler.lot_id == lot_id
+        )
 
+    # 🔥 status
+    if status:
+        query = query.filter(
+            ShopTraveler.status == status
+        )
     rows = query.order_by(ShopTraveler.id.desc()).all()
     return [to_row_out(t, db) for t in rows]
 # ---------- GET ----------
