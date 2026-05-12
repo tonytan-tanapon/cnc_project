@@ -930,7 +930,7 @@ function applyFilter() {
   //   );
   // }
 
-  console.log("testttt ")
+  console.log("testtttf fgsdf g ")
   if (q) {
   table.addFilter((d) => {
 
