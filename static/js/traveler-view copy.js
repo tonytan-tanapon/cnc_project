@@ -29,7 +29,7 @@ async function load() {
 
 
   steps.forEach(step => {
-
+    console.log("Processing step:", step);
     const logs = step.logs || [];
 
     const stepAccept = Number(step.total_accept || 0);
@@ -42,84 +42,76 @@ async function load() {
     // NO LOG
     // =========================
     if (logs.length === 0) {
-
       const tr = document.createElement("tr");
 
       tr.setAttribute("data-receive", stepRecv);
       tr.setAttribute("data-op", step.seq);
-
-      tr.style.background =
-        getStatusColor(step.status);
+      tr.style.background = getStatusColor(step.status);
 
       tr.innerHTML = `
+        <td><b>${step.step_code}</b></td>
+        <td>  ${step.step_name || ""}</td>
+        <td>${buildStatusDropdown(step)}</td>
+        <td>-</td>
 
-    <td><b>${step.step_code || step.seq}</b></td>
+        <td contenteditable="true"
+          onkeydown="if(event.key==='Enter'){
+            createFromInline(${step.id}, 'qty_accept', this.innerText);
+            this.blur(); return false;
+          }">0</td>
 
-    <td>${step.step_name || ""}</td>
+        <td contenteditable="true"
+          onkeydown="if(event.key==='Enter'){
+            createFromInline(${step.id}, 'qty_reject', this.innerText);
+            this.blur(); return false;
+          }">0</td>
 
-    <td>
-      ${buildStatusDropdown(step)}
-    </td>
+        <td>-</td>
+        <td>-</td>
 
-    <td>-</td>
+        <td>
+  <textarea
+    rows="2"
+    style="width:100%; resize:vertical"
+    onblur="createFromInline(${step.id}, 'note', this.value)"
+  ></textarea>
+</td>
 
-    <td contenteditable="true"
-      onkeydown="if(event.key==='Enter'){
-        createFromInline(
-          ${step.id},
-          'qty_accept',
-          this.innerText
-        );
-        this.blur();
-        return false;
-      }">0</td>
+        <!-- 🔥 SUPPLIER -->
+        <!-- 🔥 SUPPLIER (LOG LEVEL NOW) -->
 
-    <td contenteditable="true"
-      onkeydown="if(event.key==='Enter'){
-        createFromInline(
-          ${step.id},
-          'qty_reject',
-          this.innerText
-        );
-        this.blur();
-        return false;
-      }">0</td>
+        <td contenteditable="true"
+          onkeydown="if(event.key==='Enter'){
+            updateField(${log.id}, 'supplier_po', this.innerText);
+            this.blur();
+            return false;
+          }">${log.supplier_po || ""}</td>
 
-    <td>-</td>
+        <td contenteditable="true"
+          onkeydown="if(event.key==='Enter'){
+            updateField(${log.id}, 'supplier_name', this.innerText);
+            this.blur();
+            return false;
+          }">${log.supplier_name || ""}</td>
 
-    <td>-</td>
+        <td contenteditable="true"
+          onkeydown="if(event.key==='Enter'){
+            updateField(${log.id}, 'supplier_lot', this.innerText);
+            this.blur();
+            return false;
+          }">${log.supplier_lot || ""}</td>
 
-    <td>
-      <textarea
-        rows="2"
-        style="width:100%; resize:vertical"
-        onblur="createFromInline(
-          ${step.id},
-          'note',
-          this.value
-        )"
-      ></textarea>
-    </td>
+        <td>${stepRecv}</td>
+        <td>${stepAccept}</td>
+        <td>${stepReject}</td>
+        <td>${remain}</td>
 
-    <!-- supplier -->
-    <td>-</td>
-    <td>-</td>
-    <td>-</td>
-
-    <td>${stepRecv}</td>
-    <td>${stepAccept}</td>
-    <td>${stepReject}</td>
-    <td>${remain}</td>
-
-    <td>
-      <button onclick="addLog(${step.id})">
-        ➕
-      </button>
-    </td>
-  `;
+        <td>
+          <button onclick="addLog(${step.id})">➕</button>
+        </td>
+      `;
 
       tbody.appendChild(tr);
-
       return;
     }
 
@@ -131,280 +123,140 @@ async function load() {
 
     logs.forEach(log => {
 
-  const acc = Number(log.qty_accept || 0);
+      const acc = Number(log.qty_accept || 0);
+      const rej = Number(log.qty_reject || 0);
 
-  const rej = Number(log.qty_reject || 0);
+      const tr = document.createElement("tr");
 
-  const tr = document.createElement("tr");
+      if (log.id) {
+        tr.setAttribute("data-log-id", log.id);
+      }
 
-  if (log.id) {
-    tr.setAttribute(
-      "data-log-id",
-      log.id
-    );
-  }
+      tr.setAttribute("data-receive", stepRecv);
 
-  tr.setAttribute(
-    "data-receive",
-    stepRecv
-  );
+      tr.setAttribute("data-op", step.seq);
 
-  tr.setAttribute(
-    "data-op",
-    step.seq
-  );
 
-  if (rej > 0) {
-    tr.classList.add("reject");
-  }
+      if (rej > 0) tr.classList.add("reject");
 
-  let opCell = "";
-  let nameCell = "";
-  let statusCell = "";
+      let opCell = "";
+      let statusCell = "";
+      let supplierCells = ""; // 🔥 FIX HERE
+      let stepRecvCell = "";
+      let stepAcceptCell = "";
+      let stepRejectCell = "";
+      let remainCell = "";
+      let actionCell = "";
+      let stepNameCell = "";
 
-  let stepRecvCell = "";
-  let stepAcceptCell = "";
-  let stepRejectCell = "";
-  let remainCell = "";
-  let actionCell = "";
+      if (firstRow) {
 
-  if (firstRow) {
+        opCell = `<td rowspan="${rowspan}"><b>${step.step_code}</b></td>`;
 
-    opCell = `
-      <td rowspan="${rowspan}">
-        <b>${step.step_code || step.seq}</b>
-      </td>
-    `;
+        statusCell = `
+          <td rowspan="${rowspan}">
+            ${buildStatusDropdown(step)}
+          </td>
+        `;
 
-    nameCell = `
-      <td rowspan="${rowspan}">
-        ${step.step_name || ""}
-      </td>
-    `;
+        stepNameCell = `
+  <td rowspan="${rowspan}">
+    ${step.step_name || ""}
+  </td>
+`;
 
-    statusCell = `
-      <td rowspan="${rowspan}">
-        ${buildStatusDropdown(step)}
-      </td>
-    `;
+        // 🔥 FIX: ONLY HERE
+        supplierCells = `
+          <td rowspan="${rowspan}" contenteditable="true"
+            onkeydown="if(event.key==='Enter'){
+              updateStepField(${step.id}, 'supplier_po', this.innerText);
+              this.blur(); return false;
+            }">${step.supplier_po || ""}</td>
 
-    stepRecvCell = `
-      <td rowspan="${rowspan}">
-        <b>${stepRecv}</b>
-      </td>
-    `;
+          <td rowspan="${rowspan}" contenteditable="true"
+            onkeydown="if(event.key==='Enter'){
+              updateStepField(${step.id}, 'supplier_name', this.innerText);
+              this.blur(); return false;
+            }">${step.supplier_name || ""}</td>
 
-    stepAcceptCell = `
-      <td rowspan="${rowspan}">
-        <b>${stepAccept}</b>
-      </td>
-    `;
+          <td rowspan="${rowspan}" contenteditable="true"
+            onkeydown="if(event.key==='Enter'){
+              updateStepField(${step.id}, 'heat_lot', this.innerText);
+              this.blur(); return false;
+            }">${step.heat_lot || ""}</td>
+        `;
 
-    stepRejectCell = `
-      <td rowspan="${rowspan}">
-        <b>${stepReject}</b>
-      </td>
-    `;
+        stepRecvCell = `<td rowspan="${rowspan}"><b>${stepRecv}</b></td>`;
+        stepAcceptCell = `<td rowspan="${rowspan}"><b>${stepAccept}</b></td>`;
+        stepRejectCell = `<td rowspan="${rowspan}"><b>${stepReject}</b></td>`;
+        remainCell = `<td rowspan="${rowspan}"><b>${remain}</b></td>`;
 
-    remainCell = `
-      <td rowspan="${rowspan}">
-        <b>${remain}</b>
-      </td>
-    `;
+        actionCell = `
+          <td rowspan="${rowspan}">
+            <button onclick="addLog(${step.id})">➕</button>
+          </td>
+        `;
 
-    actionCell = `
-      <td rowspan="${rowspan}">
-        <button onclick="addLog(${step.id})">
-          ➕
-        </button>
-      </td>
-    `;
+        firstRow = false;
+      }
 
-    firstRow = false;
-  }
+      tr.innerHTML = `
+        ${opCell}
+        ${stepNameCell}
+        ${statusCell}
 
-  tr.innerHTML = `
+        <td>
+          <input type="date"
+            value="${log.work_date || ''}"
+            onchange="updateDate(${log.id}, this.value)">
+        </td>
 
-    ${opCell}
-    ${nameCell}
-    ${statusCell}
+        ${buildEditableCell(log, step.id, "qty_accept", acc)}
+        ${buildEditableCell(log, step.id, "qty_reject", rej)}
 
-    <td>
-      <input
-        type="date"
-        value="${log.work_date || ''}"
-        onchange="updateDate(
-          ${log.id},
-          this.value
-        )"
-      >
-    </td>
+        <td>
+          <select onchange="updateField(${log.id}, 'operator_id', this.value)">
+            <option value="">-</option>
+            ${employees.map(e => `
+              <option value="${e.id}" ${Number(e.id) === Number(log.operator_id) ? "selected" : ""}>
+                ${e.name || e.emp_code}
+              </option>
+            `).join("")}
+          </select>
+        </td>
 
-    ${buildEditableCell(
-      log,
-      step.id,
-      "qty_accept",
-      acc
-    )}
+        <td>
+          <select onchange="updateField(${log.id}, 'machine_id', this.value)">
+            <option value="">-</option>
+            ${machines.map(m => `
+              <option value="${m.id}" ${Number(m.id) === Number(log.machine_id) ? "selected" : ""}>
+                ${m.code}
+              </option>
+            `).join("")}
+          </select>
+        </td>
 
-    ${buildEditableCell(
-      log,
-      step.id,
-      "qty_reject",
-      rej
-    )}
+       <td>
+  <textarea
+    rows="2"
+    style="width:100%; resize:vertical"
+    onblur="updateField(${log.id}, 'note', this.value)"
+  >${log.note || ""}</textarea>
+</td>
 
-    <td>
-      <select onchange="
-        updateField(
-          ${log.id},
-          'operator_id',
-          this.value
-        )">
+        ${supplierCells}
+        ${stepRecvCell}
+        ${stepAcceptCell}
+        ${stepRejectCell}
+        ${remainCell}
 
-        <option value="">-</option>
+        ${log.id ? `
+          <td><button onclick="deleteLog(${log.id})">🗑</button></td>
+        ` : actionCell}
+      `;
 
-        ${employees.map(e => `
-          <option
-            value="${e.id}"
-
-            ${Number(e.id) ===
-              Number(log.operator_id)
-                ? "selected"
-                : ""}
-
-          >
-            ${e.nickname || e.emp_code}
-          </option>
-        `).join("")}
-
-      </select>
-    </td>
-
-    <td>
-      <select onchange="
-        updateField(
-          ${log.id},
-          'machine_id',
-          this.value
-        )">
-
-        <option value="">-</option>
-
-        ${machines.map(m => `
-          <option
-            value="${m.id}"
-
-            ${Number(m.id) ===
-              Number(log.machine_id)
-                ? "selected"
-                : ""}
-
-          >
-            ${m.code}
-          </option>
-        `).join("")}
-
-      </select>
-    </td>
-
-    <!-- NOTE -->
-
-    <td>
-      <textarea
-        rows="2"
-        style="width:100%; resize:vertical"
-
-        onblur="
-          updateField(
-            ${log.id},
-            'note',
-            this.value
-          )
-        "
-
-      >${log.note || ""}</textarea>
-    </td>
-
-    <!-- SUPPLIER PO -->
-
-    <td contenteditable="true"
-
-      onkeydown="
-        if(event.key==='Enter'){
-
-          updateField(
-            ${log.id},
-            'supplier_po',
-            this.innerText
-          );
-
-          this.blur();
-
-          return false;
-        }
-      "
-
-    >${log.supplier_po || ""}</td>
-
-    <!-- SUPPLIER -->
-
-    <td contenteditable="true"
-
-      onkeydown="
-        if(event.key==='Enter'){
-
-          updateField(
-            ${log.id},
-            'supplier_name',
-            this.innerText
-          );
-
-          this.blur();
-
-          return false;
-        }
-      "
-
-    >${log.supplier_name || ""}</td>
-
-    <!-- LOT -->
-
-    <td contenteditable="true"
-
-      onkeydown="
-        if(event.key==='Enter'){
-
-          updateField(
-            ${log.id},
-            'supplier_lot',
-            this.innerText
-          );
-
-          this.blur();
-
-          return false;
-        }
-      "
-
-    >${log.supplier_lot || ""}</td>
-
-    ${stepRecvCell}
-    ${stepAcceptCell}
-    ${stepRejectCell}
-    ${remainCell}
-
-    <td>
-      <button onclick="
-        deleteLog(${log.id})
-      ">
-        🗑
-      </button>
-    </td>
-  `;
-
-  tbody.appendChild(tr);
-});
+      tbody.appendChild(tr);
+    });
 
     prevStepAccept = stepAccept;
   });
@@ -422,6 +274,18 @@ document.addEventListener("input", function (e) {
   }
 });
 
+async function updateStepField(step_id, field, value) {
+  const payload = {};
+  payload[field] = value.trim() || null;
+
+  await fetch(`/api/v1/traveler-steps/${step_id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+
+  setTimeout(() => load(), 100);
+}
 
 async function autoUpdateStepStatus(step_id, newStatus, currentStatus) {
   if (newStatus === currentStatus) return; // no change
@@ -522,84 +386,26 @@ function buildEditableCell(log, step_id, field, value) {
 // =======================
 // CREATE INLINE
 // =======================
-function createFromInline(
-  step_id,
-  field,
-  value
-) {
-
+function createFromInline(step_id, field, value) {
   let payload = {
     step_id,
     qty_accept: 0,
     qty_reject: 0,
   };
 
-  // =========================
-  // STRING FIELDS
-  // =========================
-
-  if (
-
-    field === "note" ||
-
-    field === "supplier_po" ||
-
-    field === "supplier_name" ||
-
-    field === "supplier_lot"
-
-  ) {
-
-    payload[field] =
-      value.trim() || null;
-  }
-
-  // =========================
-  // NUMBER FIELDS
-  // =========================
-
-  else {
-
+  if (field === "note") {
+    payload.note = value.trim() || null;
+  } else {
     const num = Number(value);
-
     if (isNaN(num)) return;
-
     payload[field] = num;
   }
 
-  console.log(
-    "INLINE CREATE PAYLOAD:",
-    payload
-  );
-
   fetch(`/api/v1/step-logs`, {
-
     method: "POST",
-
-    headers: {
-      "Content-Type": "application/json"
-    },
-
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
-
-  })
-  .then(async res => {
-
-    if (!res.ok) {
-
-      const err = await res.json()
-        .catch(() => ({}));
-
-      alert(
-        "❌ " +
-        (err.detail || "Create failed")
-      );
-
-      return;
-    }
-
-    load();
-  });
+  }).then(() => load());
 }
 
 
@@ -642,15 +448,7 @@ async function updateField(log_id, field, value) {
   if (field === "qty_accept" || field === "qty_reject") {
     payload[field] = Number(value) || 0;
 
-  } else if (
-
-  field === "operator_id" ||
-
-  field === "machine_id" ||
-
-  field === "supplier_id"
-
-) {
+  } else if (field === "operator_id" || field === "machine_id") {
     payload[field] = value ? Number(value) : null;   // 🔥 FIX HERE
 
   } else {
@@ -685,41 +483,21 @@ async function updateField(log_id, field, value) {
 // =======================
 // OTHER
 // =======================
-async function updateDate(
-  log_id,
-  value
-) {
+async function updateDate(log_id, value) {
+  const res = await fetch(`/api/v1/step-logs/${log_id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
 
-  const payload = {
-    work_date: value
-  };
-
-  const res = await fetch(
-    `/api/v1/step-logs/${log_id}`,
-    {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(payload)
-    }
-  );
-  console.log("UPDATE DATE RESPONSE:", res);
   if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
 
-    const err = await res.json()
-      .catch(() => ({}));
+    alert("❌ " + (err.detail || "Update failed"));
 
-    alert(
-      "❌ " +
-      (err.detail || "Update failed")
-    );
-
-    load();
-
+    load();   // rollback UI
     return;
   }
-
   load();
 }
 
@@ -799,20 +577,6 @@ async function submitTopInput() {
   const operator_id = document.getElementById("input_operator").value || null;
   const machine_id = document.getElementById("input_machine").value || null;
   const note = document.getElementById("input_note").value.trim() || null;
-  const supplier_po =
-  document.getElementById(
-    "input_supplier_po"
-  )?.value.trim() || null;
-
-const supplier_name =
-  document.getElementById(
-    "input_supplier_name"
-  )?.value.trim() || null;
-
-const supplier_lot =
-  document.getElementById(
-    "input_supplier_lot"
-  )?.value.trim() || null;
 
   if (!step_id) {
     alert("Select OP");
@@ -820,31 +584,14 @@ const supplier_lot =
   }
 
   const payload = {
-
-  step_id,
-
-  work_date,
-
-  qty_accept,
-
-  qty_reject,
-
-  operator_id:
-    operator_id
-      ? Number(operator_id)
-      : null,
-
-  machine_id:
-    machine_id
-      ? Number(machine_id)
-      : null,
-
-  note,
-
-  supplier_po,
-  supplier_name,
-  supplier_lot
-};
+    step_id,
+    work_date,
+    qty_accept,
+    qty_reject,
+    operator_id: operator_id ? Number(operator_id) : null,
+    machine_id: machine_id ? Number(machine_id) : null,
+    note
+  };
 
   const res = await fetch(`/api/v1/step-logs`, {
     method: "POST",
@@ -862,17 +609,6 @@ const supplier_lot =
   document.getElementById("input_accept").value = "";
   document.getElementById("input_reject").value = "";
   document.getElementById("input_note").value = "";
-  document.getElementById(
-  "input_supplier_po"
-).value = "";
-
-document.getElementById(
-  "input_supplier_name"
-).value = "";
-
-document.getElementById(
-  "input_supplier_lot"
-).value = "";
 
   load();
 }

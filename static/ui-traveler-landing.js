@@ -119,8 +119,20 @@ async function loadInProcessLots() {
       tr.onclick = async () => {
 
         console.log("OPEN LOT =", row);
+ 
+        const traveler = await jfetch(
+          api(`/travelers/by-lot-code/${encodeURIComponent(row.lot_no)}`)
+        );
 
-        traveler_no = row.traveler_no;
+        console.log("TRAVELER =", traveler);
+
+        if (!traveler || !traveler.traveler_no) {
+          alert("Traveler not found");
+          return;
+        }
+
+        traveler_no = traveler.traveler_no;
+        console.log("Set traveler_no =", traveler_no);  
 
         // 🔐 ask PIN first
         const pin = await showPinPad();
@@ -142,7 +154,7 @@ async function loadInProcessLots() {
 
     });
 
-  } catch(err){
+  } catch (err) {
 
     console.error(err);
 

@@ -290,10 +290,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const current_total = old_accept + old_reject;
 
-      if (current_total + new_total > receive) {
-        toastCenter("❌ Accept + Reject > Receive", false);
-        // return;
-      }
+      // if (current_total + new_total > receive) {
+      //   toastCenter("❌ Accept + Reject > Receive", false);
+      //   // return;
+      // }
 
       const remark = document.querySelector("#remarkInput")?.value.trim() || "";
 

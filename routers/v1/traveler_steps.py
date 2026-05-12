@@ -131,23 +131,57 @@ def list_traveler_steps(traveler_id: Optional[int] = None, db: Session = Depends
                 "total_reject": total_reject,
                 "total_remain": remain,   # 🔥 ADD THIS
 
-                "supplier_po": step.supplier_po,
-                "supplier_name": step.supplier_name,
-                "heat_lot": step.heat_lot,
+               
 
                 "logs": [
                     {
                         "id": l.id,
+
                         "work_date": l.work_date,
+
                         "qty_receive": float(l.qty_receive or 0),
                         "qty_accept": float(l.qty_accept or 0),
                         "qty_reject": float(l.qty_reject or 0),
+
                         "machine_id": l.machine_id,
                         "operator_id": l.operator_id,
-                        "machine_name": l.machine.code if l.machine else None,
-                        "operator_name": l.operator.name if l.operator else None,
-                        "operator_nickname": l.operator.nickname if l.operator else None,
+
+                        "machine_name":
+                            l.machine.code
+                            if l.machine else None,
+
+                        "operator_name":
+                            l.operator.name
+                            if l.operator else None,
+
+                        "operator_nickname":
+                            l.operator.nickname
+                            if l.operator else None,
+
                         "note": l.note,
+
+                        # 🔥 ADD THESE
+                        "supplier_po": l.supplier_po,
+                        "supplier_name": l.supplier_name,
+                        "supplier_lot": l.supplier_lot,
+
+                        "supplier_send_date":
+                            l.supplier_send_date,
+
+                        "supplier_receive_date":
+                            l.supplier_receive_date,
+
+                        "material_size":
+                            l.material_size,
+
+                        "material_length":
+                            l.material_length,
+
+                        "material_uom":
+                            l.material_uom,
+
+                        "material_type":
+                            l.material_type,
                     }
                     for l in logs
                 ],

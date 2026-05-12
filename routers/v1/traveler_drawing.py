@@ -384,8 +384,8 @@ def build_inspection_batch(traveler_id: int, db: Session = Depends(get_db)):
         f.write("\r\n".join(bat))
 
     return FileResponse(tmp, filename=filename)
-
 def build_traveler_data_from_db(traveler: ShopTraveler) -> dict:
+
     lot = traveler.lot
     po = lot.po
     customer = po.customer if po else None
@@ -397,7 +397,7 @@ def build_traveler_data_from_db(traveler: ShopTraveler) -> dict:
     for s in traveler.steps:
 
         # -------------------------
-        # ACCEPT / REJECT (จาก total)
+        # ACCEPT / REJECT
         # -------------------------
         accept = int(s.total_accept or 0)
         reject = int(s.total_reject or 0)
@@ -406,65 +406,157 @@ def build_traveler_data_from_db(traveler: ShopTraveler) -> dict:
         # RECEIVE
         # -------------------------
         if s.seq == 1:
-            receive = lot.planned_qty if (lot.planned_qty and lot.planned_qty > 0) else accept
+
+            receive = (
+                lot.planned_qty
+                if (
+                    lot.planned_qty and
+                    lot.planned_qty > 0
+                )
+                else accept
+            )
+
         else:
+
             receive = prev_accept
 
         # ==================================================
-        # 🔥 STEP LOG (สำคัญ)
+        # STEP LOGS
         # ==================================================
         logs = s.logs or []
 
         # -------------------------
-        # 🔥 operator รวม (ไม่ซ้ำ)
+        # OPERATOR STRING
         # -------------------------
         operators = []
-        for log in logs:
-            if log.operator:
-                # ใช้ name หรือ emp_code แล้วแต่คุณ
-                if getattr(log.operator, "nickname", None):
-                    operators.append(log.operator.nickname)
-                elif getattr(log.operator, "emp_code", None):
-                    operators.append(log.operator.emp_code)
 
-        operator_str = ", ".join(sorted(set(operators)))
+        for log in logs:
+
+            if log.operator:
+
+                if getattr(
+                    log.operator,
+                    "nickname",
+                    None
+                ):
+
+                    operators.append(
+                        log.operator.nickname
+                    )
+
+                elif getattr(
+                    log.operator,
+                    "emp_code",
+                    None
+                ):
+
+                    operators.append(
+                        log.operator.emp_code
+                    )
+
+        operator_str = ", ".join(
+            sorted(set(operators))
+        )
 
         # -------------------------
-        # 🔥 date = วันแรก
+        # CREATED DATE
         # -------------------------
         dates = [
+
             log.work_date
+
             for log in logs
+
             if log.work_date
         ]
 
         created_at_str = (
+
             min(dates).strftime("%m/%d/%y")
+
             if dates else ""
+
         )
-        print("step",s)
+
+        # ==================================================
+        # 🔥 SUPPLIER TEXT FROM LOGS
+        # ==================================================
+        supplier_blocks = []
+
+        for log in logs:
+
+            lines = []
+
+            if log.supplier_po:
+
+                lines.append(
+                    f"PO: {log.supplier_po}"
+                )
+
+            if log.supplier_name:
+
+                lines.append(
+                    f"Supplier: {log.supplier_name}"
+                )
+
+            if log.supplier_lot:
+
+                lines.append(
+                    f"Heat Lot: {log.supplier_lot}"
+                )
+
+            # skip empty
+            if not lines:
+                continue
+
+            block = "\n".join(lines)
+
+            # prevent duplicate
+            if block not in supplier_blocks:
+
+                supplier_blocks.append(block)
+
+        supplier_text = "\n\n".join(
+            supplier_blocks
+        )
+
         # ==================================================
         # BUILD STEP
         # ==================================================
         steps.append({
+
             "seq": s.seq,
-            "step_code": s.step_code or "",
-            "step_name": s.step_name or "",
-            "step_detail": s.step_detail or "",
 
-            "operator": operator_str,        # 🔥 จาก log
-            "created_at": created_at_str,    # 🔥 จาก log
+            "step_code":
+                s.step_code or "",
 
-            "qty_receive": receive,
-            "qty_accept": accept,
-            "qty_reject": reject,
+            "step_name":
+                s.step_name or "",
 
-            # ✅ ADD THESE
-            "supplier_po": s.supplier_po or "",
-            "supplier_name": s.supplier_name or "",
-            "heat_lot": s.heat_lot or "",
+            "step_detail":
+                s.step_detail or "",
 
-            "remain": receive - accept - reject,
+            "operator":
+                operator_str,
+
+            "created_at":
+                created_at_str,
+
+            "qty_receive":
+                receive,
+
+            "qty_accept":
+                accept,
+
+            "qty_reject":
+                reject,
+
+            # 🔥 NEW
+            "supplier_text":
+                supplier_text,
+
+            "remain":
+                receive - accept - reject,
         })
 
         prev_accept = accept
@@ -473,38 +565,76 @@ def build_traveler_data_from_db(traveler: ShopTraveler) -> dict:
     # HEADER
     # ==================================================
     return {
+
         "header": {
-            "part_no": lot.part.part_no,
-            "part_name": lot.part.name,
-            "part_rev": lot.part_revision.rev if lot.part_revision else "",
 
-            "customer": customer.name if customer else "",
-            "customer_code": customer.code if customer else "",
+            "part_no":
+                lot.part.part_no,
 
-            "lot_no": lot.lot_no,
-            "po_no": po.po_number if po else "",
+            "part_name":
+                lot.part.name,
 
-            "due_date": (
-                lot.lot_due_date.strftime("%m/%d/%y")
-                if lot.lot_due_date else ""
-            ),
+            "part_rev":
+                (
+                    lot.part_revision.rev
+                    if lot.part_revision
+                    else ""
+                ),
 
-            "planned_qty": to_int(
-                lot.planned_qty
-                if lot.planned_qty
-                else (traveler.steps[0].total_accept if traveler.steps else 0)
-            ),
+            "customer":
+                customer.name
+                if customer else "",
 
-            "release_date": (
-                traveler.created_at.strftime("%m/%d/%y")
-                if traveler.created_at else ""
-            ),
+            "customer_code":
+                customer.code
+                if customer else "",
 
-            "material_detail": (
-                lot.part_revision.material
-                if lot and lot.part_revision
-                else ""
-            ),
+            "lot_no":
+                lot.lot_no,
+
+            "po_no":
+                po.po_number
+                if po else "",
+
+            "due_date":
+                (
+                    lot.lot_due_date.strftime("%m/%d/%y")
+                    if lot.lot_due_date
+                    else ""
+                ),
+
+            "planned_qty":
+                to_int(
+
+                    lot.planned_qty
+
+                    if lot.planned_qty
+
+                    else (
+                        traveler.steps[0].total_accept
+                        if traveler.steps
+                        else 0
+                    )
+                ),
+
+            "release_date":
+                (
+                    traveler.created_at.strftime("%m/%d/%y")
+                    if traveler.created_at
+                    else ""
+                ),
+
+            "material_detail":
+                (
+                    lot.part_revision.material
+
+                    if (
+                        lot and
+                        lot.part_revision
+                    )
+
+                    else ""
+                ),
         },
 
         "steps": steps

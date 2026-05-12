@@ -266,6 +266,7 @@ def get_traveler_by_lot_no(lot_no: str, db: Session = Depends(get_db)):
     """
     ดึง Traveler เดี่ยว พร้อม eager load lot
     """
+    print("Getting traveler by lot_no:", lot_no)
     t = (
         db.query(ShopTraveler)
           .options(
@@ -280,6 +281,8 @@ def get_traveler_by_lot_no(lot_no: str, db: Session = Depends(get_db)):
     )
     if not t:
         raise HTTPException(404, "Traveler not found")
+    
+    print("Found traveler:", t)
     return to_row_out(t, db)
 
 @router.get("/{traveler_id}", response_model=ShopTravelerRowOut)

@@ -449,33 +449,68 @@ const patchTimers = new Map();
 const PATCH_DEBOUNCE_MS = 350;
 
 function normalizeStep(row) {
+
+  const logs = row.logs || [];
+
+  // 🔥 latest log
+  const latestLog =
+    logs.length > 0
+      ? logs[logs.length - 1]
+      : {};
+
   return {
+
     id: row.id,
+
     seq: row.seq ?? 1,
 
-    step_name: row.step_name ?? "",
-    step_code: row.step_code ?? "",
-    step_detail: row.step_detail ?? "",
-    station: row.station ?? "",
+    step_name:
+      row.step_name ?? "",
 
-    status: row.status || "pending",
+    step_code:
+      row.step_code ?? "",
 
-    // ✅ ADD THESE
-    operator_id: row.operator_id ?? null,
-    operator_nickname: row.operator_nickname ?? "",
+    step_detail:
+      row.step_detail ?? "",
 
-    machine_id: row.machine_id ?? null,
-    machine_name: row.machine_name ?? "",
+    station:
+      row.station ?? "",
 
-    total_receive: row.total_receive ?? 0,
-    total_accept: row.total_accept ?? 0,
-    total_reject: row.total_reject ?? 0,
+    status:
+      row.status || "pending",
 
-    supplier_po: row.supplier_po ?? "",
-    supplier_name: row.supplier_name ?? "",
-    heat_lot: row.heat_lot ?? "",
+    operator_id:
+      row.operator_id ?? null,
 
-    logs: row.logs || [],
+    operator_nickname:
+      row.operator_nickname ?? "",
+
+    machine_id:
+      row.machine_id ?? null,
+
+    machine_name:
+      row.machine_name ?? "",
+
+    total_receive:
+      row.total_receive ?? 0,
+
+    total_accept:
+      row.total_accept ?? 0,
+
+    total_reject:
+      row.total_reject ?? 0,
+
+    // 🔥 NOW FROM LOG
+    supplier_po:
+      latestLog.supplier_po ?? "",
+
+    supplier_name:
+      latestLog.supplier_name ?? "",
+
+    heat_lot:
+      latestLog.supplier_lot ?? "",
+
+    logs
   };
 }
 
@@ -721,30 +756,56 @@ function initStepsTable() {
       },
 
       {
-        title: "Supplier",
-        field: "supplier",
-        width: 240,
+  title: "Supplier",
+  width: 260,
 
-        formatter: function (cell) {
-          const data = cell.getRow().getData();
+  formatter: function (cell) {
 
-          const lines = [];
+    const logs =
+      cell.getRow().getData().logs || [];
 
-          if (data.supplier_po) {
-            lines.push(`Supplier PO: ${data.supplier_po}`);
-          }
+    const blocks = [];
 
-          if (data.supplier_name) {
-            lines.push(`Supplier: ${data.supplier_name}`);
-          }
+    logs.forEach(l => {
 
-          if (data.heat_lot) {
-            lines.push(`Heat Lot: ${data.heat_lot}`);
-          }
+      const lines = [];
 
-          return lines.join("<br>");
-        }
-      },
+      if (l.supplier_po) {
+        lines.push(
+          `PO: ${l.supplier_po}`
+        );
+      }
+
+      if (l.supplier_name) {
+        lines.push(
+          `Supplier: ${l.supplier_name}`
+        );
+      }
+
+      if (l.supplier_lot) {
+        lines.push(
+          `Lot: ${l.supplier_lot}`
+        );
+      }
+
+      // 🔥 skip empty logs
+      if (lines.length === 0) {
+        return;
+      }
+
+      const text = lines.join("<br>");
+
+      // 🔥 prevent duplicate block
+      if (!blocks.includes(text)) {
+        blocks.push(text);
+      }
+    });
+
+    return blocks.join(
+      "<hr style='margin:4px 0'>"
+    );
+  }
+},
 
 
       // { title: "Station", field: "station", width: 140 },
@@ -752,17 +813,21 @@ function initStepsTable() {
       {
         title: "Operator",
         width: 180,
-        maxWidth: 200,
+
         formatter: (cell) => {
-          const logs = cell.getRow().getData().logs || [];
 
-          const unique = [...new Set(
-            logs.map(l => l.operator_nickname).filter(v => v)
-          )];
+          const logs =
+            cell.getRow().getData().logs || [];
 
-          const text = unique.join(", ");
+          const unique = [
+            ...new Set(
+              logs
+                .map(l => l.operator_nickname)
+                .filter(v => v)
+            )
+          ];
 
-          return `<span title="${text}">${text}</span>`;
+          return unique.join(", ");
         }
       },
 

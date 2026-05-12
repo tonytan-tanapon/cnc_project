@@ -776,6 +776,26 @@ class ShopTravelerStepLog(Base):
     operator = relationship("Employee")
     machine = relationship("Machine")
 
+
+    supplier_po = Column(String, nullable=True)
+    supplier_name = Column(String, nullable=True)
+    supplier_lot = Column(String, nullable=True)
+
+    supplier_id = Column(
+        Integer,
+        ForeignKey("suppliers.id"),
+        nullable=True,
+        index=True
+    )
+    supplier = relationship("Supplier")
+
+    supplier_send_date = Column(Date, nullable=True)  # วันที่ส่งไปซัพฯ
+    supplier_receive_date = Column(Date, nullable=True)  # วันที่ซัพฯ รับของ
+    material_size = Column(String, nullable=True) # type spec + size text รวมกัน เผื่อใช้แสดงใน QR code หรือ label
+    material_length = Column(String, nullable=True) # type spec + size text รวมกัน
+    material_uom = Column(String, nullable=True) # type spec + size text รวมกัน
+    material_type = Column(String, nullable=True) # type spec
+
     # ⚠️ กัน duplicate ต่อวัน (สำคัญ)
     __table_args__ = (
         UniqueConstraint("step_id", "work_date", name="uq_step_day"),

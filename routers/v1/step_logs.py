@@ -85,6 +85,18 @@ class StepLogOut(BaseModel):
     machine_name: Optional[str] = None
     note: Optional[str] = None
 
+    supplier_po: Optional[str] = None
+    supplier_name: Optional[str] = None
+    supplier_lot: Optional[str] = None
+
+    supplier_send_date: Optional[date] = None
+    supplier_receive_date: Optional[date] = None
+
+    material_size: Optional[str] = None
+    material_length: Optional[str] = None
+    material_uom: Optional[str] = None
+    material_type: Optional[str] = None
+
 
     class Config:
         from_attributes = True
@@ -175,31 +187,35 @@ def create_step_log(payload: dict, db: Session = Depends(get_db)):
             ) if prev_step else Decimal("0")
 
         # =========================
-        # 🔥 VALIDATION (ROW LEVEL)
+        # FLEXIBLE MODE
         # =========================
-        is_first = step.seq == min(s.seq for s in step.traveler.steps)
+        # Allow operators to input freely
+        # even if qty exceeds previous OP receive.
+        # Real production environments often
+        # require late logging / rework / merge lots.
 
-        if not is_first and (incoming_accept + incoming_reject > receive):
-            raise HTTPException(
-                400,
-                f"Accept + Reject ({incoming_accept + incoming_reject}) > Receive ({receive})"
-            )
-
-        # =========================
-        # 🔥 TOTAL VALIDATION
-        # =========================
         existing_logs = step.logs or []
 
-        total_accept = sum((Decimal(l.qty_accept or 0)) for l in existing_logs)
-        total_reject = sum((Decimal(l.qty_reject or 0)) for l in existing_logs)
+        total_accept = sum(
+            Decimal(l.qty_accept or 0)
+            for l in existing_logs
+        )
+
+        total_reject = sum(
+            Decimal(l.qty_reject or 0)
+            for l in existing_logs
+        )
 
         total_accept += incoming_accept
         total_reject += incoming_reject
 
-        if not is_first and (total_accept + total_reject > receive):
-            raise HTTPException(
-                400,
-                f"Total Accept + Reject ({total_accept + total_reject}) > Receive ({receive})"
+        if receive is not None and (total_accept + total_reject > receive):
+
+            print(
+                f"WARNING FLEXIBLE MODE: "
+                f"Step {step.id} exceeds receive. "
+                f"Receive={receive}, "
+                f"Total={total_accept + total_reject}"
             )
 
         # =========================
@@ -218,6 +234,17 @@ def create_step_log(payload: dict, db: Session = Depends(get_db)):
             existing.operator_id = payload.get("operator_id")
             existing.machine_id = payload.get("machine_id")
             existing.note = payload.get("note")
+            existing.supplier_po = payload.get("supplier_po")
+            existing.supplier_name = payload.get("supplier_name")
+            existing.supplier_lot = payload.get("supplier_lot")
+
+            existing.supplier_send_date = payload.get("supplier_send_date")
+            existing.supplier_receive_date = payload.get("supplier_receive_date")
+
+            existing.material_size = payload.get("material_size")
+            existing.material_length = payload.get("material_length")
+            existing.material_uom = payload.get("material_uom")
+            existing.material_type = payload.get("material_type")
 
             db.commit()
             db.refresh(existing)
@@ -231,15 +258,31 @@ def create_step_log(payload: dict, db: Session = Depends(get_db)):
         # CREATE NEW
         # =========================
         log = ShopTravelerStepLog(
-            step_id=step_id,
-            qty_accept=incoming_accept,
-            qty_reject=incoming_reject,
-            work_date=work_date,
-            operator_id=payload.get("operator_id"),
-            machine_id=payload.get("machine_id"),
-            note=payload.get("note"),
-        )
 
+        step_id=step_id,
+
+        qty_accept=incoming_accept,
+        qty_reject=incoming_reject,
+
+        work_date=work_date,
+
+        operator_id=payload.get("operator_id"),
+        machine_id=payload.get("machine_id"),
+
+        note=payload.get("note"),
+
+        supplier_po=payload.get("supplier_po"),
+        supplier_name=payload.get("supplier_name"),
+        supplier_lot=payload.get("supplier_lot"),
+
+        supplier_send_date=payload.get("supplier_send_date"),
+        supplier_receive_date=payload.get("supplier_receive_date"),
+
+        material_size=payload.get("material_size"),
+        material_length=payload.get("material_length"),
+        material_uom=payload.get("material_uom"),
+        material_type=payload.get("material_type"),
+    )
         db.add(log)
         db.commit()
         db.refresh(log)
@@ -279,11 +322,11 @@ def update_log(log_id: int, payload: dict, db: Session = Depends(get_db)):
         # =========================
         new_accept = Decimal(str(payload["qty_accept"])) if "qty_accept" in payload else log.qty_accept
         new_reject = Decimal(str(payload["qty_reject"])) if "qty_reject" in payload else log.qty_reject
-        if new_accept < 0:
-            raise HTTPException(400, "qty_accept must be >= 0")
+        # if new_accept < 0:
+        #     raise HTTPException(400, "qty_accept must be >= 0")
 
-        if new_reject < 0:
-            raise HTTPException(400, "qty_reject must be >= 0")
+        # if new_reject < 0:
+        #     raise HTTPException(400, "qty_reject must be >= 0")
 
         # =========================
         # 🔥 CALCULATE RECEIVE FIRST (FIX)
@@ -306,7 +349,7 @@ def update_log(log_id: int, payload: dict, db: Session = Depends(get_db)):
                 (l.qty_accept or 0) + (l.qty_reject or 0)
                 for l in prev_step.logs
             ) if prev_step else 0
-
+        
         # =========================
         # 🔥 CALCULATE TOTAL AFTER CHANGE
         # =========================
@@ -356,6 +399,42 @@ def update_log(log_id: int, payload: dict, db: Session = Depends(get_db)):
         if "machine_id" in payload:
             log.machine_id = int(payload["machine_id"]) if payload["machine_id"] else None
 
+        if "supplier_po" in payload:
+            print("Updating supplier_po to:", payload["supplier_po"])
+            log.supplier_po = payload["supplier_po"]
+
+        if "supplier_name" in payload:
+            log.supplier_name = payload["supplier_name"]
+
+        if "supplier_lot" in payload:
+            log.supplier_lot = payload["supplier_lot"]
+
+        if "supplier_send_date" in payload:
+            log.supplier_send_date = (
+                datetime.fromisoformat(payload["supplier_send_date"]).date()
+                if payload["supplier_send_date"]
+                else None
+            )
+
+        if "supplier_receive_date" in payload:
+            log.supplier_receive_date = (
+                datetime.fromisoformat(payload["supplier_receive_date"]).date()
+                if payload["supplier_receive_date"]
+                else None
+            )
+
+        if "material_size" in payload:
+            log.material_size = payload["material_size"]
+
+        if "material_length" in payload:
+            log.material_length = payload["material_length"]
+
+        if "material_uom" in payload:
+            log.material_uom = payload["material_uom"]
+
+        if "material_type" in payload:
+            log.material_type = payload["material_type"]
+
        
 
         db.commit()
@@ -363,7 +442,7 @@ def update_log(log_id: int, payload: dict, db: Session = Depends(get_db)):
 
         recalc_step_status(db, log.step_id)
         db.commit()
-
+        print(f"Updated log {log.id}, recalculated step {log.step_id} status")
         return log
 
     except HTTPException:

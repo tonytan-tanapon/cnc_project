@@ -252,31 +252,19 @@ def generate_traveler_from_db(template_path, data: dict, output_path):
         # -------------------------
         # SUPPLIER INFO
         # -------------------------
+        # -------------------------
+        # SUPPLIER INFO
+        # -------------------------
+
         detail = ""
 
-        supplier_lines = []
+        supplier_text = (
+            step.get("supplier_text") or ""
+        )
 
-        if step.get("supplier_po"):
+        if supplier_text:
 
-            supplier_lines.append(
-                f"Supplier PO: {step['supplier_po']}"
-            )
-
-        if step.get("supplier_name"):
-
-            supplier_lines.append(
-                f"Supplier: {step['supplier_name']}"
-            )
-
-        if step.get("heat_lot"):
-
-            supplier_lines.append(
-                f"Heat Lot: {step['heat_lot']}"
-            )
-
-        if supplier_lines:
-
-            detail += "\n".join(supplier_lines)
+            detail += supplier_text
 
         else:
 
