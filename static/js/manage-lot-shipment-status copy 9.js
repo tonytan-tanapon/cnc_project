@@ -928,9 +928,9 @@ function applyFilter() {
   //       d.customer_code?.toLowerCase().includes(q) ||
   //       d.po_number?.toLowerCase().includes(q)
   //   );
-  // }
 
-  console.log("testttt ")
+  // }
+  console.log("testttt")
   if (q) {
   table.addFilter((d) => {
 
@@ -991,7 +991,7 @@ function initTable() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  
+ 
   Object.values(UI).forEach((id) => (els[id] = $(id)));
   initTable();
   console.log("before load")
