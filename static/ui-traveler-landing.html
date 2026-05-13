@@ -11,607 +11,669 @@
    RESET
 ========================= */
 
-* {
-    box-sizing: border-box;
-}
+        * {
+            box-sizing: border-box;
+        }
 
-html,
-body {
-    margin: 0;
-    padding: 0;
-    width: 100%;
-    overflow-x: hidden;
-}
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            overflow-x: hidden;
+        }
 
-/* =========================
+        /* =========================
    BODY
 ========================= */
 
-body {
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-    background: #f8fafc;
-}
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #f8fafc;
+        }
 
-/* =========================
+        /* =========================
    CONTAINER
 ========================= */
 
-.container {
-    min-height: 100vh;
+        .container {
+            min-height: 100vh;
 
-    display: flex;
-    flex-direction: column;
+            display: flex;
+            flex-direction: column;
 
-    justify-content: center;
-    align-items: center;
+            justify-content: center;
+            align-items: center;
 
-    padding: 20px;
+            padding: 20px;
 
-    width: 100%;
-    max-width: 100vw;
-}
+            width: 100%;
+            max-width: 100vw;
+        }
 
-/* =========================
+        /* =========================
    TYPOGRAPHY
 ========================= */
 
-h1 {
-    margin-bottom: 10px;
+        h1 {
+            margin-bottom: 10px;
 
-    font-size: clamp(24px, 4vw, 42px);
+            font-size: clamp(24px, 4vw, 42px);
 
-    font-weight: 800;
+            font-weight: 800;
 
-    text-align: center;
-}
+            text-align: center;
+        }
 
-p {
-    margin-bottom: 24px;
+        p {
+            margin-bottom: 24px;
 
-    color: #64748b;
+            color: #64748b;
 
-    font-size: clamp(14px, 2vw, 18px);
+            font-size: clamp(14px, 2vw, 18px);
 
-    text-align: center;
-}
+            text-align: center;
+        }
 
-/* =========================
+        /* =========================
    INPUTS
 ========================= */
 
-input {
-    width: 100%;
-    max-width: 420px;
+        input {
+            width: 100%;
+            max-width: 420px;
 
-    font-size: clamp(18px, 2vw, 26px);
+            font-size: clamp(18px, 2vw, 26px);
 
-    padding: 16px 18px;
+            padding: 16px 18px;
 
-    border-radius: 12px;
+            border-radius: 12px;
 
-    border: 2px solid #cbd5f5;
+            border: 2px solid #cbd5f5;
 
-    outline: none;
+            outline: none;
 
-    text-align: center;
-}
+            text-align: center;
+        }
 
-input:focus {
-    border-color: #2563eb;
+        input:focus {
+            border-color: #2563eb;
 
-    box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.15);
-}
+            box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.15);
+        }
 
-/* =========================
+        /* =========================
    RESULT
 ========================= */
 
-.result {
-    margin-top: 20px;
+        .result {
+            margin-top: 20px;
 
-    font-size: clamp(18px, 2vw, 22px);
+            font-size: clamp(18px, 2vw, 22px);
 
-    font-weight: 700;
+            font-weight: 700;
 
-    color: #16a34a;
+            color: #16a34a;
 
-    word-break: break-word;
+            word-break: break-word;
 
-    text-align: center;
-}
+            text-align: center;
+        }
 
-.hint {
-    margin-top: 12px;
+        .hint {
+            margin-top: 12px;
 
-    font-size: 14px;
+            font-size: 14px;
 
-    color: #94a3b8;
-}
+            color: #94a3b8;
+        }
 
-/* =========================
+        /* =========================
    PIN DISPLAY
 ========================= */
 
-.pin-dot {
-    color: #cbd5f5;
-}
+        .pin-dot {
+            color: #cbd5f5;
+        }
 
-.pin-dot.filled {
-    color: #2563eb;
-}
+        .pin-dot.filled {
+            color: #2563eb;
+        }
 
-/* =========================
+        /* =========================
    PIN KEYS
 ========================= */
 
-#pinKeys {
-    display: grid;
+        #pinKeys {
+            display: grid;
 
-    grid-template-columns: repeat(3, 1fr);
+            grid-template-columns: repeat(3, 1fr);
 
-    gap: 16px;
+            gap: 16px;
 
-    margin-top: 24px;
+            margin-top: 24px;
 
-    width: 100%;
-}
+            width: 100%;
+        }
 
-.pin-btn {
-    font-size: clamp(22px, 3vw, 34px);
+        .pin-btn {
+            font-size: clamp(22px, 3vw, 34px);
 
-    padding: 20px 0;
+            padding: 20px 0;
 
-    border-radius: 18px;
+            border-radius: 18px;
 
-    border: none;
+            border: none;
 
-    background: #e2e8f0;
+            background: #e2e8f0;
 
-    cursor: pointer;
+            cursor: pointer;
 
-    font-weight: 800;
+            font-weight: 800;
 
-    min-height: 80px;
+            min-height: 80px;
 
-    transition: 0.15s;
-}
+            transition: 0.15s;
+        }
 
-.pin-btn:hover {
-    background: #dbe4f0;
-}
+        .pin-btn:hover {
+            background: #dbe4f0;
+        }
 
-.pin-btn:active {
-    transform: scale(0.95);
+        .pin-btn:active {
+            transform: scale(0.95);
 
-    background: #cbd5f5;
-}
+            background: #cbd5f5;
+        }
 
-/* DEL */
-.pin-btn:nth-last-child(3) {
-    background: #fecaca;
-}
+        /* DEL */
+        .pin-btn:nth-last-child(3) {
+            background: #fecaca;
+        }
 
-/* CLEAR */
-.pin-btn:nth-last-child(1) {
-    background: #fde68a;
-}
+        /* CLEAR */
+        .pin-btn:nth-last-child(1) {
+            background: #fde68a;
+        }
 
-/* =========================
+        /* =========================
    MACHINE BUTTON
 ========================= */
 
-.machine-btn {
-    padding: 20px 12px;
+        .machine-btn {
+            padding: 20px 12px;
 
-    border-radius: 18px;
+            border-radius: 18px;
 
-    border: none;
+            border: none;
 
-    background: #e2e8f0;
+            background: #e2e8f0;
 
-    font-weight: 800;
+            font-weight: 800;
 
-    font-size: clamp(16px, 2vw, 26px);
+            font-size: clamp(16px, 2vw, 26px);
 
-    cursor: pointer;
+            cursor: pointer;
 
-    transition: 0.15s;
+            transition: 0.15s;
 
-    min-height: 90px;
+            min-height: 90px;
 
-    width: 100%;
-}
+            width: 100%;
+        }
 
-.machine-btn:hover {
-    background: #cbd5f5;
-}
+        .machine-btn:hover {
+            background: #cbd5f5;
+        }
 
-.machine-btn:active {
-    transform: scale(0.95);
-}
+        .machine-btn:active {
+            transform: scale(0.95);
+        }
 
-/* =========================
+        /* =========================
    LOT PANEL
 ========================= */
 
-.lot-panel {
-    width: 100%;
+        .lot-panel {
+            width: 100%;
 
-    max-width: 1100px;
+            max-width: 1100px;
 
-    margin-top: 20px;
+            margin-top: 20px;
 
-    background: #fff;
+            background: #fff;
 
-    border-radius: 18px;
+            border-radius: 18px;
 
-    padding: 20px;
+            padding: 20px;
 
-    box-shadow: 0 4px 16px rgba(0, 0, 0, .08);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, .08);
 
-    overflow-x: auto;
-}
+            overflow-x: auto;
+        }
 
-/* =========================
+        /* =========================
    LOT HEADER
 ========================= */
 
-.lot-header {
-    display: flex;
+        .lot-header {
+            display: flex;
 
-    justify-content: space-between;
+            justify-content: space-between;
 
-    align-items: center;
+            align-items: center;
 
-    gap: 12px;
+            gap: 12px;
 
-    margin-bottom: 14px;
+            margin-bottom: 14px;
 
-    flex-wrap: wrap;
-}
+            flex-wrap: wrap;
+        }
 
-.lot-header h3 {
-    margin: 0;
+        .lot-header h3 {
+            margin: 0;
 
-    font-size: clamp(20px, 2vw, 28px);
+            font-size: clamp(20px, 2vw, 28px);
 
-    font-weight: 800;
-}
+            font-weight: 800;
+        }
 
-#refreshLotsBtn {
-    border: none;
+        #refreshLotsBtn {
+            border: none;
 
-    background: #2563eb;
+            background: #2563eb;
 
-    color: white;
+            color: white;
 
-    padding: 10px 16px;
+            padding: 10px 16px;
 
-    border-radius: 10px;
+            border-radius: 10px;
 
-    cursor: pointer;
+            cursor: pointer;
 
-    font-weight: 700;
-}
+            font-weight: 700;
+        }
 
-#refreshLotsBtn:hover {
-    background: #1d4ed8;
-}
+        #refreshLotsBtn:hover {
+            background: #1d4ed8;
+        }
 
-/* =========================
+        /* =========================
    TABLE
 ========================= */
 
-#lotTable {
-    width: 100%;
+        #lotTable {
+            width: 100%;
 
-    min-width: 700px;
+            min-width: 700px;
 
-    border-collapse: collapse;
-}
+            border-collapse: collapse;
+        }
 
-#lotTable th {
-    background: #f1f5f9;
+        #lotTable th {
+            background: #f1f5f9;
 
-    padding: 14px;
+            padding: 14px;
 
-    text-align: left;
+            text-align: left;
 
-    font-size: 14px;
-}
+            font-size: 14px;
+        }
 
-#lotTable td {
-    padding: 14px;
+        #lotTable td {
+            padding: 14px;
 
-    border-top: 1px solid #e5e7eb;
+            border-top: 1px solid #e5e7eb;
 
-    font-size: 14px;
-}
+            font-size: 14px;
+        }
 
-#lotTable tr {
-    cursor: pointer;
+        #lotTable tr {
+            cursor: pointer;
 
-    transition: .15s;
-}
+            transition: .15s;
+        }
 
-#lotTable tr:hover {
-    background: #eff6ff;
-}
+        #lotTable tr:hover {
+            background: #eff6ff;
+        }
 
-/* =========================
+        /* =========================
    STATUS BADGES
 ========================= */
 
-.status-badge {
-    display: inline-block;
+        .status-badge {
+            display: inline-block;
 
-    padding: 6px 10px;
+            padding: 6px 10px;
 
-    border-radius: 999px;
+            border-radius: 999px;
 
-    font-size: 13px;
+            font-size: 13px;
 
-    font-weight: 700;
-}
+            font-weight: 700;
+        }
 
-.status-running {
-    background: #dbeafe;
+        .status-running {
+            background: #dbeafe;
 
-    color: #1d4ed8;
-}
+            color: #1d4ed8;
+        }
 
-.status-passed {
-    background: #dcfce7;
+        .status-passed {
+            background: #dcfce7;
 
-    color: #15803d;
-}
+            color: #15803d;
+        }
 
-.status-pending {
-    background: #e5e7eb;
+        .status-pending {
+            background: #e5e7eb;
 
-    color: #374151;
-}
+            color: #374151;
+        }
 
-/* =========================
+        /* =========================
    PIN OVERLAY
 ========================= */
 
-#pinOverlay {
-    display: none;
+        #pinOverlay {
+            display: none;
 
-    position: fixed;
+            position: fixed;
 
-    inset: 0;
+            inset: 0;
 
-    background: rgba(0, 0, 0, 0.55);
+            background: rgba(0, 0, 0, 0.55);
 
-    z-index: 9999;
+            z-index: 9999;
 
-    align-items: center;
+            align-items: center;
 
-    justify-content: center;
+            justify-content: center;
 
-    padding: 16px;
-}
+            padding: 16px;
+        }
 
-#pinOverlay>div {
-    background: #fff;
+        #pinOverlay>div {
+            background: #fff;
 
-    width: min(92vw, 520px);
+            width: min(92vw, 520px);
 
-    max-height: 92vh;
+            max-height: 92vh;
 
-    overflow-y: auto;
+            overflow-y: auto;
 
-    border-radius: 20px;
+            border-radius: 20px;
 
-    padding: 24px;
+            padding: 24px;
 
-    text-align: center;
-}
+            text-align: center;
+        }
 
-#pinDisplay {
-    margin: 16px 0;
+        #pinDisplay {
+            margin: 16px 0;
 
-    font-size: clamp(40px, 6vw, 72px);
+            font-size: clamp(40px, 6vw, 72px);
 
-    letter-spacing: 10px;
+            letter-spacing: 10px;
 
-    font-weight: 800;
-}
+            font-weight: 800;
+        }
 
-#pinClose {
-    font-size: 22px;
+        #pinClose {
+            font-size: 22px;
 
-    border: none;
+            border: none;
 
-    background: transparent;
+            background: transparent;
 
-    cursor: pointer;
-}
+            cursor: pointer;
+        }
 
-/* =========================
+        /* =========================
    MACHINE OVERLAY
 ========================= */
 
-#machineOverlay {
-    display: none;
+        #machineOverlay {
+            display: none;
 
-    position: fixed;
+            position: fixed;
 
-    inset: 0;
+            inset: 0;
 
-    background: rgba(0, 0, 0, 0.55);
+            background: rgba(0, 0, 0, 0.55);
 
-    z-index: 9999;
+            z-index: 9999;
 
-    align-items: center;
+            align-items: center;
 
-    justify-content: center;
+            justify-content: center;
 
-    padding: 16px;
-}
+            padding: 16px;
+        }
 
-#machineOverlay>div {
-    background: #fff;
+        #machineOverlay>div {
+            background: #fff;
 
-    width: min(96vw, 1200px);
+            width: min(96vw, 1200px);
 
-    height: min(92vh, 900px);
+            height: min(92vh, 900px);
 
-    border-radius: 24px;
+            border-radius: 24px;
 
-    padding: 24px;
+            padding: 24px;
 
-    text-align: center;
+            text-align: center;
 
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
 
-    display: flex;
+            display: flex;
 
-    flex-direction: column;
-}
+            flex-direction: column;
+        }
 
-#machineOverlay h3 {
-    margin: 0;
+        #machineOverlay h3 {
+            margin: 0;
 
-    font-size: clamp(26px, 4vw, 40px);
+            font-size: clamp(26px, 4vw, 40px);
 
-    font-weight: 800;
-}
+            font-weight: 800;
+        }
 
-#machineList {
-    flex: 1;
+        #machineList {
+            flex: 1;
 
-    display: grid;
+            display: grid;
 
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
 
-    gap: 14px;
+            gap: 14px;
 
-    margin-top: 20px;
+            margin-top: 20px;
 
-    overflow-y: auto;
+            overflow-y: auto;
 
-    padding-right: 4px;
-}
+            padding-right: 4px;
+        }
 
-/* =========================
+        /* =========================
    SCROLLBAR
 ========================= */
 
-#machineList::-webkit-scrollbar,
-#pinOverlay>div::-webkit-scrollbar,
-.lot-panel::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
-}
+        #machineList::-webkit-scrollbar,
+        #pinOverlay>div::-webkit-scrollbar,
+        .lot-panel::-webkit-scrollbar {
+            width: 10px;
+            height: 10px;
+        }
 
-#machineList::-webkit-scrollbar-thumb,
-#pinOverlay>div::-webkit-scrollbar-thumb,
-.lot-panel::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
-    border-radius: 999px;
-}
+        #machineList::-webkit-scrollbar-thumb,
+        #pinOverlay>div::-webkit-scrollbar-thumb,
+        .lot-panel::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 999px;
+        }
 
-/* =========================
+        /* =========================
    TABLET
 ========================= */
 
-@media (max-width: 1024px) {
+        @media (max-width: 1024px) {
 
-    .container {
-        padding: 16px;
-    }
+            .container {
+                padding: 16px;
+            }
 
-    .lot-panel {
-        padding: 16px;
-    }
+            .lot-panel {
+                padding: 16px;
+            }
 
-    #machineList {
-        grid-template-columns: repeat(2, 1fr);
-    }
+            #machineList {
+                grid-template-columns: repeat(2, 1fr);
+            }
 
-    .machine-btn {
-        min-height: 80px;
-    }
+            .machine-btn {
+                min-height: 80px;
+            }
 
-    #lotTable th,
-    #lotTable td {
-        padding: 12px;
-    }
-}
+            #lotTable th,
+            #lotTable td {
+                padding: 12px;
+            }
+        }
 
-/* =========================
+        /* =========================
    MOBILE
 ========================= */
 
-@media (max-width: 640px) {
+        @media (max-width: 640px) {
 
-    .container {
-        padding: 10px;
-    }
+            .container {
+                padding: 10px;
+            }
 
-    .lot-panel {
-        padding: 12px;
-    }
+            .lot-panel {
+                padding: 12px;
+            }
 
-    .lot-header {
-        flex-direction: column;
+            .lot-header {
+                flex-direction: column;
 
-        align-items: stretch;
-    }
+                align-items: stretch;
+            }
 
-    #machineList {
-        grid-template-columns: 1fr;
-    }
+            #machineList {
+                grid-template-columns: 1fr;
+            }
 
-    .machine-btn {
-        min-height: 70px;
-    }
+            .machine-btn {
+                min-height: 70px;
+            }
 
-    #lotTable {
-        min-width: 600px;
-    }
+            #lotTable {
+                min-width: 600px;
+            }
 
-    #lotTable th,
-    #lotTable td {
-        padding: 10px;
+            #lotTable th,
+            #lotTable td {
+                padding: 10px;
 
-        font-size: 13px;
-    }
+                font-size: 13px;
+            }
 
-    .pin-btn {
-        min-height: 65px;
-    }
+            .pin-btn {
+                min-height: 65px;
+            }
 
-    #pinKeys {
-        gap: 12px;
-    }
-}
+            #pinKeys {
+                gap: 12px;
+            }
+        }
 
-/* =========================
+        /* =========================
    LANDSCAPE TABLET FIX
 ========================= */
 
-@media (orientation: landscape) and (max-height: 700px) {
+        @media (orientation: landscape) and (max-height: 700px) {
 
-    .container {
-        justify-content: flex-start;
-    }
+            .container {
+                justify-content: flex-start;
+            }
 
-    #machineOverlay>div {
-        height: 95vh;
-    }
+            #machineOverlay>div {
+                height: 95vh;
+            }
 
-    #pinOverlay>div {
-        max-height: 95vh;
-    }
+            #pinOverlay>div {
+                max-height: 95vh;
+            }
 
-    .machine-btn {
-        min-height: 65px;
-    }
-}
+            .machine-btn {
+                min-height: 65px;
+            }
+        }
+
+        /* =========================================
+   TABLET MACHINE FIX
+========================================= */
+
+        #machineList {
+            width: 100%;
+        }
+
+        .machine-btn {
+
+            width: 100%;
+
+            min-height: 100px;
+
+            font-size: 24px;
+
+            border-radius: 18px;
+        }
+
+        /* TABLET */
+        @media (max-width: 1024px) {
+
+            #machineOverlay>div {
+
+                width: min(94vw, 760px);
+
+                height: min(88vh, 650px);
+
+                padding: 20px;
+            }
+
+            #machineList {
+
+                grid-template-columns:
+                    repeat(3, 1fr);
+            }
+
+            .machine-btn {
+
+                min-height: 85px;
+
+                font-size: 20px;
+            }
+        }
+
+        /* SMALL TABLET */
+        @media (max-width: 768px) {
+
+            #machineList {
+
+                grid-template-columns:
+                    repeat(2, 1fr);
+            }
+
+            .machine-btn {
+
+                min-height: 75px;
+
+                font-size: 18px;
+            }
+        }
     </style>
 </head>
 
@@ -621,12 +683,51 @@ input:focus {
         <p>Enter manually (Go) or scan QR</p>
 
         <!-- Manual -->
-        <div style="display:flex; gap:10px; align-items:center; margin-bottom:12px;">
-            <input id="manualInput" type="text" placeholder="Enter manually..."
-                style="flex:1; padding:10px; font-size:16px;" />
-            <button id="btnGo" style="padding:10px 16px; font-size:16px; cursor:pointer;">
+        <!-- Manual -->
+           <!-- LOT BUTTON -->
+            <button id="btnLotPad" style="
+    width:300px;
+
+    height:58px;
+
+    font-size:24px;
+
+    cursor:pointer;
+
+    background:#2563eb;
+
+    color:white;
+
+    border:none;
+
+    border-radius:12px;
+
+    font-weight:800;
+
+    flex-shrink:0;
+">
+                Click to Enter Lot
+            </button>
+
+        <div style="display:flex; gap:10px; align-items:center; margin-bottom:12px; width:100%; max-width:700px;">
+
+          
+            <!-- MANUAL INPUT -->
+            <input id="manualInput" type="text" placeholder="Enter manually..." style="
+            flex:1;
+            padding:10px;
+            font-size:16px;
+        " hidden/>
+
+            <!-- GO -->
+            <button id="btnGo" style="
+            padding:10px 16px;
+            font-size:16px;
+            cursor:pointer;
+        " hidden>
                 Go
             </button>
+
         </div>
 
         <div class="lot-panel">
@@ -713,37 +814,206 @@ input:focus {
     </div>
 
     <!-- MACHINE SELECT -->
-    <div id="machineOverlay"
-        style=" display:none; position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:9999; align-items:center; justify-content:center; ">
-        <div style="
-    background:#fff;
-    width:1000px;
-    max-width:95vw;
-    min-height:900px;
-    border-radius:24px;
-    padding:40px;
-    text-align:center;
-    box-shadow:0 20px 60px rgba(0,0,0,0.25);
+    <div id="machineOverlay" style="
+display:none;
+position:fixed;
+inset:0;
+background:rgba(0,0,0,0.55);
+z-index:9999;
+align-items:center;
+justify-content:center;
+padding:16px;
 ">
+
+        <div style="
+background:#fff;
+
+width:min(92vw, 900px);
+
+height:min(88vh, 700px);
+
+border-radius:24px;
+
+padding:24px;
+
+text-align:center;
+
+box-shadow:0 20px 60px rgba(0,0,0,0.25);
+
+display:flex;
+flex-direction:column;
+">
+
             <h3 style="
-  margin:0;
-  font-size:38px;
-  font-weight:800;
+margin:0;
+font-size:25px;
+font-weight:800;
 ">
                 Select Machine
             </h3>
+
             <div id="machineList" style="
-  display:grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap:12px;
-  margin-top:16px;
-  max-height:700px;
-  overflow-y:auto;
+flex:1;
+
+display:grid;
+
+grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));
+
+gap:12px;
+
+margin-top:16px;
+
+overflow-y:auto;
+
+align-content:start;
 "></div>
-            <button onclick="document.getElementById('machineOverlay').style.display='none'"> Cancel </button>
+
+            <button onclick="document.getElementById('machineOverlay').style.display='none'" style="
+position:absolute;
+
+top:16px;
+right:16px;
+
+width:48px;
+height:48px;
+
+border:none;
+
+border-radius:50%;
+
+background:#ef4444;
+
+color:white;
+
+font-size:28px;
+
+font-weight:800;
+
+cursor:pointer;
+
+display:flex;
+align-items:center;
+justify-content:center;
+">
+                ✕
+            </button>
         </div>
     </div>
-    <script type="module" src="/static/ui-traveler-landing.js?v=1"></script>
+
+
+
+    <!-- LOT NUMBER OVERLAY -->
+<div id="lotOverlay"
+style="
+display:none;
+position:fixed;
+inset:0;
+background:rgba(0,0,0,0.55);
+z-index:99999;
+align-items:center;
+justify-content:center;
+">
+
+    <div style="
+    background:white;
+    width:min(92vw,420px);
+    border-radius:20px;
+    padding:24px;
+    text-align:center;
+    ">
+
+        <div style="
+        display:flex;
+        justify-content:space-between;
+        align-items:center;
+        margin-bottom:10px;
+        ">
+
+            <h2 style="
+            margin:0;
+            font-size:28px;
+            font-weight:800;
+            ">
+                Enter Lot
+            </h2>
+
+            <button id="closeLotOverlay"
+            style="
+            border:none;
+            background:none;
+            font-size:28px;
+            cursor:pointer;
+            ">
+                ✕
+            </button>
+
+        </div>
+
+        <div id="lotDisplay"
+        style="
+        font-size:52px;
+        font-weight:800;
+        letter-spacing:4px;
+        margin-bottom:20px;
+        color:#2563eb;
+        ">
+            -----
+        </div>
+
+        <div id="lotKeys"
+        style="
+        display:grid;
+        grid-template-columns:repeat(3,1fr);
+        gap:12px;
+        ">
+        </div>
+
+        <div style="
+        display:flex;
+        gap:10px;
+        margin-top:16px;
+        ">
+
+            <button id="lotOkBtn"
+            style="
+            flex:1;
+            height:60px;
+            border:none;
+            border-radius:12px;
+            background:#16a34a;
+            color:white;
+            font-size:22px;
+            font-weight:800;
+            cursor:pointer;
+            ">
+                OK
+            </button>
+
+            <button id="lotClearBtn"
+            style="
+            flex:1;
+            height:60px;
+            border:none;
+            border-radius:12px;
+            background:#f59e0b;
+            color:white;
+            font-size:22px;
+            font-weight:800;
+            cursor:pointer;
+            ">
+                Clear
+            </button>
+
+        </div>
+
+    </div>
+
+</div>
+
+<script type="module"
+src="/static/ui-traveler-landing.js?v=3">
+</script>
+
 
 </body>
 

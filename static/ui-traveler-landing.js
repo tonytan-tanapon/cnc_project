@@ -12,17 +12,34 @@ let traver_id = null;
 let traveler_no = null;
 
 async function verifyLot(code) {
-  // ✅ MOCK verification logic
-  // In real app, replace with server call or real logic
-  const data = await jfetch(
-    api(`/travelers/by-lot-code/${encodeURIComponent(code)}`)
-  );
-  console.log("Fetched lot data:", data);
 
-  if (data && data.id) traveler_no = data.traveler_no;
-  return true;
-  return false; // only "1234" is valid
+  try {
+
+    const data = await jfetch(
+      api(`/travelers/by-lot-code/${encodeURIComponent(code)}`)
+    );
+
+    console.log("Fetched lot data:", data);
+
+    if (!data || !data.traveler_no) {
+      return false;
+    }
+
+    // ✅ IMPORTANT
+    traveler_no = data.traveler_no;
+
+    console.log("traveler_no =", traveler_no);
+
+    return true;
+
+  } catch (err) {
+
+    console.error(err);
+
+    return false;
+  }
 }
+
 async function verifyPin(pin) {
   // ✅ MOCK verification logic
   // In real app, replace with server call or real logic
@@ -34,6 +51,7 @@ async function verifyPin(pin) {
   if (data && data.id) return true;
   return false; // only "1234" is valid
 }
+
 // ✅ ONE function used by BOTH manual + scan
 async function handleCode(value, source = "scan") {
   // verifyLot(code)
@@ -46,9 +64,11 @@ async function handleCode(value, source = "scan") {
   //check Lot no
   const isLotValid = await verifyLot(code);
   if (!isLotValid) {
-    alert("❌ Invalid Lot Number. Please re-enter.");
-    return handleCode(code, source); // 🔁 retry
-  }
+
+  alert("❌ Invalid Lot Number");
+
+  return;
+}
 
   // 🔐 Ask for PIN
   const pin = await showPinPad();
@@ -66,13 +86,15 @@ async function handleCode(value, source = "scan") {
   console.log("PIN valid?", isValid);
 
   if (!isValid) {
-    alert("❌ Invalid PIN. Please re-enter.");
-    return handleCode(code, source); // 🔁 retry
-  }
+
+  alert("❌ Invalid PIN");
+
+  return;
+}
 
   // 🎯 SUCCESS
   //   alert(`✅ Access granted\nCode: ${code}`);
-  openMachineSelect(code, pin);
+  openMachineSelect(traveler_no, pin);
   // 👉 REAL ACTION
   // location.href = `/static/ui-traveler.html?traveler_no=${encodeURIComponent(
   //   traveler_no
@@ -160,7 +182,132 @@ async function loadInProcessLots() {
 
   }
 }
+
+
+// ======================================
+// LOT NUMBER KEYPAD
+// ======================================
+
+const btnLotPad = document.getElementById("btnLotPad");
+
+const lotOverlay = document.getElementById("lotOverlay");
+
+const lotDisplay = document.getElementById("lotDisplay");
+
+const lotKeys = document.getElementById("lotKeys");
+
+const closeLotOverlay =
+    document.getElementById("closeLotOverlay");
+
+const lotOkBtn =
+    document.getElementById("lotOkBtn");
+
+const lotClearBtn =
+    document.getElementById("lotClearBtn");
+
+let lotValue = "";
+
+// OPEN
+btnLotPad?.addEventListener("click", () => {
+
+    lotValue = "";
+
+    renderLotDisplay();
+
+    lotOverlay.style.display = "flex";
+});
+
+// CLOSE
+closeLotOverlay?.addEventListener("click", () => {
+
+    lotOverlay.style.display = "none";
+});
+
+// DISPLAY
+function renderLotDisplay() {
+
+    lotDisplay.innerText =
+        lotValue || "-----";
+}
+
+// CREATE KEYS
+// CREATE KEYS
+// CREATE KEYS
+const layout = [
+  ["1", "2", "3"],
+  ["4", "5", "6"],
+  ["7", "8", "9"],
+  ["DEL", "0", "-"]
+];
+
+layout.flat().forEach(key => {
+
+    const btn =
+        document.createElement("button");
+
+    btn.className = "pin-btn";
+
+    btn.innerText = key;
+
+    btn.onclick = () => {
+
+        if (key === "DEL") {
+
+            lotValue =
+                lotValue.slice(0, -1);
+
+        } else {
+
+            if (lotValue.length >= 20)
+                return;
+
+            lotValue += key;
+        }
+
+        renderLotDisplay();
+    };
+
+    lotKeys.appendChild(btn);
+});
+
+// CLEAR
+lotClearBtn?.addEventListener("click", () => {
+
+    lotValue = "";
+
+    renderLotDisplay();
+});
+
+
+// OK
+lotOkBtn?.addEventListener("click", async () => {
+
+    if (!lotValue) return;
+
+    // USE RAW LOT NUMBER
+    let finalLot =
+    lotValue.trim().toUpperCase();
+
+if (!finalLot.startsWith("L")) {
+    finalLot = "L" + finalLot;
+}
+
+    console.log(
+        "Selected Lot:",
+        finalLot
+    );
+
+    // CLOSE OVERLAY
+    lotOverlay.style.display = "none";
+
+    // USE NORMAL FLOW
+    await handleCode(finalLot, "manual");
+
+});
+
+
 async function openMachineSelect(code, pin) {
+   
   console.log("🔥 OPEN MACHINE SELECT");
 
   const res = await fetch("/api/v1/machines");

@@ -51,7 +51,7 @@ table {
 
   font-size: 14px;
 
-  table-layout: fixed;
+  table-layout: auto;
 }
 
 thead th {
@@ -348,10 +348,20 @@ ACTION
 
 .col-action {
 
-  width: 70px;
-  min-width: 70px;
+  width: 110px;
+  min-width: 110px;
+
+  vertical-align: top;
 }
 
+.col-action button {
+
+  display: block;
+
+  width: 90px;
+
+  margin: 4px auto;
+}
 /* =========================
 MOBILE
 ========================= */
@@ -374,6 +384,40 @@ MOBILE
   }
 }
 
+
+.toast {
+
+  position: fixed;
+
+  top: 20px;
+  right: 20px;
+
+  background: #16a34a;
+  color: white;
+
+  padding: 12px 20px;
+
+  border-radius: 10px;
+
+  font-weight: bold;
+
+  opacity: 0;
+
+  transform: translateY(-20px);
+
+  transition:
+    opacity 0.3s,
+    transform 0.3s;
+
+  z-index: 9999;
+}
+
+.toast.show {
+
+  opacity: 1;
+
+  transform: translateY(0);
+}
 </style>
 
 </head>
@@ -434,7 +478,9 @@ MOBILE
 
   <!-- 🔥 IMPORTANT: version updated -->
   <script src="/static/js/traveler-view.js?v=9.0"></script>
-
+<div id="toast" class="toast">
+  ✅ Saved successfully
+</div>
 </body>
 
 </html>

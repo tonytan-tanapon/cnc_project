@@ -59,15 +59,28 @@ function showKeypad(target, type) {
           ? "Accept"
           : type === "reject"
             ? "Reject"
-            : "";
+            : type === "po"
+              ? "PO"
+              : type === "length"
+                ? "Length"
+                : type === "qty"
+                  ? "Qty"
+                  : "";
+
     labelEl.style.color =
-      type === "receive"
+      type === "po"
         ? "#2563eb"
-        : type === "accept"
-          ? "#16a34a"
-          : type === "reject"
-            ? "#dc2626"
-            : "#111";
+        : type === "length"
+          ? "#f59e0b"
+          : type === "qty"
+            ? "#16a34a"
+            : type === "receive"
+              ? "#2563eb"
+              : type === "accept"
+                ? "#16a34a"
+                : type === "reject"
+                  ? "#dc2626"
+                  : "#111";
   }
 
   document.querySelector("#keypad").style.display = "flex";
@@ -248,6 +261,17 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     const val = parseInt(activeTarget.textContent.trim());
+
+    const poValue =
+      document.querySelector("#poValue")?.textContent?.trim() || "";
+
+    const lengthValue =
+      document.querySelector("#lengthValue")?.textContent?.trim() || "";
+
+    const qtyValue =
+      parseFloat(
+        document.querySelector("#qtyValue")?.textContent?.trim() || "0"
+      );
     if (isNaN(val) || val < 0) {
       toastCenter("Invalid number", false);
       return;
@@ -255,7 +279,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     try {
 
-
+      const isMachineMode =
+        currentStepData?.input_mode === "machine_cut";
       // 🔥 LOAD LOGS ONCE
       const logs = await jfetch(`/api/v1/step-logs?step_id=${stepId}`);
 
@@ -274,9 +299,14 @@ document.addEventListener("DOMContentLoaded", () => {
       let qty_reject = existing?.qty_reject || 0;
 
       // 🔥 APPLY CHANGE
-      if (activeType === "accept") qty_accept = val;
-      if (activeType === "reject") qty_reject = val;
+      if (!isMachineMode) {
 
+        if (activeType === "accept")
+          qty_accept = val;
+
+        if (activeType === "reject")
+          qty_reject = val;
+      }
       // 🔥 VALIDATION (IMPORTANT)
       const receive = currentReceive;
 
@@ -307,26 +337,78 @@ document.addEventListener("DOMContentLoaded", () => {
       if (existing) {
         await jfetch(`/api/v1/step-logs/${existing.id}`, {
           method: "PATCH",
-          body: JSON.stringify({
-            qty_accept,
-            qty_reject,
-            operator_id,
-            machine_id: currentMachineId,
-            note: remark,
-          }),
+          body: JSON.stringify(
+
+            isMachineMode
+              ? {
+
+                supplier_po: poValue,
+
+                material_length: lengthValue,
+
+                material_qty: qtyValue,
+
+                operator_id,
+
+                machine_id: currentMachineId,
+
+                note: remark,
+              }
+
+              : {
+
+                qty_accept,
+                qty_reject,
+
+                operator_id,
+
+                machine_id: currentMachineId,
+
+                note: remark,
+              }
+          ),
         });
       } else {
         await jfetch(`/api/v1/step-logs`, {
           method: "POST",
-          body: JSON.stringify({
-            step_id: stepId,
-            work_date: targetDate,
-            qty_accept,
-            qty_reject,
-            operator_id,
-            machine_id: currentMachineId,
-            note: remark,
-          }),
+          body: JSON.stringify(
+
+            isMachineMode
+              ? {
+
+                step_id: stepId,
+
+                work_date: targetDate,
+
+                supplier_po: poValue,
+
+                material_length: lengthValue,
+
+                material_qty: qtyValue,
+
+                operator_id,
+
+                machine_id: currentMachineId,
+
+                note: remark,
+              }
+
+              : {
+
+                step_id: stepId,
+
+                work_date: targetDate,
+
+                qty_accept,
+                qty_reject,
+
+                operator_id,
+
+                machine_id: currentMachineId,
+
+                note: remark,
+              }
+          ),
         });
       }
 
@@ -436,7 +518,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // Load first data
- 
+
   loadOperation();
   console.log("UI Traveler loaded with traveler_no:", travelerNo);
 });
@@ -558,7 +640,7 @@ function calcReceive(step, steps, allLogs, todayAccept, todayReject) {
 
 async function loadOperation() {
 
-  
+
   // =========================
   // MACHINE
   // =========================
@@ -648,6 +730,41 @@ async function loadOperation() {
     }
 
     currentStepData = step;
+    console.log("STEPPPPPPPPP:", step)
+    const isMachineMode =
+      step.input_mode === "machine_cut";
+    const head = document.querySelector("#logTableHead");
+
+    if (head) {
+
+      head.innerHTML = isMachineMode
+        ? `
+      <tr>
+        <th>Date</th>
+        <th>PO</th>
+        <th>Length</th>
+        <th>Qty</th>
+        <th>Operator</th>
+        <th>Machine</th>
+      </tr>
+    `
+        : `
+      <tr>
+        <th>Date</th>
+        <th>Accept</th>
+        <th>Reject</th>
+        <th>Operator</th>
+        <th>Machine</th>
+      </tr>
+    `;
+    }
+    document.querySelector("#machinePanel")
+      .style.display =
+      isMachineMode ? "flex" : "none";
+
+    document.querySelector("#normalPanel")
+      .style.display =
+      isMachineMode ? "none" : "flex";
 
     // =========================
     // 🔥 LOAD ALL LOGS (KEY FIX)
@@ -674,11 +791,32 @@ async function loadOperation() {
     // =========================
     // LEFT SIDE (TODAY)
     // =========================
-    const accept = activeLog?.qty_accept || 0;
-    const reject = activeLog?.qty_reject || 0;
 
-    document.querySelector("#acceptQty").textContent = parseInt(accept || 0);
-    document.querySelector("#rejectQty").textContent = parseInt(reject || 0);
+
+    if (isMachineMode) {
+
+      document.querySelector("#poValue").textContent =
+        activeLog?.supplier_po || "-";
+
+      document.querySelector("#lengthValue").textContent =
+        activeLog?.material_length || "0";
+
+      document.querySelector("#qtyValue").textContent =
+        parseFloat(activeLog?.material_qty || 0);
+
+    } else {
+
+      const accept = activeLog?.qty_accept || 0;
+      const reject = activeLog?.qty_reject || 0;
+
+      document.querySelector("#acceptQty").textContent =
+        parseInt(accept || 0);
+
+      document.querySelector("#rejectQty").textContent =
+        parseInt(reject || 0);
+    }
+
+
 
     // =========================
     // RECEIVE (FIXED)
@@ -773,21 +911,49 @@ async function loadOperation() {
               toastCenter(`Editing ${selectedLogDate}`, true);
             };
 
-            tr.innerHTML = `
-      <td>
-    ${l.work_date
+            tr.innerHTML = isMachineMode
+
+              ? `
+<td>
+  ${l.work_date
                 ? (() => {
                   const [y, m, d] = l.work_date.split("-");
                   return `${m}/${d}/${y.slice(2)}`;
                 })()
                 : "-"
               }
-  </td>
-      <td>${parseInt(l.qty_accept || 0)}</td>
-      <td>${parseInt(l.qty_reject || 0)}</td>
-      <td>${l.operator_nickname || l.operator_name || "-"}</td>
-      <td>${l.machine_name || "-"}</td>
-    `;
+</td>
+
+<td>${l.supplier_po || "-"}</td>
+
+<td>${l.material_length || "-"}</td>
+
+<td>${parseFloat(l.material_qty || 0)}</td>
+
+<td>${l.operator_nickname || l.operator_name || "-"}</td>
+
+<td>${l.machine_name || "-"}</td>
+`
+
+              : `
+<td>
+  ${l.work_date
+                ? (() => {
+                  const [y, m, d] = l.work_date.split("-");
+                  return `${m}/${d}/${y.slice(2)}`;
+                })()
+                : "-"
+              }
+</td>
+
+<td>${parseInt(l.qty_accept || 0)}</td>
+
+<td>${parseInt(l.qty_reject || 0)}</td>
+
+<td>${l.operator_nickname || l.operator_name || "-"}</td>
+
+<td>${l.machine_name || "-"}</td>
+`;
 
             tbody.appendChild(tr);
           });
@@ -795,12 +961,39 @@ async function loadOperation() {
         // 🔥 ADD TOTAL ROW HERE
         const totalRow = document.createElement("tr");
 
-        totalRow.innerHTML = `
-  <td style="font-weight:700;">Total</td>
-  <td style="font-weight:700; color:#16a34a;">${parseInt(totalAccept || 0)}</td>
-<td style="font-weight:700; color:#ef4444;">${parseInt(totalReject || 0)}</td>
-  <td></td>
-  <td></td>
+        totalRow.innerHTML = isMachineMode
+
+          ? `
+<td style="font-weight:700;">Total</td>
+
+<td></td>
+
+<td></td>
+
+<td style="font-weight:700; color:#16a34a;">
+  ${logs.reduce(
+            (sum, l) => sum + Number(l.material_qty || 0),
+            0
+          )}
+</td>
+
+<td></td>
+<td></td>
+`
+
+          : `
+<td style="font-weight:700;">Total</td>
+
+<td style="font-weight:700; color:#16a34a;">
+  ${parseInt(totalAccept || 0)}
+</td>
+
+<td style="font-weight:700; color:#ef4444;">
+  ${parseInt(totalReject || 0)}
+</td>
+
+<td></td>
+<td></td>
 `;
 
         totalRow.style.background = "#f9fafb";
@@ -854,9 +1047,9 @@ async function loadOperation() {
         );
 
         console.log("emp =", emp);
-    
+
         operatorText =
-          
+
           emp.nickname ||
           emp.name ||
           emp.emp_code ||

@@ -51,6 +51,13 @@ def create_traveler_step(payload: ShopTravelerStepCreate, db: Session = Depends(
         step_note=payload.step_note,
         step_detail=payload.step_detail or "",
         # machaine_id=payload.machine_id,
+
+        input_mode=(
+            "machine_cut"
+            if payload.step_code
+            and payload.step_code.upper().startswith("M")
+            else "accept_reject"
+        ),
     )
     db.add(s)
     db.commit()
@@ -111,6 +118,7 @@ def list_traveler_steps(traveler_id: Optional[int] = None, db: Session = Depends
                 "step_name": step.step_name,
                 "step_detail": step.step_detail,
                 "step_code": step.step_code,
+                "input_mode": step.input_mode,
              
                 "station": step.station,
                 "status": status,
@@ -739,6 +747,13 @@ def apply_template_logic(
                 step_name=s.step_name,
 
                 step_detail=s.step_detail,
+
+                input_mode=(
+                    "machine_cut"
+                    if s.step_code
+                    and s.step_code.upper().startswith("M")
+                    else "accept_reject"
+                ),
 
               
             )

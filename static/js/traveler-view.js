@@ -3,6 +3,7 @@ let employees = [];
 let machines = [];
 
 const COLUMN_ORDER = [
+   "action",
   "status",
   "op",
   "name",  
@@ -35,7 +36,7 @@ const COLUMN_ORDER = [
 
   
 
-  "action"
+ 
 ];
 
 const HEADER_MAP = {
@@ -522,12 +523,27 @@ async function load() {
 </td>
 `;
 
-        actionCell = `
+       actionCell = `
 <td class="col-action"
     rowspan="${rowspan}">
 
   <button onclick="addLog(${step.id})">
     ➕
+  </button>
+
+  <button
+    onclick="deleteLog(${log.id})"
+    style="
+      margin-top:4px;
+      background:#ef4444;
+      color:white;
+      border:none;
+      padding:4px 8px;
+      border-radius:4px;
+      cursor:pointer;
+    "
+  >
+    🗑
   </button>
 
 </td>
@@ -902,7 +918,19 @@ document.addEventListener("input", function (e) {
   }
 });
 
+function showToast(message = "Saved successfully") {
 
+  const toast =
+    document.getElementById("toast");
+
+  toast.innerText = message;
+
+  toast.classList.add("show");
+
+  setTimeout(() => {
+    toast.classList.remove("show");
+  }, 2000);
+}
 async function autoUpdateStepStatus(step_id, newStatus, currentStatus) {
   if (newStatus === currentStatus) return; // no change
 
@@ -1166,9 +1194,11 @@ async function saveAllRows() {
 
 
 
-  pendingUpdates = {};
+ pendingUpdates = {};
 
-  load();
+showToast("✅ All rows saved");
+
+load();
 }
 // =======================
 // UPDATE FIELD (FIXED)

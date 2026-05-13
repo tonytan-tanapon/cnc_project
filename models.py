@@ -668,14 +668,14 @@ class ShopTravelerStep(Base):
     supplier_po = Column(String, nullable=True)  # สำหรับขั้นตอนที่ส่งไปซับฯ จะได้บันทึกเลข PO ไว้
     supplier_name = Column(String, nullable=True) # สำหรับขั้นตอนที่ส่งไปซับฯ จะได้บันทึกชื่อซัพไว้
     heat_lot = Column(String, nullable=True)       # สำหรับขั้นตอนที่ส่งไปซับฯ จะได้บันทึก heat lot ไว้
-
+    input_mode = Column(String, nullable=True, default="accept_reject")
 
 
     traveler = relationship("ShopTraveler", back_populates="steps")
     operator = relationship("Employee", foreign_keys=[operator_id])
     machine  = relationship("Machine", back_populates="step_assignments")
 
-
+    
     # 👇 ✅ ใส่ตรงนี้
     logs = relationship(
         "ShopTravelerStepLog",

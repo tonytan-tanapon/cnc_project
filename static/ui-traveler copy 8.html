@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Traveler Operation Panel · Topnotch</title>
+  <style>
+  :root {
+  --bg: #f9fafb;
+  --panel: #fff;
+  --muted: #6b7280;
+  --text: #111;
+  --radius: 8px;
+  --gap: 14px;
+  --primary: #2563eb;
+  --primary-hover: #1d4ed8;
+}
+
+/* =========================================
+   GLOBAL
+========================================= */
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  overflow-x: hidden;
+}
+
+body {
+  margin: 0;
+  padding: 12px;
+
+  font: 15px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Arial;
+
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* =========================================
+   MAIN LAYOUT
+========================================= */
+
+.layout {
+  display: flex;
+
+  gap: 12px;
+
+  width: 100%;
+
+  max-width: 1400px;
+
+  margin: auto;
+
+  min-height: 100vh;
+}
+
+/* =========================================
+   LEFT OP LIST
+========================================= */
+
+.op-list {
+  width: 90px;
+
+  background: #fff;
+
+  border-radius: 8px;
+
+  padding: 8px;
+
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 8px;
+
+  overflow-y: auto;
+
+  flex-shrink: 0;
+
+  border: 1px solid #e5e7eb;
+}
+
+.op-item {
+  display: flex;
+
+  flex-direction: column;
+
+  align-items: center;
+
+  justify-content: center;
+
+  min-height: 70px;
+
+  padding: 10px 8px;
+
+  border-radius: 8px;
+
+  background: #fff;
+
+  border: 1px solid #e5e7eb;
+
+  cursor: pointer;
+
+  transition: 0.2s;
+}
+
+.op-item:hover {
+  background: #f3f4f6;
+}
+
+.op-item.active {
+  background: #2563eb;
+
+  color: white;
+}
+
+.op {
+  font-size: 24px;
+
+  font-weight: 700;
+}
+
+/* =========================================
+   RIGHT PANEL
+========================================= */
+
+.wrap {
+  flex: 1;
+
+  width: 100%;
+
+  max-width: 1150px;
+
+  min-width: 0;
+
+  display: flex;
+
+  flex-direction: column;
+
+  gap: var(--gap);
+
+  overflow-y: auto;
+}
+
+/* =========================================
+   NOTE HEADER
+========================================= */
+
+.note {
+  background: var(--panel);
+
+  border-radius: var(--radius);
+
+  padding: 14px;
+
+  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+}
+
+.note-header {
+  display: flex;
+
+  align-items: center;
+
+  gap: 10px;
+
+  flex-wrap: wrap;
+}
+
+.operator {
+  background: #f3f4f6;
+
+  padding: 6px 10px;
+
+  border-radius: 6px;
+
+  font-weight: 600;
+}
+
+.title {
+  margin-top: 8px;
+
+  font-size: 20px;
+
+  font-weight: 700;
+}
+
+/* =========================================
+   REMAIN
+========================================= */
+
+.remain-text {
+  text-align: center;
+
+  font-size: 22px;
+
+  font-weight: 700;
+
+  color: #374151;
+}
+
+/* =========================================
+   ACTION LAYOUT
+========================================= */
+
+.action-layout {
+  display: flex;
+
+  gap: 14px;
+
+  width: 100%;
+
+  min-width: 0;
+}
+
+/* =========================================
+   LEFT ACTION
+========================================= */
+
+.action-left {
+  width: 340px;
+
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 12px;
+
+  flex-shrink: 0;
+}
+
+.action-box {
+  height: 150px;
+
+  display: flex;
+
+  flex-direction: column;
+
+  justify-content: center;
+
+  align-items: center;
+
+  gap: 10px;
+
+  border-radius: 10px;
+
+  cursor: pointer;
+
+  transition: 0.2s;
+}
+
+.action-box:hover {
+  filter: brightness(0.96);
+}
+
+.action-box:active {
+  transform: scale(0.98);
+}
+
+/* ACCEPT */
+
+.action-box[data-type="accept"] {
+  background: #dcfce7;
+
+  border: 2px solid #22c55e;
+}
+
+.action-box[data-type="accept"] .qty-display {
+  background: #22c55e;
+
+  color: white;
+}
+
+/* REJECT */
+
+.action-box[data-type="reject"] {
+  background: #fee2e2;
+
+  border: 2px solid #ef4444;
+}
+
+.action-box[data-type="reject"] .qty-display {
+  background: #ef4444;
+
+  color: white;
+}
+
+.action-title {
+  font-size: 22px;
+
+  font-weight: 700;
+}
+
+.qty-display {
+  min-width: 140px;
+
+  text-align: center;
+
+  font-size: 42px;
+
+  font-weight: 800;
+
+  padding: 10px;
+
+  border-radius: 8px;
+
+  background: #f3f4f6;
+}
+
+/* =========================================
+   LOG TABLE
+========================================= */
+
+.log-table {
+  flex: 1;
+
+  min-width: 0;
+
+  background: white;
+
+  border-radius: 10px;
+
+  padding: 10px;
+
+  overflow-x: auto;
+
+  overflow-y: auto;
+
+  max-height: 320px;
+
+  border: 1px solid #e5e7eb;
+}
+
+#logTable {
+  width: 100%;
+
+  min-width: 550px;
+
+  border-collapse: collapse;
+}
+
+#logTable th,
+#logTable td {
+  border: 1px solid #e5e7eb;
+
+  padding: 8px;
+
+  text-align: center;
+}
+
+#logTable th {
+  background: #f3f4f6;
+
+  font-weight: 700;
+}
+
+.active-row {
+  background: #dbeafe;
+}
+
+/* =========================================
+   REMARKS
+========================================= */
+
+.remarks {
+  background: white;
+
+  border-radius: 10px;
+
+  padding: 12px;
+
+  border: 1px solid #e5e7eb;
+}
+
+.remarks textarea {
+  width: 100%;
+
+  min-height: 90px;
+
+  border: 1px solid #d1d5db;
+
+  border-radius: 8px;
+
+  padding: 10px;
+
+  font-size: 15px;
+
+  resize: vertical;
+}
+
+/* =========================================
+   BUTTONS
+========================================= */
+
+.confirm-btn {
+  height: 58px;
+
+  border: none;
+
+  border-radius: 10px;
+
+  background: var(--primary);
+
+  color: white;
+
+  font-size: 18px;
+
+  font-weight: 700;
+
+  cursor: pointer;
+}
+
+#exitBtn {
+  background: #ef4444;
+
+  color: white;
+
+  border: none;
+
+  border-radius: 6px;
+
+  padding: 8px 14px;
+
+  font-weight: 700;
+
+  cursor: pointer;
+}
+
+#exitBtn:hover {
+  background: #dc2626;
+}
+
+/* =========================================
+   KEYPAD
+========================================= */
+
+.keypad-overlay {
+  position: fixed;
+
+  bottom: 0;
+
+  left: 0;
+
+  right: 0;
+
+  background: white;
+
+  border-top: 2px solid #2563eb;
+
+  padding: 14px;
+
+  z-index: 999;
+
+  display: none;
+
+  flex-direction: column;
+
+  align-items: center;
+
+  box-shadow: 0 -4px 15px rgba(0,0,0,0.15);
+}
+
+.keypad-header {
+  width: 100%;
+
+  max-width: 520px;
+
+  display: flex;
+
+  justify-content: space-between;
+
+  align-items: center;
+
+  padding: 10px 16px;
+
+  background: #f3f4f6;
+
+  border-radius: 8px;
+
+  margin-bottom: 12px;
+}
+
+#keypadDisplay {
+  font-size: 38px;
+
+  font-weight: 800;
+}
+
+#uomLabel {
+  font-size: 22px;
+
+  font-weight: 700;
+
+  color: #2563eb;
+}
+
+#keypadTypeLabel {
+  font-size: 24px;
+
+  font-weight: 700;
+}
+
+.pad-container {
+  display: flex;
+
+  justify-content: center;
+
+  width: 100%;
+}
+
+.pad {
+  display: grid;
+
+  grid-template-columns: repeat(3, 1fr);
+
+  gap: 12px;
+
+  width: 100%;
+
+  max-width: 520px;
+}
+
+button.key,
+button.key-wide,
+.backspace-btn {
+  height: 72px;
+
+  border: none;
+
+  border-radius: 10px;
+
+  background: #e5e7eb;
+
+  font-size: 24px;
+
+  font-weight: 700;
+
+  cursor: pointer;
+}
+
+.pad-footer {
+  margin-top: 14px;
+
+  display: flex;
+
+  gap: 12px;
+}
+
+.ok-btn,
+.close-btn {
+  border: none;
+
+  border-radius: 8px;
+
+  padding: 12px 28px;
+
+  color: white;
+
+  font-size: 16px;
+
+  font-weight: 700;
+
+  cursor: pointer;
+}
+
+.ok-btn {
+  background: #2563eb;
+}
+
+.close-btn {
+  background: #9ca3af;
+}
+
+/* =========================================
+   TABLET
+========================================= */
+
+@media (max-width: 1024px) {
+
+  body {
+    padding: 8px;
+  }
+
+  .layout {
+    gap: 8px;
+  }
+
+  .wrap {
+    max-width: 1000px;
+  }
+
+  .action-layout {
+    flex-direction: column;
+  }
+
+  .action-left {
+    width: 100%;
+  }
+
+  .action-box {
+    height: 120px;
+  }
+
+  .qty-display {
+    font-size: 34px;
+  }
+
+  .remain-text {
+    font-size: 18px;
+  }
+}
+
+/* =========================================
+   MOBILE
+========================================= */
+
+@media (max-width: 768px) {
+
+  .layout {
+    flex-direction: column;
+  }
+
+  .op-list {
+    width: 100%;
+
+    flex-direction: row;
+
+    overflow-x: auto;
+
+    overflow-y: hidden;
+  }
+
+  .op-item {
+    min-width: 80px;
+  }
+
+  .pad {
+    max-width: 100%;
+  }
+
+  .pad-container {
+    width: 100%;
+  }
+}
+  </style>
+</head>
+
+
+<body>
+  <!-- ===== MAIN LAYOUT ===== -->
+  <div class="layout">
+
+    <!-- ===== LEFT : OP LIST ===== -->
+    <aside class="op-list" id="op_list">
+      <!-- ❗ JS จะ inject OP item ที่นี่ -->
+    </aside>
+
+    <!-- ===== RIGHT : OPERATION PANEL (ของเดิม) ===== -->
+    <main class="wrap">
+
+      <div class="note">
+        <div class="note-header">
+          <div class="op" id="opCode"></div>
+          <div class="loginOP" id="loginOP"></div>
+          <div class="lot_no" id="lot_no"></div>
+          <div class="part_no" id="part_no"></div>
+          <div class="part_rev" id="part_rev"></div>
+          <div class="op_status" id="op_status"></div>
+          <div class="manchine" id="machinename"></div>
+          <div class="operator" id="operatorName"></div>
+
+          <div style="display:flex; align-items:center; gap:10px;">
+
+            <button id="exitBtn">Exit</button>
+          </div>
+        </div>
+
+        <div class="title" id="opName"></div>
+      </div>
+      <!-- 🔥 TEXT ONLY -->
+      <div class="remain-text" id="remainText">
+        Remain/Receive : 0 / 0
+      </div>
+
+
+
+      <div class="action-layout">
+
+        <!-- LEFT SIDE -->
+        <div class="action-left">
+          <div class="action-box" data-type="accept">
+            <div class="action-title">Accept</div>
+            <div class="qty-display" id="acceptQty">0</div>
+          </div>
+
+          <div class="action-box" data-type="reject">
+            <div class="action-title">Reject</div>
+            <div class="qty-display" id="rejectQty">0</div>
+          </div>
+        </div>
+
+        <!-- RIGHT SIDE -->
+        <div class="log-table">
+          <table id="logTable">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Accept</th>
+                <th>Reject</th>
+                <th>Operator</th>
+                <th>Machine</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+
+          <!-- 🔥 TOTAL UNDER TABLE -->
+          <div style="
+    margin-top:10px;
+    padding-top:8px;
+    border-top:2px solid #e5e7eb;
+    font-size:16px;
+    font-weight:600;
+    display:flex;
+    justify-content:space-between;
+  ">
+
+          </div>
+
+        </div>
+
+      </div>
+
+      <div class="remarks">
+        <label for="remarkInput">Remarks</label>
+        <textarea id="remarkInput" placeholder="Add notes..."></textarea>
+      </div>
+
+      <button class="confirm-btn" id="btnConfirm">Confirm</button>
+
+    </main>
+  </div>
+
+
+  <!-- Keypad -->
+  <div class="keypad-overlay" id="keypad">
+
+    <!-- ✅ Add this label -->
+
+
+    <!-- existing display + unit row -->
+    <div class="keypad-header">
+      <div id="keypadTypeLabel">—</div>
+      <div id="keypadDisplay">0</div>
+      <div id="uomLabel">Unit: pcs</div>
+    </div>
+
+    <div class="pad-container">
+      <!-- ✅ Number pad on LEFT -->
+      <div class="pad">
+        <button class="key">7</button>
+        <button class="key">8</button>
+        <button class="key">9</button>
+        <button class="key">4</button>
+        <button class="key">5</button>
+        <button class="key">6</button>
+        <button class="key">1</button>
+        <button class="key">2</button>
+        <button class="key">3</button>
+        <button class="backspace-btn">⌫</button>
+        <button class="key">0</button>
+        <button class="key-wide">Clear</button>
+      </div>
+
+      <!-- ✅ Unit selector on RIGHT -->
+     
+    </div>
+
+    <div class="pad-footer">
+      <button class="ok-btn">OK</button>
+      <button class="close-btn">Close</button>
+    </div>
+  </div>
+
+  <script type="module" src="/static/ui-traveler.js?ver=2.0"></script>
+  </script>
+
+
+
+</body>
+
+</html>

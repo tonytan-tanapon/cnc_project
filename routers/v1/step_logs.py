@@ -91,9 +91,10 @@ class StepLogOut(BaseModel):
 
     supplier_send_date: Optional[date] = None
     supplier_receive_date: Optional[date] = None
-
+     
     material_size: Optional[str] = None
     material_length: Optional[str] = None
+    material_qty: Optional[Decimal] = None
     material_uom: Optional[str] = None
     material_type: Optional[str] = None
 
@@ -305,7 +306,7 @@ def create_step_log(payload: dict, db: Session = Depends(get_db)):
 # =======================
 @router.patch("/{log_id}")
 def update_log(log_id: int, payload: dict, db: Session = Depends(get_db)):
-    print("UPDATE PAYLOAD:", payload)
+    print("UPDATE PAYLOAD API:", payload)
 
     try:
         from models import ShopTravelerStep

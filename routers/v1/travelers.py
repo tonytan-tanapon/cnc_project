@@ -262,27 +262,37 @@ def list_travelers(
     return [to_row_out(t, db) for t in rows]
 # ---------- GET ----------
 @router.get("/by-lot-code/{lot_no}", response_model=ShopTravelerRowOut)
-def get_traveler_by_lot_no(lot_no: str, db: Session = Depends(get_db)):
-    """
-    ดึง Traveler เดี่ยว พร้อม eager load lot
-    """
+def get_traveler_by_lot_no(
+    lot_no: str,
+    db: Session = Depends(get_db)
+):
+
+    lot_no = lot_no.strip().upper()
+
     print("Getting traveler by lot_no:", lot_no)
+
     t = (
         db.query(ShopTraveler)
           .options(
-    selectinload(ShopTraveler.lot)
-        .selectinload(ProductionLot.part_revision),
+              selectinload(ShopTraveler.lot)
+                  .selectinload(ProductionLot.part_revision),
 
-    selectinload(ShopTraveler.template),
-)
+              selectinload(ShopTraveler.template),
+          )
           .join(ProductionLot)
-          .filter(ProductionLot.lot_no == lot_no)
+          .filter(
+              func.trim(
+                  func.upper(ProductionLot.lot_no)
+              ) == lot_no
+          )
           .first()
     )
+
     if not t:
         raise HTTPException(404, "Traveler not found")
-    
+
     print("Found traveler:", t)
+
     return to_row_out(t, db)
 
 @router.get("/{traveler_id}", response_model=ShopTravelerRowOut)
@@ -744,6 +754,7 @@ def get_traveler_by_no(
             "step_code": s.step_code,
             "step_name": s.step_name,
             "status": status,
+            "input_mode": s.input_mode,
 
             "qty_receive": qty_receive,
             "qty_accept": qty_accept,

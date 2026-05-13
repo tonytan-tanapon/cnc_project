@@ -92,10 +92,10 @@
 
     .action-box {
       flex: 1;
-      /* ⭐ สำคัญ */
-      height: 160px;
-      /* ⭐ สูงขึ้น */
+      height: 110px;
+      /* smaller */
       justify-content: center;
+      padding: 8px;
     }
 
     .remain-text {
@@ -108,15 +108,11 @@
     }
 
 
+    
     .qty-display {
-      font-size: 42px;
-      /* ⭐ ใหญ่ขึ้น */
-      text-align: center;
-      font-weight: 800;
-      padding: 12px;
-      background: #f3f4f6;
-      border-radius: var(--radius);
-    }
+  font-size: 24px;
+  padding: 6px;
+}
 
     .remarks {
       background: var(--panel);
@@ -313,7 +309,7 @@
 
     .action-title {
       font-weight: 700;
-      font-size: 20px;
+      font-size: 14px;
       text-align: center;
     }
 
@@ -450,9 +446,22 @@
     /* LEFT */
     .action-left {
       width: 400px;
+      /* smaller */
+      min-width: 400px;
+
       display: flex;
-      flex-direction: column;
-      gap: 12px;
+      flex-direction: row;
+      gap: 8px;
+    }
+
+    .horizontal-actions .action-box {
+      flex: 1;
+      height: 90px;
+      padding: 6px;
+    }
+
+    .horizontal-actions .action-box {
+      flex: 1;
     }
 
     /* RIGHT */
@@ -520,28 +529,78 @@
     }
 
     #exitBtn {
-  background: #ef4444;   /* red */
+      background: #ef4444;
+      /* red */
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 14px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    #exitBtn:hover {
+      background: #dc2626;
+    }
+
+    .backspace-btn {
+      background: #e5e7eb;
+      border: none;
+      border-radius: var(--radius);
+      height: 70px;
+      font-weight: 700;
+      font-size: 20px;
+      cursor: pointer;
+    }
+
+    /* MACHINE MODE */
+
+#machinePanel {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
+#machinePanel .action-box {
+
+  flex: 1;
+
+  min-width: 110px;
+
+  height: 100px;
+}
+
+/* MACHINE COLORS */
+
+.action-box[data-type="po"] {
+  background: #dbeafe;
+  border: 2px solid #3b82f6;
+}
+
+.action-box[data-type="po"] .qty-display {
+  background: #3b82f6;
   color: white;
-  border: none;
-  border-radius: 6px;
-  padding: 6px 12px;
-  font-size: 14px;
-  cursor: pointer;
-  font-weight: 600;
 }
 
-#exitBtn:hover {
-  background: #dc2626;
+.action-box[data-type="length"] {
+  background: #fef3c7;
+  border: 2px solid #f59e0b;
 }
 
-.backspace-btn {
-  background: #e5e7eb;
-  border: none;
-  border-radius: var(--radius);
-  height: 70px;
-  font-weight: 700;
-  font-size: 20px;
-  cursor: pointer;
+.action-box[data-type="length"] .qty-display {
+  background: #f59e0b;
+  color: white;
+}
+
+.action-box[data-type="qty"] {
+  background: #dcfce7;
+  border: 2px solid #22c55e;
+}
+
+.action-box[data-type="qty"] .qty-display {
+  background: #22c55e;
+  color: white;
 }
   </style>
 </head>
@@ -583,56 +642,80 @@
         Remain/Receive : 0 / 0
       </div>
 
+<div class="action-layout">
 
+  <!-- LEFT SIDE -->
+  <div class="action-left horizontal-actions">
 
-      <div class="action-layout">
+    <!-- NORMAL MODE -->
+    <div id="normalPanel"
+         style="display:flex; gap:8px; width:100%;">
 
-        <!-- LEFT SIDE -->
-        <div class="action-left">
-          <div class="action-box" data-type="accept">
-            <div class="action-title">Accept</div>
-            <div class="qty-display" id="acceptQty">0</div>
-          </div>
-
-          <div class="action-box" data-type="reject">
-            <div class="action-title">Reject</div>
-            <div class="qty-display" id="rejectQty">0</div>
-          </div>
-        </div>
-
-        <!-- RIGHT SIDE -->
-        <div class="log-table">
-          <table id="logTable">
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Accept</th>
-                <th>Reject</th>
-                <th>Operator</th>
-                <th>Machine</th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
-
-          <!-- 🔥 TOTAL UNDER TABLE -->
-          <div style="
-    margin-top:10px;
-    padding-top:8px;
-    border-top:2px solid #e5e7eb;
-    font-size:16px;
-    font-weight:600;
-    display:flex;
-    justify-content:space-between;
-  ">
-
-          </div>
-
-        </div>
-
+      <div class="action-box" data-type="accept">
+        <div class="action-title">Accept</div>
+        <div class="qty-display" id="acceptQty">0</div>
       </div>
 
+      <div class="action-box" data-type="reject">
+        <div class="action-title">Reject</div>
+        <div class="qty-display" id="rejectQty">0</div>
+      </div>
+
+    </div>
+
+    <!-- MACHINE MODE -->
+    <div id="machinePanel"
+         style="display:none; gap:8px; width:100%;">
+
+      <div class="action-box" data-type="po">
+        <div class="action-title">PO</div>
+        <div class="qty-display" id="poValue">-</div>
+      </div>
+
+      <div class="action-box" data-type="length">
+        <div class="action-title">Length</div>
+        <div class="qty-display" id="lengthValue">0</div>
+      </div>
+
+      <div class="action-box" data-type="qty">
+        <div class="action-title">Qty</div>
+        <div class="qty-display" id="qtyValue">0</div>
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- RIGHT SIDE -->
+  <div class="log-table">
+
+    <table id="logTable">
+
+      <thead id="logTableHead">
+</thead>
+
+      <tbody></tbody>
+
+    </table>
+
+    <div style="
+      margin-top:10px;
+      padding-top:8px;
+      border-top:2px solid #e5e7eb;
+      font-size:16px;
+      font-weight:600;
+      display:flex;
+      justify-content:space-between;
+    ">
+    </div>
+
+  </div>
+
+</div>
+
       <div class="remarks">
+
+
         <label for="remarkInput">Remarks</label>
         <textarea id="remarkInput" placeholder="Add notes..."></textarea>
       </div>
@@ -674,7 +757,7 @@
       </div>
 
       <!-- ✅ Unit selector on RIGHT -->
-     
+
     </div>
 
     <div class="pad-footer">
@@ -683,7 +766,7 @@
     </div>
   </div>
 
-  <script type="module" src="/static/ui-traveler.js?ver=1.0"></script>
+  <script type="module" src="/static/ui-traveler.js?ver=2.0"></script>
   </script>
 
 
