@@ -796,6 +796,8 @@ class ShopTravelerStepLog(Base):
     material_uom = Column(String, nullable=True) # type spec + size text รวมกัน
     material_type = Column(String, nullable=True) # type spec
 
+    material_qty = Column(Numeric(18, 3),nullable=True)
+
     # ⚠️ กัน duplicate ต่อวัน (สำคัญ)
     __table_args__ = (
         UniqueConstraint("step_id", "work_date", name="uq_step_day"),

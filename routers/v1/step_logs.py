@@ -282,6 +282,7 @@ def create_step_log(payload: dict, db: Session = Depends(get_db)):
         material_length=payload.get("material_length"),
         material_uom=payload.get("material_uom"),
         material_type=payload.get("material_type"),
+        material_qty=payload.get("material_qty"),
     )
         db.add(log)
         db.commit()
@@ -434,6 +435,9 @@ def update_log(log_id: int, payload: dict, db: Session = Depends(get_db)):
 
         if "material_type" in payload:
             log.material_type = payload["material_type"]
+
+        if "material_qty" in payload:
+            log.material_qty = payload["material_qty"]
 
        
 

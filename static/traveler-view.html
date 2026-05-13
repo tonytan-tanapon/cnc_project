@@ -5,411 +5,376 @@
   <title>Traveler View</title>
 
   <style>
-    /* =========================
-   BASE
+
+/* =========================
+BASE
 ========================= */
 
-    body {
-      font-family: system-ui, sans-serif;
-      padding: 20px;
-      background: #f9fafb;
-      margin: 0;
-    }
+body {
+  font-family: system-ui, sans-serif;
+  padding: 20px;
+  background: #f9fafb;
+  margin: 0;
+}
 
-    h2 {
-      margin-bottom: 5px;
-    }
+h2 {
+  margin-bottom: 5px;
+}
 
-    .meta {
-      margin-bottom: 20px;
-      color: #555;
-      font-size: 14px;
-    }
+.meta {
+  margin-bottom: 20px;
+  color: #555;
+  font-size: 14px;
+}
 
-    /* =========================
-   TABLE WRAPPER
+/* =========================
+TABLE
 ========================= */
 
-    .table-wrap {
-      width: 100%;
-      overflow-x: auto;
-      border: 1px solid #d1d5db;
-      border-radius: 8px;
-      background: white;
-    }
-
-    /* =========================
-   TABLE
-========================= */
-
-    table {
+.table-wrap {
   width: 100%;
-  min-width: 1500px;
-  border-collapse: collapse;
+  overflow-x: auto;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
   background: white;
+}
+
+table {
+
+  width: 100%;
+
+  min-width: 2200px;
+
+  border-collapse: collapse;
+
+  background: white;
+
   font-size: 14px;
 
   table-layout: fixed;
 }
 
-    /* =========================
-   HEADER
-========================= */
+thead th {
 
-    thead th {
-      position: sticky;
-      top: 0;
-      z-index: 5;
+  position: sticky;
 
-      background: #f3f4f6;
+  top: 0;
 
-      font-weight: 600;
+  z-index: 5;
 
-      white-space: nowrap;
-    }
+  background: #f3f4f6;
 
-    /* =========================
-   CELL
-========================= */
+  font-weight: 600;
 
-    th,
-    td {
-      border: 1px solid #d1d5db;
-
-      padding: 6px;
-
-      text-align: center;
-
-      vertical-align: top !important;
-    }
-
-    /* =========================
-   ROW STATE
-========================= */
-
-    tr.reject {
-      background: #fee2e2 !important;
-    }
-
-    tr.draft {
-      background: #ecfeff !important;
-    }
-
-    tbody tr:hover {
-      background: #f9fafb;
-    }
-
-    /* =========================
-   ZEBRA
-========================= */
-
-    tbody tr:nth-child(even) {
-      background: #fafafa;
-    }
-
-    /* =========================
-   EDITABLE CELL
-========================= */
-
-    td[contenteditable="true"] {
-      background: #fff7ed;
-      cursor: text;
-    }
-
-    td[contenteditable="true"]:focus {
-      outline: 2px solid orange;
-      background: #ffffff;
-    }
-
-    /* =========================
-   BUTTON
-========================= */
-
-    button {
-      padding: 4px 8px;
-
-      margin: 1px;
-
-      cursor: pointer;
-
-      border-radius: 4px;
-
-      border: 1px solid #ccc;
-
-      background: #f9fafb;
-
-      transition: 0.15s;
-    }
-
-    button:hover {
-      opacity: 0.85;
-    }
-
-    /* =========================
-   FORM INPUT
-========================= */
-
-    select,
-    input,
-    textarea {
-
-      padding: 4px;
-
-      border-radius: 4px;
-
-      border: 1px solid #ccc;
-
-      font-size: 13px;
-
-      font-family: inherit;
-
-      box-sizing: border-box;
-    }
-
-    /* =========================
-   OP COLUMN
-========================= */
-
-th:nth-child(1),
-td:nth-child(1) {
-  width: 70px;
-  min-width: 70px;
-  max-width: 70px;
+  white-space: nowrap;
 }
 
-/* =========================
-   NAME COLUMN
-========================= */
+th,
+td {
 
-th:nth-child(2),
-td:nth-child(2) {
-  width: 220px;
-  min-width: 220px;
-  text-align: left;
-}
-
-/* =========================
-   STATUS COLUMN
-========================= */
-
-th:nth-child(3),
-td:nth-child(3) {
-  width: 110px;
-  min-width: 110px;
-}
-
-/* =========================
-   DATE COLUMN
-========================= */
-
-th:nth-child(4),
-td:nth-child(4) {
-  width: 130px;
-  min-width: 130px;
-}
-
-/* =========================
-   GOOD/BAD COLUMN
-========================= */
-
-/* =========================
-   GOOD/BAD COLUMN
-========================= */
-
-th:nth-child(5),
-td:nth-child(5),
-th:nth-child(6),
-td:nth-child(6) {
-
-  width: 45px !important;
-  min-width: 45px !important;
-  max-width: 45px !important;
-
-  padding: 2px !important;
-
-  overflow: hidden;
-}
-
-/* =========================
-   OPERATOR COLUMN
-========================= */
-
-th:nth-child(7),
-td:nth-child(7) {
-  width: 90px !important;
-  min-width: 90px !important;
-  max-width: 90px !important;
-}
-
-/* =========================
-   MACHINE COLUMN
-========================= */
-
-th:nth-child(8),
-td:nth-child(8) {
-  width: 70px !important;
-  min-width: 70px !important;
-  max-width: 70px !important;
-}
-
-/* =========================
-   NOTE COLUMN
-========================= */
-
-th:nth-child(9),
-td:nth-child(9) {
-
-  width: 260px;
-  min-width: 260px;
-  max-width: 260px;
-
-  text-align: left;
-
-  white-space: pre-wrap;
-  word-break: break-word;
-
-  padding: 0 !important;
-}
-
-/* =========================
-   NOTE TEXTAREA
-========================= */
-
-td:nth-child(9) textarea {
-
-  display: block;
-
-  width: 100%;
-
-  min-height: 60px;
-
-  margin: 0;
+  border: 1px solid #d1d5db;
 
   padding: 4px 6px;
 
-  box-sizing: border-box;
+  text-align: center;
 
-  border: none;
+  vertical-align: middle;
+}
 
-  border-radius: 0;
+/* =========================
+TOP ALIGN
+========================= */
 
-  font-family: inherit;
+.col-op,
+.col-name,
+.col-status,
+.col-note,
+.col-receive,
+.col-accept,
+.col-reject,
+.col-remain {
 
-  font-size: 14px;
+  vertical-align: top !important;
+}
 
-  line-height: 1.2;
+/* =========================
+ROWS
+========================= */
 
-  resize: vertical;
+tr.reject {
+  background: #fee2e2 !important;
+}
 
-  overflow-y: auto;
+tr.draft {
+  background: #ecfeff !important;
+}
+
+tbody tr:hover {
+  background: #f9fafb;
+}
+
+tbody tr:nth-child(even) {
+  background: #fafafa;
+}
+
+/* =========================
+EDITABLE
+========================= */
+
+td[contenteditable="true"] {
+
+  background: #fff7ed;
+
+  cursor: text;
+}
+
+td[contenteditable="true"]:focus {
+
+  outline: 2px solid orange;
 
   background: white;
 }
 
 /* =========================
-   SUPPLIER COLUMNS
+BUTTON
 ========================= */
 
-th:nth-child(10),
-td:nth-child(10),
+button {
 
-th:nth-child(11),
-td:nth-child(11),
+  padding: 4px 8px;
 
-th:nth-child(12),
-td:nth-child(12) {
+  margin: 1px;
 
-  width: 80px !important;
-  min-width: 80px !important;
-  max-width: 80px !important;
+  cursor: pointer;
 
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  border-radius: 4px;
+
+  border: 1px solid #ccc;
+
+  background: #f9fafb;
+
+  transition: 0.15s;
+}
+
+button:hover {
+  opacity: 0.85;
 }
 
 /* =========================
-   RECEIVE / ACCEPT / REJECT
+FORM
 ========================= */
 
-th:nth-child(13),
-td:nth-child(13),
+select,
+input,
+textarea {
 
-th:nth-child(14),
-td:nth-child(14),
+  padding: 4px;
 
-th:nth-child(15),
-td:nth-child(15),
+  border-radius: 4px;
 
-th:nth-child(16),
-td:nth-child(16) {
+  border: 1px solid #ccc;
+
+  font-size: 13px;
+
+  font-family: inherit;
+
+  box-sizing: border-box;
+}
+
+/* =========================
+COLUMN CLASSES
+========================= */
+
+.col-op {
+  width: 50px;
+  min-width: 50px;
+  max-width: 50px;
+}
+
+.col-name {
+
+  width: 230px;
+  min-width: 230px;
+
+  text-align: left;
+}
+
+.col-status {
+  width: 90px;
+  min-width: 90px;
+}
+
+.col-date {
+  width: 140px;
+  min-width: 140px;
+}
+
+.col-good,
+.col-bad {
+
+  width: 50px;
+  min-width: 50px;
+  max-width: 50px;
+
+  padding: 2px !important;
+}
+
+.col-operator {
 
   width: 90px;
   min-width: 90px;
 }
 
-/* =========================
-   ACTION COLUMN
-========================= */
+.col-machine {
 
-th:nth-child(17),
-td:nth-child(17) {
-
-  width: 80px;
-  min-width: 80px;
+  width: 85px;
+  min-width: 85px;
 }
 
-    /* =========================
-   ADD PANEL
+/* =========================
+NOTE
 ========================= */
 
-    .add-panel {
+.col-note {
 
-      margin-bottom: 14px;
+  width: 260px;
+  min-width: 260px;
 
-      padding: 12px;
+  padding: 4px !important;
 
-      background: white;
+  text-align: left;
+}
 
-      border: 1px solid #d1d5db;
+.col-note textarea {
 
-      border-radius: 8px;
+  display: block;
 
-      display: flex;
+  width: 100%;
 
-      flex-wrap: wrap;
+  min-width: 240px;
 
-      gap: 8px;
+  min-height: 28px;
 
-      align-items: center;
-    }
+  height: 28px;
 
-    /* =========================
-   MOBILE / TABLET
+  padding: 6px 8px;
+
+  border: 1px solid #d1d5db;
+
+  border-radius: 6px;
+
+  font-size: 13px;
+
+  font-family: inherit;
+
+  line-height: 1.2;
+
+  resize: none;
+
+  overflow-y: hidden;
+
+  box-sizing: border-box;
+
+  background: white;
+}
+
+.col-note textarea:focus {
+
+  outline: none;
+
+  border-color: #3b82f6;
+
+  box-shadow:
+    0 0 0 2px rgba(59,130,246,.15);
+}
+
+/* =========================
+SUPPLIER
 ========================= */
 
-    @media (max-width: 900px) {
+.col-supplier-po,
+.col-supplier,
+.col-heat-lot {
 
-      body {
-        padding: 10px;
-      }
+  width: 100px;
+  min-width: 100px;
+}
 
-      table {
-        font-size: 12px;
-      }
+/* =========================
+MATERIAL
+========================= */
 
-      button {
-        font-size: 12px;
-      }
+.col-mat-type,
+.col-mat-size,
+.col-mat-length,
+.col-mat-qty,
+.col-mat-uom {
 
-      select,
-      input,
-      textarea {
-        font-size: 12px;
-      }
-    }
-  </style>
+  width: 95px;
+  min-width: 95px;
+}
 
+/* =========================
+DATES
+========================= */
+
+.col-send-date,
+.col-recv-date {
+
+  width: 130px;
+  min-width: 130px;
+}
+
+/* =========================
+SUMMARY
+========================= */
+
+.col-receive,
+.col-accept,
+.col-reject,
+.col-remain {
+
+  width: 90px;
+  min-width: 90px;
+
+  white-space: nowrap;
+
+  font-weight: 600;
+}
+
+/* =========================
+ACTION
+========================= */
+
+.col-action {
+
+  width: 70px;
+  min-width: 70px;
+}
+
+/* =========================
+MOBILE
+========================= */
+
+@media (max-width: 900px) {
+
+  body {
+    padding: 10px;
+  }
+
+  table {
+    font-size: 12px;
+  }
+
+  button,
+  select,
+  input,
+  textarea {
+    font-size: 12px;
+  }
+}
+
+</style>
 
 </head>
 
@@ -435,61 +400,40 @@ td:nth-child(17) {
     <select id="input_machine"></select>
 
     <input type="text" id="input_note" placeholder="Note" style="width:180px">
-    <input
-  type="text"
-  id="input_supplier_po"
-  placeholder="Supplier PO"
-  style="width:140px"
->
+    <input type="text" id="input_supplier_po" placeholder="Supplier PO" style="width:80px">
 
-<input
-  type="text"
-  id="input_supplier_name"
-  placeholder="Supplier"
-  style="width:140px"
->
+    <input type="text" id="input_supplier_name" placeholder="Supplier" style="width:80px">
 
-<input
-  type="text"
-  id="input_supplier_lot"
-  placeholder="Heat Lot"
-  style="width:140px"
->
+    <input type="text" id="input_supplier_lot" placeholder="Heat Lot" style="width:80px">
+    <input type="text" id="input_material_type" placeholder="Mat Type" style="width:80px">
 
+    <input type="text" id="input_material_size" placeholder="Mat Size" style="width:80px">
+
+    <input type="text" id="input_material_length" placeholder="Length" style="width:80px">
+
+    <input type="number" id="input_material_qty" placeholder="Qty" style="width:80px">
+
+    <input type="text" id="input_material_uom" placeholder="UOM" style="width:70px">
+
+    <input type="date" id="input_supplier_send_date">
+
+    <input type="date" id="input_supplier_receive_date">
     <button onclick="submitTopInput()">➕ Add</button>
+    <button onclick="saveAllRows()">
+      💾 Save All
+    </button>
   </div>
 
   <table>
     <thead>
-      <tr>
-        <th>OP</th>
-        <th>Name</th>
-        <th>Status</th>
-        <th>Date</th>
-
-        <th>Good</th>
-        <th>Bad</th>
-        <th>Operator</th>
-        <th>Machine</th>
-        <th>Note</th>
-
-        <!-- 🔥 ADD THESE -->
-        <th>Supplier PO</th>
-        <th>Supplier</th>
-        <th>Heat Lot</th>
-        <th>Receive</th>
-        <th>Accept</th>
-        <th>Reject</th>
-        <th>Remain</th>
-        <th>Action</th>
-      </tr>
+      <tr id="thead-row"></tr>
     </thead>
 
     <tbody id="tbody"></tbody>
   </table>
 
   <!-- 🔥 IMPORTANT: version updated -->
-  <script src="/static/js/traveler-view.js?v=7.0"></script>
+  <script src="/static/js/traveler-view.js?v=9.0"></script>
 
 </body>
 

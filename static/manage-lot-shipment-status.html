@@ -129,21 +129,7 @@
   <script type="module">
     import "/static/js/manage-lot-shipment-status.js?v=2";
 
-    // ✅ radio filter handler
-    document.querySelectorAll('input[name="lot_status"]').forEach(radio => {
-      radio.addEventListener("change", () => {
-        const status = document.querySelector('input[name="lot_status"]:checked')?.value || "";
-
-        // 🔥 ถ้าคุณใช้ Tabulator global table
-        if (window.table) {
-          if (!status) {
-            table.clearFilter();
-          } else {
-            table.setFilter("lot_status", "=", status);
-          }
-        }
-      });
-    });
+  
 
     // ✅ reload button (optional)
     document.getElementById("_reload").addEventListener("click", () => {

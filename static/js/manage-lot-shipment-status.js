@@ -930,7 +930,7 @@ function applyFilter() {
   //   );
 
   // }
-  console.log("testttt")
+ 
   if (q) {
   table.addFilter((d) => {
 
@@ -981,6 +981,7 @@ async function loadData() {
 
 /* ===== Init ===== */
 function initTable() {
+
   table = new Tabulator(`#${UI.table}`, {
     layout: "fitColumns",
     height: "100%",
@@ -988,8 +989,10 @@ function initTable() {
     columns: makeColumns(),
     initialSort: [{ column: "days_left", dir: "asc" }],
   });
-}
 
+  // 🔥 IMPORTANT
+  window.table = table;
+}
 document.addEventListener("DOMContentLoaded", () => {
  
   Object.values(UI).forEach((id) => (els[id] = $(id)));

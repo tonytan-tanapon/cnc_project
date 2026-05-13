@@ -182,6 +182,23 @@ def list_traveler_steps(traveler_id: Optional[int] = None, db: Session = Depends
 
                         "material_type":
                             l.material_type,
+
+                        "material_qty":
+                            float(l.material_qty or 0),
+                            
+                        "material_size":
+                            l.material_size,
+
+                        "material_length":
+                            l.material_length,
+
+                        "material_uom":
+                            l.material_uom,
+
+                        "material_type":
+                            l.material_type,
+
+                        
                     }
                     for l in logs
                 ],
@@ -833,29 +850,3 @@ def update_shipment_from_ui(payload: dict, db: Session = Depends(get_db)):
 
     return {"status": "ok"}
 
-
-def calculate_step_status(receive, accept, reject, is_first):
-    total = accept + reject
-    # print(f"Calculating status - receive: {receive}, accept: {accept}, reject: {reject}, total: {total}, is_first: {is_first}")
-    # Step 1 (no planned_qty)
-    if is_first:
-        if accept > 0:
-            return "passed"   # ✅ FIX
-        if total == 0:
-            return "pending"
-        return "running"
-
-    # normal steps
-    if receive == 0 and total == 0:
-        return "pending"
-
-    if total > 0 and total < receive:
-        return "running"
-
-    if receive > 0 and total == receive:
-        return "passed"
-    
-    # if receive < 0 and total >= receive:
-    #     return "passed"
-
-    return "pending"

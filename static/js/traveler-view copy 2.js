@@ -2,154 +2,6 @@
 let employees = [];
 let machines = [];
 
-const COLUMN_ORDER = [
-  "status",
-  "op",
-  "name",  
-  "date",
-  "good",
-  "bad",
-
-  "operator",
-  "machine",
-
-  "note",
-
-  "receive",
-  "accept",
-  "reject",
-  "remain",
-
-  "supplier_po",
-  "supplier",
-  "heat_lot",
-
-  "mat_type",
-  "mat_size",
-  "mat_length",
-  "mat_qty",
-  "mat_uom",
-
-  "send_date",
-  "recv_date",
-
-  
-
-  "action"
-];
-
-const HEADER_MAP = {
-
-  op: `
-    <th class="col-op">OP</th>
-  `,
-
-  name: `
-    <th class="col-name">Name</th>
-  `,
-
-  status: `
-    <th class="col-status">Status</th>
-  `,
-
-  date: `
-    <th class="col-date">Date</th>
-  `,
-
-  good: `
-    <th class="col-good">Good</th>
-  `,
-
-  bad: `
-    <th class="col-bad">Bad</th>
-  `,
-
-  operator: `
-    <th class="col-operator">Operator</th>
-  `,
-
-  machine: `
-    <th class="col-machine">Machine</th>
-  `,
-
-  note: `
-    <th class="col-note">Note</th>
-  `,
-
-  supplier_po: `
-    <th class="col-supplier-po">Supplier PO</th>
-  `,
-
-  supplier: `
-    <th class="col-supplier">Supplier</th>
-  `,
-
-  heat_lot: `
-    <th class="col-heat-lot">Heat Lot</th>
-  `,
-
-  mat_type: `
-    <th class="col-mat-type">Mat Type</th>
-  `,
-
-  mat_size: `
-    <th class="col-mat-size">Mat Size</th>
-  `,
-
-  mat_length: `
-    <th class="col-mat-length">Length</th>
-  `,
-
-  mat_qty: `
-    <th class="col-mat-qty">Qty</th>
-  `,
-
-  mat_uom: `
-    <th class="col-mat-uom">UOM</th>
-  `,
-
-  send_date: `
-    <th class="col-send-date">Send Date</th>
-  `,
-
-  recv_date: `
-    <th class="col-recv-date">Recv Date</th>
-  `,
-
-  receive: `
-    <th class="col-receive">Receive</th>
-  `,
-
-  accept: `
-    <th class="col-accept">Accept</th>
-  `,
-
-  reject: `
-    <th class="col-reject">Reject</th>
-  `,
-
-  remain: `
-    <th class="col-remain">Remain</th>
-  `,
-
-  action: `
-    <th class="col-action">Action</th>
-  `
-};
-
-function buildHeader() {
-
-  const row =
-    document.getElementById(
-      "thead-row"
-    );
-
-  row.innerHTML =
-    COLUMN_ORDER
-      .map(c => HEADER_MAP[c])
-      .join("");
-}
-
 let pendingUpdates = {};
 function queueUpdate(log_id, field, value) {
 
@@ -170,11 +22,8 @@ function queueUpdate(log_id, field, value) {
     row.style.background = "#fef3c7";
   }
 }
-
 async function load() {
-
   const qs = new URLSearchParams(location.search);
-
   const traveler_id = qs.get("traveler_id");
 
   if (!traveler_id) {
@@ -182,13 +31,8 @@ async function load() {
     return;
   }
 
-  // =========================
-  // TRAVELER
-  // =========================
-
-  const traveler = await fetch(
-    `/api/v1/travelers/${traveler_id}`
-  ).then(r => r.json());
+  const traveler = await fetch(`/api/v1/travelers/${traveler_id}`)
+    .then(r => r.json());
 
   document.getElementById("title").innerText =
     `Traveler #${traveler.traveler_no || traveler.id}`;
@@ -196,251 +40,135 @@ async function load() {
   document.getElementById("meta").innerText =
     `Lot: ${traveler.lot_no || "-"} | Status: ${traveler.status}`;
 
-  // =========================
-  // STEPS
-  // =========================
+  const steps = await fetch(`/api/v1/traveler-steps?traveler_id=${traveler_id}`)
+    .then(r => r.json());
 
-  const steps = await fetch(
-    `/api/v1/traveler-steps?traveler_id=${traveler_id}`
-  ).then(r => r.json());
-
-  const tbody =
-    document.getElementById("tbody");
-
+  const tbody = document.getElementById("tbody");
   tbody.innerHTML = "";
 
-  // =========================
-  // LOOP STEP
-  // =========================
+
 
   steps.forEach(step => {
 
     const logs = step.logs || [];
 
-    const stepAccept =
-      Number(step.total_accept || 0);
+    const stepAccept = Number(step.total_accept || 0);
+    const stepReject = Number(step.total_reject || 0);
+    const stepRecv = Number(step.total_receive || 0);
 
-    const stepReject =
-      Number(step.total_reject || 0);
+    const remain = stepRecv - (stepAccept + stepReject);
 
-    const stepRecv =
-      Number(step.total_receive || 0);
-
-    const remain =
-      stepRecv - (
-        stepAccept + stepReject
-      );
-
-    // ==================================================
+    // =========================
     // NO LOG
-    // ==================================================
-
+    // =========================
     if (logs.length === 0) {
 
-      const tr =
-        document.createElement("tr");
+      const tr = document.createElement("tr");
 
-      tr.setAttribute(
-        "data-receive",
-        stepRecv
-      );
-
-      tr.setAttribute(
-        "data-op",
-        step.code
-      );
+      tr.setAttribute("data-receive", stepRecv);
+      tr.setAttribute("data-op", step.code);
 
       tr.style.background =
         getStatusColor(step.status);
 
-      const CELL_MAP = {
+      tr.innerHTML = `
 
-        op: `
-<td class="col-op">
-  <b>${step.step_code || step.seq}</b>
-</td>
-`,
+    <td><b>${step.step_code || step.seq}</b></td>
 
-        name: `
-<td class="col-name">
-  ${step.step_name || ""}
-</td>
-`,
+    <td>${step.step_name || ""}</td>
 
-        status: `
-<td class="col-status">
-  ${buildStatusDropdown(step)}
-</td>
-`,
+    <td>
+      ${buildStatusDropdown(step)}
+    </td>
 
-        date: `
-<td class="col-date">-</td>
-`,
+    <td>-</td>
 
-        good: `
-<td class="col-good"
-    contenteditable="true"
+    <td contenteditable="true"
+      onkeydown="if(event.key==='Enter'){
+        createFromInline(
+          ${step.id},
+          'qty_accept',
+          this.innerText
+        );
+        this.blur();
+        return false;
+      }">0</td>
 
-    onblur="
-      createFromInline(
-        ${step.id},
-        'qty_accept',
-        this.innerText
-      )
-    "
->
-  0
-</td>
-`,
+    <td contenteditable="true"
+      onkeydown="if(event.key==='Enter'){
+        createFromInline(
+          ${step.id},
+          'qty_reject',
+          this.innerText
+        );
+        this.blur();
+        return false;
+      }">0</td>
 
-        bad: `
-<td class="col-bad"
-    contenteditable="true"
+    <td>-</td>
 
-    onblur="
-      createFromInline(
-        ${step.id},
-        'qty_reject',
-        this.innerText
-      )
-    "
->
-  0
-</td>
-`,
+    <td>-</td>
 
-        operator: `
-<td class="col-operator">-</td>
-`,
+    <td>
+      <textarea
+        rows="2"
+        style="width:100%; resize:vertical"
+        onblur="createFromInline(
+          ${step.id},
+          'note',
+          this.value
+        )"
+      ></textarea>
+    </td>
 
-        machine: `
-<td class="col-machine">-</td>
-`,
+    <!-- supplier -->
+    <td>-</td>
+    <td>-</td>
+    <td>-</td>
 
-        note: `
-<td class="col-note">
+    <!-- material -->
+    <td>-</td> <!-- material_type -->
+    <td>-</td> <!-- material_size -->
+    <td>-</td> <!-- material_length -->
+    <td>-</td> <!-- material_qty -->
+    <td>-</td> <!-- material_uom -->
 
-<textarea
-  rows="2"
+    <!-- supplier dates -->
+    <td>-</td> <!-- supplier_send_date -->
+    <td>-</td> <!-- supplier_receive_date -->
 
-  onblur="
-    createFromInline(
-      ${step.id},
-      'note',
-      this.value
-    )
-  "
-></textarea>
+    <td>${stepRecv}</td>
+    <td>${stepAccept}</td>
+    <td>${stepReject}</td>
+    <td>${remain}</td>
 
-</td>
-`,
-
-        supplier_po: `
-<td class="col-supplier-po">-</td>
-`,
-
-        supplier: `
-<td class="col-supplier">-</td>
-`,
-
-        heat_lot: `
-<td class="col-heat-lot">-</td>
-`,
-
-        mat_type: `
-<td class="col-mat-type">-</td>
-`,
-
-        mat_size: `
-<td class="col-mat-size">-</td>
-`,
-
-        mat_length: `
-<td class="col-mat-length">-</td>
-`,
-
-        mat_qty: `
-<td class="col-mat-qty">-</td>
-`,
-
-        mat_uom: `
-<td class="col-mat-uom">-</td>
-`,
-
-        send_date: `
-<td class="col-send-date">-</td>
-`,
-
-        recv_date: `
-<td class="col-recv-date">-</td>
-`,
-
-        receive: `
-<td class="col-receive">
-  ${stepRecv}
-</td>
-`,
-
-        accept: `
-<td class="col-accept">
-  ${stepAccept}
-</td>
-`,
-
-        reject: `
-<td class="col-reject">
-  ${stepReject}
-</td>
-`,
-
-        remain: `
-<td class="col-remain">
-  ${remain}
-</td>
-`,
-
-        action: `
-<td class="col-action">
-  <button onclick="addLog(${step.id})">
-    ➕
-  </button>
-</td>
-`
-      };
-
-      tr.innerHTML =
-        COLUMN_ORDER
-          .map(
-            c => CELL_MAP[c] || ""
-          )
-          .join("");
+    <td>
+      <button onclick="addLog(${step.id})">
+        ➕
+      </button>
+    </td>
+  `;
 
       tbody.appendChild(tr);
 
       return;
     }
 
-    // ==================================================
+    // =========================
     // WITH LOGS
-    // ==================================================
-
+    // =========================
     let firstRow = true;
-
     const rowspan = logs.length;
 
     logs.forEach(log => {
 
-      const acc =
-        Number(log.qty_accept || 0);
+      const acc = Number(log.qty_accept || 0);
 
-      const rej =
-        Number(log.qty_reject || 0);
+      const rej = Number(log.qty_reject || 0);
 
-      const tr =
-        document.createElement("tr");
+      const tr = document.createElement("tr");
 
       if (log.id) {
-
         tr.setAttribute(
           "data-log-id",
           log.id
@@ -465,399 +193,358 @@ async function load() {
       let nameCell = "";
       let statusCell = "";
 
-      let recvCell = "";
-      let acceptCell = "";
-      let rejectCell = "";
+      let stepRecvCell = "";
+      let stepAcceptCell = "";
+      let stepRejectCell = "";
       let remainCell = "";
       let actionCell = "";
 
       if (firstRow) {
 
         opCell = `
-<td class="col-op"
-    rowspan="${rowspan}">
-  <b>${step.step_code || step.seq}</b>
-</td>
-`;
+      <td rowspan="${rowspan}">
+        <b>${step.step_code || step.seq}</b>
+      </td>
+    `;
 
         nameCell = `
-<td class="col-name"
-    rowspan="${rowspan}">
-  ${step.step_name || ""}
-</td>
-`;
+      <td rowspan="${rowspan}">
+        ${step.step_name || ""}
+      </td>
+    `;
 
         statusCell = `
-<td class="col-status"
-    rowspan="${rowspan}">
-  ${buildStatusDropdown(step)}
-</td>
-`;
+      <td rowspan="${rowspan}">
+        ${buildStatusDropdown(step)}
+      </td>
+    `;
 
-        recvCell = `
-<td class="col-receive"
-    rowspan="${rowspan}">
-  <b>${stepRecv}</b>
-</td>
-`;
+        stepRecvCell = `
+      <td rowspan="${rowspan}">
+        <b>${stepRecv}</b>
+      </td>
+    `;
 
-        acceptCell = `
-<td class="col-accept"
-    rowspan="${rowspan}">
-  <b>${stepAccept}</b>
-</td>
-`;
+        stepAcceptCell = `
+      <td rowspan="${rowspan}">
+        <b>${stepAccept}</b>
+      </td>
+    `;
 
-        rejectCell = `
-<td class="col-reject"
-    rowspan="${rowspan}">
-  <b>${stepReject}</b>
-</td>
-`;
+        stepRejectCell = `
+      <td rowspan="${rowspan}">
+        <b>${stepReject}</b>
+      </td>
+    `;
 
         remainCell = `
-<td class="col-remain"
-    rowspan="${rowspan}">
-  <b>${remain}</b>
-</td>
-`;
+      <td rowspan="${rowspan}">
+        <b>${remain}</b>
+      </td>
+    `;
 
         actionCell = `
-<td class="col-action"
-    rowspan="${rowspan}">
-
-  <button onclick="addLog(${step.id})">
-    ➕
-  </button>
-
-</td>
-`;
+      <td rowspan="${rowspan}">
+        <button onclick="addLog(${step.id})">
+          ➕
+        </button>
+      </td>
+    `;
 
         firstRow = false;
       }
 
-      const CELL_MAP = {
+      tr.innerHTML = `
 
-        op: opCell,
+    ${opCell}
+    ${nameCell}
+    ${statusCell}
 
-        name: nameCell,
+    <td>
+      <input
+        type="date"
+        value="${log.work_date || ''}"
+        onchange="updateDate(
+          ${log.id},
+          this.value
+        )"
+      >
+    </td>
 
-        status: statusCell,
+    ${buildEditableCell(
+        log,
+        step.id,
+        "qty_accept",
+        acc
+      )}
 
-        date: `
-<td class="col-date">
+    ${buildEditableCell(
+        log,
+        step.id,
+        "qty_reject",
+        rej
+      )}
 
-<input
-  type="date"
-  value="${log.work_date || ''}"
+    <td>
+      <select onchange="
+        updateField(
+          ${log.id},
+          'operator_id',
+          this.value
+        )">
 
-  onchange="
-    queueUpdate(
-      ${log.id},
-      'work_date',
-      this.value
-    )
-  "
->
+        <option value="">-</option>
 
-</td>
-`,
+        ${employees.map(e => `
+          <option
+            value="${e.id}"
 
-        good: buildEditableCell(
-          log,
-          step.id,
-          "qty_accept",
-          acc
-        ),
+            ${Number(e.id) ===
+          Number(log.operator_id)
+          ? "selected"
+          : ""}
 
-        bad: buildEditableCell(
-          log,
-          step.id,
-          "qty_reject",
-          rej
-        ),
+          >
+            ${e.nickname || e.emp_code}
+          </option>
+        `).join("")}
 
-        operator: `
-<td class="col-operator">
+      </select>
+    </td>
 
-<select onchange="
-  queueUpdate(
-    ${log.id},
-    'operator_id',
-    this.value
-  )
-">
+    <td>
+      <select onchange="
+        updateField(
+          ${log.id},
+          'machine_id',
+          this.value
+        )">
 
-<option value="">-</option>
+        <option value="">-</option>
 
-${employees.map(e => `
-<option
-  value="${e.id}"
+        ${machines.map(m => `
+          <option
+            value="${m.id}"
 
-  ${Number(e.id) ===
-    Number(log.operator_id)
-      ? "selected"
-      : ""}
+            ${Number(m.id) ===
+              Number(log.machine_id)
+              ? "selected"
+              : ""}
 
->
-  ${e.nickname || e.emp_code}
-</option>
-`).join("")}
+          >
+            ${m.code}
+          </option>
+        `).join("")}
 
-</select>
+      </select>
+    </td>
 
-</td>
-`,
+    <!-- NOTE -->
 
-        machine: `
-<td class="col-machine">
+    <td>
+      <textarea
+        rows="2"
+        style="width:100%; resize:vertical"
 
-<select onchange="
-  queueUpdate(
-    ${log.id},
-    'machine_id',
-    this.value
-  )
-">
-
-<option value="">-</option>
-
-${machines.map(m => `
-<option
-  value="${m.id}"
-
-  ${Number(m.id) ===
-    Number(log.machine_id)
-      ? "selected"
-      : ""}
-
->
-  ${m.code}
-</option>
-`).join("")}
-
-</select>
-
-</td>
-`,
-
-        note: `
-<td class="col-note">
-
-<textarea
-  rows="2"
-
-  onblur="
-    queueUpdate(
-      ${log.id},
-      'note',
-      this.value
-    )
-  "
->${log.note || ""}</textarea>
-
-</td>
-`,
-
-        supplier_po: `
-<td class="col-supplier-po"
-    contenteditable="true"
-
-    onblur="
-      queueUpdate(
-        ${log.id},
-        'supplier_po',
-        this.innerText
-      )
-    "
->
-  ${log.supplier_po || ""}
-</td>
-`,
-
-        supplier: `
-<td class="col-supplier"
-    contenteditable="true"
-
-    onblur="
-      queueUpdate(
-        ${log.id},
-        'supplier_name',
-        this.innerText
-      )
-    "
->
-  ${log.supplier_name || ""}
-</td>
-`,
-
-        heat_lot: `
-<td class="col-heat-lot"
-    contenteditable="true"
-
-    onblur="
-      queueUpdate(
-        ${log.id},
-        'supplier_lot',
-        this.innerText
-      )
-    "
->
-  ${log.supplier_lot || ""}
-</td>
-`,
-
-        mat_type: `
-<td class="col-mat-type"
-    contenteditable="true"
-
-    onblur="
-      queueUpdate(
-        ${log.id},
-        'material_type',
-        this.innerText
-      )
-    "
->
-  ${log.material_type || ""}
-</td>
-`,
-
-        mat_size: `
-<td class="col-mat-size"
-    contenteditable="true"
-
-    onblur="
-      queueUpdate(
-        ${log.id},
-        'material_size',
-        this.innerText
-      )
-    "
->
-  ${log.material_size || ""}
-</td>
-`,
-
-        mat_length: `
-<td class="col-mat-length"
-    contenteditable="true"
-
-    onblur="
-      queueUpdate(
-        ${log.id},
-        'material_length',
-        this.innerText
-      )
-    "
->
-  ${log.material_length || ""}
-</td>
-`,
-
-        mat_qty: `
-<td class="col-mat-qty"
-    contenteditable="true"
-
-    onblur="
-      queueUpdate(
-        ${log.id},
-        'material_qty',
-        this.innerText
-      )
-    "
->
-  ${log.material_qty || ""}
-</td>
-`,
-
-        mat_uom: `
-<td class="col-mat-uom"
-    contenteditable="true"
-
-    onblur="
-      queueUpdate(
-        ${log.id},
-        'material_uom',
-        this.innerText
-      )
-    "
->
-  ${log.material_uom || ""}
-</td>
-`,
-
-        send_date: `
-<td class="col-send-date">
-
-<input
-  type="date"
-  value="${log.supplier_send_date || ''}"
-
-  onchange="
-    queueUpdate(
-      ${log.id},
-      'supplier_send_date',
-      this.value
-    )
-  "
->
-
-</td>
-`,
-
-        recv_date: `
-<td class="col-recv-date">
-
-<input
-  type="date"
-  value="${log.supplier_receive_date || ''}"
-
-  onchange="
-    queueUpdate(
-      ${log.id},
-      'supplier_receive_date',
-      this.value
-    )
-  "
->
-
-</td>
-`,
-
-        receive: recvCell,
-
-        accept: acceptCell,
-
-        reject: rejectCell,
-
-        remain: remainCell,
-
-        action: actionCell
-      };
-
-      tr.innerHTML =
-        COLUMN_ORDER
-          .map(
-            c => CELL_MAP[c] || ""
+        onblur="
+          updateField(
+            ${log.id},
+            'note',
+            this.value
           )
-          .join("");
+        "
+
+      >${log.note || ""}</textarea>
+    </td>
+
+    <!-- SUPPLIER PO -->
+
+    <td contenteditable="true"
+
+      onkeydown="
+        if(event.key==='Enter'){
+
+          updateField(
+            ${log.id},
+            'supplier_po',
+            this.innerText
+          );
+
+          this.blur();
+
+          return false;
+        }
+      "
+
+    >${log.supplier_po || ""}</td>
+
+    <!-- SUPPLIER -->
+
+    <td contenteditable="true"
+
+      onkeydown="
+        if(event.key==='Enter'){
+
+          updateField(
+            ${log.id},
+            'supplier_name',
+            this.innerText
+          );
+
+          this.blur();
+
+          return false;
+        }
+      "
+
+    >${log.supplier_name || ""}</td>
+
+    <!-- LOT -->
+
+    <td contenteditable="true"
+
+      onkeydown="
+        if(event.key==='Enter'){
+
+          updateField(
+            ${log.id},
+            'supplier_lot',
+            this.innerText
+          );
+
+          this.blur();
+
+          return false;
+        }
+      "
+
+    >${log.supplier_lot || ""}</td>
+        <!-- MATERIAL TYPE -->
+    <td contenteditable="true"
+      onkeydown="
+        if(event.key==='Enter'){
+          updateField(
+            ${log.id},
+            'material_type',
+            this.innerText
+          );
+          this.blur();
+          return false;
+        }
+      "
+    >${log.material_type || ""}</td>
+
+    <!-- MATERIAL SIZE -->
+    <td contenteditable="true"
+      onkeydown="
+        if(event.key==='Enter'){
+          updateField(
+            ${log.id},
+            'material_size',
+            this.innerText
+          );
+          this.blur();
+          return false;
+        }
+      "
+    >${log.material_size || ""}</td>
+
+    <!-- MATERIAL LENGTH -->
+    <td contenteditable="true"
+      onkeydown="
+        if(event.key==='Enter'){
+          updateField(
+            ${log.id},
+            'material_length',
+            this.innerText
+          );
+          this.blur();
+          return false;
+        }
+      "
+    >${log.material_length || ""}</td>
+
+    <!-- MATERIAL QTY -->
+    <td contenteditable="true"
+      onkeydown="
+        if(event.key==='Enter'){
+          updateField(
+            ${log.id},
+            'material_qty',
+            this.innerText
+          );
+          this.blur();
+          return false;
+        }
+      "
+    >${log.material_qty || ""}</td>
+
+    <!-- MATERIAL UOM -->
+    <td contenteditable="true"
+      onkeydown="
+        if(event.key==='Enter'){
+          updateField(
+            ${log.id},
+            'material_uom',
+            this.innerText
+          );
+          this.blur();
+          return false;
+        }
+      "
+    >${log.material_uom || ""}</td>
+
+    <!-- SEND DATE -->
+    <td>
+      <input
+        type="date"
+        value="${log.supplier_send_date || ''}"
+        onchange="
+          updateField(
+            ${log.id},
+            'supplier_send_date',
+            this.value
+          )
+        "
+      >
+    </td>
+
+    <!-- RECEIVE DATE -->
+    <td>
+      <input
+        type="date"
+        value="${log.supplier_receive_date || ''}"
+        onchange="
+          updateField(
+            ${log.id},
+            'supplier_receive_date',
+            this.value
+          )
+        "
+      >
+    </td>
+
+    ${stepRecvCell}
+    ${stepAcceptCell}
+    ${stepRejectCell}
+    ${remainCell}
+
+    <td>
+      <button onclick="
+        deleteLog(${log.id})
+      ">
+        🗑
+      </button>
+    </td>
+  `;
 
       tbody.appendChild(tr);
-
     });
 
+    prevStepAccept = stepAccept;
   });
 
-  // =========================
-  // STEP DROPDOWN
-  // =========================
-
-  const stepSelect =
-    document.getElementById(
-      "input_step"
-    );
-
+  const stepSelect = document.getElementById("input_step");
   stepSelect.innerHTML =
     '<option value="">Select OP</option>' +
 
@@ -870,35 +557,17 @@ ${machines.map(m => `
         step.seq;
 
       return `
-<option value="${step.id}">
-  ${opLabel}
-</option>
-`;
+      <option value="${step.id}">
+        ${opLabel}
+      </option>
+    `;
     }).join("");
 }
 
-function autoResizeTextarea(el) {
-
-  el.style.height = "28px";
-
-  const newHeight =
-    Math.min(el.scrollHeight, 120);
-
-  el.style.height =
-    newHeight + "px";
-}
-
 document.addEventListener("input", function (e) {
-
-  if (
-    e.target.matches(
-      ".col-note textarea"
-    )
-  ) {
-
-    autoResizeTextarea(
-      e.target
-    );
+  if (e.target.tagName === "TEXTAREA") {
+    e.target.style.height = "auto";
+    e.target.style.height = e.target.scrollHeight + "px";
   }
 });
 
@@ -971,65 +640,34 @@ async function updateStepStatus(step_id, status, el) {
 // =======================
 // BUILD CELL
 // =======================
-function buildEditableCell(
-  log,
-  step_id,
-  field,
-  value
-) {
-
-  const cls =
-    field === "qty_accept"
-      ? "col-good"
-      : field === "qty_reject"
-      ? "col-bad"
-      : "";
+function buildEditableCell(log, step_id, field, value) {
 
   if (log.id) {
-
     return `
-      <td
-        class="${cls}"
-
-        data-field="${field}"
-
-        contenteditable="true"
-
-        onblur="
-          queueUpdate(
-            ${log.id},
-            '${field}',
-            this.innerText
-          )
-        "
-      >
+      <td data-field="${field}" contenteditable="true"
+        onkeydown="if(event.key==='Enter'){
+          updateField(${log.id}, '${field}', this.innerText);
+          this.blur();
+          return false;
+        }">
         ${value}
       </td>
     `;
-
   } else {
-
     return `
-      <td
-        class="${cls}"
-
-        data-field="${field}"
-
-        contenteditable="true"
-
-        onblur="
-          createFromInline(
-            ${step_id},
-            '${field}',
-            this.innerText
-          )
-        "
-      >
+      <td data-field="${field}" contenteditable="true"
+        onkeydown="if(event.key==='Enter'){
+          createFromInline(${step_id}, '${field}', this.innerText);
+          this.blur();
+          return false;
+        }">
         ${value}
       </td>
     `;
   }
 }
+
+
 // =======================
 // CREATE INLINE
 // =======================
@@ -1138,18 +776,20 @@ async function saveAllRows() {
       ) {
 
         payload[field] =
-          value === ""
-            ? null
-            : Number(value);
+          Number(value) || 0;
 
       } else {
 
         payload[field] =
-          value === ""
-            ? null
-            : value;
+          value?.trim?.() || null;
       }
     }
+
+    console.log(
+      "SAVE PAYLOAD:",
+      log_id,
+      payload
+    );
 
     await fetch(
       `/api/v1/step-logs/${log_id}`,
@@ -1164,7 +804,7 @@ async function saveAllRows() {
     );
   }
 
-
+  alert("✅ Saved");
 
   pendingUpdates = {};
 
@@ -1381,42 +1021,42 @@ async function submitTopInput() {
       "input_supplier_lot"
     )?.value.trim() || null;
 
-  const material_type =
-    document.getElementById(
-      "input_material_type"
-    )?.value.trim() || null;
+    const material_type =
+  document.getElementById(
+    "input_material_type"
+  )?.value.trim() || null;
 
-  const material_size =
-    document.getElementById(
-      "input_material_size"
-    )?.value.trim() || null;
+const material_size =
+  document.getElementById(
+    "input_material_size"
+  )?.value.trim() || null;
 
-  const material_length =
-    document.getElementById(
-      "input_material_length"
-    )?.value.trim() || null;
+const material_length =
+  document.getElementById(
+    "input_material_length"
+  )?.value.trim() || null;
 
-  const material_uom =
-    document.getElementById(
-      "input_material_uom"
-    )?.value.trim() || null;
+const material_uom =
+  document.getElementById(
+    "input_material_uom"
+  )?.value.trim() || null;
 
-  const material_qty =
-    Number(
-      document.getElementById(
-        "input_material_qty"
-      )?.value || 0
-    );
-
-  const supplier_send_date =
+const material_qty =
+  Number(
     document.getElementById(
-      "input_supplier_send_date"
-    )?.value || null;
+      "input_material_qty"
+    )?.value || 0
+  );
 
-  const supplier_receive_date =
-    document.getElementById(
-      "input_supplier_receive_date"
-    )?.value || null;
+const supplier_send_date =
+  document.getElementById(
+    "input_supplier_send_date"
+  )?.value || null;
+
+const supplier_receive_date =
+  document.getElementById(
+    "input_supplier_receive_date"
+  )?.value || null;
 
   if (!step_id) {
     alert("Select OP");
@@ -1449,13 +1089,13 @@ async function submitTopInput() {
     supplier_name,
     supplier_lot,
     material_type,
-    material_size,
-    material_length,
-    material_uom,
-    material_qty,
+material_size,
+material_length,
+material_uom,
+material_qty,
 
-    supplier_send_date,
-    supplier_receive_date,
+supplier_send_date,
+supplier_receive_date,
   };
 
   const res = await fetch(`/api/v1/step-logs`, {
@@ -1489,14 +1129,7 @@ async function submitTopInput() {
   load();
 }
 
-
-
 (async () => {
-
-  buildHeader();
-
   await loadMaster();
-
   await load();
-
 })();
