@@ -304,158 +304,296 @@ def create_step_log(payload: dict, db: Session = Depends(get_db)):
 # =======================
 # UPDATE (PARTIAL ONLY)
 # =======================
-@router.patch("/{log_id}")
-def update_log(log_id: int, payload: dict, db: Session = Depends(get_db)):
-    print("UPDATE PAYLOAD API:", payload)
+# @router.patch("/{log_id}")
+# def update_log(log_id: int, payload: dict, db: Session = Depends(get_db)):
+#     print("UPDATE PAYLOAD API:", payload)
 
-    try:
-        from models import ShopTravelerStep
+#     try:
+#         from models import ShopTravelerStep
 
-        log = db.get(ShopTravelerStepLog, log_id)
-        if not log:
-            raise HTTPException(404, "Log not found")
+#         log = db.get(ShopTravelerStepLog, log_id)
+#         if not log:
+#             raise HTTPException(404, "Log not found")
 
-        step = db.get(ShopTravelerStep, log.step_id)
-        if not step:
-            raise HTTPException(404, "Step not found")
+#         step = db.get(ShopTravelerStep, log.step_id)
+#         if not step:
+#             raise HTTPException(404, "Step not found")
 
-        # =========================
-        # NEW VALUES
-        # =========================
-        new_accept = Decimal(str(payload["qty_accept"])) if "qty_accept" in payload else log.qty_accept
-        new_reject = Decimal(str(payload["qty_reject"])) if "qty_reject" in payload else log.qty_reject
-        # if new_accept < 0:
-        #     raise HTTPException(400, "qty_accept must be >= 0")
+#         # =========================
+#         # NEW VALUES
+#         # =========================
+#         new_accept = Decimal(str(payload["qty_accept"])) if "qty_accept" in payload else log.qty_accept
+#         new_reject = Decimal(str(payload["qty_reject"])) if "qty_reject" in payload else log.qty_reject
+#         # if new_accept < 0:
+#         #     raise HTTPException(400, "qty_accept must be >= 0")
 
-        # if new_reject < 0:
-        #     raise HTTPException(400, "qty_reject must be >= 0")
+#         # if new_reject < 0:
+#         #     raise HTTPException(400, "qty_reject must be >= 0")
 
-        # =========================
-        # 🔥 CALCULATE RECEIVE FIRST (FIX)
-        # =========================
-        if step.seq == 1:
-            receive = sum(
-                (l.qty_accept or 0) + (l.qty_reject or 0)
-                for l in (step.logs or [])
-            )
-        else:
-            prev_step = db.query(ShopTravelerStep)\
-                .filter(
-                    ShopTravelerStep.traveler_id == step.traveler_id,
-                    ShopTravelerStep.seq < step.seq
-                )\
-                .order_by(ShopTravelerStep.seq.desc())\
-                .first()
+#         # =========================
+#         # 🔥 CALCULATE RECEIVE FIRST (FIX)
+#         # =========================
+#         if step.seq == 1:
+#             receive = sum(
+#                 (l.qty_accept or 0) + (l.qty_reject or 0)
+#                 for l in (step.logs or [])
+#             )
+#         else:
+#             prev_step = db.query(ShopTravelerStep)\
+#                 .filter(
+#                     ShopTravelerStep.traveler_id == step.traveler_id,
+#                     ShopTravelerStep.seq < step.seq
+#                 )\
+#                 .order_by(ShopTravelerStep.seq.desc())\
+#                 .first()
 
-            receive = sum(
-                (l.qty_accept or 0) + (l.qty_reject or 0)
-                for l in prev_step.logs
-            ) if prev_step else 0
+#             receive = sum(
+#                 (l.qty_accept or 0) + (l.qty_reject or 0)
+#                 for l in prev_step.logs
+#             ) if prev_step else 0
         
-        # =========================
-        # 🔥 CALCULATE TOTAL AFTER CHANGE
-        # =========================
-        existing_logs = step.logs or []
+#         # =========================
+#         # 🔥 CALCULATE TOTAL AFTER CHANGE
+#         # =========================
+#         existing_logs = step.logs or []
 
         
-        total_accept = sum((l.qty_accept or Decimal("0")) for l in existing_logs)
-        total_reject = sum((l.qty_reject or Decimal("0")) for l in existing_logs)
-        # subtract old
-        total_accept -= (log.qty_accept or 0)
-        total_reject -= (log.qty_reject or 0)
+#         total_accept = sum((l.qty_accept or Decimal("0")) for l in existing_logs)
+#         total_reject = sum((l.qty_reject or Decimal("0")) for l in existing_logs)
+#         # subtract old
+#         total_accept -= (log.qty_accept or 0)
+#         total_reject -= (log.qty_reject or 0)
 
-        # add new
-        total_accept += new_accept
-        total_reject += new_reject
+#         # add new
+#         total_accept += new_accept
+#         total_reject += new_reject
 
-        # =========================
-        # 🔥 FINAL VALIDATION (CORRECT)
-        # =========================
-        is_first = step.seq == min(s.seq for s in step.traveler.steps)
+#         # =========================
+#         # 🔥 FINAL VALIDATION (CORRECT)
+#         # =========================
+#         is_first = step.seq == min(s.seq for s in step.traveler.steps)
 
-        #
-        # if not is_first and (total_accept + total_reject > receive):
-        #     raise HTTPException(
-        #         400,
-        #         f"Total Accept + Reject ({total_accept + total_reject}) > Receive ({receive})"
-        #     )
+#         #
+#         # if not is_first and (total_accept + total_reject > receive):
+#         #     raise HTTPException(
+#         #         400,
+#         #         f"Total Accept + Reject ({total_accept + total_reject}) > Receive ({receive})"
+#         #     )
 
-        # =========================
-        # APPLY UPDATE
-        # =========================
-        if "qty_accept" in payload:
-            log.qty_accept = payload["qty_accept"]
+#         # =========================
+#         # APPLY UPDATE
+#         # =========================
+#         if "qty_accept" in payload:
+#             log.qty_accept = payload["qty_accept"]
 
-        if "qty_reject" in payload:
-            log.qty_reject = payload["qty_reject"]
+#         if "qty_reject" in payload:
+#             log.qty_reject = payload["qty_reject"]
 
-        if "note" in payload:
-            log.note = payload["note"]
+#         if "note" in payload:
+#             log.note = payload["note"]
 
-        if "work_date" in payload:
-            log.work_date = datetime.fromisoformat(payload["work_date"]).date()
+#         if "work_date" in payload:
+#             log.work_date = datetime.fromisoformat(payload["work_date"]).date()
 
-        if "operator_id" in payload:
-            log.operator_id = int(payload["operator_id"]) if payload["operator_id"] else None
+#         if "operator_id" in payload:
+#             log.operator_id = int(payload["operator_id"]) if payload["operator_id"] else None
 
-        if "machine_id" in payload:
-            log.machine_id = int(payload["machine_id"]) if payload["machine_id"] else None
+#         if "machine_id" in payload:
+#             log.machine_id = int(payload["machine_id"]) if payload["machine_id"] else None
 
-        if "supplier_po" in payload:
-            print("Updating supplier_po to:", payload["supplier_po"])
-            log.supplier_po = payload["supplier_po"]
+#         if "supplier_po" in payload:
+#             print("Updating supplier_po to:", payload["supplier_po"])
+#             log.supplier_po = payload["supplier_po"]
 
-        if "supplier_name" in payload:
-            log.supplier_name = payload["supplier_name"]
+#         if "supplier_name" in payload:
+#             log.supplier_name = payload["supplier_name"]
 
-        if "supplier_lot" in payload:
-            log.supplier_lot = payload["supplier_lot"]
+#         if "supplier_lot" in payload:
+#             log.supplier_lot = payload["supplier_lot"]
 
-        if "supplier_send_date" in payload:
-            log.supplier_send_date = (
-                datetime.fromisoformat(payload["supplier_send_date"]).date()
-                if payload["supplier_send_date"]
-                else None
-            )
+#         if "supplier_send_date" in payload:
+#             log.supplier_send_date = (
+#                 datetime.fromisoformat(payload["supplier_send_date"]).date()
+#                 if payload["supplier_send_date"]
+#                 else None
+#             )
 
-        if "supplier_receive_date" in payload:
-            log.supplier_receive_date = (
-                datetime.fromisoformat(payload["supplier_receive_date"]).date()
-                if payload["supplier_receive_date"]
-                else None
-            )
+#         if "supplier_receive_date" in payload:
+#             log.supplier_receive_date = (
+#                 datetime.fromisoformat(payload["supplier_receive_date"]).date()
+#                 if payload["supplier_receive_date"]
+#                 else None
+#             )
 
-        if "material_size" in payload:
-            log.material_size = payload["material_size"]
+#         if "material_size" in payload:
+#             log.material_size = payload["material_size"]
 
-        if "material_length" in payload:
-            log.material_length = payload["material_length"]
+#         if "material_length" in payload:
+#             log.material_length = payload["material_length"]
 
-        if "material_uom" in payload:
-            log.material_uom = payload["material_uom"]
+#         if "material_uom" in payload:
+#             log.material_uom = payload["material_uom"]
 
-        if "material_type" in payload:
-            log.material_type = payload["material_type"]
+#         if "material_type" in payload:
+#             log.material_type = payload["material_type"]
 
-        if "material_qty" in payload:
-            log.material_qty = payload["material_qty"]
+#         if "material_qty" in payload:
+#             log.material_qty = payload["material_qty"]
 
        
 
+#         db.commit()
+#         db.refresh(log)
+
+#         recalc_step_status(db, log.step_id)
+#         db.commit()
+#         print(f"Updated log {log.id}, recalculated step {log.step_id} status")
+#         return log
+
+#     except HTTPException:
+#         raise
+
+#     except SQLAlchemyError as e:
+#         db.rollback()
+#         raise HTTPException(500, str(e))
+
+@router.patch("/{log_id}")
+def update_log(
+    log_id: int,
+    payload: dict,
+    db: Session = Depends(get_db)
+):
+
+    print("UPDATE LOG:", payload)
+
+    try:
+
+        log = db.get(
+            ShopTravelerStepLog,
+            log_id
+        )
+
+        if not log:
+            raise HTTPException(
+                404,
+                "Log not found"
+            )
+
+        # =========================
+        # APPLY FIELDS
+        # =========================
+
+        editable_fields = [
+
+            "qty_accept",
+            "qty_reject",
+
+            "operator_id",
+            "machine_id",
+
+            "note",
+
+            "supplier_po",
+            "supplier_name",
+            "supplier_lot",
+
+            "supplier_send_date",
+            "supplier_receive_date",
+
+            "material_size",
+            "material_length",
+            "material_qty",
+            "material_uom",
+            "material_type",
+
+            "work_date"
+        ]
+
+        for field in editable_fields:
+
+            if field not in payload:
+                continue
+
+            value = payload[field]
+
+            # =====================
+            # TYPE FIXES
+            # =====================
+
+            if field in [
+                "qty_accept",
+                "qty_reject",
+                "material_qty"
+            ]:
+
+                value = (
+                    Decimal(str(value))
+                    if value not in [None, ""]
+                    else Decimal("0")
+                )
+
+            elif field in [
+                "operator_id",
+                "machine_id"
+            ]:
+
+                value = (
+                    int(value)
+                    if value not in [None, ""]
+                    else None
+                )
+
+            elif field in [
+                "supplier_send_date",
+                "supplier_receive_date",
+                "work_date"
+            ]:
+
+                value = (
+                    datetime
+                    .fromisoformat(value)
+                    .date()
+                    if value
+                    else None
+                )
+
+            setattr(log, field, value)
+
+        # =========================
+        # SAVE
+        # =========================
+
         db.commit()
+
         db.refresh(log)
 
-        recalc_step_status(db, log.step_id)
-        db.commit()
-        print(f"Updated log {log.id}, recalculated step {log.step_id} status")
-        return log
+        # =========================
+        # RECALC STEP STATUS
+        # =========================
+
+        recalc_step_status(
+            db,
+            log.step_id
+        )
+
+        return {
+            "success": True,
+            "log": log.id
+        }
 
     except HTTPException:
         raise
 
-    except SQLAlchemyError as e:
+    except Exception as e:
+
         db.rollback()
-        raise HTTPException(500, str(e))
+
+        print("PATCH LOG ERROR:", str(e))
+
+        raise HTTPException(
+            500,
+            str(e)
+        )
 
 # =======================
 # DELETE

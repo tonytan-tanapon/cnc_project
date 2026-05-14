@@ -1530,3 +1530,30 @@ async function submitTopInput() {
   await load();
 
 })();
+
+// Prevent multiline in single-line editable cells
+document.addEventListener("keydown", function (e) {
+
+  const singleLineCols = [
+    "col-supplier-po",
+    "col-supplier",
+    "col-heat-lot",
+    "col-mat-type",
+    "col-mat-size",
+    "col-mat-length",
+    "col-mat-qty",
+    "col-mat-uom"
+  ];
+
+  const td = e.target;
+
+  const isSingleLine =
+    td &&
+    td.getAttribute("contenteditable") === "true" &&
+    singleLineCols.some(cls => td.classList.contains(cls));
+
+  if (isSingleLine && e.key === "Enter") {
+    e.preventDefault();
+    td.blur(); // optional: auto save on Enter
+  }
+});

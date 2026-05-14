@@ -766,18 +766,7 @@ async function loadOperation() {
       .style.display =
       isMachineMode ? "none" : "flex";
 
-    // =========================
-    // 🔥 LOAD ALL LOGS (KEY FIX)
-    // =========================
-    const allLogs = {};
-
-    for (const s of data.steps || []) {
-      if (s.id) {
-        allLogs[s.id] = await jfetch(`/api/v1/step-logs?step_id=${s.id}`);
-      }
-    }
-
-    const logs = allLogs[step.id] || [];
+    const logs = await jfetch(`/api/v1/step-logs?step_id=${step.id}`);
 
     const todayLog = getTodayLog(logs);
     const activeLog = selectedLogDate

@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Traveler · Topnotch – MFG</title>
+
+  <!-- Global styles -->
+  <link rel="stylesheet" href="/static/css/app.css" />
+
+  <!-- Tabulator -->
+  <link rel="stylesheet" href="/static/vendor/tabulator/tabulator_modern.min.css" />
+  <script src="/static/vendor/tabulator/tabulator.min.js"></script>
+
+  <style>
+    /* ===== Edge layout (เหมือนหน้า POS) ===== */
+    .main--edge {
+      padding: 0;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .panel--edge {
+      margin: 0;
+      border-radius: 0;
+      border-left-width: 0;
+      border-right-width: 0;
+    }
+
+    #travPanel {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      min-height: 0;
+    }
+
+    /* header */
+    .header {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 8px;
+      padding: 8px 0;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    .col-3 {
+      grid-column: span 3;
+    }
+
+    .col-4 {
+      grid-column: span 4;
+    }
+
+    .col-6 {
+      grid-column: span 6;
+    }
+
+    .col-12 {
+      grid-column: span 12;
+    }
+
+    .header .field {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .header input,
+    .header textarea {
+      height: 36px;
+      padding: 0 12px;
+    }
+
+    .header textarea {
+      height: auto;
+      padding: 8px 12px;
+    }
+
+    .muted {
+      opacity: 0.65;
+    }
+
+    /* list toolbar */
+    .list-topbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      height: 44px;
+      padding: 0;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    .list-topbar .title {
+      font-weight: 600;
+      padding: 0 8px;
+    }
+
+    #btnAddStep {
+      margin-left: auto;
+      height: 36px;
+      border-radius: 0;
+    }
+
+    #steps_wrap {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow: auto;
+      margin-bottom: 50px;
+      /* 👈 เพิ่มพื้นที่ให้เห็นปุ่ม */
+    }
+
+    #steps_wrap .tabulator {
+      height: 100% !important;
+      border: 0;
+    }
+
+    #steps_wrap .tabulator .tabulator-row:hover {
+      background: #fafafa;
+    }
+
+    /* small UI helpers */
+    .btn-mini {
+      font: inherit;
+      padding: 6px 10px;
+      border-radius: 8px;
+      border: 1px solid #e5e7eb;
+      background: #f8fafc;
+      cursor: pointer;
+    }
+
+    .btn-mini:hover {
+      background: #f1f5f9;
+    }
+
+    .btn-danger {
+      background: #ef4444;
+      color: #fff;
+      border-color: #dc2626;
+    }
+
+    .hdr-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .tabulator-row.is-dirty {
+      background: #fff7ed;
+    }
+
+    /* status badges */
+    .badge {
+      padding: 2px 6px;
+      border-radius: 6px;
+      font-size: 12px;
+      color: #fff;
+    }
+
+    .badge.blue {
+      background: #2563eb;
+    }
+
+    .badge.green {
+      background: #16a34a;
+    }
+
+    .badge.red {
+      background: #b91c1c;
+    }
+
+    .badge.gray {
+      background: #6b7280;
+    }
+
+    #steps_wrap {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow: auto;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    #steps_footer {
+      text-align: left;
+      /* 👈 ปรับจาก right เป็น left */
+      padding: 8px 0 12px;
+      background: #fff;
+      border-top: 1px solid #e5e7eb;
+      position: sticky;
+      bottom: 0;
+      z-index: 10;
+    }
+
+    #btnAddStep {
+      margin-left: 4px;
+      /* 👈 เพิ่มระยะห่างจากขอบนิดหน่อย */
+      height: 34px;
+      font-weight: 500;
+    }
+
+    .quick-links a {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 8px;
+      background: #f3f4f6;
+      font-weight: 600;
+    }
+
+    .quick-links a:hover {
+      background: #e5e7eb;
+    }
+
+    #templateSelect {
+      width: 180px;
+      /* ปรับตามต้องการ */
+      max-width: 200px;
+    }
+
+    .cell-multiline {
+      white-space: pre-wrap;
+      /* ✅ แสดง \n */
+      line-height: 1.3;
+    }
+
+    /* Badge */
+    #latestBadge {
+      display: none;
+      background: #16a34a;
+      color: white;
+      font-size: 12px;
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-weight: 600;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+    <!-- ========== SIDEBAR NAV ========== -->
+    <aside class="sidebar">
+      <div id="navSlot" data-nav-slot></div>
+    </aside>
+
+    <!-- ========== MAIN AREA ========== -->
+    <main class="main">
+       <section class="quick-links">
+        <div id="lot_link">🧾 LOT</div>
+        <!-- <div id="part_link">🧾 Part</div> -->
+        <!-- <div id="material_link">🔩 Material</div> -->
+        <div id="traveler_link">🧾 Traveler</div>
+        <div id="inspection_link">🧾 Inspection</div>
+        <div id="shippment_link">📦 Shipment</div>
+      </section>
+
+      <section class="panel panel--edge" id="travPanel">
+        <!-- Title row -->
+        <div style="
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 0 6px 0;
+    ">
+          <h2 style="margin: 0">🧾 Traveler:</h2>
+          <h2 id="t_sub">(loading…)</h2>
+
+          <!-- 🔥 Badge -->
+          <span id="latestBadge">LATEST</span>
+        </div>
+        
+        <!-- Header -->
+
+        <div class="header">
+          <!-- <div class="field col-3">
+            <label>Lot</label> -->
+
+          <div class="field col-3">
+            <label>Lot No</label>
+            <input id="lot_no" readonly />
+          </div>
+          <div class="field col-3">
+            <label>PO No</label>
+            <input id="po_no" readonly />
+          </div>
+          <div class="field col-3">
+            <label>Part No</label>
+            <input id="part_no" readonly />
+          </div>
+
+          <div class="field col-3">
+            <label>Rev</label>
+            <input id="rev" readonly />
+          </div>
+          <div class="field col-3">
+            <label>Customer</label>
+            <input id="customer_code" readonly />
+          </div>
+
+           <div class="field col-3">
+            <label>Material</label>
+
+            <input id="material" rows="1" placeholder="Material spec..."></input>
+          </div>
+          <!-- </div> -->
+          <!-- <div class="field col-3">
+            <label>Created by (Emp)</label>
+            <input id="created_by_id" placeholder="ค้นหา emp…" /  type="hidden" />
+          </div> -->
+          <!-- <div class="field col-3">
+            <label>Status</label>
+            <input id="status" placeholder="open / in_progress / closed" />
+          </div> -->
+
+          <div class="field col-3">
+            <label>Lot PO QTY</label>
+            <input id="lot_po_qty" type="number" placeholder="Quantity" />
+          </div>
+          <div class="field col-3">
+            <label>Lot planned QTY</label>
+            <input id="lot_planned_qty" type="number" placeholder="Quantity" />
+          </div>
+          <div class="field col-3">
+            <label>Lot release date</label>
+            <input id="lot_release_date" type="date" />
+          </div>
+          <div class="field col-3">
+            <label>Lot PO Duedate</label>
+            <input id="lot_po_duedate" type="date" />
+          </div>
+
+
+
+          <div class="field col-12">
+            <label>Notes</label>
+            <textarea id="notes" rows="2" placeholder="Notes…"></textarea>
+          </div>
+
+         
+          <div class="col-12">
+            <div id="t_hint" class="muted" aria-live="polite"></div>
+            <div id="errorBox" class="err" style="display: none"></div>
+          </div>
+        </div>
+
+        <!-- Steps topbar -->
+        <div class="">
+          <!-- <div class="title">Steps</div> -->
+          <button id="btnDrawing" class="btn-mini">Drawing diagram</button>
+          <button id="btnTraveler" class="btn-mini">Shop traveler</button>
+          <button id="btnInspection" class="btn-mini">Inspection</button>
+        </div>
+        <!-- Steps topbar -->
+        <div class="list-topbar">
+
+          <button id="btnAddStep" class="btn-mini">+ Add Step</button>
+
+
+
+          <!-- Confirm button -->
+          <button id="btnUseTemplate" class="btn-mini">Use Template</button>
+          <input type="file" id="fileInput" accept=".doc,.docx" style="display:none" />
+
+          <button id="btnImportFile" class="btn-mini">
+            📂 Import File
+          </button>
+          
+          <button id="btnUpdateTravelerTemplate" class="btn-mini">💾 Update Template</button>
+          <button id="btnExportTraveler" class="btn-mini">📝 Export Traveler</button>
+          <button id="btnExportTravelerBlank" class="btn-mini">📝 Export Blank</button>
+          <button id="btnSTdetail" class="btn-mini">📝 Details</button>
+
+          <b>Bold</b> -> **Text**, Alt + 0216(Ø), 0177(±), 0176(°)
+
+        </div>
+
+        <div class="list-topbar">
+          <button id="btnUpdateTravelerStep" class="btn-mini">💾 Save Traveler</button>
+          <button id="btnDeleteAllSteps" class="btn-mini">🗑 Delete All Steps</button>
+        </div>
+        
+
+        <!-- Steps table mount -->
+        <div id="steps_wrap">
+          <div id="steps_table"></div>
+        </div>
+        <!-- Add Step button just below table -->
+        <!-- <div id="steps_footer"> -->
+        <!-- <button id="btnAddStep" class="btn-mini">＋ Add Step</button> -->
+        <!-- </div> -->
+        <!-- Add Step button below table -->
+      </section>
+    </main>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast" role="status" aria-live="polite">
+    <span id="toastText"></span>
+  </div>
+
+  <!-- Navbar loader -->
+  <script type="module" src="/static/js/nav-loader.js"></script>
+
+  <!-- QRCode library (global variable) -->
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+  <!-- Page script -->
+  <script type="module" src="/static/js/page-traveler-detail-.js?v=7"></script>
+
+  <!-- ===== QR Code Modal ===== -->
+  <style>
+    .qr-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.45);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+
+    .qr-box {
+      background: #fff;
+      padding: 24px 28px;
+      border-radius: 10px;
+      text-align: center;
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
+      width: 280px;
+      max-width: 90%;
+    }
+
+    .qr-box h3 {
+      margin-top: 0;
+      margin-bottom: 10px;
+      font-size: 16px;
+    }
+
+    #qrCode {
+      margin: 10px auto;
+    }
+
+    .qr-text {
+      font-size: 13px;
+      color: #555;
+      margin-bottom: 10px;
+      word-break: break-all;
+    }
+
+    .qr-btns {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    .qr-btns button {
+      border: none;
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    #qrPrintBtn {
+      background: #2563eb;
+      color: #fff;
+    }
+
+    #qrCloseBtn {
+      background: #9ca3af;
+      color: #fff;
+    }
+
+    .tabulator-cell {
+      white-space: pre-wrap !important;
+    }
+
+    .steps-html-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+
+    .steps-html-table th,
+    .steps-html-table td {
+      border: 1px solid #e5e7eb;
+      padding: 6px;
+      vertical-align: top;
+    }
+
+    .steps-html-table input,
+    .steps-html-table select,
+    .steps-html-table textarea {
+      width: 100%;
+      box-sizing: border-box;
+      font: inherit;
+    }
+
+    .steps-html-table textarea {
+      min-height: 100px;
+      resize: vertical;
+      white-space: pre-wrap;
+    }
+
+
+    .tabulator-cell {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .log-subtable {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+}
+
+.log-subtable th,
+.log-subtable td {
+  border: 1px solid #ddd;
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
+.log-subtable th {
+  background: #f3f4f6;
+}
+  </style>
+
+  <div id="qrModal" class="qr-modal" style="display: none">
+    <div class="qr-box">
+      <h3>Traveler QR Code</h3>
+      <div id="qrCode"></div>
+      <div id="qrText" class="qr-text"></div>
+      <div class="qr-btns">
+        <button id="qrPrintBtn">🖨️ Print QR</button>
+        <button id="qrCloseBtn">Close</button>
+      </div>
+    </div>
+  </div>
+
+
+
+  <!-- 🔥 LOG HISTORY MODAL -->
+  <div id="logModal" style="
+  display:none;
+  position:fixed;
+  top:0; left:0;
+  width:100%; height:100%;
+  background:rgba(0,0,0,0.4);
+  z-index:9999;
+  justify-content:center;
+  align-items:center;
+">
+    <div style="
+    background:#fff;
+    padding:20px;
+    width:600px;
+    border-radius:10px;
+  ">
+      <h3>Step History</h3>
+
+      <div id="logTable"></div>
+
+      <div style="text-align:right; margin-top:10px;">
+        <button onclick="closeLogModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
+
+</body>
+
+</html>
