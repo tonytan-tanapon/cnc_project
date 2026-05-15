@@ -252,14 +252,12 @@ def parse_docx(path: str) -> dict:
                 data["steps"].append(current_step)
 
             step_order += 1
-
             current_step = {
                 "order": step_order,
                 "step_code": raw_line,   # ✅ ใช้ raw_line
                 "step_type": "material" if raw_line.startswith("M") else "process",
                 "step_name": "",
                 "step_detail": "",   # 🔥 FIX
-              
                 "qa_required": False
             }
 

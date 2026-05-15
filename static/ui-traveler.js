@@ -14,6 +14,7 @@ let currentLotId = null;
 let manualRowSelected = false;
 let currentStepData = null;   // ✅ FIX สำคัญ
 let currentMachineId = null;
+let selectedLengthUOM = "foot";
 
 const machineIdFromURL = new URLSearchParams(location.search).get("machine_id");
 
@@ -83,8 +84,25 @@ function showKeypad(target, type) {
                   : "#111";
   }
 
+  const uomPanel =
+    document.querySelector("#lengthUOMPanel");
+
+  if (type === "length") {
+    uomPanel.style.display = "flex";
+  } else {
+    uomPanel.style.display = "none";
+  }
   document.querySelector("#keypad").style.display = "flex";
-  document.querySelector("#uomLabel").textContent = "PCS";
+  if (type === "length") {
+
+    document.querySelector("#uomLabel").textContent =
+      selectedLengthUOM.toUpperCase();
+
+  } else {
+
+    document.querySelector("#uomLabel").textContent =
+      "PCS";
+  }
 
   const currentVal = activeTarget.textContent.trim() || "0";
   document.querySelector("#keypadDisplay").textContent = currentVal;
@@ -186,7 +204,30 @@ function toastCenter(message, success = true, duration = 1500) {
 
 document.addEventListener("DOMContentLoaded", () => {
 
+  document
+    .querySelectorAll(".length-uom-btn")
+    .forEach((btn) => {
 
+      btn.addEventListener("click", () => {
+
+        document
+          .querySelectorAll(".length-uom-btn")
+          .forEach(b => b.classList.remove("active"));
+
+        btn.classList.add("active");
+
+        selectedLengthUOM =
+          btn.dataset.uom;
+
+        document.querySelector("#uomLabel").textContent =
+          selectedLengthUOM.toUpperCase();
+
+        console.log(
+          "Selected Length UOM:",
+          selectedLengthUOM
+        );
+      });
+    });
   // ✅ Default to PCS
   // document.querySelector('.unit-btn[data-uom="pcs"]').classList.add("active");
 
@@ -287,10 +328,11 @@ document.addEventListener("DOMContentLoaded", () => {
     const lengthValue =
       document.querySelector("#lengthValue")?.textContent?.trim() || "";
 
-    const qtyValue =
-      parseFloat(
-        document.querySelector("#qtyValue")?.textContent?.trim() || "0"
-      );
+    // const qtyValue =
+    //   parseFloat(
+    //     document.querySelector("#qtyValue")?.textContent?.trim() || "0"
+    //   );
+
     if (isNaN(val) || val < 0) {
       toastCenter("Invalid number", false);
       return;
@@ -364,8 +406,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 supplier_po: poValue,
 
                 material_length: lengthValue,
+                material_uom: selectedLengthUOM,
 
-                material_qty: qtyValue,
+                // material_qty: qtyValue,
 
                 operator_id,
 
@@ -403,7 +446,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
                 material_length: lengthValue,
 
-                material_qty: qtyValue,
+                material_uom: selectedLengthUOM,
+
+                // material_qty: qtyValue,
 
                 operator_id,
 
@@ -779,7 +824,7 @@ async function loadOperation() {
         <th>Date</th>
         <th>PO</th>
         <th>Length</th>
-        <th>Qty</th>
+        
         <th>Operator</th>
         <th>Machine</th>
       </tr>
@@ -826,8 +871,8 @@ async function loadOperation() {
       document.querySelector("#lengthValue").textContent =
         activeLog?.material_length || "0";
 
-      document.querySelector("#qtyValue").textContent =
-        parseFloat(activeLog?.material_qty || 0);
+      // document.querySelector("#qtyValue").textContent =
+      //   parseFloat(activeLog?.material_qty || 0);
 
     } else {
 
@@ -957,9 +1002,14 @@ async function loadOperation() {
 
 <td>${l.supplier_po || "-"}</td>
 
-<td>${l.material_length || "-"}</td>
+<td>
+  ${l.material_length
+                ? `${l.material_length} ${(l.material_uom || "").toUpperCase()}`
+                : "-"
+              }
+</td>
 
-<td>${parseFloat(l.material_qty || 0)}</td>
+
 
 <td>${l.operator_nickname || l.operator_name || "-"}</td>
 
@@ -996,17 +1046,21 @@ async function loadOperation() {
 
           ? `
 <td style="font-weight:700;">Total</td>
-
 <td></td>
+<td style="font-weight:700; color:#f59e0b;">
 
-<td></td>
-
-<td style="font-weight:700; color:#16a34a;">
   ${logs.reduce(
-            (sum, l) => sum + Number(l.material_qty || 0),
+            (sum, l) =>
+              sum + parseFloat(l.material_length || 0),
             0
-          )}
+          )
+          }
+
+  ${(logs[0]?.material_uom || "").toUpperCase()}
+
 </td>
+
+
 
 <td></td>
 <td></td>
@@ -1059,7 +1113,17 @@ async function loadOperation() {
     }
 
 
-    document.querySelector("#remarkInput").value = currentRemark;
+    document.querySelector("#remarkInput").value =
+      currentRemark;
+
+    // ⭐ IMPORTANT
+    const remarkInput =
+      document.querySelector("#remarkInput");
+
+    remarkInput.style.height = "auto";
+
+    remarkInput.style.height =
+      remarkInput.scrollHeight + "px";
 
     // =========================
     // OPERATOR
@@ -1095,7 +1159,7 @@ async function loadOperation() {
     }
 
     document.querySelector("#operatorName").textContent =
-      `Operator: (${operatorText})`;
+      `Operator: ${operatorText}`;
 
     // document.querySelector("#loginOP").textContent =
     //   `Login: ${travelerEmp}`;
@@ -1114,15 +1178,39 @@ async function loadOperation() {
     opStatusEl.textContent = "status: " + op_status;
     opStatusEl.style.backgroundColor = statusColor(op_status);
 
+    const cleanStepName =
+      (step.step_name || "-")
+        .replace(/\*\*/g, "");
+
     document.querySelector("#opName").textContent =
-      step.step_name || "-";
+      cleanStepName;
 
     document.querySelector("#opCode").textContent =
-      step.seq ? `OP#${step.step_code}` : "-";
+      step.seq ? `${step.step_code}` : "-";
 
   } catch (err) {
-    console.error("❌ loadOperation failed", err);
-    toast(err.message || "Load failed", false);
+
+    console.error("❌ loadOperation failed FULL:", err);
+
+    if (err.response) {
+
+      try {
+
+        const txt =
+          await err.response.text();
+
+        console.error("SERVER RESPONSE:", txt);
+
+      } catch (e) {
+        console.error(e);
+      }
+
+    }
+
+    toast(
+      err.message || "Load failed",
+      false
+    );
   }
 }
 
@@ -1230,3 +1318,24 @@ document.getElementById("exitBtn").onclick = () => {
   window.location.href = "/static/ui-traveler-landing.html";
   // 🔁 change to your main page
 };
+
+const remarkInput =
+  document.querySelector("#remarkInput");
+
+if (remarkInput) {
+
+  function autoResizeRemark() {
+
+    remarkInput.style.height = "auto";
+
+    remarkInput.style.height =
+      remarkInput.scrollHeight + "px";
+  }
+
+  remarkInput.addEventListener(
+    "input",
+    autoResizeRemark
+  );
+
+  autoResizeRemark();
+}
