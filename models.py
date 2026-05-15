@@ -1975,3 +1975,505 @@ class DocCounter(Base):
     __table_args__ = (
         UniqueConstraint("doc_type", "year", name="uq_doc_counters_type_year"),
     )
+
+class ICAR(Base):
+    __tablename__ = "icars"
+
+    id = Column(Integer, primary_key=True)
+
+    icar_no = Column(String, unique=True)
+
+    # ====================================
+    # RELATIONS
+    # ====================================
+
+    customer_id = Column(
+        Integer,
+        ForeignKey("customers.id"),
+        nullable=True,
+        index=True
+    )
+
+    po_id = Column(
+        Integer,
+        ForeignKey("purchase_orders.id"),
+        nullable=True,
+        index=True
+    )
+
+    lot_id = Column(
+        Integer,
+        ForeignKey("production_lots.id"),
+        nullable=True,
+        index=True
+    )
+
+    part_id = Column(
+        Integer,
+        ForeignKey("parts.id"),
+        nullable=True,
+        index=True
+    )
+
+    part_revision_id = Column(
+        Integer,
+        ForeignKey("part_revisions.id"),
+        nullable=True,
+        index=True
+    )
+
+    traveler_id = Column(
+        Integer,
+        ForeignKey("shop_travelers.id"),
+        nullable=True
+    )
+
+    traveler_step_id = Column(
+        Integer,
+        ForeignKey("shop_traveler_steps.id"),
+        nullable=True
+    )
+
+    qa_inspection_id = Column(
+        Integer,
+        ForeignKey("qa_inspections.id"),
+        nullable=True
+    )
+
+    operator_id = Column(
+        Integer,
+        ForeignKey("employees.id"),
+        nullable=True
+    )
+
+    approve_id = Column(
+        Integer,
+        ForeignKey("employees.id"),
+        nullable=True
+    )
+
+    # ====================================
+    # SNAPSHOT DATA
+    # ====================================
+
+    customer_code = Column(String)
+    po_no = Column(String)
+    lot_no = Column(String)
+
+    part_no = Column(String)
+    rev = Column(String)
+    part_name = Column(String)
+
+    # ====================================
+    # ICAR DATA
+    # ====================================
+
+    issue_date = Column(Date)
+
+    lot_qty = Column(Numeric(18,3))
+    defect_qty = Column(Numeric(18,3))
+    defect_percent = Column(Numeric(8,2))
+
+    non_conformity = Column(Text)
+
+    root_cause = Column(Text)
+
+    immediate_corrective_action = Column(Text)
+
+    systemic_corrective_action = Column(Text)
+
+    preventive_action = Column(Text)
+
+    remark = Column(Text)
+
+    sign_date = Column(Date)
+
+    status = Column(String, default="open")
+
+    # ====================================
+    # RELATIONSHIPS
+    # ====================================
+
+    customer = relationship("Customer")
+
+    po = relationship("PO")
+
+    lot = relationship("ProductionLot")
+
+    part = relationship("Part")
+
+    part_revision = relationship("PartRevision")
+
+    traveler = relationship("ShopTraveler")
+
+    traveler_step = relationship("ShopTravelerStep")
+
+    qa_inspection = relationship("QAInspection")
+
+    operator = relationship(
+        "Employee",
+        foreign_keys=[operator_id]
+    )
+
+    approver = relationship(
+        "Employee",
+        foreign_keys=[approve_id]
+    )
+
+
+class ECAR(Base):
+    __tablename__ = "ecars"
+
+    id = Column(Integer, primary_key=True)
+
+    # =====================================
+    # BASIC
+    # =====================================
+
+    ecar_no = Column(
+        String,
+        unique=True,
+        nullable=False,
+        index=True
+    )
+
+    date_initiated = Column(
+        Date,
+        nullable=True,
+        index=True
+    )
+
+    close_out_date = Column(
+        Date,
+        nullable=True
+    )
+
+    status = Column(
+        String,
+        nullable=False,
+        default="open"
+    )
+    # open
+    # investigating
+    # waiting_customer
+    # closed
+
+    # =====================================
+    # RELATIONS
+    # =====================================
+
+    customer_id = Column(
+        Integer,
+        ForeignKey("customers.id"),
+        nullable=True,
+        index=True
+    )
+
+    po_id = Column(
+        Integer,
+        ForeignKey("purchase_orders.id"),
+        nullable=True,
+        index=True
+    )
+
+    lot_id = Column(
+        Integer,
+        ForeignKey("production_lots.id"),
+        nullable=True,
+        index=True
+    )
+
+    part_id = Column(
+        Integer,
+        ForeignKey("parts.id"),
+        nullable=True,
+        index=True
+    )
+
+    part_revision_id = Column(
+        Integer,
+        ForeignKey("part_revisions.id"),
+        nullable=True,
+        index=True
+    )
+
+    # optional
+    shipment_id = Column(
+        Integer,
+        ForeignKey("customer_shipments.id"),
+        nullable=True
+    )
+
+    # =====================================
+    # SNAPSHOT
+    # =====================================
+
+    customer_code = Column(String)
+
+    ncr_rma_job_no = Column(String)
+
+    po_no = Column(String)
+
+    part_no = Column(String)
+
+    part_description = Column(String)
+
+    rev = Column(String)
+
+    reject_tag_idr = Column(String)
+
+    car_no = Column(String)
+
+    # =====================================
+    # QTY
+    # =====================================
+
+    shipped_qty = Column(
+        Numeric(18,3),
+        default=0
+    )
+
+    rtv_qty = Column(
+        Numeric(18,3),
+        default=0
+    )
+
+    customer_rework_qty = Column(
+        Numeric(18,3),
+        default=0
+    )
+
+    use_as_is_qty = Column(
+        Numeric(18,3),
+        default=0
+    )
+
+    defect_percent = Column(
+        Numeric(8,2),
+        default=0
+    )
+
+    # =====================================
+    # SCAR
+    # =====================================
+
+    scar_issue = Column(Text)
+
+    scar_reply = Column(Text)
+
+    # =====================================
+    # QUALITY DETAIL
+    # =====================================
+
+    discrepancy = Column(Text)
+
+    corrective_action = Column(Text)
+
+    preventive_action = Column(Text)
+
+    root_cause = Column(Text)
+
+    remark = Column(Text)
+
+    # =====================================
+    # PEOPLE
+    # =====================================
+
+    created_by_id = Column(
+        Integer,
+        ForeignKey("employees.id")
+    )
+
+    approved_by_id = Column(
+        Integer,
+        ForeignKey("employees.id")
+    )
+
+    # =====================================
+    # DATES
+    # =====================================
+
+    created_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now()
+    )
+
+    updated_at = Column(
+        DateTime(timezone=True),
+        onupdate=func.now()
+    )
+
+    # =====================================
+    # RELATIONSHIPS
+    # =====================================
+
+    customer = relationship("Customer")
+
+    po = relationship("PO")
+
+    lot = relationship("ProductionLot")
+
+    part = relationship("Part")
+
+    part_revision = relationship("PartRevision")
+
+    shipment = relationship("CustomerShipment")
+
+    created_by = relationship(
+        "Employee",
+        foreign_keys=[created_by_id]
+    )
+
+    approved_by = relationship(
+        "Employee",
+        foreign_keys=[approved_by_id]
+    )
+
+class Gage(Base):
+    __tablename__ = "gages"
+
+    id = Column(Integer, primary_key=True)
+
+    gage_id = Column(
+        String,
+        unique=True,
+        nullable=False,
+        index=True
+    )
+
+    description = Column(
+        String,
+        nullable=False
+    )
+
+    serial_number = Column(
+        String,
+        nullable=True,
+        index=True
+    )
+
+    gage_range = Column(
+        String,
+        nullable=True
+    )
+
+    manufacturer = Column(
+        String,
+        nullable=True
+    )
+
+    calibration_frequency_days = Column(
+        Integer,
+        nullable=True,
+        default=365
+    )
+
+    next_due_date = Column(
+        Date,
+        nullable=True,
+        index=True
+    )
+
+    location = Column(
+        String,
+        nullable=True
+    )
+
+    gage_owner = Column(
+        String,
+        nullable=True
+    )
+
+    status = Column(
+        String,
+        nullable=False,
+        default="active"
+    )
+    # active
+    # inactive
+    # out_for_calibration
+    # retired
+
+    notes = Column(Text)
+
+    created_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now()
+    )
+
+    # relationships
+    calibrations = relationship(
+        "GageCalibration",
+        back_populates="gage",
+        cascade="all, delete-orphan",
+        order_by="GageCalibration.date_calibrated.desc()"
+    )
+
+
+class GageCalibration(Base):
+    __tablename__ = "gage_calibrations"
+
+    id = Column(Integer, primary_key=True)
+
+    gage_id = Column(
+        Integer,
+        ForeignKey("gages.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True
+    )
+
+    date_calibrated = Column(
+        Date,
+        nullable=False
+    )
+
+    calibrated_by = Column(
+        String,
+        nullable=True
+    )
+
+    calibration_vendor = Column(
+        String,
+        nullable=True
+    )
+
+    standard_used = Column(
+        String,
+        nullable=True
+    )
+    # Gage block
+    # Standard
+    # Cert number
+
+    calibration_cert_no = Column(
+        String,
+        nullable=True
+    )
+
+    result = Column(
+        String,
+        nullable=False,
+        default="pass"
+    )
+    # pass
+    # fail
+
+    next_due_date = Column(
+        Date,
+        nullable=True
+    )
+
+    comment = Column(Text)
+
+    attachment_path = Column(String)
+
+    created_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now()
+    )
+
+    # relationships
+    gage = relationship(
+        "Gage",
+        back_populates="calibrations"
+    )

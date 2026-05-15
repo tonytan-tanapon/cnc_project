@@ -126,6 +126,11 @@ def list_traveler_steps(traveler_id: Optional[int] = None, db: Session = Depends
                 "PO:",
                 latest_po
             )
+            prev_step_code = None
+
+            if i > 0:
+                prev_step_code = rows[i - 1][0].step_code
+
             status = calculate_step_status(
                 receive,
                 total_accept,
@@ -133,6 +138,7 @@ def list_traveler_steps(traveler_id: Optional[int] = None, db: Session = Depends
                 is_first,
                 step.input_mode,
                 latest_po,
+                prev_step_code,
             )
             # print(f"Step {step.id} - receive: {receive}, accept: {total_accept}, reject: {total_reject} => status: {status}")
             result.append({

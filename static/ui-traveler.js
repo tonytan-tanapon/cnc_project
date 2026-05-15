@@ -725,21 +725,7 @@ async function loadOperation() {
   // =========================
   // MACHINE
   // =========================
-  let machineText = "-";
-
-  if (machineIdFromURL) {
-    currentMachineId = Number(machineIdFromURL);
-
-    try {
-      const m = await jfetch(`/api/v1/machines/${currentMachineId}`);
-      machineText = m.name || m.code || currentMachineId;
-    } catch {
-      machineText = currentMachineId;
-    }
-  }
-
-  document.querySelector("#machinename").textContent =
-    "Machine: " + machineText;
+  
 
   try {
     const qs = travelerStep ? `?seq=${encodeURIComponent(travelerStep)}` : "";
@@ -896,10 +882,10 @@ async function loadOperation() {
 
 
     const receive =
-      stepData.total_receive || 0;
+  stepData.qty_receive || 0;
 
-    const remain =
-      stepData.total_remain || 0;
+const remain =
+  stepData.qty_remain || 0;
 
     currentReceive = receive;
 
@@ -1158,8 +1144,24 @@ async function loadOperation() {
       console.warn("Failed to load employee", err);
     }
 
+    let machineText = "-";
+
+  if (machineIdFromURL) {
+    currentMachineId = Number(machineIdFromURL);
+
+    try {
+      const m = await jfetch(`/api/v1/machines/${currentMachineId}`);
+      machineText = m.name || m.code || currentMachineId;
+    } catch {
+      machineText = currentMachineId;
+    }
+  }
+
+  // document.querySelector("#machinename").textContent =
+  //   "Machine: " + machineText;
+
     document.querySelector("#operatorName").textContent =
-      `Operator: ${operatorText}`;
+      `${operatorText}` + ":"+machineText;
 
     // document.querySelector("#loginOP").textContent =
     //   `Login: ${travelerEmp}`;
@@ -1175,7 +1177,7 @@ async function loadOperation() {
       : getFirstActiveStatus(data.steps);
 
     const opStatusEl = document.querySelector("#op_status");
-    opStatusEl.textContent = "status: " + op_status;
+    opStatusEl.textContent =  op_status;
     opStatusEl.style.backgroundColor = statusColor(op_status);
 
     const cleanStepName =

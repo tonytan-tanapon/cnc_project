@@ -763,6 +763,11 @@ def get_traveler_by_no(
 
                 latest_po = latest_log.supplier_po
 
+            prev_step_code = None
+
+            if i > 0:
+                prev_step_code = sorted_steps[i - 1].step_code
+
             status = calculate_step_status(
                 qty_receive,
                 qty_accept,
@@ -770,6 +775,7 @@ def get_traveler_by_no(
                 i == 0,
                 s.input_mode,
                 latest_po,
+                prev_step_code,
             )
 
             print(
@@ -822,6 +828,11 @@ def get_traveler_by_no(
 
             latest_po = latest_log.supplier_po
 
+        prev_step_code = None
+
+        if i > 0:
+            prev_step_code = sorted(traveler.steps, key=lambda x: x.seq)[i - 1].step_code
+
         status = calculate_step_status(
             qty_receive,
             qty_accept,
@@ -829,6 +840,7 @@ def get_traveler_by_no(
             i == 0,
             s.input_mode,
             latest_po,
+            prev_step_code,
         )
 
         print(

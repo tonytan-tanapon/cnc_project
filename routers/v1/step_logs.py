@@ -72,6 +72,17 @@ def recalc_step_status(db: Session, step_id: int):
 
         latest_po = latest_log.supplier_po
 
+    # 🔥 previous step
+    prev_step = (
+        db.query(ShopTravelerStep)
+        .filter(
+            ShopTravelerStep.traveler_id == step.traveler_id,
+            ShopTravelerStep.seq < step.seq
+        )
+        .order_by(ShopTravelerStep.seq.desc())
+        .first()
+    )
+
     step.status = calculate_step_status(
         receive,
         total_accept,
@@ -79,6 +90,7 @@ def recalc_step_status(db: Session, step_id: int):
         is_first,
         step.input_mode,
         latest_po,
+        prev_step.step_code if prev_step else None,
     )
     print(
         "STATUS CHECK:",

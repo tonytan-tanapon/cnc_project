@@ -1,5 +1,20 @@
 # routers/lots.py
 from typing import List, Optional, Dict
+from models import (
+    ProductionLot,
+    Part,
+    PartRevision,
+    PO,
+    LotMaterialUse,
+    RawBatch,
+    RawMaterial,
+    Supplier,
+    MaterialPO,
+
+    ShopTraveler,
+    ShopTravelerStep,
+    ShopTravelerStepLog,
+)
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
@@ -118,6 +133,11 @@ def list_in_process_lots(
         .options(
             joinedload(ProductionLot.part),
             joinedload(ProductionLot.part_revision),
+
+            joinedload(ProductionLot.travelers)
+            .joinedload(ShopTraveler.steps)
+            .joinedload(ShopTravelerStep.logs)
+            .joinedload(ShopTravelerStepLog.machine)
         )
         .filter(
             ProductionLot.status == "in_process"
@@ -126,8 +146,60 @@ def list_in_process_lots(
         .all()
     )
 
-    return [
-        {
+    result = []
+
+    for lot in rows:
+
+        current_op = None
+        current_machine = None
+
+        traveler = (
+            lot.travelers[0]
+            if lot.travelers
+            else None
+        )
+
+        if traveler and traveler.steps:
+
+            active_step = None
+
+            # priority:
+            # running -> pending
+            for s in traveler.steps:
+
+                if s.status == "running":
+                    active_step = s
+                    break
+
+            if not active_step:
+
+                for s in traveler.steps:
+
+                    if s.status == "pending":
+                        active_step = s
+                        break
+
+            if active_step:
+
+                current_op = active_step.step_code
+
+                if active_step.logs:
+
+                    latest_log = sorted(
+                        active_step.logs,
+                        key=lambda l: (
+                            l.work_date or "",
+                            l.id or 0
+                        )
+                    )[-1]
+
+                    if latest_log.machine:
+                        current_machine = (
+                            latest_log.machine.code
+                            or latest_log.machine.name
+                        )
+
+        result.append({
             "id": lot.id,
 
             "lot_no": lot.lot_no,
@@ -141,9 +213,13 @@ def list_in_process_lots(
             "part_rev":
                 lot.part_revision.rev
                 if lot.part_revision else None,
-        }
-        for lot in rows
-    ]
+
+            "current_op": current_op,
+
+            "current_machine": current_machine,
+        })
+
+    return result
 
 @router.get("", response_model=LotPage)
 def list_lots(

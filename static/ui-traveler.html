@@ -128,26 +128,26 @@
 
     .remarks textarea {
 
-  border: 1px solid #d1d5db;
+      border: 1px solid #d1d5db;
 
-  border-radius: var(--radius);
+      border-radius: var(--radius);
 
-  padding: 12px 14px;
+      padding: 12px 14px;
 
-  font-size: 20px;
+      font-size: 20px;
 
-  width: 100%;
+      width: 100%;
 
-  min-height: 110px;
+      min-height: 110px;
 
-  resize: none;
+      resize: none;
 
-  box-sizing: border-box;
+      box-sizing: border-box;
 
-  line-height: 1.4;
+      line-height: 1.4;
 
-  overflow-y: hidden;
-}
+      overflow-y: hidden;
+    }
 
     .confirm-btn {
       background: var(--primary);
@@ -664,52 +664,16 @@
     #machinename,
     #operatorName {
 
-      font-size: 18px;
+      font-size: 20px;
       font-weight: 500;
       padding: 5px 16px;
-      border-radius: 8px;
+      border-radius: 1px;
       display: flex;
       align-items: center;
       min-height: 50px;
     }
 
-    /* LOT */
-    #lot_no {
-      background: #dbeafe;
-      color: #1e40af;
-    }
-
-    /* PART */
-    #part_no {
-      background: #dcfce7;
-      color: #166534;
-    }
-
-    /* REV */
-    #part_rev {
-      background: #fef3c7;
-      color: #92400e;
-    }
-
-    /* STATUS */
-    #op_status {
-      color: white;
-      min-width: 50px;
-      justify-content: center;
-      text-transform: uppercase;
-    }
-
-    /* MACHINE */
-    #machinename {
-      background: #ede9fe;
-      color: #5b21b6;
-    }
-
-    /* OPERATOR */
-    #operatorName {
-      background: #fee2e2;
-      color: #991b1b;
-    }
+   
 
     .remark-row {
       display: flex;
@@ -732,6 +696,32 @@
       border-radius: 10px;
       align-self: stretch;
     }
+
+    .action-left {
+  width: 400px;
+  min-width: 400px;
+
+  display: flex;
+  flex-direction: column;   /* 🔥 important */
+  gap: 10px;
+}
+
+.horizontal-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.remain-text {
+  text-align: center;
+  font-size: 22px;
+  font-weight: 700;
+  color: #111827;
+
+  padding: 8px;
+  border-radius: 8px;
+
+  background: #f3f4f6;
+}
   </style>
 </head>
 
@@ -751,6 +741,7 @@
       <div class="note">
         <div class="note-header">
           <div class="op" id="opCode"></div>
+          <div class="op_status" id="op_status"></div>
           <div class="loginOP" id="loginOP"></div>
           <div class="lot_no" id="lot_no"></div>
           <div class="part_no" id="part_no"></div>
@@ -758,7 +749,7 @@
 
           <div class="manchine" id="machinename"></div>
           <div class="operator" id="operatorName"></div>
-          <div class="op_status" id="op_status"></div>
+          
 
           <div style="display:flex; align-items:center; gap:10px;">
 
@@ -769,17 +760,16 @@
         <div class="title" id="opName"></div>
       </div>
       <!-- 🔥 TEXT ONLY -->
-      <div class="remain-text" id="remainText">
-        Remain/Receive : 0 / 0
-      </div>
-
       <div class="action-layout">
 
         <!-- LEFT SIDE -->
-        <div class="action-left horizontal-actions">
-
+        <div class="action-left">
+          <!-- 🔥 MOVE HERE -->
+          <div class="remain-text" id="remainText">
+            Remain/Receive : 0 / 0
+          </div>
           <!-- NORMAL MODE -->
-          <div id="normalPanel" style="display:flex; gap:8px; width:100%;">
+          <div id="normalPanel" class="horizontal-actions" style="display:flex; gap:8px; width:100%;">
 
             <div class="action-box" data-type="accept">
               <div class="action-title">Accept</div>
@@ -806,14 +796,14 @@
               <div class="qty-display" id="lengthValue">0</div>
             </div>
 
-            <!-- <div class="action-box" data-type="qty">
-              <div class="action-title">Qty</div>
-              <div class="qty-display" id="qtyValue">0</div>
-            </div> -->
-
           </div>
 
+          
+
         </div>
+
+        <!-- LEFT SIDE -->
+        
 
         <!-- RIGHT SIDE -->
         <div class="log-table">
@@ -901,7 +891,7 @@
       <!-- ✅ Unit selector on RIGHT -->
 
     </div>
-    
+
 
     <div id="lengthUOMPanel" style="
   display:none;

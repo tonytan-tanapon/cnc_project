@@ -7,6 +7,12 @@ const btnGo = document.getElementById("btnGo");
 const scanInput = document.getElementById("scanInput");
 const result = document.getElementById("result");
 
+let currentSortField = "lot_no";
+
+let currentSortDir = "asc";
+
+let cachedRows = [];
+
 let scanTimer = null;
 let traver_id = null;
 let traveler_no = null;
@@ -65,10 +71,10 @@ async function handleCode(value, source = "scan") {
   const isLotValid = await verifyLot(code);
   if (!isLotValid) {
 
-  alert("❌ Invalid Lot Number");
+    alert("❌ Invalid Lot Number");
 
-  return;
-}
+    return;
+  }
 
   // 🔐 Ask for PIN
   const pin = await showPinPad();
@@ -87,10 +93,10 @@ async function handleCode(value, source = "scan") {
 
   if (!isValid) {
 
-  alert("❌ Invalid PIN");
+    alert("❌ Invalid PIN");
 
-  return;
-}
+    return;
+  }
 
   // 🎯 SUCCESS
   //   alert(`✅ Access granted\nCode: ${code}`);
@@ -100,19 +106,102 @@ async function handleCode(value, source = "scan") {
   //   traveler_no
   // )}&seq=${encodeURIComponent(0)}&traveler_emp=${encodeURIComponent(pin)}`;
 }
+
+function setupSortableHeaders() {
+
+  const headers =
+    document.querySelectorAll("#lotTable th");
+
+  const fields = [
+    "lot_no",
+    "part_no",
+    "part_rev",
+    "current_op",
+    "current_machine",
+    "status"
+  ];
+
+  headers.forEach((th, index) => {
+
+    th.onclick = async () => {
+
+      const field = fields[index];
+
+      if (!field) return;
+
+      // toggle asc/desc
+      if (currentSortField === field) {
+
+        currentSortDir =
+          currentSortDir === "asc"
+            ? "desc"
+            : "asc";
+
+      } else {
+
+        currentSortField = field;
+
+        currentSortDir = "asc";
+      }
+
+      // update arrows
+      headers.forEach(h => {
+
+        h.querySelector(".sort-arrow")
+          ?.remove();
+      });
+
+      const arrow =
+        document.createElement("span");
+
+      arrow.className = "sort-arrow";
+
+      arrow.innerText =
+        currentSortDir === "asc"
+          ? "▲"
+          : "▼";
+
+      th.appendChild(arrow);
+
+      await loadInProcessLots();
+    };
+  });
+}
+
 async function loadInProcessLots() {
 
   try {
 
-    const rows = await jfetch(
+    cachedRows = await jfetch(
       api("api/v1/lots/in-process")
     );
+
+    const rows = [...cachedRows];
 
     console.log("LOTS =", rows);
 
     const tbody = document.querySelector("#lotTable tbody");
 
     tbody.innerHTML = "";
+
+
+    rows.sort((a, b) => {
+
+      const av =
+        String(a[currentSortField] || "")
+          .toLowerCase();
+
+      const bv =
+        String(b[currentSortField] || "")
+          .toLowerCase();
+
+      if (currentSortDir === "asc") {
+
+        return av.localeCompare(bv);
+      }
+
+      return bv.localeCompare(av);
+    });
 
     rows.forEach(row => {
 
@@ -127,8 +216,24 @@ async function loadInProcessLots() {
 
       tr.innerHTML = `
         <td>${row.lot_no || "-"}</td>
+
         <td>${row.part_no || "-"}</td>
+
         <td>${row.part_rev || "-"}</td>
+
+        <td style="
+          font-weight:700;
+          color:#2563eb;
+        ">
+          ${row.current_op || "-"}
+        </td>
+
+        <td style="
+          font-weight:700;
+          color:#059669;
+        ">
+          ${row.current_machine || "-"}
+        </td>
 
         <td>
           <span class="status-badge ${statusClass}">
@@ -141,7 +246,7 @@ async function loadInProcessLots() {
       tr.onclick = async () => {
 
         console.log("OPEN LOT =", row);
- 
+
         const traveler = await jfetch(
           api(`/travelers/by-lot-code/${encodeURIComponent(row.lot_no)}`)
         );
@@ -154,7 +259,7 @@ async function loadInProcessLots() {
         }
 
         traveler_no = traveler.traveler_no;
-        console.log("Set traveler_no =", traveler_no);  
+        console.log("Set traveler_no =", traveler_no);
 
         // 🔐 ask PIN first
         const pin = await showPinPad();
@@ -197,37 +302,37 @@ const lotDisplay = document.getElementById("lotDisplay");
 const lotKeys = document.getElementById("lotKeys");
 
 const closeLotOverlay =
-    document.getElementById("closeLotOverlay");
+  document.getElementById("closeLotOverlay");
 
 const lotOkBtn =
-    document.getElementById("lotOkBtn");
+  document.getElementById("lotOkBtn");
 
 const lotClearBtn =
-    document.getElementById("lotClearBtn");
+  document.getElementById("lotClearBtn");
 
 let lotValue = "";
 
 // OPEN
 btnLotPad?.addEventListener("click", () => {
 
-    lotValue = "";
+  lotValue = "";
 
-    renderLotDisplay();
+  renderLotDisplay();
 
-    lotOverlay.style.display = "flex";
+  lotOverlay.style.display = "flex";
 });
 
 // CLOSE
 closeLotOverlay?.addEventListener("click", () => {
 
-    lotOverlay.style.display = "none";
+  lotOverlay.style.display = "none";
 });
 
 // DISPLAY
 function renderLotDisplay() {
 
-    lotDisplay.innerText =
-        lotValue || "-----";
+  lotDisplay.innerText =
+    lotValue || "-----";
 }
 
 // CREATE KEYS
@@ -242,72 +347,72 @@ const layout = [
 
 layout.flat().forEach(key => {
 
-    const btn =
-        document.createElement("button");
+  const btn =
+    document.createElement("button");
 
-    btn.className = "pin-btn";
+  btn.className = "pin-btn";
 
-    btn.innerText = key;
+  btn.innerText = key;
 
-    btn.onclick = () => {
+  btn.onclick = () => {
 
-        if (key === "DEL") {
+    if (key === "DEL") {
 
-            lotValue =
-                lotValue.slice(0, -1);
+      lotValue =
+        lotValue.slice(0, -1);
 
-        } else {
+    } else {
 
-            if (lotValue.length >= 20)
-                return;
+      if (lotValue.length >= 20)
+        return;
 
-            lotValue += key;
-        }
+      lotValue += key;
+    }
 
-        renderLotDisplay();
-    };
+    renderLotDisplay();
+  };
 
-    lotKeys.appendChild(btn);
+  lotKeys.appendChild(btn);
 });
 
 // CLEAR
 lotClearBtn?.addEventListener("click", () => {
 
-    lotValue = "";
+  lotValue = "";
 
-    renderLotDisplay();
+  renderLotDisplay();
 });
 
 
 // OK
 lotOkBtn?.addEventListener("click", async () => {
 
-    if (!lotValue) return;
+  if (!lotValue) return;
 
-    // USE RAW LOT NUMBER
-    let finalLot =
+  // USE RAW LOT NUMBER
+  let finalLot =
     lotValue.trim().toUpperCase();
 
-if (!finalLot.startsWith("L")) {
+  if (!finalLot.startsWith("L")) {
     finalLot = "L" + finalLot;
-}
+  }
 
-    console.log(
-        "Selected Lot:",
-        finalLot
-    );
+  console.log(
+    "Selected Lot:",
+    finalLot
+  );
 
-    // CLOSE OVERLAY
-    lotOverlay.style.display = "none";
+  // CLOSE OVERLAY
+  lotOverlay.style.display = "none";
 
-    // USE NORMAL FLOW
-    await handleCode(finalLot, "manual");
+  // USE NORMAL FLOW
+  await handleCode(finalLot, "manual");
 
 });
 
 
 async function openMachineSelect(code, pin) {
-   
+
   console.log("🔥 OPEN MACHINE SELECT");
 
   const res = await fetch("/api/v1/machines");
@@ -342,6 +447,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   scanInput.focus();
 
   await loadInProcessLots();
+  setupSortableHeaders();
 
 });
 
