@@ -704,7 +704,10 @@ async def import_steps(
         # print("Final part_no =", result["lot"]["part_no"])
         # print("Final rev =", result["lot"].get("rev"))
         
-        print("material detail", result["lot"]["material_detail"])
+        print(
+            "material detail",
+            result["lot"].get("material_detail")
+        )
         # =========================
         # GET PART
         # =========================
