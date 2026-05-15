@@ -1212,7 +1212,7 @@ async function loadInspection() {
   currentInspection = qa;
 
   const title = $("inspectionTitle");
-  if (title) title.textContent = `QA Inspection · Lot ${lotId}`;
+  if (title) title.textContent = `QA Inspection `;
 
   // 🔥 เพิ่มตรงนี้
   try {
@@ -1595,6 +1595,39 @@ async function handleImportInspection(e) {
     e.target.value = "";
   }
 }
+async function loadLotInfo() {
+
+  if (!lotId) return;
+
+  try {
+
+    const lot = await jfetch(
+      `/lots/${encodeURIComponent(lotId)}`
+    );
+
+    console.log("LOT INFO", lot);
+
+    $("info_lot_no").textContent =
+      lot.lot_no || "";
+
+    $("info_part_no").textContent =
+      lot.part?.part_no || "";
+
+    $("info_rev").textContent =
+      lot.part_revision?.rev || "";
+
+    $("info_customer").textContent =
+      lot.customer?.code || "";
+
+  } catch (err) {
+
+    console.error(
+      "loadLotInfo error",
+      err
+    );
+  }
+}
+
 /* ---------- Add Row ---------- */
 function initAddRowButton() {
   const btn = $("btnAddRow");
@@ -1852,6 +1885,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("btnUpdateInspection").addEventListener("click", btnUpdateInspection);
   try {
     await loadInspection();
+    await loadLotInfo();
     await loadInspectionItems();
   } catch (e) {
     setError(e?.message || "Failed to load inspection");

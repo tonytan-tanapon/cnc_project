@@ -123,6 +123,18 @@
       border-radius: 6px;
       font-weight: 600;
     }
+
+    .lot-info-box {
+      display: flex;
+      gap: 24px;
+      flex-wrap: wrap;
+      padding: 8px 12px;
+      margin-bottom: 8px;
+      background: #f8fafc;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      font-size: 14px;
+    }
   </style>
 </head>
 
@@ -156,15 +168,39 @@
           gap: 8px;
           padding: 8px 0 6px 0;
         ">
-          <h2 style="margin: 0">🧪 QA Inspection:</h2>
+          
           <h2 id="inspectionTitle">(loading…)</h2>
+
 
           <!-- 🔥 Badge -->
           <span id="latestBadge">LATEST</span>
         </div>
 
         <!-- Header -->
-        <div class="header">
+        <div class="lot-info-box">
+
+          <div>
+            <b>Lot:</b>
+            <span id="info_lot_no"></span>
+          </div>
+
+          <div>
+            <b>Part:</b>
+            <span id="info_part_no"></span>
+          </div>
+
+          <div>
+            <b>Rev:</b>
+            <span id="info_rev"></span>
+          </div>
+
+          <div>
+            <b>Customer:</b>
+            <span id="info_customer"></span>
+          </div>
+
+        </div>
+        <!-- <div class="header">
           <div class="field col-3">
             <label>Inspector (Emp)</label>
             <input id="inspector_id" placeholder="ค้นหา emp…" />
@@ -173,7 +209,7 @@
           <div class="col-12">
             <div id="errorBox" class="err" style="display: none"></div>
           </div>
-        </div>
+        </div> -->
 
         <!-- Toolbar -->
         <div class="list-topbar">
@@ -186,9 +222,10 @@
           <input type="file" id="inspectionFileInput" accept=".docx" style="display:none" />
           <button id="btnUpdateInspection" class="btn-mini">💾 Update Inspection</button>
           <button id="btnExportInspection" class="btn-mini">Export Inspection</button>
-          <button id="btnExportBlank" class="btn-mini">Export Blank</button> Alt + 0216(Ø), 0177(±), 0176(°), Add OP and BB, Auto Save
+          <button id="btnExportBlank" class="btn-mini">Export Blank</button> Alt + 0216(Ø), 0177(±), 0176(°), Add OP and
+          BB, Auto Save
         </div>
-         
+
         <!-- Table -->
         <div id="qa_wrap">
           <div id="qa_table"></div>
