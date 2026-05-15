@@ -236,7 +236,7 @@ def parse_docx(path: str) -> dict:
 
         elif m := MAT_RE.search(raw_line):
             # `print`("Found MATERIAL in header:", m.group(1))
-            data["lot"]["material_detail"] = m.group(1)
+            data["lot"]["material"] = m.group(1)
 
         elif m := PART_NAME_RE.search(raw_line):
             data["lot"]["part_name"] = m.group(1)
@@ -286,9 +286,9 @@ def parse_docx(path: str) -> dict:
 
     # -------- TRAVELER --------
     data["traveler"]["traveler_no"] = data["lot"].get("lot_no")
-    material_detail = extract_material_detail_from_header(doc)
-    if material_detail:
-        data["lot"]["material_detail"] = material_detail
+    material = extract_material_detail_from_header(doc)
+    if material:
+        data["lot"]["material"] = material
 
     return data
 
@@ -436,10 +436,10 @@ def create_template_from_parsed_result(
         )
 
         # template.materail = result["lot"].get(
-        #     "material_detail"
+        #     "material"
         # )
         template.material = result["lot"].get(
-            "material_detail"
+            "material"
         )
         template.risk_level = result["traveler"].get(
             "risk"
@@ -448,7 +448,7 @@ def create_template_from_parsed_result(
         # if part_rev:
 
         #     part_rev.material = result["lot"].get(
-        #         "material_detail"
+        #         "material"
         #     )
     # =========================
     # CREATE NEW TEMPLATE
@@ -506,7 +506,7 @@ def create_template_from_parsed_result(
                 f"({version_str})",
 
             material=result["lot"].get(
-                "material_detail"
+                "material"
             ),
 
             risk_level=result["traveler"].get(
@@ -552,7 +552,7 @@ def create_template_from_parsed_result(
     if part_rev:
 
         part_rev.material = result["lot"].get(
-            "material_detail"
+            "material"
         )
 
     print(

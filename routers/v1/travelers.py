@@ -473,6 +473,7 @@ def create_template_version(
             )
 
         lot = traveler.lot
+        print("LOT",lot)
 
         if not lot:
             raise HTTPException(
@@ -483,12 +484,17 @@ def create_template_version(
         # =========================
         # BUILD PARSED RESULT
         # =========================
+        print("LOT:",lot.part_revision, ">", lot.part_revision.material)
         result = {
             "lot": {
                 "part_no": lot.part.part_no,
                 "rev":
                     lot.part_revision.rev
                     if lot.part_revision else None,
+                "material": (
+                    lot.part_revision.material
+                    if lot.part_revision else None
+                ),
             },
 
             "traveler": {
@@ -533,13 +539,7 @@ def create_template_version(
 
         traveler.template_id = tmpl.id
 
-        # 🔥 APPLY TEMPLATE MATERIAL
-        if traveler.lot and traveler.lot.part_revision:
-
-            traveler.lot.part_revision.material = (
-                tmpl.material
-            )
-
+       
         db.commit()
 
         return {
@@ -600,6 +600,14 @@ def apply_template(
         raise HTTPException(404, "Template not found")
     
     traveler.template_id = tmpl.id
+
+    # 🔥 APPLY TEMPLATE MATERIAL
+    if (
+        tmpl.material
+        and traveler.lot
+        and traveler.lot.part_revision
+    ):
+        traveler.lot.part_revision.material = tmpl.material
 
     # 🔥 delete old steps
     old_steps = (
