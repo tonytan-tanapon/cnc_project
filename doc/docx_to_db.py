@@ -435,14 +435,21 @@ def create_template_from_parsed_result(
             f"({version_str})"
         )
 
-        template.materail = result["lot"].get(
+        # template.materail = result["lot"].get(
+        #     "material_detail"
+        # )
+        template.material = result["lot"].get(
             "material_detail"
         )
-
         template.risk_level = result["traveler"].get(
             "risk"
         )
+        # 🔥 UPDATE PART REVISION MATERIAL
+        # if part_rev:
 
+        #     part_rev.material = result["lot"].get(
+        #         "material_detail"
+        #     )
     # =========================
     # CREATE NEW TEMPLATE
     # =========================
@@ -498,7 +505,7 @@ def create_template_from_parsed_result(
                 f"Imported from DOCX "
                 f"({version_str})",
 
-            materail=result["lot"].get(
+            material=result["lot"].get(
                 "material_detail"
             ),
 
@@ -540,6 +547,13 @@ def create_template_from_parsed_result(
         )
 
     db.flush()
+
+    # 🔥 UPDATE PART REVISION MATERIAL
+    if part_rev:
+
+        part_rev.material = result["lot"].get(
+            "material_detail"
+        )
 
     print(
         f"✅ Template ready "

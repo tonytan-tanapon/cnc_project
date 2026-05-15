@@ -225,28 +225,48 @@ document.addEventListener("DOMContentLoaded", () => {
     updateDisplay(val);
   });
   // ===== Keypad numeric keys =====
+  // ===== Keypad numeric keys =====
   document.querySelectorAll(".key").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      if (!activeTarget) return;
-      let val = activeTarget.textContent.trim();
 
-      if (isFirstKeyPress || val === "0") {
-        val = "";
+    btn.addEventListener("click", () => {
+
+      if (!activeTarget) return;
+
+      let val =
+        activeTarget.textContent.trim();
+
+      const key =
+        btn.textContent.trim();
+
+      // ⭐ prevent multiple .
+      if (
+        key === "." &&
+        val.includes(".")
+      ) {
+        return;
+      }
+
+      if (
+        isFirstKeyPress ||
+        val === "0"
+      ) {
+
+        // keep 0. working
+        if (key === ".") {
+          val = "0";
+        } else {
+          val = "";
+        }
+
         isFirstKeyPress = false;
       }
 
-      val = val + btn.textContent.trim();
+      val = val + key;
+
       activeTarget.textContent = val;
+
       updateDisplay(val);
     });
-  });
-
-  // ===== Clear button =====
-  document.querySelector(".key-wide").addEventListener("click", () => {
-    if (activeTarget) {
-      activeTarget.textContent = "0";
-      updateDisplay("0");
-    }
   });
 
 
@@ -260,8 +280,7 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    const val = parseInt(activeTarget.textContent.trim());
-
+    const val = parseFloat(activeTarget.textContent.trim());
     const poValue =
       document.querySelector("#poValue")?.textContent?.trim() || "";
 
@@ -425,6 +444,23 @@ document.addEventListener("DOMContentLoaded", () => {
         console.log("Lot status updated to in_process");
       }
 
+      // // ⭐ AUTO PASS FOR MATERIAL OP
+      // if (
+      //   isMachineMode &&
+      //   poValue &&
+      //   poValue.trim() !== ""
+      // ) {
+
+      //   await jfetch(
+      //     `/api/v1/traveler-steps/${stepId}/status`,
+      //     {
+      //       method: "PUT",
+      //       body: JSON.stringify({
+      //         status: "passed"
+      //       })
+      //     }
+      //   );
+      // }
 
 
 
@@ -814,8 +850,11 @@ async function loadOperation() {
     // console.log("Current Step Data:", stepData);
 
 
-    const receive = stepData.qty_receive || 0;
-    const remain = stepData.qty_remain || 0;
+    const receive =
+      stepData.total_receive || 0;
+
+    const remain =
+      stepData.total_remain || 0;
 
     currentReceive = receive;
 
@@ -828,8 +867,11 @@ async function loadOperation() {
     // =========================
     // 🔥 TOTAL (ADD HERE)
     // =========================
-    const totalAccept = stepData.qty_accept || 0;
-    const totalReject = stepData.qty_reject || 0;
+    const totalAccept =
+      stepData.total_accept || 0;
+
+    const totalReject =
+      stepData.total_reject || 0;
 
     const elTotalAccept = document.querySelector("#totalAccept");
     const elTotalReject = document.querySelector("#totalReject");
@@ -1061,8 +1103,11 @@ async function loadOperation() {
     // =========================
     // STATUS
     // =========================
+    const refreshedStep =
+      data.steps.find(s => s.id === step.id) || step;
+
     const op_status = travelerStep
-      ? step.status
+      ? refreshedStep.status
       : getFirstActiveStatus(data.steps);
 
     const opStatusEl = document.querySelector("#op_status");

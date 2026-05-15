@@ -533,6 +533,13 @@ def create_template_version(
 
         traveler.template_id = tmpl.id
 
+        # 🔥 APPLY TEMPLATE MATERIAL
+        if traveler.lot and traveler.lot.part_revision:
+
+            traveler.lot.part_revision.material = (
+                tmpl.material
+            )
+
         db.commit()
 
         return {
@@ -706,11 +713,63 @@ def get_traveler_by_no(
 
                 qty_receive = prev_accept
 
+            latest_po = None
+
+            if s.logs:
+
+                latest_log = sorted(
+                    s.logs,
+                    key=lambda l: (
+                        l.work_date or date.min,
+                        l.id or 0
+                    )
+                )[-1]
+
+                latest_po = latest_log.supplier_po
+
+            latest_po = None
+
+            if s.logs:
+
+                latest_log = sorted(
+                    s.logs,
+                    key=lambda l: (
+                        l.work_date or date.min,
+                        l.id or 0
+                    )
+                )[-1]
+
+                latest_po = latest_log.supplier_po
+
+            latest_po = None
+
+            if s.logs:
+
+                latest_log = sorted(
+                    s.logs,
+                    key=lambda l: (
+                        l.work_date or date.min,
+                        l.id or 0
+                    )
+                )[-1]
+
+                latest_po = latest_log.supplier_po
+
             status = calculate_step_status(
                 qty_receive,
                 qty_accept,
                 qty_reject,
-                i == 0
+                i == 0,
+                s.input_mode,
+                latest_po,
+            )
+
+            print(
+                "BY_NO STATUS:",
+                s.step_code,
+                s.input_mode,
+                latest_po,
+                status
             )
 
             # ⭐ FIRST non-passed step
@@ -741,11 +800,35 @@ def get_traveler_by_no(
 
         qty_remain = qty_receive - (qty_accept + qty_reject)
 
+        latest_po = None
+
+        if s.logs:
+
+            latest_log = sorted(
+                s.logs,
+                key=lambda l: (
+                    l.work_date or date.min,
+                    l.id or 0
+                )
+            )[-1]
+
+            latest_po = latest_log.supplier_po
+
         status = calculate_step_status(
             qty_receive,
             qty_accept,
             qty_reject,
-            i == 0
+            i == 0,
+            s.input_mode,
+            latest_po,
+        )
+
+        print(
+            "BY_NO STATUS:",
+            s.step_code,
+            s.input_mode,
+            latest_po,
+            status
         )
 
         steps.append({

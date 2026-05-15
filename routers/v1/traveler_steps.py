@@ -104,11 +104,35 @@ def list_traveler_steps(traveler_id: Optional[int] = None, db: Session = Depends
 
             is_first = (i == 0)
 
+            latest_po = None
+
+            if logs:
+
+                latest_log = sorted(
+                    logs,
+                    key=lambda l: (
+                        l.work_date or datetime.min.date(),
+                        l.id or 0
+                    )
+                )[-1]
+
+                latest_po = latest_log.supplier_po
+
+            print(
+                "STEP:",
+                step.step_code,
+                "MODE:",
+                step.input_mode,
+                "PO:",
+                latest_po
+            )
             status = calculate_step_status(
                 receive,
                 total_accept,
                 total_reject,
-                is_first
+                is_first,
+                step.input_mode,
+                latest_po,
             )
             # print(f"Step {step.id} - receive: {receive}, accept: {total_accept}, reject: {total_reject} => status: {status}")
             result.append({
@@ -318,6 +342,41 @@ def update_traveler_step(
 
     return s
 
+
+@router.put("/{step_id}/status")
+def update_traveler_step_status(
+    step_id: int,
+    payload: dict,
+    db: Session = Depends(get_db)
+):
+
+    s = db.get(ShopTravelerStep, step_id)
+
+    if not s:
+        raise HTTPException(404, "Step not found")
+
+    status = payload.get("status")
+
+    if not status:
+        raise HTTPException(400, "status required")
+
+    s.status = status
+
+    # optional timestamps
+    if status == "passed":
+        s.finished_at = datetime.utcnow()
+
+    if status == "running" and not s.started_at:
+        s.started_at = datetime.utcnow()
+
+    db.commit()
+    db.refresh(s)
+
+    return {
+        "success": True,
+        "id": s.id,
+        "status": s.status
+    }
 
 @router.delete("/{step_id}")
 def delete_traveler_step(step_id: int, db: Session = Depends(get_db)):
@@ -633,7 +692,7 @@ async def import_steps(
         # =========================
         result = parse_docx(temp_path)
 
-        print("Parsed result:", result)
+        # print("Parsed result:", result)
 
         # ✅ OVERRIDE FROM FRONTEND
         if part_no:
@@ -642,9 +701,10 @@ async def import_steps(
         if rev:
             result["lot"]["rev"] = rev
 
-        print("Final part_no =", result["lot"]["part_no"])
-        print("Final rev =", result["lot"].get("rev"))
-
+        # print("Final part_no =", result["lot"]["part_no"])
+        # print("Final rev =", result["lot"].get("rev"))
+        
+        print("material detail", result["lot"]["material_detail"])
         # =========================
         # GET PART
         # =========================
@@ -660,6 +720,8 @@ async def import_steps(
             part,
             part_rev,
         )
+
+
 
         db.commit()
 

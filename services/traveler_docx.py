@@ -205,7 +205,7 @@ def generate_traveler_from_db(template_path, data: dict, output_path):
     # --------------------------------------------------
     # SORT STEPS (🔥 FIX M1 missing)
     # --------------------------------------------------
-    steps_sorted = sorted(data["steps"], key=lambda x: x.get("seq", 0))
+    steps_sorted = data["steps"]
 
     # print("DEBUG steps:", steps_sorted)
 
@@ -417,7 +417,7 @@ def generate_traveler_from_db_blank(template_path, data: dict, output_path):
     # --------------------------------------------------
     # SORT STEPS (🔥 FIX M1 missing)
     # --------------------------------------------------
-    steps_sorted = sorted(data["steps"], key=lambda x: x.get("seq", 0))
+    steps_sorted = data["steps"]
 
     # print("DEBUG steps:", steps_sorted)
 

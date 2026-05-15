@@ -510,27 +510,6 @@ function normalizeStep(row) {
     heat_lot:
       latestLog.supplier_lot ?? "",
 
-    material_type:
-      latestLog.material_type ?? "",
-
-    material_size:
-      latestLog.material_size ?? "",
-
-    material_length:
-      latestLog.material_length ?? "",
-
-    material_qty:
-      latestLog.material_qty ?? "",
-
-    material_uom:
-      latestLog.material_uom ?? "",
-
-    supplier_send_date:
-      latestLog.supplier_send_date ?? "",
-
-    supplier_receive_date:
-      latestLog.supplier_receive_date ?? "",
-
     logs
   };
 }
@@ -717,306 +696,52 @@ function initStepsTable() {
 
 
     columns: [
-      {
-        title: "",
-        formatter: function(cell) {
-
-  const opened =
-    cell.getRow()
-      .getElement()
-      .querySelector(".log-holder");
-
-  return opened ? "▼" : "▶";
-},
-        width: 50,
-        hozAlign: "center",
-        cellClick: function (e, cell) {
-
-          const row = cell.getRow();
-
-          const el = row.getElement();
-
-          const old =
-            el.querySelector(".log-holder");
-
-          if (old) {
-            
-            old.remove();
-            
-            return;
-          }
-
-          const data = row.getData();
-
-          const holder =
-            document.createElement("div");
-
-          holder.className = "log-holder";
-
-          holder.style.padding = "10px";
-
-          holder.innerHTML = `
-
-      <div>
-
-  <div style="margin-bottom:10px; display:flex; gap:10px; align-items:center;">
-
-  <input
-    type="date"
-    class="new-log-date"
-    value="${new Date().toISOString().slice(0,10)}"
-  >
-
-  <button
-  type="button"
-  class="btn-mini btn-success add-log-btn"
-  data-step-id="${data.id}"
->
-  + Add Log
-</button>
-
-</div>
-    + Add Log
-  </button>
-
-  <table class="log-subtable">
-
-        <thead>
-          <tr>
-            <th>Date</th>
-            <th>Operator</th>
-            <th>Machine</th>
-            <th>Good</th>
-            <th>Bad</th>
-            <th>Supplier PO</th>
-            <th>Material</th>
-          </tr>
-        </thead>
-
-        <tbody>
-
-  ${(data.logs || []).map(log => `
-
-    <tr>
-
-      <!-- DATE -->
-      <td>
-
-        <input
-          class="log-input"
-          type="date"
-          data-log-id="${log.id}"
-          data-field="work_date"
-          value="${log.work_date || ""}"
-        >
-
-      </td>
-
-      <!-- OPERATOR -->
-      <td>
-
-        <input
-          class="log-input"
-          data-log-id="${log.id}"
-          data-field="operator_nickname"
-          value="${log.operator_nickname || ""}"
-        >
-
-      </td>
-
-      <!-- Machine -->
-      <td>
-
-        <input
-          class="log-input"
-          data-log-id="${log.id}"
-          data-field="machine"
-          value="${log.machine_name || ""}"
-        >
-
-      </td>
-
-      <!-- GOOD -->
-      <td>
-
-        <input
-          class="log-input"
-          type="number"
-          data-log-id="${log.id}"
-          data-field="qty_accept"
-          value="${log.qty_accept || 0}"
-        >
-
-      </td>
-
-      <!-- BAD -->
-      <td>
-
-        <input
-          class="log-input"
-          type="number"
-          data-log-id="${log.id}"
-          data-field="qty_reject"
-          value="${log.qty_reject || 0}"
-        >
-
-      </td>
-
-      <!-- SUPPLIER PO -->
-      <td>
-
-        <input
-          class="log-input"
-          data-log-id="${log.id}"
-          data-field="supplier_po"
-          value="${log.supplier_po || ""}"
-        >
-
-      </td>
-
-      <!-- MATERIAL -->
-      <td>
-
-        <input
-          class="log-input"
-          data-log-id="${log.id}"
-          data-field="material_type"
-          value="${log.material_type || ""}"
-        >
-
-      </td>
-
-    </tr>
-
-  `).join("")}
-
-</tbody>
-
-      </table>
-    `;
-
-          el.appendChild(holder);
-          holder
-  .querySelector(".add-log-btn")
-  .addEventListener("click", async (e) => {
-
-  e.preventDefault();
-  e.stopPropagation();
-
-    try {
-
-      const selectedDate =
-  holder.querySelector(".new-log-date").value;
-
-      await jfetch(
-        "/api/v1/step-logs",
-        {
-          method: "POST",
-
-          body: JSON.stringify({
-
-            step_id: data.id,
-
-            work_date: selectedDate,
-
-            qty_accept: 0,
-
-            qty_reject: 0,
-
-            supplier_po: "",
-
-            supplier_name: "",
-
-            material_type: "",
-
-            material_size: "",
-
-            material_length: "",
-
-            material_qty: 0,
-
-            material_uom: ""
-
-          })
-        }
-      );
-
-      toast("Log created");
-
-      // await reloadSteps();
-      const tbody =
-  holder.querySelector("tbody");
-
-tbody.insertAdjacentHTML(
-  "beforeend",
-  `
-<tr>
-
-  <td>
-    <input
-      class="log-input"
-      type="date"
-      value="${selectedDate}"
-    >
-  </td>
-
-  <td>
-    <input
-      class="log-input"
-      value=""
-    >
-  </td>
-
-  <td>
-    <input
-      class="log-input"
-      value=""
-    >
-  </td>
-
-  <td>
-    <input
-      class="log-input"
-      type="number"
-      value="0"
-    >
-  </td>
-
-  <td>
-    <input
-      class="log-input"
-      type="number"
-      value="0"
-    >
-  </td>
-
-  <td>
-    <input
-      class="log-input"
-      value=""
-    >
-  </td>
-
-  <td>
-    <input
-      class="log-input"
-      value=""
-    >
-  </td>
-
-</tr>
-`
-);
-
-    } catch(err) {
-
-      console.error(err);
-
-      toast("Create log failed", false);
-    }
-});
-        }
-      },
+      // =====================
+      // 💾 SAVE COLUMN
+      // =====================
+      //   {
+      //     title: "Save",
+      //     width: 100,
+      //     hozAlign: "center",
+
+      //     formatter: () => `
+      // <button class="btn-mini btn-success" data-action="save">💾</button>
+      // `,
+
+      //       cellClick: async (e, cell) => {
+      //         const action = e.target.getAttribute("data-action");
+      //         if (action !== "save") return;
+
+      //         const row = cell.getRow();
+      //         const data = row.getData();
+
+      //         try {
+      //           await jfetch(`/traveler-steps/${data.id}`, {
+      //             method: "PUT",
+      //             body: JSON.stringify({
+      //               seq: data.seq,
+      //               step_code: data.step_code,
+      //               step_name: data.step_name,
+      //               step_detail: data.step_detail,
+      //               station: data.station,
+      //               operator_id: data.operator_id,
+      //               supplier_po: data.supplier_po,
+      //               supplier_name: data.supplier_name,
+      //               heat_lot: data.heat_lot,
+      //             }),
+      //           });
+
+      //           setDirtyClass(row, false);
+      //           row.getTable().redraw(true);
+
+      //           toast("Saved");
+
+      //         } catch (err) {
+      //           console.error(err);
+      //           toast("Save failed", false);
+      //         }
+      //       }
+      //     },
 
       { title: "#", field: "seq", width: 70, hozAlign: "center", editor: "number" },
 
@@ -1031,56 +756,56 @@ tbody.insertAdjacentHTML(
       },
 
       {
-        title: "Supplier",
-        width: 260,
+  title: "Supplier",
+  width: 260,
 
-        formatter: function (cell) {
+  formatter: function (cell) {
 
-          const logs =
-            cell.getRow().getData().logs || [];
+    const logs =
+      cell.getRow().getData().logs || [];
 
-          const blocks = [];
+    const blocks = [];
 
-          logs.forEach(l => {
+    logs.forEach(l => {
 
-            const lines = [];
+      const lines = [];
 
-            if (l.supplier_po) {
-              lines.push(
-                `PO: ${l.supplier_po}`
-              );
-            }
+      if (l.supplier_po) {
+        lines.push(
+          `PO: ${l.supplier_po}`
+        );
+      }
 
-            if (l.supplier_name) {
-              lines.push(
-                `Supplier: ${l.supplier_name}`
-              );
-            }
+      if (l.supplier_name) {
+        lines.push(
+          `Supplier: ${l.supplier_name}`
+        );
+      }
 
-            if (l.supplier_lot) {
-              lines.push(
-                `Lot: ${l.supplier_lot}`
-              );
-            }
+      if (l.supplier_lot) {
+        lines.push(
+          `Lot: ${l.supplier_lot}`
+        );
+      }
 
-            // 🔥 skip empty logs
-            if (lines.length === 0) {
-              return;
-            }
+      // 🔥 skip empty logs
+      if (lines.length === 0) {
+        return;
+      }
 
-            const text = lines.join("<br>");
+      const text = lines.join("<br>");
 
-            // 🔥 prevent duplicate block
-            if (!blocks.includes(text)) {
-              blocks.push(text);
-            }
-          });
+      // 🔥 prevent duplicate block
+      if (!blocks.includes(text)) {
+        blocks.push(text);
+      }
+    });
 
-          return blocks.join(
-            "<hr style='margin:4px 0'>"
-          );
-        }
-      },
+    return blocks.join(
+      "<hr style='margin:4px 0'>"
+    );
+  }
+},
 
 
       // { title: "Station", field: "station", width: 140 },
@@ -1130,7 +855,8 @@ tbody.insertAdjacentHTML(
         formatter: (c) => Math.round(c.getValue() ?? 0)
       },
 
-      
+
+
       // 🔥 DELETE STEP
 
       // =====================
@@ -1239,12 +965,9 @@ tbody.insertAdjacentHTML(
       JSON.parse(JSON.stringify(data))
     );
 
-
     row.getElement().classList.add("is-dirty");
 
   });
-
-
 
 
 

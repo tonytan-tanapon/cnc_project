@@ -394,7 +394,26 @@ def build_traveler_data_from_db(traveler: ShopTraveler) -> dict:
 
     prev_accept = lot.planned_qty or 0
 
-    for s in traveler.steps:
+    sorted_steps = sorted(
+        traveler.steps,
+        key=lambda s: (
+            0 if str(s.step_code).startswith("M") else 1,
+
+            int(
+                ''.join(
+                    filter(str.isdigit, str(s.step_code))
+                ) or 999999
+            )
+        )
+    )
+
+    for s in sorted_steps:
+        print(
+            "seq =", s.seq,
+            "step_code =", s.step_code
+        )
+
+    for s in sorted_steps:
 
         # -------------------------
         # ACCEPT / REJECT

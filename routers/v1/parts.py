@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Body, Response
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import or_, desc
 from sqlalchemy.orm import Session, selectinload
+from models import TravelerTemplate
 from sqlalchemy.exc import IntegrityError
 
 from database import get_db
@@ -377,7 +378,6 @@ def create_revision(part_id: int, payload: RevCreate, db: Session = Depends(get_
 
     return RevOut.model_validate(r)
 
-
 @parts_router.put("/part-revision/{rev_id}/material")
 def update_part_revision_material(
     rev_id: int,
@@ -390,7 +390,28 @@ def update_part_revision_material(
     if not rev:
         raise HTTPException(404, "PartRevision not found")
 
+    # =========================
+    # UPDATE PART REVISION
+    # =========================
     rev.material = payload.get("material")
+
+    # =========================
+    # UPDATE LATEST TEMPLATE
+    # =========================
+    latest_template = (
+        db.query(TravelerTemplate)
+        .filter(
+            TravelerTemplate.part_revision_id == rev.id,
+            TravelerTemplate.is_latest == True
+        )
+        .first()
+    )
+
+    if latest_template:
+
+        latest_template.material = payload.get(
+            "material"
+        )
 
     db.commit()
 

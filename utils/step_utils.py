@@ -1,26 +1,49 @@
 
-def calculate_step_status(receive, accept, reject, is_first):
+def calculate_step_status(
+    receive,
+    accept,
+    reject,
+    is_first,
+    input_mode=None,
+    supplier_po=None,
+):
+
     total = accept + reject
 
-    # Step 1 (no planned_qty)
+    # ====================================
+    # ⭐ MACHINE CUT / MATERIAL MODE
+    # ====================================
+    if input_mode == "machine_cut":
+
+        # if PO exists -> passed
+        if supplier_po and str(supplier_po).strip():
+            return "passed"
+
+        return "pending"
+
+    # ====================================
+    # STEP 1
+    # ====================================
     if is_first:
+
         if accept > 0:
-            return "passed"   # ✅ FIX
+            return "passed"
+
         if total == 0:
             return "pending"
+
         return "running"
 
-    # normal steps
+    # ====================================
+    # NORMAL STEP
+    # ====================================
     if receive == 0 and total == 0:
         return "pending"
 
     if total > 0 and total < receive:
         return "running"
 
-    if receive > 0 and total == receive:
-        return "passed"
-    
-    if receive > 0 and total > receive:
+    if receive > 0 and total >= receive:
         return "passed"
 
     return "pending"

@@ -58,13 +58,33 @@ def recalc_step_status(db: Session, step_id: int):
     # 🔥 STEP 1 SPECIAL LOGIC
     is_first = (step.seq == 1)
 
+    latest_po = None
+
+    if step.logs:
+
+        latest_log = sorted(
+            step.logs,
+            key=lambda l: (
+                l.work_date or datetime.min.date(),
+                l.id or 0
+            )
+        )[-1]
+
+        latest_po = latest_log.supplier_po
+
     step.status = calculate_step_status(
         receive,
         total_accept,
         total_reject,
-        is_first
+        is_first,
+        step.input_mode,
+        latest_po,
     )
-
+    print(
+        "STATUS CHECK:",
+        step.input_mode,
+        latest_po
+    )
     print(f"Recalculated step {step.id} status: {step.status} (receive={receive}, accept={total_accept}, reject={total_reject})")
 
     db.commit()
@@ -125,77 +145,318 @@ def get_step_logs(
 # =======================
 # CREATE (NO UPSERT)
 # =======================
-@router.post("")
-def create_step_log(payload: dict, db: Session = Depends(get_db)):
+# @router.post("",
+#     response_model=StepLogOut)
+# def create_step_log(payload: dict, db: Session = Depends(get_db)):
+#     try:
+#         print("CREATE PAYLOAD:", payload)
+
+#         # =========================
+#         # STEP
+#         # =========================
+#         step_id = payload.get("step_id")
+#         if not step_id:
+#             raise HTTPException(400, "step_id is required")
+
+#         from models import ShopTravelerStep
+
+#         step = db.get(ShopTravelerStep, step_id)
+#         if not step:
+#             raise HTTPException(404, "Step not found")
+
+#         # =========================
+#         # DATE
+#         # =========================
+#         import pytz
+
+#         work_date_str = payload.get("work_date")
+
+#         if work_date_str:
+#             try:
+#                 work_date = datetime.fromisoformat(work_date_str).date()
+#             except ValueError:
+#                 raise HTTPException(400, "Invalid work_date format")
+#         else:
+#             la = pytz.timezone("America/Los_Angeles")
+#             work_date = datetime.now(la).date()
+
+#         # =========================
+#         # 🔥 INCOMING FIRST (IMPORTANT)
+#         # =========================
+#         incoming_accept = Decimal(str(payload.get("qty_accept") or 0))
+#         incoming_reject = Decimal(str(payload.get("qty_reject") or 0))
+
+#         if incoming_accept < 0 or incoming_reject < 0:
+#             raise HTTPException(400, "qty_accept / qty_reject must be >= 0")
+
+#         # =========================
+#         # 🔥 CALCULATE RECEIVE
+#         # =========================
+#         if step.seq == 1:
+#             receive = None   # Step 1 → no limit
+#         else:
+#             prev_step = db.query(ShopTravelerStep)\
+#                 .filter(
+#                     ShopTravelerStep.traveler_id == step.traveler_id,
+#                     ShopTravelerStep.seq < step.seq
+#                 )\
+#                 .order_by(ShopTravelerStep.seq.desc())\
+#                 .first()
+
+#             receive = sum(
+#                 (Decimal(l.qty_accept or 0) + Decimal(l.qty_reject or 0))
+#                 for l in (prev_step.logs or [])
+#             ) if prev_step else Decimal("0")
+
+#         # =========================
+#         # FLEXIBLE MODE
+#         # =========================
+#         # Allow operators to input freely
+#         # even if qty exceeds previous OP receive.
+#         # Real production environments often
+#         # require late logging / rework / merge lots.
+
+#         existing_logs = step.logs or []
+
+#         total_accept = sum(
+#             Decimal(l.qty_accept or 0)
+#             for l in existing_logs
+#         )
+
+#         total_reject = sum(
+#             Decimal(l.qty_reject or 0)
+#             for l in existing_logs
+#         )
+
+#         total_accept += incoming_accept
+#         total_reject += incoming_reject
+
+#         if receive is not None and (total_accept + total_reject > receive):
+
+#             print(
+#                 f"WARNING FLEXIBLE MODE: "
+#                 f"Step {step.id} exceeds receive. "
+#                 f"Receive={receive}, "
+#                 f"Total={total_accept + total_reject}"
+#             )
+
+#         # =========================
+#         # UPSERT (BY DATE)
+#         # =========================
+#         existing = db.query(ShopTravelerStepLog).filter(
+#             ShopTravelerStepLog.step_id == step_id,
+#             ShopTravelerStepLog.work_date == work_date
+#         ).first()
+
+#         if existing:
+#             print("Updating existing log")
+
+#             existing.qty_accept = incoming_accept
+#             existing.qty_reject = incoming_reject
+#             existing.operator_id = payload.get("operator_id")
+#             existing.machine_id = payload.get("machine_id")
+#             existing.note = payload.get("note")
+#             existing.supplier_po = payload.get("supplier_po")
+#             existing.supplier_name = payload.get("supplier_name")
+#             existing.supplier_lot = payload.get("supplier_lot")
+
+#             existing.supplier_send_date = payload.get("supplier_send_date")
+#             existing.supplier_receive_date = payload.get("supplier_receive_date")
+
+#             existing.material_size = payload.get("material_size")
+#             existing.material_length = payload.get("material_length")
+#             existing.material_uom = payload.get("material_uom")
+#             existing.material_type = payload.get("material_type")
+
+#             db.commit()
+#             db.refresh(existing)
+
+#             # recalc_step_status(db, step_id)
+#             db.commit()
+
+#             return existing
+
+#         # =========================
+#         # CREATE NEW
+#         # =========================
+#         log = ShopTravelerStepLog(
+
+#         step_id=step_id,
+
+#         qty_accept=incoming_accept,
+#         qty_reject=incoming_reject,
+
+#         work_date=work_date,
+
+#         operator_id=payload.get("operator_id"),
+#         machine_id=payload.get("machine_id"),
+
+#         note=payload.get("note"),
+
+#         supplier_po=payload.get("supplier_po"),
+#         supplier_name=payload.get("supplier_name"),
+#         supplier_lot=payload.get("supplier_lot"),
+
+#         supplier_send_date=payload.get("supplier_send_date"),
+#         supplier_receive_date=payload.get("supplier_receive_date"),
+
+#         material_size=payload.get("material_size"),
+#         material_length=payload.get("material_length"),
+#         material_uom=payload.get("material_uom"),
+#         material_type=payload.get("material_type"),
+#         material_qty=payload.get("material_qty"),
+#     )
+#         db.add(log)
+#         db.commit()
+#         db.refresh(log)
+
+#         recalc_step_status(db, step_id)
+#         db.commit()
+
+#         return log
+
+#     except HTTPException:
+#         raise
+
+#     except Exception as e:
+#         db.rollback()
+#         print("ERROR:", str(e))
+#         raise HTTPException(500, str(e))
+
+
+@router.post(
+    "",
+    response_model=StepLogOut
+)
+def create_step_log(
+    payload: dict,
+    db: Session = Depends(get_db)
+):
     try:
+
         print("CREATE PAYLOAD:", payload)
 
         # =========================
         # STEP
         # =========================
         step_id = payload.get("step_id")
+
         if not step_id:
-            raise HTTPException(400, "step_id is required")
+            raise HTTPException(
+                400,
+                "step_id is required"
+            )
 
         from models import ShopTravelerStep
 
-        step = db.get(ShopTravelerStep, step_id)
+        step = db.get(
+            ShopTravelerStep,
+            step_id
+        )
+
         if not step:
-            raise HTTPException(404, "Step not found")
+            raise HTTPException(
+                404,
+                "Step not found"
+            )
 
         # =========================
         # DATE
         # =========================
         import pytz
 
-        work_date_str = payload.get("work_date")
+        work_date_str = payload.get(
+            "work_date"
+        )
 
         if work_date_str:
+
             try:
-                work_date = datetime.fromisoformat(work_date_str).date()
+
+                work_date = (
+                    datetime
+                    .fromisoformat(work_date_str)
+                    .date()
+                )
+
             except ValueError:
-                raise HTTPException(400, "Invalid work_date format")
+
+                raise HTTPException(
+                    400,
+                    "Invalid work_date format"
+                )
+
         else:
-            la = pytz.timezone("America/Los_Angeles")
-            work_date = datetime.now(la).date()
+
+            la = pytz.timezone(
+                "America/Los_Angeles"
+            )
+
+            work_date = (
+                datetime.now(la).date()
+            )
 
         # =========================
-        # 🔥 INCOMING FIRST (IMPORTANT)
+        # QTY
         # =========================
-        incoming_accept = Decimal(str(payload.get("qty_accept") or 0))
-        incoming_reject = Decimal(str(payload.get("qty_reject") or 0))
+        incoming_accept = Decimal(
+            str(
+                payload.get("qty_accept") or 0
+            )
+        )
 
-        if incoming_accept < 0 or incoming_reject < 0:
-            raise HTTPException(400, "qty_accept / qty_reject must be >= 0")
+        incoming_reject = Decimal(
+            str(
+                payload.get("qty_reject") or 0
+            )
+        )
+
+        if (
+            incoming_accept < 0 or
+            incoming_reject < 0
+        ):
+            raise HTTPException(
+                400,
+                "qty_accept / qty_reject must be >= 0"
+            )
 
         # =========================
-        # 🔥 CALCULATE RECEIVE
+        # RECEIVE
         # =========================
         if step.seq == 1:
-            receive = None   # Step 1 → no limit
+
+            receive = None
+
         else:
-            prev_step = db.query(ShopTravelerStep)\
+
+            prev_step = (
+                db.query(ShopTravelerStep)
                 .filter(
                     ShopTravelerStep.traveler_id == step.traveler_id,
                     ShopTravelerStep.seq < step.seq
-                )\
-                .order_by(ShopTravelerStep.seq.desc())\
+                )
+                .order_by(
+                    ShopTravelerStep.seq.desc()
+                )
                 .first()
+            )
 
             receive = sum(
-                (Decimal(l.qty_accept or 0) + Decimal(l.qty_reject or 0))
-                for l in (prev_step.logs or [])
+                (
+                    Decimal(l.qty_accept or 0) +
+                    Decimal(l.qty_reject or 0)
+                )
+                for l in (
+                    prev_step.logs or []
+                )
             ) if prev_step else Decimal("0")
 
         # =========================
         # FLEXIBLE MODE
         # =========================
-        # Allow operators to input freely
-        # even if qty exceeds previous OP receive.
-        # Real production environments often
-        # require late logging / rework / merge lots.
-
-        existing_logs = step.logs or []
+        existing_logs = (
+            step.logs or []
+        )
 
         total_accept = sum(
             Decimal(l.qty_accept or 0)
@@ -210,7 +471,13 @@ def create_step_log(payload: dict, db: Session = Depends(get_db)):
         total_accept += incoming_accept
         total_reject += incoming_reject
 
-        if receive is not None and (total_accept + total_reject > receive):
+        if (
+            receive is not None and
+            (
+                total_accept +
+                total_reject
+            ) > receive
+        ):
 
             print(
                 f"WARNING FLEXIBLE MODE: "
@@ -220,77 +487,205 @@ def create_step_log(payload: dict, db: Session = Depends(get_db)):
             )
 
         # =========================
-        # UPSERT (BY DATE)
+        # UPSERT BY DATE
         # =========================
-        existing = db.query(ShopTravelerStepLog).filter(
-            ShopTravelerStepLog.step_id == step_id,
-            ShopTravelerStepLog.work_date == work_date
-        ).first()
+        existing = (
+            db.query(ShopTravelerStepLog)
+            .filter(
+                ShopTravelerStepLog.step_id == step_id,
+                ShopTravelerStepLog.work_date == work_date
+            )
+            .first()
+        )
 
+        # =====================================
+        # UPDATE EXISTING
+        # =====================================
         if existing:
+
             print("Updating existing log")
 
             existing.qty_accept = incoming_accept
             existing.qty_reject = incoming_reject
-            existing.operator_id = payload.get("operator_id")
-            existing.machine_id = payload.get("machine_id")
-            existing.note = payload.get("note")
-            existing.supplier_po = payload.get("supplier_po")
-            existing.supplier_name = payload.get("supplier_name")
-            existing.supplier_lot = payload.get("supplier_lot")
 
-            existing.supplier_send_date = payload.get("supplier_send_date")
-            existing.supplier_receive_date = payload.get("supplier_receive_date")
+            existing.operator_id = payload.get(
+                "operator_id"
+            )
 
-            existing.material_size = payload.get("material_size")
-            existing.material_length = payload.get("material_length")
-            existing.material_uom = payload.get("material_uom")
-            existing.material_type = payload.get("material_type")
+            existing.machine_id = payload.get(
+                "machine_id"
+            )
+
+            existing.note = payload.get(
+                "note"
+            )
+
+            existing.supplier_po = payload.get(
+                "supplier_po"
+            )
+
+            existing.supplier_name = payload.get(
+                "supplier_name"
+            )
+
+            existing.supplier_lot = payload.get(
+                "supplier_lot"
+            )
+
+            existing.supplier_send_date = payload.get(
+                "supplier_send_date"
+            )
+
+            existing.supplier_receive_date = payload.get(
+                "supplier_receive_date"
+            )
+
+            existing.material_size = payload.get(
+                "material_size"
+            )
+
+            existing.material_length = payload.get(
+                "material_length"
+            )
+
+            existing.material_uom = payload.get(
+                "material_uom"
+            )
+
+            existing.material_type = payload.get(
+                "material_type"
+            )
+
+            existing.material_qty = payload.get(
+                "material_qty"
+            )
 
             db.commit()
+
             db.refresh(existing)
 
-            # recalc_step_status(db, step_id)
-            db.commit()
+            recalc_step_status(
+                db,
+                step_id
+            )
+
+            # 🔥 IMPORTANT
+            existing.operator_name = (
+                existing.operator.name
+                if existing.operator
+                else None
+            )
+
+            existing.operator_nickname = (
+                existing.operator.nickname
+                if existing.operator
+                else None
+            )
+
+            existing.machine_name = (
+                existing.machine.code
+                if existing.machine
+                else None
+            )
 
             return existing
 
-        # =========================
+        # =====================================
         # CREATE NEW
-        # =========================
+        # =====================================
         log = ShopTravelerStepLog(
 
-        step_id=step_id,
+            step_id=step_id,
 
-        qty_accept=incoming_accept,
-        qty_reject=incoming_reject,
+            qty_accept=incoming_accept,
+            qty_reject=incoming_reject,
 
-        work_date=work_date,
+            work_date=work_date,
 
-        operator_id=payload.get("operator_id"),
-        machine_id=payload.get("machine_id"),
+            operator_id=payload.get(
+                "operator_id"
+            ),
 
-        note=payload.get("note"),
+            machine_id=payload.get(
+                "machine_id"
+            ),
 
-        supplier_po=payload.get("supplier_po"),
-        supplier_name=payload.get("supplier_name"),
-        supplier_lot=payload.get("supplier_lot"),
+            note=payload.get(
+                "note"
+            ),
 
-        supplier_send_date=payload.get("supplier_send_date"),
-        supplier_receive_date=payload.get("supplier_receive_date"),
+            supplier_po=payload.get(
+                "supplier_po"
+            ),
 
-        material_size=payload.get("material_size"),
-        material_length=payload.get("material_length"),
-        material_uom=payload.get("material_uom"),
-        material_type=payload.get("material_type"),
-        material_qty=payload.get("material_qty"),
-    )
+            supplier_name=payload.get(
+                "supplier_name"
+            ),
+
+            supplier_lot=payload.get(
+                "supplier_lot"
+            ),
+
+            supplier_send_date=payload.get(
+                "supplier_send_date"
+            ),
+
+            supplier_receive_date=payload.get(
+                "supplier_receive_date"
+            ),
+
+            material_size=payload.get(
+                "material_size"
+            ),
+
+            material_length=payload.get(
+                "material_length"
+            ),
+
+            material_qty=payload.get(
+                "material_qty"
+            ),
+
+            material_uom=payload.get(
+                "material_uom"
+            ),
+
+            material_type=payload.get(
+                "material_type"
+            ),
+        )
+
         db.add(log)
+
         db.commit()
+
         db.refresh(log)
 
-        recalc_step_status(db, step_id)
-        db.commit()
+        recalc_step_status(
+            db,
+            step_id
+        )
+
+        # 🔥 IMPORTANT
+        log.operator_name = (
+            log.operator.name
+            if log.operator
+            else None
+        )
+
+        log.operator_nickname = (
+            log.operator.nickname
+            if log.operator
+            else None
+        )
+
+        log.machine_name = (
+            log.machine.code
+            if log.machine
+            else None
+        )
+
+        print("RETURN LOG ID =", log.id)
 
         return log
 
@@ -298,9 +693,15 @@ def create_step_log(payload: dict, db: Session = Depends(get_db)):
         raise
 
     except Exception as e:
+
         db.rollback()
+
         print("ERROR:", str(e))
-        raise HTTPException(500, str(e))
+
+        raise HTTPException(
+            500,
+            str(e)
+        )
 # =======================
 # UPDATE (PARTIAL ONLY)
 # =======================
