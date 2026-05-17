@@ -705,7 +705,7 @@ def to_int(v):
         return int(v)
     except (TypeError, ValueError):
         return 0
-from services.traveler_docx import generate_traveler_from_db, generate_traveler_from_db_blank, generate_inspection_from_db, generate_inspection_from_db_blank
+from services.traveler_docx_old import generate_traveler_from_db, generate_traveler_from_db_blank, generate_inspection_from_db, generate_inspection_from_db_blank
 
 
 from tempfile import TemporaryDirectory

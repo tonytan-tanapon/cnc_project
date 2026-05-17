@@ -164,105 +164,38 @@ def parse_docx_to_rows(docx_path):
         if is_multi_op_qa_table(rows):
             print("Detected: MULTI OP QA TABLE")
             
-            for row_index in range(len(rows)):
+            op_row = rows[1]
+            print("op_row", op_row)
+            op_blocks = []
+            op_blocks = [
+                {"op": op_row[1], "start": 0},
+                {"op": op_row[5], "start": 4},
+                {"op": op_row[9], "start": 8},
+            ]
 
-                row_text = " ".join(rows[row_index]).upper()
+            
+            print("OP Blocks:", op_blocks)
+            for block in op_blocks:
+                op = block["op"].strip()
+                if not op:
+                    continue
 
-                # -----------------------------
-                # FOUND NEW SECTION
-                # -----------------------------
-                if "DATE" in row_text and "OP#" in row_text:
+                op_map.setdefault(op, [])
 
-                    print("FOUND SECTION:", row_index)
-
-                    # -------------------------
-                    # GET OP ROW
-                    # -------------------------
-                    if row_index + 1 >= len(rows):
+                for r in rows[3:]:
+                    if len(r) < block["start"] + 2:
                         continue
 
-                    op_row = rows[row_index + 1]
+                    bb = r[block["start"]]
+                    dim = r[block["start"] + 1]
 
-                    print("op_row =", op_row)
+                    if str(bb).upper().startswith("NOTE"):
+                        continue
+                    if not (bb or dim):
+                        continue
 
-                    # -------------------------
-                    # PATTERN DETECT
-                    # -------------------------
-                    op_value = str(op_row[2]).strip()
+                    op_map[op].append({"bb": bb, "dimension": dim})
 
-                    if re.match(r"^\d{3}$", op_value):
-
-                        print("Using Pattern 1")
-
-                        op_blocks = [
-                            {"op": op_row[2],  "start": 0},
-                            {"op": op_row[7],  "start": 5},
-                            {"op": op_row[12], "start": 10},
-                        ]
-
-                    else:
-
-                        print("Using Pattern 2")
-
-                        op_blocks = [
-                            {"op": op_row[1], "start": 0},
-                            {"op": op_row[5], "start": 4},
-                            {"op": op_row[9], "start": 8},
-                        ]
-
-                    print("OP Blocks:", op_blocks)
-
-                    # -------------------------
-                    # READ DATA
-                    # -------------------------
-                    for block in op_blocks:
-
-                        op = block["op"].strip()
-
-                        if not op:
-                            continue
-
-                        op_map.setdefault(op, [])
-
-                        for r in rows[row_index + 3:]:
-
-                            row_data = " ".join(r).upper()
-
-                            # STOP WHEN NEXT SECTION
-                            if (
-                                "DATE" in row_data
-                                and
-                                "OP#" in row_data
-                            ):
-                                break
-
-                            if len(r) < block["start"] + 2:
-                                continue
-
-                            bb  = str(r[block["start"]]).strip()
-                            dim = str(r[block["start"] + 1]).strip()
-
-                            bb_upper = bb.upper()
-
-                            if bb_upper.startswith("NOTE"):
-                                continue
-
-                            if bb_upper in [
-                                "DATE",
-                                "B/B #",
-                                "B/B#",
-                                "BUBBLE #",
-                            ]:
-                                continue
-
-                            if not (bb or dim):
-                                continue
-
-                            op_map[op].append({
-                                "bb": bb,
-                                "dimension": dim
-                            })
-            
         # -------- Version NC (Standard) --------
         elif is_standard_inspection_table(headers):
             print("Detected: STANDARD INSPECTION TABLE")

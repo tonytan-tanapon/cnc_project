@@ -163,19 +163,40 @@ def list_in_process_lots(
 
             active_step = None
 
-            # priority:
-            # running -> pending
+            # ====================================
+            # PRIORITY:
+            # running
+            # -> last passed
+            # -> first pending
+            # ====================================
+
+            # 1) running
             for s in traveler.steps:
 
                 if s.status == "running":
+
                     active_step = s
                     break
 
+            # 2) last passed
+            if not active_step:
+
+                passed_steps = [
+                    s for s in traveler.steps
+                    if s.status == "passed"
+                ]
+
+                if passed_steps:
+
+                    active_step = passed_steps[-1]
+
+            # 3) first pending
             if not active_step:
 
                 for s in traveler.steps:
 
                     if s.status == "pending":
+
                         active_step = s
                         break
 
@@ -205,6 +226,10 @@ def list_in_process_lots(
             "lot_no": lot.lot_no,
 
             "status": lot.status,
+
+            "op_status":
+                active_step.status
+                if active_step else None,
 
             "part_no":
                 lot.part.part_no

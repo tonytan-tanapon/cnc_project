@@ -531,6 +531,7 @@ def generate_traveler_from_db_blank(template_path, data: dict, output_path):
     doc.save(str(output_path))
 
 def generate_inspection_from_db(template_path, data: dict, output_path):
+
     from docx import Document
     from pathlib import Path
     from collections import defaultdict
@@ -558,22 +559,33 @@ def generate_inspection_from_db(template_path, data: dict, output_path):
     grouped = defaultdict(list)
 
     for item in data["items"]:
+
         if item.get("bb_no") in ["Bubble #", None]:
             continue
+
         grouped[item["op_no"]].append(item)
 
     # =========================
     # SORT OP + BUBBLE
     # =========================
-    ops = sorted(grouped.keys(), key=lambda x: safe_int(x))
+    ops = sorted(
+        grouped.keys(),
+        key=lambda x: safe_int(x)
+    )
 
     for op in grouped:
-        grouped[op].sort(key=lambda x: safe_int(x.get("bb_no")))
+
+        grouped[op].sort(
+            key=lambda x: safe_int(
+                x.get("bb_no")
+            )
+        )
 
     # =========================
     # SPLIT INTO PAGES (3 OP)
     # =========================
     def chunk(lst, n=3):
+
         for i in range(0, len(lst), n):
             yield lst[i:i+n]
 
@@ -582,36 +594,74 @@ def generate_inspection_from_db(template_path, data: dict, output_path):
     # =========================
     # TEMPLATE CONFIG
     # =========================
-    MAX_DATA_ROWS = 13   # row 14 = Note
+    MAX_DATA_ROWS = 13
 
     # =========================
     # HELPERS
     # =========================
     def find_header_row(table):
+
         for i, row in enumerate(table.rows):
-            texts = [c.text.strip() for c in row.cells]
+
+            texts = [
+                c.text.strip()
+                for c in row.cells
+            ]
+
             if any("B/B" in t for t in texts):
                 return i
+
         return 2
 
     def clear_data_rows(table, start_row):
-        for r in range(start_row, len(table.rows)):
-            for c in range(len(table.columns)):
+
+        for r in range(
+            start_row,
+            len(table.rows)
+        ):
+
+            for c in range(
+                len(table.columns)
+            ):
+
                 table.cell(r, c).text = ""
 
     def center(cell):
-        cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
+
+        cell.vertical_alignment = (
+            WD_CELL_VERTICAL_ALIGNMENT.CENTER
+        )
+
         for p in cell.paragraphs:
-            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+            p.alignment = (
+                WD_ALIGN_PARAGRAPH.CENTER
+            )
 
     # =========================
     # HEADER MAP
     # =========================
     header_map = {
-        "{{part}}": data["lot"].get("part_no", ""),
-        "{{rev}}": data["lot"].get("part_rev", ""),
-        "{{lot}}": data["lot"].get("lot_no", ""),
-        "{{po}}": data["lot"].get("po_no", ""),
+
+        "{{part}}":
+            data["lot"].get(
+                "part_no", ""
+            ),
+
+        "{{rev}}":
+            data["lot"].get(
+                "part_rev", ""
+            ),
+
+        "{{lot}}":
+            data["lot"].get(
+                "lot_no", ""
+            ),
+
+        "{{po}}":
+            data["lot"].get(
+                "po_no", ""
+            ),
     }
 
     # =========================
@@ -621,17 +671,37 @@ def generate_inspection_from_db(template_path, data: dict, output_path):
 
     for page_idx, page_ops in enumerate(pages):
 
-        # 🔥 IMPORTANT: new doc per page
+        # =========================
+        # NEW DOC
+        # =========================
         doc = Document(str(template_path))
+
         replace_header(doc, header_map)
 
         table = doc.tables[0]
 
         header_row = find_header_row(table)
-        DATA_START_ROW = header_row + 1
-        NOTE_ROW_IDX = DATA_START_ROW + MAX_DATA_ROWS
 
-        clear_data_rows(table, DATA_START_ROW)
+        DATA_START_ROW = header_row + 1
+
+        NOTE_ROW_IDX = (
+            DATA_START_ROW
+            + MAX_DATA_ROWS
+        )
+
+        clear_data_rows(
+            table,
+            DATA_START_ROW
+        )
+
+        # =========================
+        # OP BLOCKS
+        # =========================
+        op_blocks = [
+            {"start": 0},
+            {"start": 5},
+            {"start": 10},
+        ]
 
         # =========================
         # OP HEADER
@@ -640,124 +710,238 @@ def generate_inspection_from_db(template_path, data: dict, output_path):
 
         for col_idx, op in enumerate(page_ops):
 
-            base_col = col_idx * 4
+            if col_idx >= len(op_blocks):
+                continue
+
+            start = (
+                op_blocks[col_idx]["start"]
+            )
 
             items = grouped[op]
 
-            # =========================
-            # GET FIRST ITEM
-            # =========================
-            first_item = items[0] if items else {}
+            first_item = (
+                items[0]
+                if items
+                else {}
+            )
 
             # =========================
             # DATE
             # =========================
             date_str = ""
 
-            dt = first_item.get("qa_time_stamp")
+            dt = first_item.get(
+                "qa_time_stamp"
+            )
 
             if dt:
+
                 try:
-                    date_str = dt.strftime("%m/%d/%y")
+
+                    date_str = dt.strftime(
+                        "%m/%d/%y"
+                    )
+
                 except:
+
                     date_str = str(dt)
 
             # =========================
             # EMPLOYEE
             # =========================
-            emp = first_item.get("employee") or ""
+            emp = (
+                first_item.get("employee")
+                or ""
+            )
 
             # =========================
-            # HEADER
+            # HEADER CELLS
             # =========================
-            table.cell(op_header_row, base_col).text = date_str
+            table.cell(
+                op_header_row,
+                start+1
+            ).text = date_str
 
-            table.cell(op_header_row, base_col + 1).text = str(op)
+            table.cell(
+                op_header_row,
+                start + 2
+            ).text = str(op)
 
-            table.cell(op_header_row, base_col + 2).text = emp
+            table.cell(
+                op_header_row,
+                start + 4
+            ).text = emp
 
             # center
             for i in range(3):
-                center(table.cell(op_header_row, base_col + i))
 
-            
+                center(
+                    table.cell(
+                        op_header_row,
+                        start + i
+                    )
+                )
 
         # =========================
-        # LIMIT ROWS (avoid NOTE overwrite)
+        # LIMIT ROWS
         # =========================
         max_rows = min(
-            max(len(grouped[op]) for op in page_ops),
+
+            max(
+                len(grouped[op])
+                for op in page_ops
+            ),
+
             MAX_DATA_ROWS
         )
-
-        print("TOTAL ROWS =", len(table.rows))
-        print("TOTAL COLS =", len(table.columns))
-
-        for rr, row in enumerate(table.rows):
-
-            print(
-                "ROW",
-                rr,
-                "CELL COUNT =",
-                len(row.cells)
-            )
-
 
         # =========================
         # FILL DATA
         # =========================
         for row_idx in range(max_rows):
+
             for col_idx, op in enumerate(page_ops):
 
-                base_col = col_idx * 4
+                if col_idx >= len(op_blocks):
+                    continue
+
+                start = (
+                    op_blocks[col_idx]["start"]
+                )
+
                 items = grouped[op]
 
                 if row_idx < len(items):
-                    item = items[row_idx]
-                    r = DATA_START_ROW + row_idx
 
-                    table.cell(r, base_col + 0).text = str(item.get("bb_no", "") or "")
-                    table.cell(r, base_col + 1).text = str(item.get("dimension", "") or "")
-                    table.cell(r, base_col + 2).text = str(item.get("tqw", "") or "")
-                    table.cell(r, base_col + 3).text = str(    item.get("actual_value", "") or "")
-                    for i in range(4):
-                        center(table.cell(r, base_col + i))
+                    item = items[row_idx]
+                    print("item", item)
+                    r = (
+                        DATA_START_ROW
+                        + row_idx
+                    )
+
+                    # =========================
+                    # CELLS
+                    # =========================
+                    table.cell(
+                        r,
+                        start + 0
+                    ).text = str(
+                        item.get(
+                            "bb_no",
+                            ""
+                        ) or ""
+                    )
+
+                    table.cell(
+                        r,
+                        start + 2
+                    ).text = str(
+                        item.get(
+                            "dimension",
+                            ""
+                        ) or ""
+                    )
+
+                    table.cell(
+                        r,
+                        start + 3
+                    ).text = str(
+                        item.get(
+                            "tqw",
+                            ""
+                        ) or ""
+                    )
+
+                    table.cell(
+                        r,
+                        start + 4
+                    ).text = str(
+                        item.get(
+                            "actual_value",
+                            ""
+                        ) or ""
+                    )
+
+                    # # =========================
+                    # # CENTER
+                    # # =========================
+                    # for i in range(4):
+
+                    #     center(
+                    #         table.cell(
+                    #             r,
+                    #             start + i
+                    #         )
+                    #     )
 
         # =========================
-        # NOTE ROW (PER OP)
+        # NOTE ROW
         # =========================
         for col_idx, op in enumerate(page_ops):
 
-            base_col = col_idx * 4
+            if col_idx >= len(op_blocks):
+                continue
 
-            # ✅ Column 1 → "Note"
-            note_cell = table.cell(NOTE_ROW_IDX, base_col)
+            start = (
+                op_blocks[col_idx]["start"]
+            )
+
+            # =========================
+            # NOTE CELL
+            # =========================
+            note_cell = table.cell(
+                NOTE_ROW_IDX,
+                start
+            )
+
             note_cell.text = "Note"
 
             for p in note_cell.paragraphs:
-                p.alignment = WD_ALIGN_PARAGRAPH.LEFT
 
-            # ✅ Columns 2–4 → merge into one
-            merge_cell = table.cell(NOTE_ROW_IDX, base_col + 1)
-
-            for i in range(2, 4):
-                merge_cell = merge_cell.merge(
-                    table.cell(NOTE_ROW_IDX, base_col + i)
+                p.alignment = (
+                    WD_ALIGN_PARAGRAPH.LEFT
                 )
 
-            merge_cell.text = ""  # empty space for writing
+            # =========================
+            # MERGE CELLS
+            # =========================
+            merge_cell = table.cell(
+                NOTE_ROW_IDX,
+                start + 1
+            )
+
+            for i in range(2, 4):
+
+                merge_cell = merge_cell.merge(
+
+                    table.cell(
+                        NOTE_ROW_IDX,
+                        start + i
+                    )
+                )
+
+            merge_cell.text = ""
 
             for p in merge_cell.paragraphs:
-                p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+
+                p.alignment = (
+                    WD_ALIGN_PARAGRAPH.LEFT
+                )
 
         # =========================
         # MERGE DOCS
         # =========================
         if page_idx == 0:
+
             final_doc = doc
+
         else:
+
             final_doc.add_page_break()
+
             for el in doc.element.body:
+
                 final_doc.element.body.append(el)
 
     # =========================
@@ -954,14 +1138,17 @@ def generate_inspection_from_db_blank(template_path, data: dict, output_path):
             base_col = col_idx * 4
 
             # ✅ Column 1 → "Note"
-            note_cell = table.cell(NOTE_ROW_IDX, base_col)
+            note_cell = table.cell(NOTE_ROW_IDX, start)
+
+
+
             note_cell.text = "Note"
 
             for p in note_cell.paragraphs:
                 p.alignment = WD_ALIGN_PARAGRAPH.LEFT
 
             # ✅ Columns 2–4 → merge into one
-            merge_cell = table.cell(NOTE_ROW_IDX, base_col + 1)
+            merge_cell = table.cell(NOTE_ROW_IDX, start + 1)
 
             for i in range(2, 4):
                 merge_cell = merge_cell.merge(

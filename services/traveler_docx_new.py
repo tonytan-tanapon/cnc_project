@@ -205,7 +205,7 @@ def generate_traveler_from_db(template_path, data: dict, output_path):
     # --------------------------------------------------
     # SORT STEPS (🔥 FIX M1 missing)
     # --------------------------------------------------
-    steps_sorted = data["steps"]
+    steps_sorted = sorted(data["steps"], key=lambda x: x.get("seq", 0))
 
     # print("DEBUG steps:", steps_sorted)
 
@@ -417,7 +417,7 @@ def generate_traveler_from_db_blank(template_path, data: dict, output_path):
     # --------------------------------------------------
     # SORT STEPS (🔥 FIX M1 missing)
     # --------------------------------------------------
-    steps_sorted = data["steps"]
+    steps_sorted = sorted(data["steps"], key=lambda x: x.get("seq", 0))
 
     # print("DEBUG steps:", steps_sorted)
 
@@ -689,19 +689,6 @@ def generate_inspection_from_db(template_path, data: dict, output_path):
             max(len(grouped[op]) for op in page_ops),
             MAX_DATA_ROWS
         )
-
-        print("TOTAL ROWS =", len(table.rows))
-        print("TOTAL COLS =", len(table.columns))
-
-        for rr, row in enumerate(table.rows):
-
-            print(
-                "ROW",
-                rr,
-                "CELL COUNT =",
-                len(row.cells)
-            )
-
 
         # =========================
         # FILL DATA

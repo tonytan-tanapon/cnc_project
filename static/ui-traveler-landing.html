@@ -677,28 +677,28 @@
 
 
         /* SORTABLE HEADER */
-#lotTable th {
+        #lotTable th {
 
-    cursor: pointer;
+            cursor: pointer;
 
-    user-select: none;
+            user-select: none;
 
-    position: relative;
-}
+            position: relative;
+        }
 
-#lotTable th:hover {
+        #lotTable th:hover {
 
-    background: #dbeafe;
-}
+            background: #dbeafe;
+        }
 
-.sort-arrow {
+        .sort-arrow {
 
-    margin-left: 6px;
+            margin-left: 6px;
 
-    font-size: 12px;
+            font-size: 12px;
 
-    color: #64748b;
-}
+            color: #64748b;
+        }
     </style>
 </head>
 
@@ -709,8 +709,8 @@
 
         <!-- Manual -->
         <!-- Manual -->
-           <!-- LOT BUTTON -->
-            <button id="btnLotPad" style="
+        <!-- LOT BUTTON -->
+        <button id="btnLotPad" style="
     width:300px;
 
     height:58px;
@@ -731,18 +731,18 @@
 
     flex-shrink:0;
 ">
-                Click to Enter Lot
-            </button>
+            Click to Enter Lot
+        </button>
 
         <div style="display:flex; gap:10px; align-items:center; margin-bottom:12px; width:100%; max-width:700px;">
 
-          
+
             <!-- MANUAL INPUT -->
             <input id="manualInput" type="text" placeholder="Enter manually..." style="
             flex:1;
             padding:10px;
             font-size:16px;
-        " hidden/>
+        " hidden />
 
             <!-- GO -->
             <button id="btnGo" style="
@@ -773,7 +773,8 @@
                         <th>Rev</th>
                         <th>Current OP</th>
                         <th>Machine</th>
-                        <th>Status</th>
+                        
+                        <th>OP Status</th>
                     </tr>
                 </thead>
 
@@ -930,8 +931,7 @@ justify-content:center;
 
 
     <!-- LOT NUMBER OVERLAY -->
-<div id="lotOverlay"
-style="
+    <div id="lotOverlay" style="
 display:none;
 position:fixed;
 inset:0;
@@ -941,7 +941,7 @@ align-items:center;
 justify-content:center;
 ">
 
-    <div style="
+        <div style="
     background:white;
     width:min(92vw,420px);
     border-radius:20px;
@@ -949,60 +949,56 @@ justify-content:center;
     text-align:center;
     ">
 
-        <div style="
+            <div style="
         display:flex;
         justify-content:space-between;
         align-items:center;
         margin-bottom:10px;
         ">
 
-            <h2 style="
+                <h2 style="
             margin:0;
             font-size:28px;
             font-weight:800;
             ">
-                Enter Lot
-            </h2>
+                    Enter Lot
+                </h2>
 
-            <button id="closeLotOverlay"
-            style="
+                <button id="closeLotOverlay" style="
             border:none;
             background:none;
             font-size:28px;
             cursor:pointer;
             ">
-                ✕
-            </button>
+                    ✕
+                </button>
 
-        </div>
+            </div>
 
-        <div id="lotDisplay"
-        style="
+            <div id="lotDisplay" style="
         font-size:52px;
         font-weight:800;
         letter-spacing:4px;
         margin-bottom:20px;
         color:#2563eb;
         ">
-            -----
-        </div>
+                -----
+            </div>
 
-        <div id="lotKeys"
-        style="
+            <div id="lotKeys" style="
         display:grid;
         grid-template-columns:repeat(3,1fr);
         gap:12px;
         ">
-        </div>
+            </div>
 
-        <div style="
+            <div style="
         display:flex;
         gap:10px;
         margin-top:16px;
         ">
 
-            <button id="lotOkBtn"
-            style="
+                <button id="lotOkBtn" style="
             flex:1;
             height:60px;
             border:none;
@@ -1013,11 +1009,10 @@ justify-content:center;
             font-weight:800;
             cursor:pointer;
             ">
-                OK
-            </button>
+                    OK
+                </button>
 
-            <button id="lotClearBtn"
-            style="
+                <button id="lotClearBtn" style="
             flex:1;
             height:60px;
             border:none;
@@ -1028,18 +1023,17 @@ justify-content:center;
             font-weight:800;
             cursor:pointer;
             ">
-                Clear
-            </button>
+                    Clear
+                </button>
+
+            </div>
 
         </div>
 
     </div>
 
-</div>
-
-<script type="module"
-src="/static/ui-traveler-landing.js?v=4">
-</script>
+    <script type="module" src="/static/ui-traveler-landing.js?v=4">
+    </script>
 
 
 </body>

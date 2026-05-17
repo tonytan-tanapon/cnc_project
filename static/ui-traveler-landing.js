@@ -118,7 +118,8 @@ function setupSortableHeaders() {
     "part_rev",
     "current_op",
     "current_machine",
-    "status"
+    
+    "op_status"
   ];
 
   headers.forEach((th, index) => {
@@ -207,10 +208,12 @@ async function loadInProcessLots() {
 
       const tr = document.createElement("tr");
 
-      const statusClass =
-        row.status === "in_process"
+      
+
+      const opStatusClass =
+        row.op_status === "running"
           ? "status-running"
-          : row.status === "passed"
+          : row.op_status === "passed"
             ? "status-passed"
             : "status-pending";
 
@@ -235,11 +238,13 @@ async function loadInProcessLots() {
           ${row.current_machine || "-"}
         </td>
 
-        <td>
-          <span class="status-badge ${statusClass}">
-            ${row.status || "-"}
-          </span>
-        </td>
+      
+
+  <td>
+    <span class="status-badge ${opStatusClass}">
+  ${row.op_status || "-"}
+</span>
+  </td>
       `;
 
       // ⭐ CLICK ROW

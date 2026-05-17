@@ -445,7 +445,7 @@ def build_traveler_data_from_db(traveler: ShopTraveler) -> dict:
         "steps": steps,  # ✅ use computed steps
     }
 
-from services.traveler_docx import generate_traveler_from_db
+from services.traveler_docx_old import generate_traveler_from_db
 
 
 from tempfile import TemporaryDirectory
