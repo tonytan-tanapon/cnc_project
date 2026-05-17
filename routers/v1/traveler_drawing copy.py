@@ -401,7 +401,7 @@ def build_traveler_data_from_db(traveler: ShopTraveler) -> dict:
         receive = prev_accept
         accept = int(s.total_accept or 0)
         reject = int(s.total_reject or 0)
-
+        ##
         steps.append({
             "seq": s.seq,
             "step_code": s.step_code or "",
