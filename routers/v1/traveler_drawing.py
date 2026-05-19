@@ -455,22 +455,22 @@ def build_traveler_data_from_db(traveler: ShopTraveler) -> dict:
 
                 if getattr(
                     log.operator,
+                    "emp_op",
+                    None
+                ):
+
+                    operators.append(
+                        log.operator.emp_op
+                    )
+
+                elif getattr(
+                    log.operator,
                     "nickname",
                     None
                 ):
 
                     operators.append(
                         log.operator.nickname
-                    )
-
-                elif getattr(
-                    log.operator,
-                    "emp_code",
-                    None
-                ):
-
-                    operators.append(
-                        log.operator.emp_code
                     )
 
         operator_str = ", ".join(
@@ -538,7 +538,7 @@ def build_traveler_data_from_db(traveler: ShopTraveler) -> dict:
         supplier_text = "\n\n".join(
             supplier_blocks
         )
-
+       
         # ==================================================
         # BUILD STEP
         # ==================================================

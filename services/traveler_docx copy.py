@@ -4,9 +4,7 @@ from docx import Document
 import copy
 import re
 from pathlib import Path
-from services.stamp import create_simple_stamp
-from tempfile import NamedTemporaryFile
-from docx.shared import Inches
+
 # ==================================================
 # Helpers
 # ==================================================
@@ -249,44 +247,10 @@ def generate_traveler_from_db(template_path, data: dict, output_path):
         )
 
         new_row.cells[3].text = str(
-            step.get("operator") or "2"
+            step.get("operator", "")
         )
-        
+
         ## add stamp here
-        # =================================
-        # STAMP
-        # =================================
-
-        tmp_stamp = NamedTemporaryFile(
-            suffix=".png",
-            delete=False
-        )
-
-        stamp_path = tmp_stamp.name
-        tmp_stamp.close()
-
-        # create stamp image
-        create_simple_stamp(
-            number=new_row.cells[3].text,
-            output_path=stamp_path,
-            bottom_text =  "QA"
-        )
-
-        # insert image into cell
-        stamp_cell = new_row.cells[3]
-
-        stamp_cell.text = ""
-
-        p = stamp_cell.paragraphs[0]
-
-        run = p.add_run()
-
-        run.add_picture(
-            stamp_path,
-            width=Inches(0.55)
-        )
-
-        center_cell(stamp_cell)
 
         # -------------------------
         # SUPPLIER INFO
@@ -329,78 +293,16 @@ def generate_traveler_from_db(template_path, data: dict, output_path):
         # ✅ last 3 rows
         if i >= total_steps - 3:
 
-            who = "3"   # Thip
+            who = "Trip"
 
         else:
 
-            who = "2"   # Eric
+            who = "Eric"
 
-        # -------------------------
-        # DATE + STAMP
-        # -------------------------
-
-        if i >= total_steps - 3:
-            who = "3"
-        else:
-            who = "2"
-
-        # =================================
-        # STAMP NUMBER
-        # =================================
-
-        stamp_no =  who
-
-        # =================================
-        # TARGET CELL
-        # =================================
-
-        stamp_cell = new_row.cells[7]
-
-        stamp_cell.text = ""
-
-        p = stamp_cell.paragraphs[0]
-
-        # =================================
-        # CREATE STAMP
-        # =================================
-
-        tmp_stamp = NamedTemporaryFile(
-            suffix=".png",
-            delete=False
+        new_row.cells[7].text = (
+            f"{who}\n"
+            f"{step.get('created_at', '')}"
         )
-
-        stamp_path = tmp_stamp.name
-        tmp_stamp.close()
-
-        create_simple_stamp(
-            number=stamp_no,
-            output_path=stamp_path
-        )
-
-        # =================================
-        # INSERT IMAGE
-        # =================================
-
-        run = p.add_run()
-
-        run.add_picture(
-            stamp_path,
-            width=Inches(0.45)
-        )
-
-        # =================================
-        # DATE UNDER IMAGE
-        # =================================
-
-        from docx.shared import Pt
-
-        run = p.add_run(
-            f"\n{step.get('created_at', '')}"
-        )
-
-        run.font.size = Pt(7)
-
-        center_cell(stamp_cell)
 
         # -------------------------
         # CENTER ALIGN
