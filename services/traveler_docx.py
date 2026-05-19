@@ -269,7 +269,7 @@ def generate_traveler_from_db(template_path, data: dict, output_path):
         create_simple_stamp(
             number=new_row.cells[3].text,
             output_path=stamp_path,
-            bottom_text =  "QA"
+            bottom_text =  "OPERATOR"
         )
 
         # insert image into cell
@@ -291,24 +291,15 @@ def generate_traveler_from_db(template_path, data: dict, output_path):
         # -------------------------
         # SUPPLIER INFO
         # -------------------------
-        # -------------------------
-        # SUPPLIER INFO
-        # -------------------------
 
         detail = ""
 
-        supplier_text = (
-            step.get("supplier_text") or ""
-        )
+        supplier_text = ( step.get("supplier_text") or "")
 
         if supplier_text:
-
             detail += supplier_text
-
         else:
-
             detail += "\n\n\n"
-
         new_row.cells[4].text = detail
 
         # -------------------------
