@@ -359,6 +359,7 @@ document.addEventListener("DOMContentLoaded", () => {
       let qty_accept = existing?.qty_accept || 0;
       let qty_reject = existing?.qty_reject || 0;
 
+
       // 🔥 APPLY CHANGE
       if (!isMachineMode) {
 
@@ -368,6 +369,11 @@ document.addEventListener("DOMContentLoaded", () => {
         if (activeType === "reject")
           qty_reject = val;
       }
+
+      if (isMachineMode && activeType === "accept") {
+        qty_accept = val;
+      }
+
       // 🔥 VALIDATION (IMPORTANT)
       const receive = currentReceive;
 
@@ -409,6 +415,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 material_uom: selectedLengthUOM,
 
                 // material_qty: qtyValue,
+                qty_accept,   // ⭐ ADD THIS
 
                 operator_id,
 
@@ -445,6 +452,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 supplier_po: poValue,
 
                 material_length: lengthValue,
+                qty_accept,   // ⭐ ADD THIS
 
                 material_uom: selectedLengthUOM,
 
@@ -725,7 +733,7 @@ async function loadOperation() {
   // =========================
   // MACHINE
   // =========================
-  
+
 
   try {
     const qs = travelerStep ? `?seq=${encodeURIComponent(travelerStep)}` : "";
@@ -810,7 +818,7 @@ async function loadOperation() {
         <th>Date</th>
         <th>PO</th>
         <th>Length</th>
-        
+         <th>Good Qty</th>
         <th>Operator</th>
         <th>Machine</th>
       </tr>
@@ -857,6 +865,9 @@ async function loadOperation() {
       document.querySelector("#lengthValue").textContent =
         activeLog?.material_length || "0";
 
+      document.querySelector("#goodQty").textContent =
+        parseInt(activeLog?.qty_accept || 0);
+
       // document.querySelector("#qtyValue").textContent =
       //   parseFloat(activeLog?.material_qty || 0);
 
@@ -882,10 +893,10 @@ async function loadOperation() {
 
 
     const receive =
-  stepData.qty_receive || 0;
+      stepData.qty_receive || 0;
 
-const remain =
-  stepData.qty_remain || 0;
+    const remain =
+      stepData.qty_remain || 0;
 
     currentReceive = receive;
 
@@ -919,7 +930,13 @@ const remain =
       tbody.innerHTML = "";
 
       if (logs.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" style="color:#999">No data</td></tr>`;
+        tbody.innerHTML = `
+<tr>
+  <td colspan="${isMachineMode ? 6 : 5}" style="color:#999">
+    No data
+  </td>
+</tr>
+`;
       } else {
         const totalAccept = logs.reduce(
           (sum, l) => sum + Number(l.qty_accept || 0),
@@ -950,27 +967,52 @@ const remain =
             tr.style.cursor = "pointer";
 
             tr.onclick = () => {
+
               manualRowSelected = true;
-              selectedLogDate = formatLADate(l.work_date);
+
+              selectedLogDate =
+                formatLADate(l.work_date);
 
               // remove old
-              document.querySelectorAll("#logTable tbody tr")
+              document
+                .querySelectorAll("#logTable tbody tr")
                 .forEach(r => r.classList.remove("active-row"));
 
               // add new
               tr.classList.add("active-row");
 
-              document.querySelector("#acceptQty").textContent =
-                parseInt(l.qty_accept || 0);
+              // ⭐ MACHINE MODE
+              if (isMachineMode) {
 
-              document.querySelector("#rejectQty").textContent =
-                parseInt(l.qty_reject || 0);
+                document.querySelector("#goodQty").textContent =
+                  parseInt(l.qty_accept || 0);
 
-              // ✅ FIX REMARK
+                document.querySelector("#poValue").textContent =
+                  l.supplier_po || "-";
+
+                document.querySelector("#lengthValue").textContent =
+                  l.material_length || "0";
+
+              }
+
+              // ⭐ NORMAL MODE
+              else {
+
+                document.querySelector("#acceptQty").textContent =
+                  parseInt(l.qty_accept || 0);
+
+                document.querySelector("#rejectQty").textContent =
+                  parseInt(l.qty_reject || 0);
+              }
+
+              // remark
               document.querySelector("#remarkInput").value =
                 l.note || "";
 
-              toastCenter(`Editing ${selectedLogDate}`, true);
+              toastCenter(
+                `Editing ${selectedLogDate}`,
+                true
+              );
             };
 
             tr.innerHTML = isMachineMode
@@ -994,10 +1036,15 @@ const remain =
                 : "-"
               }
 </td>
+</td>
 
+<td>
+  ${parseInt(l.qty_accept || 0)}
+</td>
 
-
-<td>${l.operator_nickname || l.operator_name || "-"}</td>
+<td>
+  ${l.operator_nickname || l.operator_name || "-"}
+</td>
 
 <td>${l.machine_name || "-"}</td>
 `
@@ -1046,9 +1093,12 @@ const remain =
 
 </td>
 
-
+<td style="font-weight:700; color:#16a34a;">
+  ${parseInt(totalAccept || 0)}
+</td>
 
 <td></td>
+
 <td></td>
 `
 
@@ -1146,22 +1196,22 @@ const remain =
 
     let machineText = "-";
 
-  if (machineIdFromURL) {
-    currentMachineId = Number(machineIdFromURL);
+    if (machineIdFromURL) {
+      currentMachineId = Number(machineIdFromURL);
 
-    try {
-      const m = await jfetch(`/api/v1/machines/${currentMachineId}`);
-      machineText = m.name || m.code || currentMachineId;
-    } catch {
-      machineText = currentMachineId;
+      try {
+        const m = await jfetch(`/api/v1/machines/${currentMachineId}`);
+        machineText = m.name || m.code || currentMachineId;
+      } catch {
+        machineText = currentMachineId;
+      }
     }
-  }
 
-  // document.querySelector("#machinename").textContent =
-  //   "Machine: " + machineText;
+    // document.querySelector("#machinename").textContent =
+    //   "Machine: " + machineText;
 
     document.querySelector("#operatorName").textContent =
-      `${operatorText}` + ":"+machineText;
+      `${operatorText}` + ":" + machineText;
 
     // document.querySelector("#loginOP").textContent =
     //   `Login: ${travelerEmp}`;
@@ -1177,7 +1227,7 @@ const remain =
       : getFirstActiveStatus(data.steps);
 
     const opStatusEl = document.querySelector("#op_status");
-    opStatusEl.textContent =  op_status;
+    opStatusEl.textContent = op_status;
     opStatusEl.style.backgroundColor = statusColor(op_status);
 
     const cleanStepName =

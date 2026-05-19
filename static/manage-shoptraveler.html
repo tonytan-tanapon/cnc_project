@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <title>
+    Manage Shop Traveler · Topnotch – MFG
+  </title>
+
+  <link rel="stylesheet" href="/static/css/app.css" />
+
+  <link rel="stylesheet" href="/static/vendor/tabulator/tabulator_modern.min.css" />
+
+  <style>
+    #_reload {
+      display: none;
+    }
+
+    .main--edge {
+      padding: 0;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .panel--edge {
+      margin: 0;
+      border-radius: 0;
+      border-left-width: 0;
+      border-right-width: 0;
+    }
+
+    #listPanel {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      min-height: 0;
+    }
+
+    .list-topbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      height: 44px;
+      border-bottom: 1px solid #e5e7eb;
+      padding: 0 10px;
+      flex-wrap: wrap;
+    }
+
+    .list-topbar .search-lg {
+      flex: 0 0 220px;
+      height: 36px;
+      padding: 0 12px;
+      border-radius: 8px;
+    }
+
+    #listBody {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow: auto;
+    }
+
+    #listBody .tabulator {
+      height: 100% !important;
+      border: 0;
+    }
+
+    .qty-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 6px;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* ===================================== */
+    /* RADIO */
+    /* ===================================== */
+
+    .radio-pill {
+      background: #f3f4f6;
+      padding: 6px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+
+    .radio-pill input {
+      display: none;
+    }
+
+    .radio-pill span {
+      pointer-events: none;
+    }
+
+    .radio-pill:hover {
+      background: #e5e7eb;
+    }
+
+    .radio-pill input:checked+span {
+      color: white;
+    }
+
+    .radio-pill input:checked~span,
+    .radio-pill input:checked {
+      background: transparent;
+    }
+
+    .radio-pill:has(input:checked) {
+      background: #3b82f6;
+      color: white;
+      font-weight: 600;
+    }
+
+    /* ===================================== */
+    /* TABULATOR */
+    /* ===================================== */
+
+    .tabulator .tabulator-cell {
+      font-size: 13px;
+    }
+
+    .tabulator .tabulator-header {
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    /* ===================================== */
+    /* PROGRESS */
+    /* ===================================== */
+
+    .progress-bar {
+      width: 100%;
+      background: #e5e7eb;
+      border-radius: 999px;
+      overflow: hidden;
+      height: 22px;
+    }
+
+    .progress-inner {
+      height: 100%;
+
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    /* ===================================== */
+    /* OP CARD */
+    /* ===================================== */
+
+    .op-card {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .op-title {
+      font-weight: 700;
+      color: #2563eb;
+    }
+
+    .op-sub {
+      font-size: 11px;
+      color: #6b7280;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="app">
+
+    <aside class="sidebar">
+      <div id="navSlot" data-nav-slot></div>
+    </aside>
+
+    <main class="main main--edge">
+
+      <section class="panel panel--edge" id="listPanel">
+
+        <div class="list-topbar">
+
+          <!-- SEARCH -->
+          <input id="_q" type="search" class="search-lg" placeholder="Search..." />
+
+          <!-- STATUS -->
+          <span style="margin-left:10px;">
+            Traveler Status:
+          </span>
+
+          <!-- RADIO -->
+          <div id="_lot_status_group" style="
+                display:inline-flex;
+                gap:10px;
+                margin-left:10px;
+                flex-wrap:wrap;
+              ">
+
+            <label class="radio-pill">
+
+              <input type="radio" name="lot_status" value="" checked />
+
+              <span>All</span>
+
+            </label>
+
+            <label class="radio-pill">
+
+              <input type="radio" name="lot_status" value="pending" />
+
+              <span>Pending</span>
+
+            </label>
+
+            <label class="radio-pill">
+
+              <input type="radio" name="lot_status" value="running" />
+
+              <span>Running</span>
+
+            </label>
+
+            <label class="radio-pill">
+
+              <input type="radio" name="lot_status" value="passed" />
+
+              <span>Passed</span>
+
+            </label>
+
+          </div>
+
+          <!-- BUTTON -->
+          <button id="_reload" class="btn" type="button">
+            Reload
+          </button>
+
+          <button id="_export" class="btn" type="button">
+            Export Excel
+          </button>
+
+        </div>
+
+        <!-- TABLE -->
+        <div id="listBody"></div>
+
+      </section>
+
+    </main>
+
+  </div>
+
+  <!-- TOAST -->
+  <div class="toast" id="toast">
+    <span id="toastText"></span>
+  </div>
+
+  <!-- XLSX -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+  <!-- TABULATOR -->
+  <script src="/static/vendor/tabulator/tabulator.min.js"></script>
+
+  <!-- NAV -->
+  <script type="module" src="/static/js/nav-loader.js"></script>
+
+  <!-- MAIN JS -->
+  <script type="module">
+
+    import "/static/js/manage-shoptraveler.js?v=1";
+
+    document
+      .getElementById("_reload")
+      .addEventListener("click", () => {
+
+        const status =
+          document.querySelector(
+            'input[name="lot_status"]:checked'
+          )?.value || "";
+
+        if (window.table) {
+
+          if (!status) {
+
+            table.clearFilter();
+
+          } else {
+
+            table.setFilter(
+              "op_status",
+              "=",
+              status
+            );
+          }
+        }
+      });
+
+  </script>
+
+</body>
+
+</html>

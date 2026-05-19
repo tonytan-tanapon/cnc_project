@@ -53,3 +53,34 @@ def get_lot_consumption(
         q = Decimal(qty_used).quantize(Decimal("0.000"), rounding=ROUND_DOWN)
         result[str(lot_id)] = str(q)
     return result
+
+
+
+from sqlalchemy import text
+@router.get("/shop-traveler-status")
+def get_shop_traveler_status(
+    db: Session = Depends(get_db),
+):
+
+    sql = """
+
+        SELECT *
+
+        FROM vw_current_shop_traveler_status
+
+        ORDER BY
+
+            stopped_days DESC,
+            progress_percent ASC,
+            lot_no ASC
+
+    """
+
+    rows = db.execute(
+        text(sql)
+    ).mappings().all()
+
+    return [
+        dict(r)
+        for r in rows
+    ]

@@ -673,7 +673,7 @@
       min-height: 50px;
     }
 
-   
+
 
     .remark-row {
       display: flex;
@@ -698,30 +698,42 @@
     }
 
     .action-left {
-  width: 400px;
-  min-width: 400px;
+      width: 400px;
+      min-width: 400px;
 
-  display: flex;
-  flex-direction: column;   /* 🔥 important */
-  gap: 10px;
-}
+      display: flex;
+      flex-direction: column;
+      /* 🔥 important */
+      gap: 10px;
+    }
 
-.horizontal-actions {
-  display: flex;
-  gap: 8px;
-}
+    .horizontal-actions {
+      display: flex;
+      gap: 8px;
+    }
 
-.remain-text {
-  text-align: center;
-  font-size: 22px;
-  font-weight: 700;
-  color: #111827;
+    .remain-text {
+      text-align: center;
+      font-size: 22px;
+      font-weight: 700;
+      color: #111827;
 
-  padding: 8px;
-  border-radius: 8px;
+      padding: 8px;
+      border-radius: 8px;
 
-  background: #f3f4f6;
-}
+      background: #f3f4f6;
+    }
+
+
+    .action-box[data-type="material_qty"] {
+      background: #dcfce7;
+      border: 2px solid #22c55e;
+    }
+
+    .action-box[data-type="material_qty"] .qty-display {
+      background: #22c55e;
+      color: white;
+    }
   </style>
 </head>
 
@@ -749,7 +761,7 @@
 
           <div class="manchine" id="machinename"></div>
           <div class="operator" id="operatorName"></div>
-          
+
 
           <div style="display:flex; align-items:center; gap:10px;">
 
@@ -796,14 +808,21 @@
               <div class="qty-display" id="lengthValue">0</div>
             </div>
 
+            <!-- NEW -->
+            <!-- GOOD QTY -->
+            <div class="action-box" data-type="accept">
+              <div class="action-title">Good Qty</div>
+              <div class="qty-display" id="goodQty">0</div>
+            </div>
+
           </div>
 
-          
+
 
         </div>
 
         <!-- LEFT SIDE -->
-        
+
 
         <!-- RIGHT SIDE -->
         <div class="log-table">
@@ -915,7 +934,7 @@
     </div>
   </div>
 
-  <script type="module" src="/static/ui-traveler.js?ver=3.1"></script>
+  <script type="module" src="/static/ui-traveler.js?ver=3.2"></script>
   </script>
 
 
