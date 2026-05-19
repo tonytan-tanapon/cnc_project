@@ -611,8 +611,8 @@ def update_shipment_fields(
 
             lot = db.get(ProductionLot, shipment.lot_id)
             if lot:
-                lot.status = "completed"
-                updated_fields.append("lot.status=completed")
+                lot.status = "shipped"
+                updated_fields.append("lot.status=shipped")
 
             shipment.shipped_at = datetime.utcnow()
             updated_fields.append("shipped_date")
@@ -636,8 +636,8 @@ def update_shipment_fields(
         if new_status == "shipped":
             lot = db.get(ProductionLot, shipment.lot_id)
             if lot:
-                lot.status = "completed"
-                updated_fields.append("lot.status=completed")
+                lot.status = "shipped"
+                updated_fields.append("lot.status=shipped")
         if new_status == "pending":
             lot = db.get(ProductionLot, shipment.lot_id)
             if lot:

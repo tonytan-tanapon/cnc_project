@@ -45,6 +45,36 @@ function updateField(fieldName) {
   };
 }
 
+async function markLotAsShipped(row) {
+  try {
+
+    console.log("🚀 markLotAsShipped row =", row);
+
+    const res = await jfetch(
+      `/api/v1/lot-shippments/${row.id}/update-fields`,
+      {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          status: "shipped",
+        }),
+      }
+    );
+
+    console.log("✅ API RESULT =", res);
+
+    toast("✅ Shipment + Lot marked as shipped");
+
+  } catch (err) {
+
+    console.error("❌ FULL ERROR =", err);
+
+    toast("❌ Failed to update status", false);
+  }
+}
+
 /* ========= LOAD LOT HEADER ========= */
 async function loadLotHeader() {
   try {
@@ -679,27 +709,38 @@ function initShipmentTable() {
           console.log("Doc action:", { action, rowData });
           try {
             if (action === "cofc") {
+
+              await markLotAsShipped(rowData);
+
               console.log("Downloading CofC for shipment:", rowData.shipment_no);
+
               const trackingCell = row.getCell("tracking_number");
 
-              // ✅ 1. update UI
               trackingCell.setValue("Print CofC");
 
-              // ✅ 2. FORCE call updateField manually
               await updateField("tracking_number")(trackingCell);
 
-              // ✅ 3. download
               await downloadCofC(rowData);
 
               toast("✅ CofC + tracking updated");
             }
 
             if (action === "packing") {
+
+              await markLotAsShipped(rowData);
+
               await downloadPacking(rowData);
+
+              toast("✅ Lot marked as shipped");
             }
 
             if (action === "packingfa") {
+
+              await markLotAsShipped(rowData);
+
               await downloadPackingFA(rowData);
+
+              toast("✅ Lot marked as shipped");
             }
 
           } catch (err) {
@@ -730,7 +771,8 @@ function initShipmentTable() {
           const btn = e.target.closest("button");
           if (!btn) return;
 
-          const row = cell.getRow().getData();
+          const rowComponent = cell.getRow();
+          const row = rowComponent.getData();
 
           const action = btn.dataset.action;   // ✅ works now
           var size = btn.dataset.size;       // string | undefined
@@ -747,7 +789,13 @@ function initShipmentTable() {
             type,
             shipmentId: row.id,
           });
+          await markLotAsShipped(row);
+          await loadShipmentTable();
+          await loadLotHeader();
+
           await downloadLabel(row, Number(size), type);
+
+          toast("✅ Lot marked as shipped");
           return;
 
 
