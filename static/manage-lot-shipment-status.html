@@ -1,72 +1,79 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Lot Shipment Status · Topnotch – MFG</title>
 
-    <link rel="stylesheet" href="/static/css/app.css" />
-    <link
-      rel="stylesheet"
-      href="/static/vendor/tabulator/tabulator_modern.min.css"
-    />
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Lot Shipment Status · Topnotch – MFG</title>
 
-    <style>
-      #_reload {
-  display: none;
-} 
-      .main--edge {
-        padding: 0;
-        height: 100vh;
-        overflow: hidden;
-      }
-      .panel--edge {
-        margin: 0;
-        border-radius: 0;
-        border-left-width: 0;
-        border-right-width: 0;
-      }
-      #listPanel {
-        display: flex;
-        flex-direction: column;
-        height: 100%;
-        min-height: 0;
-      }
-      .list-topbar {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        height: 44px;
-        border-bottom: 1px solid #e5e7eb;
-        padding: 0;
-      }
-      .list-topbar .search-lg {
-        flex: 0 0 200px;
-        height: 36px;
-        padding: 0 12px;
-        border-radius: 0;
-      }
-      #listBody {
-        flex: 1 1 auto;
-        min-height: 0;
-        overflow: auto;
-      }
-      #listBody .tabulator {
-        height: 100% !important;
-        border: 0;
-      }
+  <link rel="stylesheet" href="/static/css/app.css" />
+  <link rel="stylesheet" href="/static/vendor/tabulator/tabulator_modern.min.css" />
 
-      .qty-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr; /* ← tab-like columns */
-  gap: 6px;
-  text-align: right;
-  font-variant-numeric: tabular-nums; /* numbers align nicely */
-}
-    </style>
-  </head>
+  <style>
+    #_reload {
+      display: none;
+    }
 
-  <body>
+    .main--edge {
+      padding: 0;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .panel--edge {
+      margin: 0;
+      border-radius: 0;
+      border-left-width: 0;
+      border-right-width: 0;
+    }
+
+    #listPanel {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      min-height: 0;
+    }
+
+    .list-topbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      height: 44px;
+      border-bottom: 1px solid #e5e7eb;
+      padding: 0;
+    }
+
+    .list-topbar .search-lg {
+      flex: 0 0 200px;
+      height: 36px;
+      padding: 0 12px;
+      border-radius: 0;
+    }
+
+    #listBody {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow: auto;
+    }
+
+    #listBody .tabulator {
+      height: 100% !important;
+      border: 0;
+    }
+
+    .qty-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      /* ← tab-like columns */
+      gap: 6px;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      /* numbers align nicely */
+    }
+  </style>
+</head>
+
+<body>
   <div class="app">
     <aside class="sidebar">
       <div id="navSlot" data-nav-slot></div>
@@ -74,20 +81,15 @@
 
     <main class="main main--edge">
       <section class="panel panel--edge" id="listPanel">
-        
+
         <div class="list-topbar">
-          <input
-            id="_q"
-            type="search"
-            class="search-lg"
-            placeholder="Search…"
-          />
+          <input id="_q" type="search" class="search-lg" placeholder="Search…" />
 
           <span style="margin-left:10px;">LOT STATUS:</span>
 
           <!-- ✅ RADIO BUTTON -->
           <div id="_lot_status_group" style="display:inline-flex; gap:10px; margin-left:10px; flex-wrap:wrap;">
-            
+
             <label class="radio-pill">
               <input type="radio" name="lot_status" value="" />
               <span>All</span>
@@ -101,6 +103,12 @@
             <label class="radio-pill">
               <input type="radio" name="lot_status" value="in_process" />
               <span>In Process</span>
+            </label>
+
+            <!-- ✅ NEW -->
+            <label class="radio-pill">
+              <input type="radio" name="lot_status" value="shipped" />
+              <span>Shipped</span>
             </label>
 
             <label class="radio-pill">
@@ -127,9 +135,9 @@
 
   <!-- ✅ UPDATE JS -->
   <script type="module">
-    import "/static/js/manage-lot-shipment-status.js?v=2";
+    import "/static/js/manage-lot-shipment-status.js?v=1.2";
 
-  
+
 
     // ✅ reload button (optional)
     document.getElementById("_reload").addEventListener("click", () => {
@@ -171,11 +179,11 @@
       background: #e5e7eb;
     }
 
-    .radio-pill input:checked + span {
+    .radio-pill input:checked+span {
       color: white;
     }
 
-    .radio-pill input:checked ~ span,
+    .radio-pill input:checked~span,
     .radio-pill input:checked {
       background: transparent;
     }
@@ -187,4 +195,5 @@
     }
   </style>
 </body>
+
 </html>

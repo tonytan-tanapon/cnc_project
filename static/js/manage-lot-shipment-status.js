@@ -787,7 +787,8 @@ function makeColumns() {
         values: {
           not_start: "No Ship",      // 👈 เปลี่ยนตรงนี้ด้วย
           in_process: "In Process",
-          hold: "Hold",
+         
+          shipped: "Shipped",
           completed: "Completed",
           canceled: "Canceled",
         },
@@ -799,7 +800,9 @@ function makeColumns() {
         const colors = {
           not_start: "#6b7280",
           in_process: "#3b82f6",
-          hold: "#f59e0b",
+         
+          shipped: "#06b6d4",   // ✅ ADD
+
           completed: "#10b981",
           canceled: "#ef4444",
         };
@@ -808,7 +811,8 @@ function makeColumns() {
         const labels = {
           not_start: "No Ship",
           in_process: "In Process",
-          hold: "Hold",
+         
+          shipped: "Shipped",   // ✅ ADD
           completed: "Completed",
           canceled: "Canceled",
         };
@@ -930,25 +934,25 @@ function applyFilter() {
   //   );
 
   // }
- 
+
   if (q) {
-  table.addFilter((d) => {
+    table.addFilter((d) => {
 
-    const part = String(d.part_no || "").toLowerCase();
-    const lot = String(d.lot_no || "").toLowerCase();
-    const customer = String(d.customer_name || "").toLowerCase();
-    const customerCode = String(d.customer_code || "").toLowerCase();
-    const po = String(d.po_number || "").toLowerCase();
+      const part = String(d.part_no || "").toLowerCase();
+      const lot = String(d.lot_no || "").toLowerCase();
+      const customer = String(d.customer_name || "").toLowerCase();
+      const customerCode = String(d.customer_code || "").toLowerCase();
+      const po = String(d.po_number || "").toLowerCase();
 
-    return (
-      part.includes(q) ||
-      lot.includes(q) ||
-      customer.includes(q) ||
-      customerCode.includes(q) ||
-      po.includes(q)
-    );
-  });
-}
+      return (
+        part.includes(q) ||
+        lot.includes(q) ||
+        customer.includes(q) ||
+        customerCode.includes(q) ||
+        po.includes(q)
+      );
+    });
+  }
 
   if (lotStatus) {
     table.addFilter("lot_status", "=", lotStatus);
@@ -994,7 +998,7 @@ function initTable() {
   window.table = table;
 }
 document.addEventListener("DOMContentLoaded", () => {
- 
+
   Object.values(UI).forEach((id) => (els[id] = $(id)));
   initTable();
   console.log("before load")

@@ -545,6 +545,7 @@ def update_lot_status(
         "not_start",
         "in_process",
         "hold",
+        "shipped",
         "completed",
         "canceled",
     }:
