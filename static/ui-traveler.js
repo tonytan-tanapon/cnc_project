@@ -776,7 +776,7 @@ async function loadOperation() {
         div.style.borderLeft = `10px solid ${statusColor(s.status)}`;
 
         div.innerHTML = `
-  <div style="font-size:25px;font-weight:700;">${s.step_code}</div>
+  <div style="font-size:18px;font-weight:700;">${s.step_code}</div>
  </div>
 `;
 

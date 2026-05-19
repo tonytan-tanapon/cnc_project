@@ -337,7 +337,7 @@ closeLotOverlay?.addEventListener("click", () => {
 function renderLotDisplay() {
 
   lotDisplay.innerText =
-    lotValue || "-----";
+    "L" + (lotValue || "-----");
 }
 
 // CREATE KEYS
@@ -396,11 +396,9 @@ lotOkBtn?.addEventListener("click", async () => {
 
   // USE RAW LOT NUMBER
   let finalLot =
-    lotValue.trim().toUpperCase();
+  "L" + lotValue.trim().toUpperCase();
 
-  if (!finalLot.startsWith("L")) {
-    finalLot = "L" + finalLot;
-  }
+ 
 
   console.log(
     "Selected Lot:",

@@ -773,7 +773,7 @@
                         <th>Rev</th>
                         <th>Current OP</th>
                         <th>Machine</th>
-                        
+
                         <th>OP Status</th>
                     </tr>
                 </thead>
@@ -793,40 +793,78 @@
 
     <!-- PIN PAD MODAL -->
     <div id="pinOverlay" style="
-  display:none;
-  position:fixed;
-  inset:0;
-  background:rgba(0,0,0,0.55);
-  z-index:9999;
-  align-items:center;
-  justify-content:center;
+display:none;
+position:fixed;
+inset:0;
+
+background:rgba(0,0,0,0.55);
+
+z-index:9999;
+
+align-items:center;
+justify-content:center;
+
+padding:20px;
+
+overflow:auto;
 ">
 
         <div style="
-    background:#fff;
-    width:320px;
-    border-radius:14px;
-    padding:20px;
-    text-align:center;
-  ">
+background:#fff;
 
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-                <h3 style="
-  margin:0;
-  font-size:38px;
-  font-weight:800;
+width:min(95vw,700px);
+
+border-radius:20px;
+max-width:900px;
+padding:18px 16px 16px 16px;
+
+margin-top:20px;
+margin-bottom:20px;
+
+text-align:center;
 ">
-                    Enter PIN
-                </h3>
-                <button id="pinClose" style="font-size:20px;">✕</button>
+
+            <div style="
+display:flex;
+align-items:center;
+margin-bottom:10px;
+">
+                <h3 style="
+margin:0;
+
+font-size:28px;
+
+font-weight:800;
+">
+    Enter PIN
+</h3>
+                <button id="pinClose" style="
+margin-left:auto;
+
+border:none;
+background:none;
+
+font-size:28px;
+
+cursor:pointer;
+">
+✕
+</button>
             </div>
 
-            <div id="pinDisplay" style="
-      margin:16px 0;
-      font-size:64px;
-      letter-spacing:10px;
-      font-weight:800;
-    ">----</div>
+           <div id="pinDisplay" style="
+margin:0px 0 0px 0;
+
+font-size:42px;
+
+letter-spacing:10px;
+
+font-weight:400;
+">
+    ----
+</div>
+
+
 
             <div id="pinKeys" style="
       display:grid;
@@ -931,98 +969,160 @@ justify-content:center;
 
 
     <!-- LOT NUMBER OVERLAY -->
-    <div id="lotOverlay" style="
+<div id="lotOverlay" style="
 display:none;
 position:fixed;
 inset:0;
 background:rgba(0,0,0,0.55);
+
 z-index:99999;
+
 align-items:center;
 justify-content:center;
+
+padding:20px;
+
+overflow:auto;
 ">
 
-        <div style="
+    <div style="
     background:white;
-    width:min(92vw,420px);
+
+    width:min(95vw,700px);
+
     border-radius:20px;
-    padding:24px;
+
+    padding:18px 20px;
+
+    margin-top:20px;
+    margin-bottom:20px;
+
     text-align:center;
     ">
 
+        <!-- HEADER -->
+       <div style="
+display:flex;
+
+align-items:center;
+
+margin-bottom:10px;
+">
+
+            <!-- LEFT -->
             <div style="
-        display:flex;
-        justify-content:space-between;
-        align-items:center;
-        margin-bottom:10px;
-        ">
+            display:flex;
+            align-items:center;
+            gap:14px;
+            ">
 
                 <h2 style="
-            margin:0;
-            font-size:28px;
-            font-weight:800;
-            ">
-                    Enter Lot
+                margin:0;
+                font-size:28px;
+                font-weight:800;
+                white-space:nowrap;
+                ">
+                    Enter Lot:
                 </h2>
 
-                <button id="closeLotOverlay" style="
-            border:none;
-            background:none;
-            font-size:28px;
-            cursor:pointer;
-            ">
-                    ✕
-                </button>
+                <div id="lotDisplay" style="
+font-weight:800;
+
+letter-spacing:4px;
+
+font-size:38px;
+
+color:#2563eb;
+
+white-space:nowrap;
+
+padding-left:8px;
+">
+    L-----
+</div>
 
             </div>
 
-            <div id="lotDisplay" style="
-        font-size:52px;
-        font-weight:800;
-        letter-spacing:4px;
-        margin-bottom:20px;
-        color:#2563eb;
-        ">
-                -----
-            </div>
+            <!-- CLOSE -->
+            <button id="closeLotOverlay" style="
+margin-left:auto;
 
-            <div id="lotKeys" style="
-        display:grid;
-        grid-template-columns:repeat(3,1fr);
-        gap:12px;
-        ">
-            </div>
+border:none;
+background:none;
 
-            <div style="
+font-size:28px;
+
+cursor:pointer;
+">
+                ✕
+            </button>
+
+        </div>
+
+        <!-- BODY -->
+        <div style="
         display:flex;
-        gap:10px;
-        margin-top:16px;
+        gap:20px;
+        align-items:stretch;
         ">
+
+            <!-- LEFT -->
+            <div style="flex:1;">
+
+                <div id="lotKeys" style="
+                display:grid;
+                grid-template-columns:repeat(3,1fr);
+                gap:12px;
+                ">
+                </div>
+
+            </div>
+
+            <!-- RIGHT -->
+            <div style="
+            width:180px;
+
+            display:flex;
+            flex-direction:column;
+
+            gap:12px;
+            ">
 
                 <button id="lotOkBtn" style="
-            flex:1;
-            height:60px;
-            border:none;
-            border-radius:12px;
-            background:#16a34a;
-            color:white;
-            font-size:22px;
-            font-weight:800;
-            cursor:pointer;
-            ">
+                flex:1;
+
+                min-height:70px;
+
+                border:none;
+                border-radius:16px;
+
+                background:#16a34a;
+                color:white;
+
+                font-size:32px;
+                font-weight:800;
+
+                cursor:pointer;
+                ">
                     OK
                 </button>
 
                 <button id="lotClearBtn" style="
-            flex:1;
-            height:60px;
-            border:none;
-            border-radius:12px;
-            background:#f59e0b;
-            color:white;
-            font-size:22px;
-            font-weight:800;
-            cursor:pointer;
-            ">
+                flex:1;
+
+                min-height:95px;
+
+                border:none;
+                border-radius:16px;
+
+                background:#f59e0b;
+                color:white;
+
+                font-size:32px;
+                font-weight:800;
+
+                cursor:pointer;
+                ">
                     Clear
                 </button>
 
@@ -1032,7 +1132,11 @@ justify-content:center;
 
     </div>
 
-    <script type="module" src="/static/ui-traveler-landing.js?v=4">
+</div>
+
+ 
+
+    <script type="module" src="/static/ui-traveler-landing.js?v=6">
     </script>
 
 
