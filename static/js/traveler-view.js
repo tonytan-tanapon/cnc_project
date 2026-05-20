@@ -3,10 +3,10 @@ let employees = [];
 let machines = [];
 
 const COLUMN_ORDER = [
-   "action",
+ 
   "status",
   "op",
-  "name",  
+  "name",
   "date",
   "good",
   "bad",
@@ -34,9 +34,9 @@ const COLUMN_ORDER = [
   "send_date",
   "recv_date",
 
-  
 
- 
+
+
 ];
 
 const HEADER_MAP = {
@@ -133,9 +133,6 @@ const HEADER_MAP = {
     <th class="col-remain">Remain</th>
   `,
 
-  action: `
-    <th class="col-action">Action</th>
-  `
 };
 
 function buildHeader() {
@@ -283,10 +280,11 @@ async function load() {
     contenteditable="true"
 
     onblur="
-      createFromInline(
+      ensureLogThenUpdate(
         ${step.id},
         'qty_accept',
-        this.innerText
+        this.innerText,
+        this
       )
     "
 >
@@ -299,10 +297,11 @@ async function load() {
     contenteditable="true"
 
     onblur="
-      createFromInline(
+      ensureLogThenUpdate(
         ${step.id},
         'qty_reject',
-        this.innerText
+        this.innerText,
+        this
       )
     "
 >
@@ -325,12 +324,13 @@ async function load() {
   rows="2"
 
   onblur="
-    createFromInline(
-      ${step.id},
-      'note',
-      this.value
-    )
-  "
+  ensureLogThenUpdate(
+    ${step.id},
+    'note',
+    this.value,
+    this
+  )
+"
 ></textarea>
 
 </td>
@@ -400,13 +400,7 @@ async function load() {
 </td>
 `,
 
-        action: `
-<td class="col-action">
-  <button onclick="addLog(${step.id})">
-    ➕
-  </button>
-</td>
-`
+        
       };
 
       tr.innerHTML =
@@ -455,7 +449,7 @@ async function load() {
 
       tr.setAttribute(
         "data-op",
-        step.seq
+        step.step_code || ""
       );
 
       if (rej > 0) {
@@ -523,27 +517,12 @@ async function load() {
 </td>
 `;
 
-       actionCell = `
+        actionCell = `
 <td class="col-action"
     rowspan="${rowspan}">
 
   <button onclick="addLog(${step.id})">
     ➕
-  </button>
-
-  <button
-    onclick="deleteLog(${log.id})"
-    style="
-      margin-top:4px;
-      background:#ef4444;
-      color:white;
-      border:none;
-      padding:4px 8px;
-      border-radius:4px;
-      cursor:pointer;
-    "
-  >
-    🗑
   </button>
 
 </td>
@@ -563,18 +542,44 @@ async function load() {
         date: `
 <td class="col-date">
 
-<input
-  type="date"
-  value="${log.work_date || ''}"
-
-  onchange="
-    queueUpdate(
-      ${log.id},
-      'work_date',
-      this.value
-    )
+<div
+  style="
+    display:flex;
+    align-items:center;
+    gap:6px;
   "
 >
+
+  <button
+    onclick="deleteLog(${log.id})"
+    style="
+      background:#ef4444;
+      color:white;
+      border:none;
+      width:26px;
+      height:26px;
+      border-radius:4px;
+      cursor:pointer;
+      flex-shrink:0;
+    "
+  >
+    🗑
+  </button>
+
+  <input
+    type="date"
+    value="${log.work_date || ''}"
+
+    onchange="
+      queueUpdate(
+        ${log.id},
+        'work_date',
+        this.value
+      )
+    "
+  >
+
+</div>
 
 </td>
 `,
@@ -611,9 +616,9 @@ ${employees.map(e => `
   value="${e.id}"
 
   ${Number(e.id) ===
-    Number(log.operator_id)
-      ? "selected"
-      : ""}
+            Number(log.operator_id)
+            ? "selected"
+            : ""}
 
 >
   ${e.nickname || e.emp_code}
@@ -643,9 +648,9 @@ ${machines.map(m => `
   value="${m.id}"
 
   ${Number(m.id) ===
-    Number(log.machine_id)
-      ? "selected"
-      : ""}
+            Number(log.machine_id)
+            ? "selected"
+            : ""}
 
 >
   ${m.code}
@@ -849,7 +854,7 @@ ${machines.map(m => `
 
         remain: remainCell,
 
-        action: actionCell
+    
       };
 
       tr.innerHTML =
@@ -948,6 +953,76 @@ async function autoUpdateStepStatus(step_id, newStatus, currentStatus) {
   }
 }
 
+async function ensureLogThenUpdate(
+  step_id,
+  field,
+  value,
+  el
+) {
+
+  const tr =
+  el.closest("tr") ||
+  el.parentElement.closest("tr");
+
+  // already created
+  let log_id =
+    tr.getAttribute("data-log-id");
+
+  // =========================
+  // CREATE FIRST
+  // =========================
+
+  if (!log_id) {
+
+    const payload = {
+      step_id,
+      qty_accept: 0,
+      qty_reject: 0,
+      work_date:
+        new Date()
+          .toISOString()
+          .slice(0, 10)
+    };
+
+    const res = await fetch(
+      `/api/v1/step-logs`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type":
+            "application/json"
+        },
+        body: JSON.stringify(payload)
+      }
+    );
+
+    if (!res.ok) {
+      alert("Create log failed");
+      return;
+    }
+
+    const newLog = await res.json();
+
+    log_id = newLog.id;
+
+    tr.setAttribute(
+      "data-log-id",
+      log_id
+    );
+  }
+
+  // =========================
+  // UPDATE FIELD
+  // =========================
+
+  queueUpdate(
+    Number(log_id),
+    field,
+    value
+  );
+
+  await saveAllRows();
+}
 
 function getStatusColor(status) {
   return {
@@ -973,29 +1048,142 @@ function buildStatusDropdown(step) {
   `;
 }
 
+// async function updateStepStatus(step_id, status, el) {
+//   try {
+//     await fetch(`/api/v1/traveler-steps/${step_id}`, {
+//       method: "PUT",
+//       headers: { "Content-Type": "application/json" },
+//       body: JSON.stringify({
+//         status: status   // this works because backend uses exclude_unset
+//       })
+//     });
+
+//     // update UI instantly
+//     const op = el.closest("tr").getAttribute("data-op");
+
+//     // 🔥 update ALL rows in same step
+//     document.querySelectorAll(`tr[data-op="${op}"]`).forEach(r => {
+//       r.style.background = getStatusColor(status);
+//     });
+
+//   } catch (err) {
+//     console.error(err);
+//     alert("Update failed");
+//   }
+// }
+
 async function updateStepStatus(step_id, status, el) {
+
   try {
-    await fetch(`/api/v1/traveler-steps/${step_id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        status: status   // this works because backend uses exclude_unset
-      })
-    });
 
-    // update UI instantly
-    const op = el.closest("tr").getAttribute("data-op");
+    // =====================================
+    // FIND CURRENT STEP
+    // =====================================
 
-    // 🔥 update ALL rows in same step
-    document.querySelectorAll(`tr[data-op="${op}"]`).forEach(r => {
-      r.style.background = getStatusColor(status);
-    });
+    const tr =
+      el.closest("tr");
+
+    const op =
+      tr.getAttribute("data-op");
+
+    // =====================================
+    // MATERIAL / M STEP
+    // =====================================
+
+    const isMaterial =
+
+      String(op)
+        .toUpperCase()
+        .startsWith("M");
+
+    // =====================================
+    // AUTO FORCE PO
+    // =====================================
+
+    if (
+      isMaterial &&
+      status === "passed"
+    ) {
+
+      // find supplier_po cell
+      const poCell =
+        tr.querySelector(
+          ".col-supplier-po"
+        );
+
+      // if empty -> auto fill "-"
+      if (
+        poCell &&
+        !poCell.innerText.trim()
+      ) {
+
+        poCell.innerText = "-";
+
+        // queue save
+        const log_id =
+          tr.getAttribute(
+            "data-log-id"
+          );
+
+        if (log_id) {
+
+          queueUpdate(
+            Number(log_id),
+            "supplier_po",
+            "-"
+          );
+        }
+      }
+    }
+
+    // =====================================
+    // UPDATE STEP STATUS
+    // =====================================
+
+    await fetch(
+      `/api/v1/traveler-steps/${step_id}`,
+      {
+        method: "PUT",
+
+        headers: {
+          "Content-Type":
+            "application/json"
+        },
+
+        body: JSON.stringify({
+          status: status
+        })
+      }
+    );
+
+    // =====================================
+    // SAVE PENDING LOG UPDATE
+    // =====================================
+
+    await saveAllRows();
+
+    // =====================================
+    // UPDATE UI COLOR
+    // =====================================
+
+    document
+      .querySelectorAll(
+        `tr[data-op="${op}"]`
+      )
+      .forEach(r => {
+
+        r.style.background =
+          getStatusColor(status);
+      });
 
   } catch (err) {
+
     console.error(err);
+
     alert("Update failed");
   }
 }
+
 // =======================
 // BUILD CELL
 // =======================
@@ -1010,8 +1198,8 @@ function buildEditableCell(
     field === "qty_accept"
       ? "col-good"
       : field === "qty_reject"
-      ? "col-bad"
-      : "";
+        ? "col-bad"
+        : "";
 
   if (log.id) {
 
@@ -1194,11 +1382,11 @@ async function saveAllRows() {
 
 
 
- pendingUpdates = {};
+  pendingUpdates = {};
 
-showToast("✅ All rows saved");
+  showToast("✅ All rows saved");
 
-load();
+  load();
 }
 // =======================
 // UPDATE FIELD (FIXED)
@@ -1532,7 +1720,35 @@ async function submitTopInput() {
 })();
 
 // Prevent multiline in single-line editable cells
-document.addEventListener("keydown", function (e) {
+document.addEventListener("keydown", async function (e) {
+
+  const td = e.target;
+
+  // =========================
+  // GOOD / BAD
+  // =========================
+
+  const isGoodBad =
+
+    td &&
+    td.getAttribute("contenteditable") === "true" &&
+    (
+      td.classList.contains("col-good") ||
+      td.classList.contains("col-bad")
+    );
+
+  if (isGoodBad && e.key === "Enter") {
+
+    e.preventDefault();
+
+    td.blur(); // trigger onblur save
+
+    return;
+  }
+
+  // =========================
+  // OTHER SINGLE LINE
+  // =========================
 
   const singleLineCols = [
     "col-supplier-po",
@@ -1545,15 +1761,17 @@ document.addEventListener("keydown", function (e) {
     "col-mat-uom"
   ];
 
-  const td = e.target;
-
   const isSingleLine =
     td &&
     td.getAttribute("contenteditable") === "true" &&
-    singleLineCols.some(cls => td.classList.contains(cls));
+    singleLineCols.some(cls =>
+      td.classList.contains(cls)
+    );
 
   if (isSingleLine && e.key === "Enter") {
+
     e.preventDefault();
-    td.blur(); // optional: auto save on Enter
+
+    td.blur();
   }
 });

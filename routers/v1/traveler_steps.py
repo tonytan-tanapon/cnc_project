@@ -79,8 +79,21 @@ def list_traveler_steps(traveler_id: Optional[int] = None, db: Session = Depends
         if traveler_id:
             q = q.filter(ShopTravelerStep.traveler_id == traveler_id)
 
-        rows = q.order_by(ShopTravelerStep.seq.asc()).all()
+        def op_sort_key(row):
+            step = row[0]
 
+            code = (step.step_code or "").upper()
+
+            # เอาเฉพาะตัวเลข
+            num = ''.join(c for c in code if c.isdigit())
+
+            return int(num) if num else 999999
+
+
+        rows = sorted(
+            q.all(),
+            key=op_sort_key
+        )
         result = []
 
         prev_accept = None

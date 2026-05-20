@@ -437,31 +437,31 @@ MOBILE
 
     <input type="date" id="input_date">
 
-    <input type="number" id="input_accept" placeholder="Good" style="width:80px">
-    <input type="number" id="input_reject" placeholder="Bad" style="width:80px">
+    <input type="number" id="input_accept" placeholder="Good" style="width:80px" hidden/>
+    <input type="number" id="input_reject" placeholder="Bad" style="width:80px" hidden/>
 
-    <select id="input_operator"></select>
-    <select id="input_machine"></select>
+    <select id="input_operator" hidden/></select>
+    <select id="input_machine" hidden/></select>
 
-    <input type="text" id="input_note" placeholder="Note" style="width:180px">
-    <input type="text" id="input_supplier_po" placeholder="Supplier PO" style="width:80px">
+    <input type="text" id="input_note" placeholder="Note" style="width:180px" hidden/>
+    <input type="text" id="input_supplier_po" placeholder="Supplier PO" style="width:80px" hidden/>
 
-    <input type="text" id="input_supplier_name" placeholder="Supplier" style="width:80px">
+    <input type="text" id="input_supplier_name" placeholder="Supplier" style="width:80px" hidden/>
 
-    <input type="text" id="input_supplier_lot" placeholder="Heat Lot" style="width:80px">
-    <input type="text" id="input_material_type" placeholder="Mat Type" style="width:80px">
+    <input type="text" id="input_supplier_lot" placeholder="Heat Lot" style="width:80px" hidden/>
+    <input type="text" id="input_material_type" placeholder="Mat Type" style="width:80px" hidden/>
 
-    <input type="text" id="input_material_size" placeholder="Mat Size" style="width:80px">
+    <input type="text" id="input_material_size" placeholder="Mat Size" style="width:80px" hidden/>
 
-    <input type="text" id="input_material_length" placeholder="Length" style="width:80px">
+    <input type="text" id="input_material_length" placeholder="Length" style="width:80px" hidden/>
 
-    <input type="number" id="input_material_qty" placeholder="Qty" style="width:80px">
+    <input type="number" id="input_material_qty" placeholder="Qty" style="width:80px" hidden/>
 
-    <input type="text" id="input_material_uom" placeholder="UOM" style="width:70px">
+    <input type="text" id="input_material_uom" placeholder="UOM" style="width:70px" hidden/>
 
-    <input type="date" id="input_supplier_send_date">
+    <input type="date" id="input_supplier_send_date" hidden/>
 
-    <input type="date" id="input_supplier_receive_date">
+    <input type="date" id="input_supplier_receive_date" hidden/>
     <button onclick="submitTopInput()">➕ Add</button>
     <button onclick="saveAllRows()">
       💾 Save All
@@ -477,7 +477,7 @@ MOBILE
   </table>
 
   <!-- 🔥 IMPORTANT: version updated -->
-  <script src="/static/js/traveler-view.js?v=9.0"></script>
+  <script src="/static/js/traveler-view.js?v=1.1"></script>
 <div id="toast" class="toast">
   ✅ Saved successfully
 </div>

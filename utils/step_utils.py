@@ -64,6 +64,8 @@ def calculate_step_status(
         return "passed"
 
     return "pending"
+
+
 # def calculate_step_status(
 #     receive,
 #     accept,

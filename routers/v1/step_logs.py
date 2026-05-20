@@ -972,6 +972,43 @@ def update_log(
 
             setattr(log, field, value)
 
+        ####
+
+        # =========================
+        # FORCE PASS
+        # =========================
+
+        # incoming_status = payload.get("status")
+        # print("incoming_status:", incoming_status)
+
+        # step = log.step
+
+        # if incoming_status:
+
+        #     allow_force = (
+
+        #         step.input_mode == "machine_cut"
+
+        #         or
+
+        #         (
+        #             step.step_code
+        #             and
+        #             step.step_code.startswith("M")
+        #         )
+        #     )
+
+        #     if (
+        #         allow_force
+        #         and
+        #         incoming_status == "passed"
+        #     ):
+
+        #         # 🔥 if no PO yet
+        #         if not log.supplier_po:
+
+        #             log.supplier_po = "-"
+
         # =========================
         # SAVE
         # =========================
