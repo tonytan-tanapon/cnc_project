@@ -260,31 +260,31 @@ function makeColumns() {
         /* ===================================== */
 
         {
-    title: "Operator",
-    field: "current_operator",
-    width: 130,
-    sorter: "string",
+            title: "Operator",
+            field: "current_operator",
+            width: 130,
+            sorter: "string",
 
-    formatter: (cell) => {
+            formatter: (cell) => {
 
-        return `
+                return `
             <div>
                 ${cell.getValue() || "-"}
             </div>
         `;
-    },
-},
+            },
+        },
 
         /* ===================================== */
         /* MACHINE */
         /* ===================================== */
 
         {
-    title: "Machine",
-    field: "current_machine",
-    width: 120,
-    sorter: "string",
-},
+            title: "Machine",
+            field: "current_machine",
+            width: 120,
+            sorter: "string",
+        },
 
         /* ===================================== */
         /* RECEIVE */
@@ -332,13 +332,15 @@ function makeColumns() {
         /* ===================================== */
         /* PROGRESS */
         /* ===================================== */
-
         {
             title: "% Progress",
             field: "progress_percent",
             width: 120,
             hozAlign: "center",
-            sorter: "number",
+
+            sorter: (a, b) => {
+                return Number(a || 0) - Number(b || 0);
+            },
 
             formatter: (cell) => {
 
@@ -360,51 +362,45 @@ function makeColumns() {
                     color = "#3b82f6";
 
                 return `
+<div
+  class="progress-bar"
+  style="
+    position:relative;
+    height:22px;
+  "
+>
 
-    <div
-      class="progress-bar"
-      style="
-        position:relative;
-        height:22px;
-      "
-    >
+  <div
+    class="progress-inner"
+    style="
+      width:${v}%;
+      background:${color};
+      height:100%;
+    "
+  ></div>
 
-      <!-- BAR -->
+  <div style="
+    position:absolute;
+    top:0;
+    left:0;
+    width:100%;
+    height:100%;
 
-      <div
-        class="progress-inner"
-        style="
-          width:${v}%;
-          background:${color};
-          height:100%;
-        "
-      ></div>
+    display:flex;
+    align-items:center;
+    justify-content:center;
 
-      <!-- TEXT -->
+    color:black;
+    font-weight:700;
+    font-size:12px;
+  ">
 
-      <div style="
-        position:absolute;
-        top:0;
-        left:0;
-        width:100%;
-        height:100%;
+    ${v.toFixed(0)}%
 
-        display:flex;
-        align-items:center;
-        justify-content:center;
+  </div>
 
-        color:black;
-        font-weight:700;
-        font-size:12px;
-      ">
-
-        ${v.toFixed(0)}%
-
-      </div>
-
-    </div>
-
-  `;
+</div>
+`;
             },
         },
 
@@ -574,7 +570,7 @@ function applyFilter() {
                 ||
 
                 String(
-                    d.current_op  || ""
+                    d.current_op || ""
                 )
                     .toLowerCase()
                     .includes(q)
@@ -617,6 +613,11 @@ async function loadData() {
         table.setData(rows);
 
         applyFilter();
+
+        table.setSort(
+            "progress_percent",
+            "desc"
+        );
 
         toast(
             `Loaded ${rows.length} travelers`
@@ -664,7 +665,7 @@ function initTable() {
 
                     {
                         column:
-                            "stopped_days",
+                            "progress_percent",
 
                         dir:
                             "desc",

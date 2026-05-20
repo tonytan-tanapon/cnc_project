@@ -70,8 +70,8 @@ def get_shop_traveler_status(
 
         ORDER BY
 
-            stopped_days DESC,
-            progress_percent ASC,
+            
+            progress_percent DESC,
             lot_no ASC
 
     """
