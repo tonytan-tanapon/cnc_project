@@ -431,8 +431,8 @@ function makeColumns() {
                     running:
                         "#3b82f6",
 
-                    passed:
-                        "#10b981",
+                    // passed:
+                    //     "#10b981",
 
                     failed:
                         "#ef4444",
@@ -464,36 +464,36 @@ function makeColumns() {
         /* PREVIOUS OP */
         /* ===================================== */
 
-        {
-            title: "Previous OP",
-            field: "previous_op_code",
-            width: 130,
+        // {
+        //     title: "Previous OP",
+        //     field: "previous_op_code",
+        //     width: 130,
 
-            formatter: (cell) => {
+        //     formatter: (cell) => {
 
-                const row =
-                    cell.getRow().getData();
+        //         const row =
+        //             cell.getRow().getData();
 
-                return `
+        //         return `
 
-          <div class="op-card">
+        //   <div class="op-card">
 
-            <div style="
-              font-weight:700;
-              color:#6b7280;
-            ">
-              ${row.previous_op_code || "-"}
-            </div>
+        //     <div style="
+        //       font-weight:700;
+        //       color:#6b7280;
+        //     ">
+        //       ${row.previous_op_code || "-"}
+        //     </div>
 
-            <div class="op-sub">
-              ${row.previous_op_name || ""}
-            </div>
+        //     <div class="op-sub">
+        //       ${row.previous_op_name || ""}
+        //     </div>
 
-          </div>
+        //   </div>
 
-        `;
-            },
-        },
+        // `;
+        //     },
+        // },
 
 
 

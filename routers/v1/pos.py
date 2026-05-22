@@ -386,11 +386,33 @@ def update_line(po_id: int, line_id: int, payload: PoLineUpdate, db: Session = D
     if payload.revision_id is not None:
         if payload.revision_id == 0:
             line.revision_id = None
+
+            # sync lots
+            lots = db.query(ProductionLot).filter(
+                ProductionLot.po_line_id == line.id
+            ).all()
+
+            for lot in lots:
+                lot.part_revision_id = None
+
         else:
             rev = db.query(PartRevision).get(payload.revision_id)
+
             if not rev or rev.part_id != line.part_id:
-                raise HTTPException(400, "revision_id does not belong to part_id")
+                raise HTTPException(
+                    400,
+                    "revision_id does not belong to part_id"
+                )
+
             line.revision_id = rev.id
+
+            # sync lots
+            lots = db.query(ProductionLot).filter(
+                ProductionLot.po_line_id == line.id
+            ).all()
+
+            for lot in lots:
+                lot.part_revision_id = rev.id
 
     if payload.qty is not None:
         line.qty_ordered = payload.qty

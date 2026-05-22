@@ -200,28 +200,31 @@ async function saveLot() {
   try {
 
     setBusyT(true);
-
+    // 1111
     const payload = {
 
       lot_no: strOrNull(
         $("lot_no")?.value
       ),
 
-      lot_po_qty: numOrNull(
-        $("lot_po_qty")?.value
+      note: strOrNull(
+        $("notes")?.value
       ),
+
+      
 
       planned_qty: numOrNull(
         $("lot_planned_qty")?.value
       ),
+      lot_shipped_qty: numOrNull($("lot_shipped_qty")?.value),
 
       lot_po_date: strOrNull(
         $("lot_release_date")?.value
       ),
 
-      lot_po_duedate: strOrNull(
-        $("lot_po_duedate")?.value
-      ),
+      lot_po_duedate: strOrNull($("lot_po_duedate")?.value),
+
+      
     };
 
     await jfetch(
@@ -259,8 +262,9 @@ function wireHeaderDirtyOnly() {
     "lot_no",
     "status",
     "notes",
-    "lot_po_qty",
+    
     "lot_planned_qty",
+    "lot_shipped_qty",
     "material",
     "lot_release_date",     // 🔥 add
     "lot_po_duedate"        // 🔥 add
@@ -308,7 +312,7 @@ function initHeaderAutocomplete() {
 
 /* ---------- Traveler IO ---------- */
 
-/* ---------- Traveler IO ---------- */
+
 
 async function fillTraveler(t) {
 
@@ -326,9 +330,7 @@ async function fillTraveler(t) {
 
     if (t.latest_template) {
 
-      badge = `
-        <span
-          style="
+      badge = `<span style="
             margin-left:10px;
             padding:4px 10px;
             border-radius:999px;
@@ -354,14 +356,9 @@ async function fillTraveler(t) {
   // BASIC
   // =====================
 
-  $("notes").value =
-    t.notes || "";
 
   $("material").value =
     t.lot?.part_revision?.material || "";
-
-
-
 
   // =====================
   // CREATOR
@@ -392,20 +389,17 @@ async function fillTraveler(t) {
 function readTraveler() {
   const lotInput = $("lot_id");
   const creatorInput = $("created_by_id");
-  const lot_id =
-    selectedLot?.id ??
-    (lotInput?.dataset?.id ? Number(lotInput.dataset.id) : null);
-  const created_by_id =
-    selectedCreator?.id ??
-    (creatorInput?.dataset?.id ? Number(creatorInput.dataset.id) : null);
+  const lot_id =  selectedLot?.id ??(lotInput?.dataset?.id ? Number(lotInput.dataset.id) : null);
+  const created_by_id = selectedCreator?.id ?? (creatorInput?.dataset?.id ? Number(creatorInput.dataset.id) : null);
+
+  // not related to Save Lot. It use only lot
   return {
     lot_id,
     created_by_id,
-    status: strOrNull($("status")?.value),
-    notes: strOrNull($("notes")?.value),
+    status: strOrNull($("status")?.value),    
 
-    lot_po_qty: numOrNull($("lot_po_qty")?.value),
     lot_planned_qty: numOrNull($("lot_planned_qty")?.value),
+    
     lot_po_date: strOrNull($("lot_release_date")?.value),
     lot_po_duedate: strOrNull($("lot_po_duedate")?.value),
   };
@@ -2143,62 +2137,83 @@ function initStepsTable() {
       //         },
       //       },
 
+      // {
+      //   title: "Supplier",
+      //   width: 120,
 
-      {
-        title: "Supplier",
-        width: 120,
+      //   formatter: function (cell) {
 
-        formatter: function (cell) {
+      //     const logs =
+      //       cell.getRow().getData().logs || [];
 
-          const logs =
-            cell.getRow().getData().logs || [];
+      //     const blocks = [];
 
-          const blocks = [];
+      //     logs.forEach(l => {
 
-          logs.forEach(l => {
+      //       const lines = [];
 
-            const lines = [];
+      //       if (l.supplier_po) {
+      //         lines.push(
+      //           `PO: ${l.supplier_po}`
+      //         );
+      //       }
 
-            if (l.supplier_po) {
-              lines.push(
-                `PO: ${l.supplier_po}`
-              );
-            }
+      //       if (l.supplier_name) {
+      //         lines.push(
+      //           `Supplier: ${l.supplier_name}`
+      //         );
+      //       }
 
-            if (l.supplier_name) {
-              lines.push(
-                `Supplier: ${l.supplier_name}`
-              );
-            }
+      //       if (l.supplier_lot) {
+      //         lines.push(
+      //           `Lot: ${l.supplier_lot}`
+      //         );
+      //       }
 
-            if (l.supplier_lot) {
-              lines.push(
-                `Lot: ${l.supplier_lot}`
-              );
-            }
+      //       // 🔥 skip empty logs
+      //       if (lines.length === 0) {
+      //         return;
+      //       }
 
-            // 🔥 skip empty logs
-            if (lines.length === 0) {
-              return;
-            }
+      //       const text = lines.join("<br>");
 
-            const text = lines.join("<br>");
+      //       // 🔥 prevent duplicate block
+      //       if (!blocks.includes(text)) {
+      //         blocks.push(text);
+      //       }
+      //     });
 
-            // 🔥 prevent duplicate block
-            if (!blocks.includes(text)) {
-              blocks.push(text);
-            }
-          });
-
-          return blocks.join(
-            "<hr style='margin:4px 0'>"
-          );
-        }
-      },
+      //     return blocks.join(
+      //       "<hr style='margin:4px 0'>"
+      //     );
+      //   }
+      // },
 
 
       // { title: "Station", field: "station", width: 140 },
+ // 🔥 TOTALS (READ ONLY)
+      {
+        title: "Recv",
+        field: "total_receive",
+        width: 100,
+        hozAlign: "right",
+        formatter: (c) => Math.round(c.getValue() ?? 0)
+      },
 
+        {
+        title: "Accept",
+        field: "total_accept",
+        width: 100,
+        hozAlign: "right",
+        formatter: (c) => Math.round(c.getValue() ?? 0)
+      },
+      {
+        title: "Reject",
+        field: "total_reject",
+        width: 100,
+        hozAlign: "right",
+        formatter: (c) => Math.round(c.getValue() ?? 0)
+      },
       {
         title: "Operator",
         width: 120,
@@ -2241,61 +2256,133 @@ function initStepsTable() {
         }
       },
 
-      {
-        title: "Note",
-        width: 260,
+      
+{
+  title: "Supplier / Comment",
+  width: 300,
 
-        formatter: function (cell) {
+  formatter: function (cell) {
 
-          const logs =
-            cell.getRow().getData().logs || [];
+    const logs =
+      cell.getRow().getData().logs || [];
 
-          const blocks = [];
+    const blocks = [];
 
-          logs.forEach(l => {
+    logs.forEach(l => {
 
-            const text =
-              (l.note || "").trim();
+      const lines = [];
 
-            // skip empty
-            if (!text) {
-              return;
-            }
+      // =====================
+      // SUPPLIER INFO
+      // =====================
 
-            // prevent duplicate
-            if (!blocks.includes(text)) {
-              blocks.push(text);
-            }
-          });
+      if (l.supplier_po) {
 
-          return blocks.join(
-            "<hr style='margin:4px 0'>"
-          );
-        }
-      },
+        lines.push(
+          `<b>PO:</b> ${l.supplier_po}`
+        );
+      }
 
-      // 🔥 TOTALS (READ ONLY)
-      {
-        title: "Recv",
-        field: "total_receive",
-        width: 100,
-        hozAlign: "right",
-        formatter: (c) => Math.round(c.getValue() ?? 0)
-      },
-      {
-        title: "Accept",
-        field: "total_accept",
-        width: 100,
-        hozAlign: "right",
-        formatter: (c) => Math.round(c.getValue() ?? 0)
-      },
-      {
-        title: "Reject",
-        field: "total_reject",
-        width: 100,
-        hozAlign: "right",
-        formatter: (c) => Math.round(c.getValue() ?? 0)
-      },
+      if (l.supplier_name) {
+
+        lines.push(
+          `<b>Supplier:</b> ${l.supplier_name}`
+        );
+      }
+
+      if (l.supplier_lot) {
+
+        lines.push(
+          `<b>Lot:</b> ${l.supplier_lot}`
+        );
+      }
+
+      // =====================
+      // COMMENT
+      // =====================
+
+      const note =
+        (l.note || "").trim();
+
+      if (note) {
+
+        lines.push(
+          `<div style="
+            margin-top:4px;
+            color:#2563eb;
+            font-style:italic;
+          ">
+            ${note}
+          </div>`
+        );
+      }
+
+      // skip empty
+      if (lines.length === 0) {
+        return;
+      }
+
+      const text =
+        lines.join("<br>");
+
+      // prevent duplicate
+      if (!blocks.includes(text)) {
+
+        blocks.push(text);
+      }
+    });
+
+    return blocks.join(
+      "<hr style='margin:6px 0'>"
+    );
+  }
+},
+
+      // {
+      //   title: "Note",
+      //   width: 260,
+
+      //   formatter: function (cell) {
+
+      //     const logs =
+      //       cell.getRow().getData().logs || [];
+
+      //     const comments = [];
+
+      //     logs.forEach(l => {
+
+      //       const note =
+      //         (l.note || "").trim();
+
+      //       // only show if has comment
+      //       if (!note) {
+      //         return;
+      //       }
+
+      //       const line = `
+      //   <div style="margin-bottom:4px;">
+      //     ${note}
+      //   </div>
+      // `;
+
+      //       if (!comments.includes(line)) {
+      //         comments.push(line);
+      //       }
+      //     });
+
+      //     // no comment
+      //     if (comments.length === 0) {
+      //       return "";
+      //     }
+
+      //     return comments.join(
+      //       "<hr style='margin:4px 0'>"
+      //     );
+      //   }
+      // },
+
+     
+    
 
 
       // 🔥 DELETE STEP
@@ -2716,7 +2803,6 @@ async function loadLotDetail() {
 
 
     if (partEl) {
-
       partEl.value = originalLot.part?.part_no || "";
     }
     if (revEl) {
@@ -2731,13 +2817,14 @@ async function loadLotDetail() {
     if (customerEl) {
       customerEl.value = originalLot.customer?.code || "";
     }
-    $("lot_po_qty").value = originalLot.all.lot_po_qty || "";
+
     $("lot_planned_qty").value = originalLot.all.planned_qty || "";
 
-    $("lot_release_date").value =
-      originalLot.lot_po_date
-        ? originalLot.lot_po_date.slice(0, 10)
-        : "";
+    console.log("originalLot.all.lot_shipped_qty", originalLot.all.lot_shipped_qty)
+    $("lot_shipped_qty").value = originalLot.lot_shipped_qty || "";
+    $("notes").value =  originalLot.all?.note || "";
+
+    $("lot_release_date").value =  originalLot.lot_po_date ? originalLot.lot_po_date.slice(0, 10)    : "";
 
     $("lot_po_duedate").value =
       originalLot.lot_po_duedate
@@ -2919,9 +3006,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   wireHeaderDirtyOnly();
   initHeaderAutocomplete();
   // ---> Add Drawing diagram batch download
-  $("btnDrawing").addEventListener("click", downloadDrawingBatch);
-  $("btnTraveler").addEventListener("click", downloadTravelerBatch);
-  $("btnInspection").addEventListener("click", downloadInspectionBatch);
+  // $("btnDrawing").addEventListener("click", downloadDrawingBatch);
+  // $("btnTraveler").addEventListener("click", downloadTravelerBatch);
+  // $("btnInspection").addEventListener("click", downloadInspectionBatch);
   $("btnExportTraveler").addEventListener("click", exportTraveler);
   $("btnExportTravelerBlank").addEventListener("click", exportTravelerBlank);
 

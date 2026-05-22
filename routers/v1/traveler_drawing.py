@@ -508,21 +508,20 @@ def build_traveler_data_from_db(traveler: ShopTraveler) -> dict:
 
             if log.supplier_po:
 
-                lines.append(
-                    f"PO: {log.supplier_po}"
-                )
+                lines.append(f"PO: {log.supplier_po}")
 
             if log.supplier_name:
 
-                lines.append(
-                    f"Supplier: {log.supplier_name}"
-                )
+                lines.append(f"Supplier: {log.supplier_name}")
 
             if log.supplier_lot:
 
-                lines.append(
-                    f"Heat Lot: {log.supplier_lot}"
-                )
+                lines.append(f"Heat: {log.supplier_lot}" )
+
+            # 🔥 COMMENT
+            if log.note:
+
+                lines.append(f"Note: {log.note}")
 
             # skip empty
             if not lines:

@@ -406,9 +406,13 @@ def used_materials(request: Request, db: Session = Depends(get_db)) -> Dict[str,
     return out
 from models import PO
 
+from sqlalchemy import func
+from models import CustomerShipmentItem
+
 
 @router.get("/{lot_id}")
 def get_lot(lot_id: int, db: Session = Depends(get_db)):
+
     lot = (
         db.query(ProductionLot)
         .options(
@@ -423,11 +427,29 @@ def get_lot(lot_id: int, db: Session = Depends(get_db)):
     if not lot:
         raise HTTPException(404, "Lot not found")
 
+    # =========================
+    # shipped qty
+    # =========================
+    lot_shipped_qty = (
+        db.query(
+            func.coalesce(
+                func.sum(CustomerShipmentItem.qty),
+                0
+            )
+        )
+        .filter(CustomerShipmentItem.lot_id == lot.id)
+        .scalar()
+    )
+
+    print("lot_shipped_qty",lot_shipped_qty)
+
     return {
         "id": lot.id,
         "lot_no": lot.lot_no,
 
-        # ✅ NEW FIELDS
+        # ✅ NEW
+        "lot_shipped_qty": lot_shipped_qty,
+
         "lot_po_date": lot.lot_po_date,
         "lot_po_duedate": lot.lot_po_duedate,
         "lot_po_qty": lot.lot_po_qty,
@@ -451,6 +473,7 @@ def get_lot(lot_id: int, db: Session = Depends(get_db)):
             "rev": lot.part_revision.rev,
             "material": lot.part_revision.material,
         } if lot.part_revision else None,
+
         "all": lot,
     }
 

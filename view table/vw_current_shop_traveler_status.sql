@@ -210,53 +210,29 @@ SELECT
 
     ROUND(
 
-        CASE
+    (
+        (
+            SELECT COUNT(*)
+            FROM shop_traveler_steps s1
+            WHERE
+                s1.traveler_id = st.id
+                AND s1.status = 'passed'
+        )::numeric
 
-            WHEN
+        /
 
-                (
+        NULLIF(
+            (
+                SELECT COUNT(*)
+                FROM shop_traveler_steps s2
+                WHERE s2.traveler_id = st.id
+            ),
+            0
+        )
 
-                    CASE
+    ) * 100
 
-                        WHEN cs.seq = 1 THEN
-                            COALESCE(pl.planned_qty,0)
-
-                        ELSE
-                            COALESCE(prev_ls.total_accept,0)
-
-                    END
-
-                ) = 0
-
-            THEN 0
-
-            ELSE
-
-                (
-
-                    COALESCE(curr_ls.total_accept,0)::numeric
-
-                    /
-
-                    NULLIF(
-
-                        CASE
-
-                            WHEN cs.seq = 1 THEN
-                                COALESCE(pl.planned_qty,0)
-
-                            ELSE
-                                COALESCE(prev_ls.total_accept,0)
-
-                        END
-
-                    ,0)
-
-                ) * 100
-
-        END
-
-    ,2) AS progress_percent,
+,2) AS progress_percent,
 
     -- =====================================
     -- STOPPED DAYS
