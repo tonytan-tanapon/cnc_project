@@ -106,6 +106,7 @@ def create_lot(payload: ProductionLotCreate, db: Session = Depends(get_db)):
         started_at=payload.started_at,
         finished_at=payload.finished_at,
         status=payload.status or "in_process",
+        risk = "green"
         
     )
 
@@ -446,7 +447,7 @@ def get_lot(lot_id: int, db: Session = Depends(get_db)):
     return {
         "id": lot.id,
         "lot_no": lot.lot_no,
-
+        "risk": lot.risk,
         # ✅ NEW
         "lot_shipped_qty": lot_shipped_qty,
 

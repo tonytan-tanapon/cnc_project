@@ -499,6 +499,7 @@ class ProductionLot(Base):
     created_at = Column(DateTime(timezone=True), nullable=True)  #lot create date
     status = Column(String, nullable=False, default="in_process")
     note =  Column(String,  nullable=True)
+    risk = Column(String, nullable=True, default="green")
     
 
 

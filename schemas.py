@@ -373,6 +373,7 @@ class ProductionLotCreate(BaseModel):
     finished_at: Optional[datetime] = None
     status: Optional[LotStatus] = "in_process"
     lot_planned_ship_qty: Optional[int] = None
+    risk: Optional[str] = None
 
 class ProductionLotUpdate(BaseModel):
     lot_no: Optional[str] = None         
@@ -395,6 +396,7 @@ class ProductionLotUpdate(BaseModel):
     lot_po_qty: Optional[int] = None
     lot_po_date: Optional[date] = None
     lot_po_duedate: Optional[date] = None
+    risk: Optional[str] = None
 
 class PartTiny(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -451,6 +453,8 @@ class ProductionLotOut(BaseModel):
     po: Optional[POTiny] = None
     part_revision: Optional[PartRevisionTiny] = None   # ✅ FIXED NAME
     customer: Optional[CustomerTiny] = None           # ✅ NEW
+
+    risk : Optional[str] = None
 
     traveler_ids: List[int] = Field(default_factory=list)
 # =========================================

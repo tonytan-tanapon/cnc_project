@@ -9,6 +9,8 @@ from doc.docx_to_db import (
     create_template_from_parsed_result,
 )
 from utils.step_utils import calculate_step_status
+from models import CustomerShipmentItem
+from sqlalchemy import func
 
 from database import get_db
 from models import (
@@ -58,6 +60,8 @@ class ShopTravelerRowOut(BaseModel):
     created_at: Optional[str] = None
     part_id: Optional[int] = None
     part_revision_id: Optional[int] = None
+    start_qty: Optional[int] = 0
+    final_qty: Optional[int] = 0
    # 🔥 ADD THIS
     latest_template: Optional[bool] = False
     latest_template_name: Optional[str] = None
@@ -66,8 +70,91 @@ class ShopTravelerRowOut(BaseModel):
     part_no: Optional[str] = None
     part_rev: Optional[str] = None
 
+    stock_qty: Optional[int] = 0
+
+    
+
 # ---------- Helpers ----------
 def to_row_out(t: ShopTraveler, db: Session) -> ShopTravelerRowOut:
+
+     # =========================
+    # START QTY
+    # =========================
+
+    start_qty = 0
+
+    op010 = next(
+        (
+            s for s in t.steps
+            if str(s.step_code).strip() == "010"
+        ),
+        None
+    )
+
+    if op010:
+
+        for log in op010.logs or []:
+
+            start_qty += (
+                (log.qty_accept or 0)
+                + (log.qty_reject or 0)
+            )
+
+    # =========================
+    # FINAL QTY
+    # =========================
+    # =========================
+    # =========================
+    # FINAL QTY = GOOD OF LAST STEP
+    # =========================
+
+    final_qty = 0
+
+    steps_sorted = sorted(
+        t.steps or [],
+        key=lambda s: (
+            int(''.join(filter(str.isdigit, str(s.step_code or "0"))))
+            if any(ch.isdigit() for ch in str(s.step_code or ""))
+            else 999999
+        )
+    )
+
+    final_step = (
+        steps_sorted[-1]
+        if steps_sorted
+        else None
+    )
+
+    if final_step:
+
+        for log in final_step.logs or []:
+
+            final_qty += (
+                log.qty_accept or 0
+            )
+
+
+    # =========================
+    # STOCK QTY
+    # =========================
+
+    lot_shipped_qty = (
+        db.query(
+            func.coalesce(
+                func.sum(CustomerShipmentItem.qty),
+                0
+            )
+        )
+        .filter(
+            CustomerShipmentItem.lot_id == t.lot.id
+        )
+        .scalar()
+        if t.lot else 0
+    )
+
+    stock_qty = (
+        final_qty - lot_shipped_qty
+    )
 
     row = ShopTravelerRowOut(
         id=t.id,
@@ -79,6 +166,12 @@ def to_row_out(t: ShopTraveler, db: Session) -> ShopTravelerRowOut:
         notes=t.notes,
         production_due_date=t.production_due_date,
         created_at=t.created_at.isoformat() if t.created_at else None,
+
+        # 🔥 ADD
+        start_qty=start_qty,
+        final_qty=final_qty,
+        stock_qty=stock_qty,
+
         part_id=t.lot.part_id if t.lot else None,
         part_revision_id=t.lot.part_revision_id if t.lot else None,
         part_no=(
@@ -302,12 +395,17 @@ def get_traveler(traveler_id: int, db: Session = Depends(get_db)):
     """
     t = (
         db.query(ShopTraveler)
-          .options(
-                selectinload(ShopTraveler.lot).selectinload(ProductionLot.part_revision),
+        .options(
+                selectinload(ShopTraveler.lot)
+                    .selectinload(ProductionLot.part_revision),
+
                 selectinload(ShopTraveler.template),
+
+                selectinload(ShopTraveler.steps)
+                    .selectinload(ShopTravelerStep.logs),
             )
-          .filter(ShopTraveler.id == traveler_id)
-          .first()
+        .filter(ShopTraveler.id == traveler_id)
+        .first()
     )
     if not t:
         raise HTTPException(404, "Traveler not found")

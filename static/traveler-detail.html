@@ -363,14 +363,7 @@
 
         <div class="header">
 
-          <div class="field col-3">
-            <label>Customer</label>
-            <input id="customer_code" readonly />
-          </div>
-          <div class="field col-3">
-            <label>PO No</label>
-            <input id="po_no" readonly />
-          </div>
+          <!--  -->
           <div class="field col-3">
             <label>Part No</label>
             <input id="part_no" readonly />
@@ -379,14 +372,37 @@
             <label>Rev</label>
             <input id="rev" readonly />
           </div>
+          <div class="field col-3">
+            <label>PO No</label>
+            <input id="po_no" readonly />
+          </div>
+          <div class="field col-3">
+            <label>Customer</label>
+            <input id="customer_code" readonly />
+          </div>
+          
+
 
           <!-- ---------------------------------------------------- -->
           <div class="field col-3">
             <label>Lot No</label>
             <input id="lot_no" />
           </div>
+
+           <div class="field col-3">
+            <label>Material</label>
+            <input id="material" rows="1" placeholder="Material spec..."></input>
+          </div>
           <div class="field col-3">
-            <label>lot_planned_qty</label>
+            <label>started_at</label>
+            <input id="started_at" type="date" />
+          </div>
+          <div class="field col-3">
+            <label>Lot PO Duedate</label>
+            <input id="lot_po_duedate" type="date" />
+          </div>
+          <div class="field col-3">
+            <label>Order QTY</label>
             <input id="lot_planned_qty" type="number" placeholder="Quantity" />
           </div>
           <div class="field col-3">
@@ -395,45 +411,75 @@
           </div>
           <div class="field col-3">
             <label>Final QTY</label>
-            <input id="final_qty" type="number" placeholder="Quantity"  readonly/>
+            <input id="final_qty" type="number" placeholder="Quantity" readonly />
           </div>
 
           <!-- ------------------------------- -->
 
+         
           <div class="field col-3">
-            <label>Material</label>
-            <input id="material" rows="1" placeholder="Material spec..."></input>
+            <label>Lot Status</label>
+
+            <select id="status">
+
+              <option value="not_start">
+                No Start
+              </option>
+
+              <option value="in_process">
+                In Process
+              </option>
+
+              <option value="completed">
+                Completed
+              </option>
+
+              <option value="shipped">
+                Shipped
+              </option>
+
+            </select>
           </div>
-          <div class="field col-3">
-            <label>Lot PO Date</label>
-            <input id="lot_release_date" type="date" />
-          </div>
-          <div class="field col-3">
-            <label>Lot PO Duedate</label>
-            <input id="lot_po_duedate" type="date" />
-          </div>
-          <div class="field col-3">
-            <label>Status</label>
-            <option id="status" />
-          </div>
-<!-- ------------------------------------ -->
+          <!-- ------------------------------------ -->
           <div class="field col-3">
             <label>lot Shipped QTY</label>
-            <input id="lot_shipped_qty" type="number" placeholder="Quantity" readonly/>
+            <input id="lot_shipped_qty" type="number" placeholder="0" readonly />
           </div>
           <div class="field col-3">
             <label>Stock QTY</label>
-            <input id="stock_qty" type="number" placeholder="Quantity" />
+            <input id="stock_qty" type="number" placeholder="0" readonly />
           </div>
           <div class="field col-3">
             <label>Notes</label>
             <textarea id="notes" rows="2" placeholder="Notes…"></textarea>
           </div>
+
+
+          <!--  rtrr-->
           <div class="field col-3">
             <label>Risk</label>
-            <option id="risk" />
+
+            <select id="risk">
+
+              <option value="green">
+                Green
+              </option>
+
+              <option value="yellow">
+                Yellow
+              </option>
+
+              <option value="red">
+                Red
+              </option>
+
+              <option value="blue">
+                Blue
+              </option>
+
+            </select>
           </div>
-<!-- ----------------------------------------- -->
+          <!-- ----------------------------------------- -->
 
           <div class="col-12">
             <div id="t_hint" class="muted" aria-live="polite"></div>

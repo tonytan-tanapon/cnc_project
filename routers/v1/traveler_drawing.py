@@ -6,7 +6,7 @@ from models import ShopTraveler, ProductionLot, Part, PartRevision, PO, Customer
 import os
 import tempfile
 from datetime import datetime
-
+from routers.v1.travelers import to_row_out
 router = APIRouter(prefix="/traveler_drawing", tags=["traveler_drawing"])
 
 
@@ -384,7 +384,14 @@ def build_inspection_batch(traveler_id: int, db: Session = Depends(get_db)):
         f.write("\r\n".join(bat))
 
     return FileResponse(tmp, filename=filename)
-def build_traveler_data_from_db(traveler: ShopTraveler) -> dict:
+def build_traveler_data_from_db(traveler: ShopTraveler,db: Session) -> dict:
+
+    traveler_row = to_row_out(
+        traveler,
+        db
+    )
+
+    print("traveler_row", traveler_row)
 
     lot = traveler.lot
     po = lot.po
@@ -412,6 +419,8 @@ def build_traveler_data_from_db(traveler: ShopTraveler) -> dict:
             "seq =", s.seq,
             "step_code =", s.step_code
         )
+
+    
 
     for s in sorted_steps:
 
@@ -653,6 +662,54 @@ def build_traveler_data_from_db(traveler: ShopTraveler) -> dict:
 
                     else ""
                 ),
+
+            # =================================
+            # REUSE API VALUES
+            # =================================
+
+            "start_qty":
+                traveler_row.start_qty,
+
+            "final_qty":
+                traveler_row.final_qty,
+
+            "stock_qty":
+                traveler_row.stock_qty,
+
+            "order_qty":
+                lot.planned_qty or 0,
+            "started_at":
+                (
+                    lot.started_at.strftime("%m/%d/%y")
+                    if lot.started_at
+                    else ""
+                ),
+            "lot_po_duedate" : lot.lot_po_duedate ,
+            
+
+            "lot_shipped_qty":
+                (
+                    traveler_row.final_qty
+                    - traveler_row.stock_qty
+                ),
+
+            "risk":
+                lot.risk or "",
+
+            "lot_po_date":
+                (
+                    lot.lot_po_date.strftime("%m/%d/%y")
+                    if lot.lot_po_date
+                    else ""
+                ),
+
+            "lot_po_duedate":
+                (
+                    lot.lot_po_duedate.strftime("%m/%d/%y")
+                    if lot.lot_po_duedate
+                    else ""
+                ),
+            
         },
 
         "steps": steps
@@ -744,7 +801,8 @@ def export_traveletdoc(traveler_id: int, db: Session = Depends(get_db)):
         raise HTTPException(404, "Traveler not found")
   
     # 🔥 1. build data
-    data = build_traveler_data_from_db(traveler)
+    data = build_traveler_data_from_db(traveler,db)
+
 
     
     # 🔥 2. template path
@@ -801,7 +859,7 @@ def export_traveler_blank(traveler_id: int, db: Session = Depends(get_db)):
         raise HTTPException(404, "Traveler not found")
 
     # 🔥 1. build data
-    data = build_traveler_data_from_db(traveler)
+    data = build_traveler_data_from_db(traveler,db)
 
     # print("Built traveler data:", data)
 

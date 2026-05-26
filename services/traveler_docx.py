@@ -132,6 +132,120 @@ def replace_qr(doc, placeholder, image_path):
                         run = p.add_run()
                         run.add_picture(image_path, width=Inches(1))
 
+from PIL import Image
+from PIL import ImageDraw
+
+def create_color_circle(
+    risk="green",
+    output_path="circle.png",
+    size=600
+):
+
+    color_map = {
+
+        "green":
+            (0, 176, 80),
+
+        "yellow":
+            (255, 192, 0),
+
+        "blue":
+            (0, 112, 192),
+
+        "red":
+            (255, 0, 0),
+    }
+
+    color = color_map.get(
+        str(risk).lower(),
+        (128, 128, 128)
+    )
+
+    img = Image.new(
+        "RGBA",
+        (size, size),
+        (255, 255, 255, 0)
+    )
+
+    draw = ImageDraw.Draw(img)
+
+    margin = 6
+
+    draw.ellipse(
+        (
+            margin,
+            margin,
+            size - margin,
+            size - margin
+        ),
+        fill=color
+    )
+
+    img.save(output_path)
+
+from docx.shared import RGBColor
+
+from docx.shared import RGBColor
+from docx.shared import Pt
+
+from tempfile import NamedTemporaryFile
+from docx.shared import Inches
+
+def replace_color(
+    doc,
+    placeholder,
+    risk="green"
+):
+
+    # =========================
+    # CREATE CIRCLE IMAGE
+    # =========================
+
+    tmp = NamedTemporaryFile(
+        suffix=".png",
+        delete=False
+    )
+
+    circle_path = tmp.name
+
+    tmp.close()
+
+    create_color_circle(
+        risk=risk,
+        output_path=circle_path,
+        size=600
+    )
+
+    # =========================
+    # TABLES
+    # =========================
+
+    for table in doc.tables:
+
+        for row in table.rows:
+
+            for cell in row.cells:
+
+                for p in cell.paragraphs:
+
+                    for run in p.runs:
+
+                        if placeholder in run.text:
+
+                            # remove only placeholder
+                            run.text = run.text.replace(
+                                placeholder,
+                                ""
+                            )
+
+                            # insert image AFTER run
+                            img_run = p.add_run()
+
+                            img_run.add_picture(
+                                circle_path,
+                                width=Inches(0.7)
+                            )
+
 def generate_traveler_from_db(template_path, data: dict, output_path):
     
     from docx import Document
@@ -144,9 +258,12 @@ def generate_traveler_from_db(template_path, data: dict, output_path):
 
     doc = Document(str(template_path))
 
+    # print("data", data)
+
     # --------------------------------------------------
     # HEADER
     # --------------------------------------------------
+
     header_map = {
         "{{part}}": data["header"]["part_no"],
         "{{part_name}}": data["header"]["part_name"],
@@ -154,10 +271,20 @@ def generate_traveler_from_db(template_path, data: dict, output_path):
         "{{lot}}": data["header"]["lot_no"],
         "{{po}}": data["header"]["po_no"],
         "{{cus}}": data["header"]["customer_code"],
-        "{{due}}": data["header"]["due_date"],
+        "{{due}}": data["header"]["lot_po_duedate"],
         "{{qty}}": data["header"]["planned_qty"],
-        "{{release}}": data["header"]["release_date"],
+        "{{release}}": data["header"]["started_at"],
         "{{material_detail}}": data["header"]["material_detail"],
+        "{{start}}": data["header"]["start_qty"],
+        "{{final}}":  data["header"]["final_qty"],
+
+        "{{risk}}":  data["header"]["risk"],
+        "{{final}}":  data["header"]["final_qty"],
+
+        "{{ship}}":  data["header"]["lot_shipped_qty"],
+        "{{stock}}":  data["header"]["stock_qty"],
+
+
     }
 
 
@@ -178,6 +305,8 @@ def generate_traveler_from_db(template_path, data: dict, output_path):
     generate_qr(qr_text, qr_path)
 
     replace_qr(doc, "{{QR}}", qr_path)
+
+    replace_color(    doc,    "{{color}}",    data["header"]["risk"])
 
     # --------------------------------------------------
     # FIND STEP TABLE + TEMPLATE MARKER
