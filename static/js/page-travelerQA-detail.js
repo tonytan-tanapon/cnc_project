@@ -1243,9 +1243,18 @@ async function loadInspectionItems() {
   };
 
   const safeBb = (v) => {
+
+    // 🔥 "-" มาก่อนสุด
+    if (v === "-") return -1;
+
     if (!v) return 9999;
-    const m = String(v).match(/\d+/);
-    return m ? parseInt(m[0]) : 9999;
+
+    const m =
+      String(v).match(/\d+/);
+
+    return m
+      ? parseInt(m[0])
+      : 9999;
   };
 
   const rowsClean = (rows || [])
@@ -1357,21 +1366,21 @@ function initQATable() {
     columns: [
 
 
-      { title: "OP#", field: "op_no", width: 100, editor: "input" },
-      { title: "Bubble", field: "bb_no", width: 100, editor: "input" },
+      { title: "OP#", field: "op_no", width: 100, editor: excelInputEditor, },
+      { title: "Bubble", field: "bb_no", width: 100, editor: excelInputEditor, },
       {
         title: "Dimension",
         field: "dimension",
         width: 300,
-        editor: "input",
+        editor: excelInputEditor,
       },
 
-      { title: "TQW", field: "tqw", width: 120, editor: "input" },
+      { title: "TQW", field: "tqw", width: 120, editor: excelInputEditor, },
       {
         title: "FA",
         field: "actual_value",
         width: 120,
-        editor: "input",
+        editor: excelInputEditor,
       },
       // {
       //   title: "Operator",
@@ -1380,7 +1389,7 @@ function initQATable() {
       //   editor: "input",
       // },
 
-      { title: "Notes", field: "notes", width: 200, editor: "input" },
+      { title: "Notes", field: "notes", width: 200, editor: excelInputEditor, },
       {
         title: "Date",
         field: "qa_time_stamp",
@@ -1815,7 +1824,7 @@ async function btnUpdateInspection() {
 
 async function btnExportBlank() {
   console.log("Export blank inspection", currentInspection?.id);
- 
+
 
   if (!currentInspection?.id) {
     alert("Inspection not loaded");
@@ -1827,7 +1836,7 @@ async function btnExportBlank() {
       `/api/v1/traveler_drawing/export_inspection_blank/${currentInspection.id}`,
       { method: "POST" }
     );
-    console.log("template export response", res );
+    console.log("template export response", res);
     // ❌ error from backend
     if (!res.ok) {
       let msg = "Export failed";
@@ -1869,6 +1878,170 @@ async function btnExportBlank() {
 
 }
 
+function excelInputEditor(cell, onRendered, success, cancel) {
+
+  const input = document.createElement("input");
+
+  input.type = "text";
+  input.value = cell.getValue() || "";
+
+  input.style.width = "100%";
+  input.style.height = "100%";
+  input.style.border = "0";
+  input.style.padding = "4px";
+
+  onRendered(() => {
+    input.focus();
+    input.select();
+  });
+
+  input.addEventListener("keydown", (e) => {
+
+    // console.log("KEYDOWN:", e.key);
+
+    const table = cell.getTable();
+
+    const row = cell.getRow();
+
+    const rows = table.getRows();
+
+    const cols =
+      table.getColumns()
+        .filter(c => c.isVisible());
+
+    const rowIndex =
+      rows.indexOf(row);
+
+    const colIndex =
+      cols.findIndex(
+        c => c.getField() === cell.getField()
+      );
+
+    let targetCell = null;
+
+    // ======================
+    // DOWN / ENTER
+    // ======================
+
+    if (
+      e.key === "Enter" ||
+      e.key === "ArrowDown"
+    ) {
+
+      e.preventDefault();
+
+      const nextRow =
+        rows[rowIndex + 1];
+
+      if (nextRow) {
+
+        targetCell =
+          nextRow.getCell(
+            cell.getField()
+          );
+      }
+    }
+
+    // ======================
+    // UP
+    // ======================
+
+    else if (e.key === "ArrowUp") {
+
+      e.preventDefault();
+
+      const prevRow =
+        rows[rowIndex - 1];
+
+      if (prevRow) {
+
+        targetCell =
+          prevRow.getCell(
+            cell.getField()
+          );
+      }
+    }
+
+    // ======================
+    // RIGHT
+    // ======================
+
+    else if (e.key === "ArrowRight") {
+
+      // allow cursor move inside text
+      if (
+        input.selectionStart <
+        input.value.length
+      ) {
+        return;
+      }
+
+      e.preventDefault();
+
+      const nextCol =
+        cols[colIndex + 1];
+
+      if (nextCol) {
+
+        targetCell =
+          row.getCell(
+            nextCol.getField()
+          );
+      }
+    }
+
+    // ======================
+    // LEFT
+    // ======================
+
+    else if (e.key === "ArrowLeft") {
+
+      // allow cursor move inside text
+      if (
+        input.selectionStart > 0
+      ) {
+        return;
+      }
+
+      e.preventDefault();
+
+      const prevCol =
+        cols[colIndex - 1];
+
+      if (prevCol) {
+
+        targetCell =
+          row.getCell(
+            prevCol.getField()
+          );
+      }
+    }
+
+    else {
+      return;
+    }
+
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+
+    success(input.value);
+
+    if (!targetCell) return;
+
+    setTimeout(() => {
+
+      targetCell.edit(true);
+
+    }, 100);
+
+  }, true);
+
+  input.addEventListener("blur", () => {
+    success(input.value);
+  });
+
+  return input;
+}
 /* ---------- Boot ---------- */
 document.addEventListener("DOMContentLoaded", async () => {
   initTopbar();

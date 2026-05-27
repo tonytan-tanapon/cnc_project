@@ -762,16 +762,29 @@ def generate_inspection_from_db(template_path, data: dict, output_path):
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    print("Inspection data:", data)
+    # print("Inspection data:", data)
 
     # =========================
     # SAFE INT
     # =========================
+    import re
+
     def safe_int(v):
-        try:
-            return int(v)
-        except:
-            return 9999
+
+        s = str(v).strip()
+
+        # 🔥 "-" มาก่อนสุด
+        if s == "-":
+            return (-1, "")
+
+        # 🔥 ดึงเลขตัวแรก
+        m = re.search(r"\d+", s)
+
+        if m:
+            return (int(m.group()), s)
+
+        # 🔥 ไม่มีเลขเลย
+        return (9999, s)
 
     # =========================
     # GROUP BY OP
@@ -891,11 +904,48 @@ def generate_inspection_from_db(template_path, data: dict, output_path):
             # =========================
             # HEADER
             # =========================
+            # =========================
+            # DATE
+            # =========================
             table.cell(op_header_row, base_col).text = date_str
 
+            # =========================
+            # OP
+            # =========================
             table.cell(op_header_row, base_col + 1).text = str(op)
 
-            table.cell(op_header_row, base_col + 2).text = emp
+            # =========================
+            # OPERATOR STAMP
+            # =========================
+
+            stamp_cell = table.cell(op_header_row, base_col + 2)
+
+            stamp_cell.text = ""
+
+            p = stamp_cell.paragraphs[0]
+
+            tmp_stamp = NamedTemporaryFile(
+                suffix=".png",
+                delete=False
+            )
+
+            stamp_path = tmp_stamp.name
+            tmp_stamp.close()
+
+            create_simple_stamp(
+                number="2",    # numner = emp 
+                output_path=stamp_path,
+                bottom_text="QUALITY ASSURANCE"
+            )
+
+            run = p.add_run()
+
+            run.add_picture(
+                stamp_path,
+                width=Inches(0.5)
+            )
+
+            center(stamp_cell)
 
             # center
             for i in range(3):
@@ -911,17 +961,17 @@ def generate_inspection_from_db(template_path, data: dict, output_path):
             MAX_DATA_ROWS
         )
 
-        print("TOTAL ROWS =", len(table.rows))
-        print("TOTAL COLS =", len(table.columns))
+        # print("TOTAL ROWS =", len(table.rows))
+        # print("TOTAL COLS =", len(table.columns))
 
-        for rr, row in enumerate(table.rows):
+        # for rr, row in enumerate(table.rows):
 
-            print(
-                "ROW",
-                rr,
-                "CELL COUNT =",
-                len(row.cells)
-            )
+        #     print(
+        #         "ROW",
+        #         rr,
+        #         "CELL COUNT =",
+        #         len(row.cells)
+        #     )
 
 
         # =========================
@@ -1003,11 +1053,24 @@ def generate_inspection_from_db_blank(template_path, data: dict, output_path):
     # =========================
     # SAFE INT
     # =========================
+    import re
+
     def safe_int(v):
-        try:
-            return int(v)
-        except:
-            return 9999
+
+        s = str(v).strip()
+
+        # 🔥 "-" มาก่อนสุด
+        if s == "-":
+            return (-1, "")
+
+        # 🔥 ดึงเลขตัวแรก
+        m = re.search(r"\d+", s)
+
+        if m:
+            return (int(m.group()), s)
+
+        # 🔥 ไม่มีเลขเลย
+        return (9999, s)
 
     # =========================
     # GROUP BY OP
