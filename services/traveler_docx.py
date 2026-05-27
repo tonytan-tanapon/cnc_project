@@ -380,7 +380,7 @@ def generate_traveler_from_db(template_path, data: dict, output_path):
         new_row.cells[3].text = str(
             step.get("operator") or "2"
         )
-        
+        # print(step)
         ## add stamp here
         # =================================
         # STAMP

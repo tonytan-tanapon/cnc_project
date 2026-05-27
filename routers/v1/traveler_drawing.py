@@ -413,7 +413,7 @@ def build_traveler_data_from_db(traveler: ShopTraveler,db: Session) -> dict:
             )
         )
     )
-
+   
     for s in sorted_steps:
         print(
             "seq =", s.seq,
@@ -456,21 +456,53 @@ def build_traveler_data_from_db(traveler: ShopTraveler,db: Session) -> dict:
         # -------------------------
         # OPERATOR STRING
         # -------------------------
-        operators = []
+        # operators = []
+
+        # for log in logs:
+
+        #     if log.operator:
+
+        #         if getattr(
+        #             log.operator,
+        #             "emp_op",
+        #             None
+        #         ):
+
+        #             operators.append(
+        #                 log.operator.emp_op
+        #             )
+
+        #         elif getattr(
+        #             log.operator,
+        #             "nickname",
+        #             None
+        #         ):
+
+        #             operators.append(
+        #                 log.operator.nickname
+        #             )
+
+        # operator_str = ", ".join(
+        #     sorted(set(operators))
+        # )
+
+        operator_str = ""
+        operator_position = ""
 
         for log in logs:
 
             if log.operator:
 
+                # -------------------------
+                # NAME
+                # -------------------------
                 if getattr(
                     log.operator,
                     "emp_op",
                     None
                 ):
 
-                    operators.append(
-                        log.operator.emp_op
-                    )
+                    operator_str = log.operator.emp_op
 
                 elif getattr(
                     log.operator,
@@ -478,13 +510,20 @@ def build_traveler_data_from_db(traveler: ShopTraveler,db: Session) -> dict:
                     None
                 ):
 
-                    operators.append(
-                        log.operator.nickname
-                    )
+                    operator_str = log.operator.nickname
 
-        operator_str = ", ".join(
-            sorted(set(operators))
-        )
+                # -------------------------
+                # POSITION
+                # -------------------------
+                operator_position = getattr(
+                    log.operator,
+                    "position",
+                    ""
+                ) or ""
+
+                break
+
+        # print("Operator and POsition", operator_str, operator_position)
 
         # -------------------------
         # CREATED DATE
@@ -546,7 +585,7 @@ def build_traveler_data_from_db(traveler: ShopTraveler,db: Session) -> dict:
         supplier_text = "\n\n".join(
             supplier_blocks
         )
-       
+        
         # ==================================================
         # BUILD STEP
         # ==================================================
@@ -565,6 +604,9 @@ def build_traveler_data_from_db(traveler: ShopTraveler,db: Session) -> dict:
 
             "operator":
                 operator_str,
+
+            "operator_position": operator_position,
+           
 
             "created_at":
                 created_at_str,
