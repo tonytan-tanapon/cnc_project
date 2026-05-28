@@ -329,6 +329,39 @@ function makeColumns() {
             width: 90,
             hozAlign: "right",
         },
+
+
+        {
+            title: "Yield %",
+            field: "production_yield",
+            width: 110,
+            hozAlign: "right",
+
+            formatter: function (cell) {
+
+                const v =
+                    Number(
+                        cell.getValue() || 0
+                    );
+
+                let color = "#ef4444";
+
+                if (v >= 95)
+                    color = "#10b981";
+
+                else if (v >= 80)
+                    color = "#f59e0b";
+
+                return `
+            <div style="
+                font-weight:700;
+                color:${color};
+            ">
+                ${v.toFixed(2)}%
+            </div>
+        `;
+            }
+        },
         /* ===================================== */
         /* PROGRESS */
         /* ===================================== */

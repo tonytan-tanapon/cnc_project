@@ -212,8 +212,8 @@ async function saveLot() {
       ),
 
       risk: strOrNull(
-    $("risk")?.value
-  ),
+        $("risk")?.value
+      ),
 
 
       planned_qty: numOrNull(
@@ -232,8 +232,8 @@ async function saveLot() {
       lot_po_duedate: strOrNull($("lot_po_duedate")?.value),
 
       risk: strOrNull(
-  $("risk")?.value
-),
+        $("risk")?.value
+      ),
     };
 
     await jfetch(
@@ -768,7 +768,7 @@ async function saveAllSteps() {
         operator_id: row.operator_id,
 
         machine_id: row.machine_id
-        
+
       };
 
       console.log(
@@ -2237,6 +2237,56 @@ function initStepsTable() {
         hozAlign: "right",
         formatter: (c) => Math.round(c.getValue() ?? 0)
       },
+
+      {
+        title: "Yield %",
+        width: 110,
+        hozAlign: "right",
+
+        formatter: function (cell) {
+
+          const row =
+            cell.getRow().getData();
+
+          const recv =
+            Number(row.total_receive || 0);
+
+          const accept =
+            Number(row.total_accept || 0);
+
+          const reject =
+            Number(row.total_reject || 0);
+
+          const denominator =
+            accept + reject;
+
+          let yieldValue = 0;
+
+          // 🔥 use receive
+          if (recv > 0) {
+
+            yieldValue =
+              (accept / recv) * 100;
+          }
+
+          let color = "#ef4444";
+
+          if (yieldValue >= 95)
+            color = "#10b981";
+
+          else if (yieldValue >= 80)
+            color = "#f59e0b";
+
+          return `
+      <div style="
+        font-weight:700;
+        color:${color};
+      ">
+        ${yieldValue.toFixed(2)}%
+      </div>
+    `;
+        }
+      },
       {
         title: "Operator",
         width: 120,
@@ -2831,15 +2881,15 @@ async function loadLotDetail() {
     if (poEl) { poEl.value = originalLot.po?.po_number || ""; }
     if (customerEl) { customerEl.value = originalLot.customer?.code || ""; }
 
-    $("status").value = originalLot.all.status ;
+    $("status").value = originalLot.all.status;
     $("risk").value =
-  originalLot.all?.risk ;
+      originalLot.all?.risk;
     console.log("originalLot.all.lot_shipped_qty", originalLot.all.lot_shipped_qty)
     $("lot_shipped_qty").value = originalLot.lot_shipped_qty || "";
     $("notes").value = originalLot.all?.note || "";
     $("started_at").value = originalLot.all.started_at ? originalLot.all.started_at.slice(0, 10) : "";
     $("lot_po_duedate").value = originalLot.lot_po_duedate ? originalLot.lot_po_duedate.slice(0, 10) : "";
-    
+
 
   } catch (err) {
     console.error(err);

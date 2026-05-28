@@ -434,15 +434,15 @@ def build_traveler_data_from_db(traveler: ShopTraveler,db: Session) -> dict:
         # RECEIVE
         # -------------------------
         if s.seq == 1:
-
-            receive = (
-                lot.planned_qty
-                if (
-                    lot.planned_qty and
-                    lot.planned_qty > 0
-                )
-                else accept
-            )
+            receive = accept
+            # receive =  (
+            #     lot.planned_qty
+            #     if (
+            #         lot.planned_qty and
+            #         lot.planned_qty > 0
+            #     )
+            #     else accept
+            # )
 
         else:
 
