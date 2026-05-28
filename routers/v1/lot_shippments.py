@@ -1296,7 +1296,11 @@ def download_label(
                 full_text = full_text.replace(k, str(v))
 
         if "{XX}" in full_text and current_index is not None:
-            full_text = full_text.replace("{XX}", str(total_qty))
+
+            full_text = full_text.replace(
+                "{XX}",
+                str(current_index)
+            )
 
         if full_text != original:
             for run in p.runs:
@@ -1372,16 +1376,25 @@ def download_label(
                     row_cells[c]
                 )
 
-        label_index = 0
+        
 
         for cell in ordered_cells:
+
+            cell_text = cell.text.strip()
+
+            # 🔥 skip empty cells
+            if not cell_text:
+                continue
+
+            # 🔥 process only label cells
+            if "Topnotch Quality Works" not in cell_text:
+                continue
+
+            label_index += 1
+
             for p in cell.paragraphs:
-                text = p.text.strip()
 
-                if "Topnotch Quality Works" in text:
-                    label_index += 1
-
-                if remove_page2 :
+                if remove_page2:
                     if label_index <= first_page_limit:
                         replace_runs(p, label_index)
                     else:
@@ -1396,6 +1409,8 @@ def download_label(
 
                 else:
                     clear_runs(p)
+
+                
 
     # ===============================
     # 8️⃣ REMOVE PAGE BREAK
