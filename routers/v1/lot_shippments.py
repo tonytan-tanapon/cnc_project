@@ -1346,31 +1346,32 @@ def download_label(
 
         ordered_cells = []
 
-        # =========================================
-        # PAGE-FIRST + TOP-DOWN
-        # =========================================
-
-        # total rows in table
         rows = len(table.rows)
 
-        # total cols in table
-        cols = len(table.rows[0].cells)
+        max_cols = max(
+            len(row.cells)
+            for row in table.rows
+        )
 
-        # rows per column
-        rows_per_col = rows
-
-        # -------------------------
+        # =========================================
         # TOP -> BOTTOM
         # LEFT -> RIGHT
-        # -------------------------
-        for c in range(cols):
+        # =========================================
 
-            for r in range(rows_per_col):
+        for c in range(max_cols):
+
+            for r in range(rows):
+
+                row_cells = table.rows[r].cells
+
+                # 🔥 prevent index error
+                if c >= len(row_cells):
+                    continue
 
                 ordered_cells.append(
-                    table.rows[r].cells[c]
+                    row_cells[c]
                 )
-                
+
         label_index = 0
 
         for cell in ordered_cells:
