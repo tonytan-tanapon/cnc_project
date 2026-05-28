@@ -102,11 +102,7 @@
       <label for="confirm">Confirm Password</label>
       <input id="confirm" type="password" placeholder="Re-enter password" />
 
-      <label for="role">Role</label>
-      <select id="role">
-        <option value="operator">Operator</option>
-        <option value="admin">Admin</option>
-      </select>
+      
 
       <button id="btnRegister">Create Account</button>
       <div class="msg" id="msg"></div>
@@ -132,7 +128,7 @@
         const username = document.getElementById("username").value.trim();
         const password = document.getElementById("password").value.trim();
         const confirm = document.getElementById("confirm").value.trim();
-        const role = document.getElementById("role").value;
+        
 
         if (!username || !password || !confirm)
           return (msg.textContent = "Please fill all fields");
@@ -143,14 +139,15 @@
         msg.textContent = "Creating account...";
 
         try {
-          const res = await fetch("/api/register", {
+          const res = await fetch("/api/v1/auth/register", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ username, password, role }),
+            body: JSON.stringify({ username, password }),
           });
 
           if (!res.ok) throw new Error(await res.text());
-          msg.textContent = "✅ Registration successful";
+          msg.textContent =
+  "✅ Register submitted. Waiting for admin approval.";
           setTimeout(() => (window.location.href = "/static/login.html"), 1000);
         } catch (err) {
           console.error(err);

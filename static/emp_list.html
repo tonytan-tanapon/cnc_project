@@ -32,9 +32,11 @@
     }
 
     h1 {
-      font-size: 22px;
-      margin: 0 0 12px
-    }
+
+  font-size: 22px;
+
+  margin: 0;
+}
 
     .bar {
       display: flex;
@@ -106,12 +108,88 @@
       font-size: 12px;
       background: #f9fafb
     }
+
+    #btnLogout {
+
+      padding: 8px 14px;
+
+      border: none;
+
+      border-radius: 8px;
+
+      background: #dc2626;
+
+      color: white;
+
+      font-size: 14px;
+
+      cursor: pointer;
+    }
+
+    #btnLogout:hover {
+
+      background: #b91c1c;
+    }
+
+    .header-row {
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: space-between;
+
+  gap: 12px;
+
+  margin-bottom: 12px;
+}
+
+.header-row h1 {
+
+  margin: 0;
+
+  font-size: 22px;
+}
+
+#btnLogout {
+
+  padding: 8px 14px;
+
+  border: none;
+
+  border-radius: 8px;
+
+  background: #dc2626;
+
+  color: white;
+
+  font-size: 14px;
+
+  cursor: pointer;
+
+  white-space: nowrap;
+}
+
+#btnLogout:hover {
+
+  background: #b91c1c;
+}
   </style>
 </head>
 
 <body>
   <div class="wrap">
-    <h1>Payroll • Select Pay Period & Employee</h1>
+    <div class="header-row">
+
+  <h1>
+    Payroll • Select Pay Period & Employee
+  </h1>
+
+  <button id="btnLogout">
+    Logout
+  </button>
+
+</div>
 
     <div class="bar">
       <label for="f_period">Pay Period:
@@ -135,6 +213,36 @@
   </div>
 
   <script type="module">
+
+    const btnLogout =
+      document.getElementById(
+        "btnLogout"
+      );
+
+    btnLogout.addEventListener(
+      "click",
+      logout
+    );
+
+    function logout() {
+
+      // remove token
+      localStorage.removeItem(
+        "token"
+      );
+
+      // back to login
+      location.href =
+        "/static/login.html";
+    }
+
+    const token =
+      localStorage.getItem("token");
+
+    if (!token) {
+      location.href = "/static/login.html";
+    }
+
     import { $ as _$$, jfetch, toast } from "/static/js/api.js?v=1";
     const $ = (s) => document.querySelector(s);
 
@@ -180,7 +288,7 @@
     }
 
     async function loadPayPeriods() {
-      const allPeriods  = await fetchAllPayPeriods(200);   // ทั้งหมดเพื่อทำ dropdown
+      const allPeriods = await fetchAllPayPeriods(200);   // ทั้งหมดเพื่อทำ dropdown
       const periods = allPeriods.slice(0, 30);   // show only latest 12
 
       selPeriod.innerHTML = '<option value="">— Select Pay Period —</option>';

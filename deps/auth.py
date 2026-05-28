@@ -66,5 +66,12 @@ def login_for_access_token(
     user = authenticate_user(db, form.username, form.password)
     if not user:
         raise HTTPException(status_code=400, detail="Incorrect username or password")
+    
+    if not user.is_active:
+
+        raise HTTPException(
+            status_code=403,
+            detail="Waiting for admin approval"
+        )
     token = create_access_token({"sub": str(user.id)})
     return {"access_token": token, "token_type": "bearer"}

@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  />
+
+  <title>Admin Reset Password</title>
+
+  <style>
+
+    body {
+
+      margin: 0;
+
+      height: 100vh;
+
+      display: flex;
+
+      align-items: center;
+      justify-content: center;
+
+      background: #f3f4f6;
+
+      font-family:
+        system-ui,
+        sans-serif;
+    }
+
+    .box {
+
+      width: 360px;
+
+      background: white;
+
+      padding: 28px 32px;
+
+      border-radius: 12px;
+
+      box-shadow:
+        0 4px 20px rgba(0,0,0,.1);
+    }
+
+    h2 {
+
+      margin-top: 0;
+
+      margin-bottom: 18px;
+
+      text-align: center;
+    }
+
+    label {
+
+      display: block;
+
+      margin-top: 14px;
+
+      margin-bottom: 4px;
+
+      font-size: 14px;
+
+      color: #6b7280;
+    }
+
+    input {
+
+      width: 100%;
+
+      padding: 10px 12px;
+
+      border:
+        1px solid #d1d5db;
+
+      border-radius: 8px;
+
+      font-size: 15px;
+
+      box-sizing: border-box;
+    }
+
+    hr {
+
+      margin: 22px 0;
+
+      border: none;
+
+      border-top:
+        1px solid #e5e7eb;
+    }
+
+    button {
+
+      width: 100%;
+
+      margin-top: 20px;
+
+      padding: 11px;
+
+      border: none;
+
+      border-radius: 8px;
+
+      background: #2563eb;
+
+      color: white;
+
+      font-size: 15px;
+      font-weight: 600;
+
+      cursor: pointer;
+    }
+
+    button:hover {
+
+      background: #1e40af;
+    }
+
+    .msg {
+
+      margin-top: 14px;
+
+      text-align: center;
+
+      font-size: 14px;
+
+      color: #6b7280;
+    }
+
+    .success {
+
+      color: #059669;
+    }
+
+    .error {
+
+      color: #dc2626;
+    }
+
+  </style>
+</head>
+
+<body>
+
+  <div class="box">
+
+    <h2>
+      🔑 Admin Password Reset
+    </h2>
+
+    <!-- ========================= -->
+    <!-- ADMIN -->
+    <!-- ========================= -->
+
+    <label>
+      Admin Username
+    </label>
+
+    <input
+      id="admin_username"
+      placeholder="Admin username"
+    />
+
+    <label>
+      Admin Password
+    </label>
+
+    <input
+      id="admin_password"
+      type="password"
+      placeholder="Admin password"
+    />
+
+    <hr>
+
+    <!-- ========================= -->
+    <!-- TARGET USER -->
+    <!-- ========================= -->
+
+    <label>
+      User Username
+    </label>
+
+    <input
+      id="target_username"
+      placeholder="Username to reset"
+    />
+
+    <label>
+      New Password
+    </label>
+
+    <input
+      id="new_password"
+      type="password"
+      placeholder="New password"
+    />
+
+    <button id="btnReset">
+      Reset Password
+    </button>
+
+    <div
+      id="msg"
+      class="msg"
+    ></div>
+
+  </div>
+
+  <script>
+
+    const btn =
+      document.getElementById(
+        "btnReset"
+      );
+
+    const msg =
+      document.getElementById(
+        "msg"
+      );
+
+    btn.addEventListener(
+      "click",
+      resetPassword
+    );
+
+    async function resetPassword() {
+
+      const admin_username =
+        document.getElementById(
+          "admin_username"
+        ).value.trim();
+
+      const admin_password =
+        document.getElementById(
+          "admin_password"
+        ).value.trim();
+
+      const target_username =
+        document.getElementById(
+          "target_username"
+        ).value.trim();
+
+      const new_password =
+        document.getElementById(
+          "new_password"
+        ).value.trim();
+
+      // =========================
+      // VALIDATE
+      // =========================
+
+      if (
+        !admin_username ||
+        !admin_password ||
+        !target_username ||
+        !new_password
+      ) {
+
+        showMessage(
+          "Please fill all fields",
+          false
+        );
+
+        return;
+      }
+
+      btn.disabled = true;
+
+      showMessage(
+        "Resetting password...",
+        true
+      );
+
+      try {
+
+        // =========================
+        // API CALL
+        // =========================
+
+        const resp = await fetch(
+          "/api/v1/auth/admin-reset-password",
+          {
+            method: "POST",
+
+            headers: {
+              "Content-Type":
+                "application/json"
+            },
+
+            body: JSON.stringify({
+
+              admin_username,
+
+              admin_password,
+
+              target_username,
+
+              new_password
+            })
+          }
+        );
+
+        const data =
+          await resp.json();
+
+        if (!resp.ok) {
+
+          throw new Error(
+            data.detail ||
+            "Reset failed"
+          );
+        }
+
+        showMessage(
+          "✅ Password reset success",
+          true
+        );
+
+        setTimeout(() => {
+
+          location.href =
+            "/static/login.html";
+
+        }, 1200);
+
+      }
+      catch(err) {
+
+        showMessage(
+          err.message ||
+          "Reset failed",
+          false
+        );
+      }
+      finally {
+
+        btn.disabled = false;
+      }
+    }
+
+    function showMessage(
+      text,
+      success = true
+    ) {
+
+      msg.textContent = text;
+
+      msg.className =
+        "msg " +
+        (
+          success
+            ? "success"
+            : "error"
+        );
+    }
+
+    // =========================
+    // ENTER KEY
+    // =========================
+
+    document
+      .querySelectorAll("input")
+      .forEach(el => {
+
+        el.addEventListener(
+          "keydown",
+          (e) => {
+
+            if (e.key === "Enter") {
+              resetPassword();
+            }
+          }
+        );
+      });
+
+  </script>
+
+</body>
+</html>

@@ -232,6 +232,15 @@
   </div>
 
   <script type="module">
+
+const token =
+      localStorage.getItem("token");
+
+    if(!token){
+       location.href = "/static/login.html";
+    }
+
+
     import { $ as _$$, jfetch, toast } from "/static/js/api.js?v=1";
     const $ = (sel) => document.querySelector(sel);
 
