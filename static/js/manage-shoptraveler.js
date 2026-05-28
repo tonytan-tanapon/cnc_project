@@ -262,7 +262,7 @@ function makeColumns() {
         {
             title: "Operator",
             field: "current_operator",
-            width: 130,
+            width: 80,
             sorter: "string",
 
             formatter: (cell) => {
@@ -282,7 +282,7 @@ function makeColumns() {
         {
             title: "Machine",
             field: "current_machine",
-            width: 120,
+            width: 80,
             sorter: "string",
         },
 
@@ -291,7 +291,7 @@ function makeColumns() {
         /* ===================================== */
 
         {
-            title: "Receive",
+            title: "Incomming",
             field: "current_receive",
             width: 90,
             hozAlign: "right",
@@ -330,6 +330,19 @@ function makeColumns() {
             hozAlign: "right",
         },
 
+        {
+            title: "First Input",
+            field: "first_input_qty",
+            width: 110,
+            hozAlign: "right",
+        },
+
+        {
+            title: "Final Good",
+            field: "final_good_qty",
+            width: 110,
+            hozAlign: "right",
+        },
 
         {
             title: "Yield %",

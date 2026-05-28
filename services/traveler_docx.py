@@ -589,6 +589,14 @@ def generate_traveler_from_db_blank(template_path, data: dict, output_path):
         "{{qty}}": data["header"]["planned_qty"],
         "{{release}}": data["header"]["release_date"],
         "{{material_detail}}": data["header"]["material_detail"],
+
+        "{{start}}": "     ",
+        "{{final}}":  "     ",
+
+        "{{risk}}":  data["header"]["risk"],
+        
+        "{{ship}}":  data["header"]["lot_shipped_qty"],
+        "{{stock}}":  data["header"]["stock_qty"],
     }
 
     replace_header(doc, header_map)
@@ -608,6 +616,8 @@ def generate_traveler_from_db_blank(template_path, data: dict, output_path):
     generate_qr(qr_text, qr_path)
 
     replace_qr(doc, "{{QR}}", qr_path)
+    replace_color(    doc,    "{{color}}",    data["header"]["risk"])
+
 
     # --------------------------------------------------
     # FIND STEP TABLE + TEMPLATE MARKER

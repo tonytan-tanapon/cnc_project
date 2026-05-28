@@ -1343,19 +1343,34 @@ def download_label(
         rows = len(table.rows)
         cols = len(table.rows[0].cells)
         print(f"[DEBUG] Processing table with {rows} rows and {cols} cols")
+
         ordered_cells = []
 
-        if total_qty > size:
-            # ✅ row-first
-           for r in range(rows):
-                for c in range(len(table.rows[r].cells)):
-                    ordered_cells.append(table.rows[r].cells[c])
-        else:
-            # ✅ column-first
-             for r in range(rows):
-                for c in range(len(table.rows[r].cells)):
-                    ordered_cells.append(table.rows[r].cells[c])
+        # =========================================
+        # PAGE-FIRST + TOP-DOWN
+        # =========================================
 
+        # total rows in table
+        rows = len(table.rows)
+
+        # total cols in table
+        cols = len(table.rows[0].cells)
+
+        # rows per column
+        rows_per_col = rows
+
+        # -------------------------
+        # TOP -> BOTTOM
+        # LEFT -> RIGHT
+        # -------------------------
+        for c in range(cols):
+
+            for r in range(rows_per_col):
+
+                ordered_cells.append(
+                    table.rows[r].cells[c]
+                )
+                
         label_index = 0
 
         for cell in ordered_cells:

@@ -373,9 +373,6 @@ def build_inspection_batch(traveler_id: int, db: Session = Depends(get_db)):
         ')',
     ]
 
-
-
-
     # print(bat)
     filename = f"inspection_{lot_no}.bat"
     tmp = os.path.join(tempfile.gettempdir(), filename)
@@ -414,11 +411,11 @@ def build_traveler_data_from_db(traveler: ShopTraveler,db: Session) -> dict:
         )
     )
    
-    for s in sorted_steps:
-        print(
-            "seq =", s.seq,
-            "step_code =", s.step_code
-        )
+    # for s in sorted_steps:
+    #     print(
+    #         "seq =", s.seq,
+    #         "step_code =", s.step_code
+    #     )
 
     
 
