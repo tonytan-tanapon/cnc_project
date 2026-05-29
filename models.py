@@ -210,7 +210,7 @@ class Employee(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     emp_code = Column(String, unique=True, index=True, nullable=False)
-    emp_op = Column(String, unique=True)
+    emp_op = Column(String, unique=False)
     nickname = Column(String, nullable=True)
     name = Column(String, nullable=False)
     lastname = Column(String, nullable=True)
@@ -1988,46 +1988,17 @@ class ICAR(Base):
     # RELATIONS
     # ====================================
 
-    customer_id = Column(
-        Integer,
-        ForeignKey("customers.id"),
-        nullable=True,
-        index=True
-    )
+    customer_id = Column( Integer,ForeignKey("customers.id"), nullable=True,index=True )
 
-    po_id = Column(
-        Integer,
-        ForeignKey("purchase_orders.id"),
-        nullable=True,
-        index=True
-    )
+    po_id = Column(Integer, ForeignKey("purchase_orders.id"),nullable=True,index=True)
 
-    lot_id = Column(
-        Integer,
-        ForeignKey("production_lots.id"),
-        nullable=True,
-        index=True
-    )
+    lot_id = Column( Integer,ForeignKey("production_lots.id"), nullable=True, index=True )
 
-    part_id = Column(
-        Integer,
-        ForeignKey("parts.id"),
-        nullable=True,
-        index=True
-    )
+    part_id = Column(Integer,  ForeignKey("parts.id"),  nullable=True,  index=True    )
 
-    part_revision_id = Column(
-        Integer,
-        ForeignKey("part_revisions.id"),
-        nullable=True,
-        index=True
-    )
+    part_revision_id = Column( Integer, ForeignKey("part_revisions.id"), nullable=True, index=True)
 
-    traveler_id = Column(
-        Integer,
-        ForeignKey("shop_travelers.id"),
-        nullable=True
-    )
+    traveler_id = Column(  Integer,  ForeignKey("shop_travelers.id"),nullable=True )
 
     traveler_step_id = Column(
         Integer,
@@ -2046,6 +2017,7 @@ class ICAR(Base):
         ForeignKey("employees.id"),
         nullable=True
     )
+    operator_name = Column(String,nullable=True)
 
     approve_id = Column(
         Integer,
