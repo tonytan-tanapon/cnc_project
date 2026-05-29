@@ -271,9 +271,9 @@ def generate_traveler_from_db(template_path, data: dict, output_path):
         "{{lot}}": data["header"]["lot_no"],
         "{{po}}": data["header"]["po_no"],
         "{{cus}}": data["header"]["customer_code"],
-        "{{due}}": data["header"]["lot_po_duedate"],
+        "{{due}}": data["header"]["lot_due_date"],
         "{{qty}}": data["header"]["planned_qty"],
-        "{{release}}": data["header"]["started_at"],
+        "{{release}}": data["header"]["created_at"],
         "{{material_detail}}": data["header"]["material_detail"],
         "{{start}}": data["header"]["start_qty"],
         "{{final}}":  data["header"]["final_qty"],
@@ -578,6 +578,8 @@ def generate_traveler_from_db_blank(template_path, data: dict, output_path):
     # --------------------------------------------------
     # HEADER
     # --------------------------------------------------
+
+    # print("data", data)
     header_map = {
         "{{part}}": data["header"]["part_no"],
         "{{part_name}}": data["header"]["part_name"],
@@ -585,9 +587,9 @@ def generate_traveler_from_db_blank(template_path, data: dict, output_path):
         "{{lot}}": data["header"]["lot_no"],
         "{{po}}": data["header"]["po_no"],
         "{{cus}}": data["header"]["customer_code"],
-        "{{due}}": data["header"]["due_date"],
+        "{{due}}": data["header"]["lot_due_date"],
         "{{qty}}": data["header"]["planned_qty"],
-        "{{release}}": data["header"]["release_date"],
+        "{{release}}": data["header"]["created_at"],
         "{{material_detail}}": data["header"]["material_detail"],
 
         "{{start}}": "     ",

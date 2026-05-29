@@ -381,6 +381,8 @@ def build_inspection_batch(traveler_id: int, db: Session = Depends(get_db)):
         f.write("\r\n".join(bat))
 
     return FileResponse(tmp, filename=filename)
+
+
 def build_traveler_data_from_db(traveler: ShopTraveler,db: Session) -> dict:
 
     traveler_row = to_row_out(
@@ -724,6 +726,18 @@ def build_traveler_data_from_db(traveler: ShopTraveler,db: Session) -> dict:
                     else ""
                 ),
             "lot_po_duedate" : lot.lot_po_duedate ,
+
+            "created_at" :   (
+                    lot.created_at.strftime("%m/%d/%y")
+                    if lot.created_at
+                    else ""
+                ),
+            "lot_due_date" : 
+            (
+                    lot.lot_due_date.strftime("%m/%d/%y")
+                    if lot.lot_due_date
+                    else ""
+                ),
             
 
             "lot_shipped_qty":

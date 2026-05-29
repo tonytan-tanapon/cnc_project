@@ -88,6 +88,7 @@
       height: auto;
       overflow-y: hidden;
       resize: none;
+       background: #fff9c4;
     }
 
     .header textarea {
@@ -393,16 +394,23 @@
             <label>Material</label>
             <input id="material" rows="1" placeholder="Material spec..."></input>
           </div>
+          
+
+
           <div class="field col-3">
-            <label>started_at</label>
-            <input id="started_at" type="date" />
+            <label>created_at</label>
+            <input id="created_at" type="date" />
           </div>
           <div class="field col-3">
-            <label>Lot PO Duedate</label>
-            <input id="lot_po_duedate" type="date" />
+            <label>lot_due_date</label>
+            <input id="lot_due_date" type="date" />
           </div>
+
+          
+
+
           <div class="field col-3">
-            <label>Order QTY</label>
+            <label >Order QTY</label>
             <input id="lot_planned_qty" type="number" placeholder="Quantity" />
           </div>
           <div class="field col-3">
@@ -479,6 +487,16 @@
 
             </select>
           </div>
+
+           
+          <div class="field col-3">
+            <label >started_at</label>
+            <input id="started_at" type="date" readonly />
+          </div>
+          <div class="field col-3">
+            <label >Lot PO Duedate</label>
+            <input id="lot_po_duedate" type="date" readonly />
+          </div>
           <!-- ----------------------------------------- -->
 
           <div class="col-12">
@@ -548,7 +566,7 @@
   <!-- QRCode library (global variable) -->
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
   <!-- Page script -->
-  <script type="module" src="/static/js/page-traveler-detail.js?v=2.1"></script>
+  <script type="module" src="/static/js/page-traveler-detail.js?v=2.2"></script>
 
   <!-- ===== QR Code Modal ===== -->
   <style>

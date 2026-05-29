@@ -231,6 +231,9 @@ async function saveLot() {
 
       lot_po_duedate: strOrNull($("lot_po_duedate")?.value),
 
+      created_at: strOrNull($("created_at")?.value),
+      lot_due_date: strOrNull($("lot_due_date")?.value),
+
       risk: strOrNull(
         $("risk")?.value
       ),
@@ -277,7 +280,9 @@ function wireHeaderDirtyOnly() {
     "lot_shipped_qty",
     "material",
     "started_at",     // 🔥 add
-    "lot_po_duedate"        // 🔥 add
+    "lot_po_duedate",        // 🔥 add
+    "lot_due_date",
+    "created_at"
 
   ].forEach((id) => {
     const el = $(id);
@@ -2889,6 +2894,9 @@ async function loadLotDetail() {
     $("notes").value = originalLot.all?.note || "";
     $("started_at").value = originalLot.all.started_at ? originalLot.all.started_at.slice(0, 10) : "";
     $("lot_po_duedate").value = originalLot.lot_po_duedate ? originalLot.lot_po_duedate.slice(0, 10) : "";
+    
+    $("created_at").value = originalLot.all.created_at ? originalLot.all.created_at.slice(0, 10) : "";
+    $("lot_due_date").value = originalLot.all.lot_due_date ? originalLot.all.lot_due_date.slice(0, 10) : "";
 
 
   } catch (err) {

@@ -1436,7 +1436,7 @@ def download_label(
     # ===============================
     label_type = type.upper() if type else "LABEL"
     filename = f"label_{lot_no}_{part_no}_{label_type}_{size}.docx"
-
+    
     return FileResponse(
         path=tmp.name,
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
