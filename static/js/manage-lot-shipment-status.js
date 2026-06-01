@@ -310,25 +310,97 @@ function makeColumns() {
       width: 200,
       formatter: (cell) => {
         const d = cell.getData();
-        const rev = d.revision ? ` (${d.revision})` : "";
-        const label = `${d.part_no ?? ""}${rev}`;
+
+        const rev =
+          d.revision
+            ? ` (${d.revision})`
+            : "";
+
+        const label =
+          `${d.part_no ?? ""}${rev}`;
+
+        const ecar =
+          d.ecar === "Y"
+            ? `
+      <a
+        href="/static/ecars.html?q=${encodeURIComponent(d.part_no || "")}"
+        style="color:#c0392b;font-weight:bold;"
+      >
+        ECAR
+      </a>
+    `
+            : "";
+
+        const icar =
+          d.icar === "Y"
+            ? `
+      <a
+        href="/static/icars.html?q=${encodeURIComponent(d.part_no || "")}"
+       
+        style="color:#2980b9;font-weight:bold;"
+      >
+        ICAR
+      </a>
+    `
+            : "";
+
+        const tags =
+          [ecar, icar]
+            .filter(Boolean)
+            .join(" | ");
+
         return `
-        
-          <div style="display:flex;gap:6px;align-items:center;">
-           <span class="drawing" style="cursor:pointer;" title="CNC drawing">📐</span>
-            ${d.part_id
-            ? `<a class="link"
-                    href="/static/manage-part-detail.html?part_id=${d.part_id
-            }&part_revision_id=${d.part_revision_id ?? ""
-            }&customer_id=${d.customer_id ?? ""}">${label}
-                 </a>`
+    <div>
+    
+      <div style="display:flex;gap:6px;align-items:center;">
+      
+        <span
+          class="drawing"
+          style="cursor:pointer;"
+          title="CNC drawing"
+        >
+          📐
+        </span>
+
+        ${d.part_id
+            ? `
+              <a class="link"
+                 href="/static/manage-part-detail.html?part_id=${d.part_id}
+                 &part_revision_id=${d.part_revision_id ?? ""}
+                 &customer_id=${d.customer_id ?? ""}">
+                 ${label}
+              </a>
+            `
             : `<span>${label}</span>`
           }
-            
-            <span class="copy-part" style="cursor:pointer;">📋</span>
-           
-          </div>
-        `;
+
+        <span
+          class="copy-part"
+          style="cursor:pointer;"
+        >
+          📋
+        </span>
+
+      </div>
+
+      ${tags
+            ? `
+            <div
+              style="
+                margin-left:22px;
+                font-size:11px;
+                color:#c0392b;
+                font-weight:bold;
+              "
+            >
+              ${tags}
+            </div>
+          `
+            : ""
+          }
+
+    </div>
+  `;
       },
       cellClick: async (e, cell) => {
         const d = cell.getRow().getData();
@@ -378,6 +450,7 @@ function makeColumns() {
       },
     },
 
+    
     // /* ===== DUE DATE ===== */
     // {
     //   title: "Due po_line",
@@ -787,7 +860,7 @@ function makeColumns() {
         values: {
           not_start: "No Ship",      // 👈 เปลี่ยนตรงนี้ด้วย
           in_process: "In Process",
-         
+
           shipped: "Shipped",
           completed: "Completed",
           canceled: "Canceled",
@@ -800,7 +873,7 @@ function makeColumns() {
         const colors = {
           not_start: "#6b7280",
           in_process: "#3b82f6",
-         
+
           shipped: "#06b6d4",   // ✅ ADD
 
           completed: "#10b981",
@@ -811,7 +884,7 @@ function makeColumns() {
         const labels = {
           not_start: "No Ship",
           in_process: "In Process",
-         
+
           shipped: "Shipped",   // ✅ ADD
           completed: "Completed",
           canceled: "Canceled",
@@ -869,35 +942,35 @@ function makeColumns() {
     // },
 
     {
-  title: "% Progress",
-  field: "progress_percent",
-  width: 120,
-  hozAlign: "center",
+      title: "% Progress",
+      field: "progress_percent",
+      width: 120,
+      hozAlign: "center",
 
-  sorter: (a, b) => {
-    return Number(a || 0) - Number(b || 0);
-  },
+      sorter: (a, b) => {
+        return Number(a || 0) - Number(b || 0);
+      },
 
-  formatter: (cell) => {
+      formatter: (cell) => {
 
-    const v =
-      Number(
-        cell.getValue() || 0
-      );
+        const v =
+          Number(
+            cell.getValue() || 0
+          );
 
-    let color =
-      "#ef4444";
+        let color =
+          "#ef4444";
 
-    if (v >= 100)
-      color = "#10b981";
+        if (v >= 100)
+          color = "#10b981";
 
-    else if (v >= 50)
-      color = "#f59e0b";
+        else if (v >= 50)
+          color = "#f59e0b";
 
-    else if (v > 0)
-      color = "#3b82f6";
+        else if (v > 0)
+          color = "#3b82f6";
 
-    return `
+        return `
 <div
   style="
     position:relative;
@@ -936,8 +1009,8 @@ function makeColumns() {
 
 </div>
 `;
-  },
-},
+      },
+    },
 
     {
       title: "Note",
@@ -980,7 +1053,7 @@ function makeColumns() {
       },
     },
 
-    
+
 
 
   ];

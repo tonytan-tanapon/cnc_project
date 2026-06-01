@@ -183,27 +183,25 @@ function makeColumns() {
 
                 return `
 
-          <div class="op-card">
+                <div class="op-card">
 
-            <div class="op-title">
-              ${row.part_no || ""}
-            </div>
+                    <div class="op-title">
+                        ${row.part_no || ""}
+                    </div>
 
-            <div class="op-sub">
-              REV:
-              ${row.rev || "-"}
-            </div>
+                    <div class="op-sub">
+                        REV: ${row.rev || "-"}
+                    </div>
 
-          </div>
+                </div>
 
-        `;
+            `;
             },
         },
 
         /* ===================================== */
         /* CUSTOMER */
         /* ===================================== */
-
         {
             title: "Customer",
             field: "customer_code",
@@ -212,13 +210,6 @@ function makeColumns() {
 
         /* ===================================== */
         /* CURRENT OP */
-        /* ===================================== */
-
-        /* ===================================== */
-        /* OP */
-        /* ===================================== */
-        /* ===================================== */
-        /* OP */
         /* ===================================== */
         {
             title: "OP",
@@ -408,45 +399,45 @@ function makeColumns() {
                     color = "#3b82f6";
 
                 return `
-<div
-  class="progress-bar"
-  style="
-    position:relative;
-    height:22px;
-  "
->
+            <div
+            class="progress-bar"
+            style="
+                position:relative;
+                height:22px;
+            "
+            >
 
-  <div
-    class="progress-inner"
-    style="
-      width:${v}%;
-      background:${color};
-      height:100%;
-    "
-  ></div>
+            <div
+                class="progress-inner"
+                style="
+                width:${v}%;
+                background:${color};
+                height:100%;
+                "
+            ></div>
 
-  <div style="
-    position:absolute;
-    top:0;
-    left:0;
-    width:100%;
-    height:100%;
+            <div style="
+                position:absolute;
+                top:0;
+                left:0;
+                width:100%;
+                height:100%;
 
-    display:flex;
-    align-items:center;
-    justify-content:center;
+                display:flex;
+                align-items:center;
+                justify-content:center;
 
-    color:black;
-    font-weight:700;
-    font-size:12px;
-  ">
+                color:black;
+                font-weight:700;
+                font-size:12px;
+            ">
 
-    ${v.toFixed(0)}%
+                ${v.toFixed(0)}%
 
-  </div>
+            </div>
 
-</div>
-`;
+            </div>
+            `;
             },
         },
 
@@ -561,9 +552,7 @@ function makeColumns() {
             },
 
             formatter: (cell) => {
-
                 const v = cell.getValue();
-
                 const colors = {
                     not_start: "#6b7280",
                     in_process: "#3b82f6",
@@ -586,12 +575,10 @@ function makeColumns() {
             },
 
             cellEdited: async (cell) => {
-
                 const row =
                     cell.getRow().getData();
 
                 try {
-
                     await jfetch(
                         `/api/v1/lots/${row.lot_id}/status`,
                         {
@@ -610,9 +597,7 @@ function makeColumns() {
                     toast("Lot status updated");
 
                 } catch (err) {
-
-                    toast("Update failed",false);
-
+                    toast("Update failed", false);
                     cell.restoreOldValue();
                 }
             }
@@ -639,7 +624,6 @@ function makeColumns() {
 /* ===================================== */
 
 function applyFilter() {
-
     const q =
         els[UI.q]
             .value
@@ -656,7 +640,6 @@ function applyFilter() {
     /* SEARCH */
 
     if (q) {
-
         table.addFilter((d) => {
             return (
                 String(

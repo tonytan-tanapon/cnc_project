@@ -264,6 +264,29 @@ document.addEventListener(
                         "No ECAR Found"
                 }
             );
+            const params =
+    new URLSearchParams(
+        window.location.search
+    );
+
+        const q =
+            params.get("q") || "";
+
+        console.log("Search for", q);   
+        
+        if (q) {
+
+            document.getElementById("_q").value =
+                q;
+
+            loadData(q);
+
+        } else {
+
+            loadData();
+
+        }
+
 
 
 
@@ -370,8 +393,7 @@ document.addEventListener(
                 }
             );
 
-        loadData();
-
+       
 
 
     }

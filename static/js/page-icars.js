@@ -1,3 +1,5 @@
+
+
 import {
     $,
     jfetch,
@@ -324,6 +326,27 @@ document.addEventListener(
                 }
             );
 
+            const params =
+            new URLSearchParams(
+                window.location.search
+            );
+
+        const q =
+            params.get("q") || "";
+        
+        if (q) {
+
+            document.getElementById("_q").value =
+                q;
+
+            loadData(q);
+
+        } else {
+
+            loadData();
+
+        }
+
 
 
         table.on("cellEdited", async (cell) => {
@@ -412,7 +435,7 @@ document.addEventListener(
                 }
             );
 
-        loadData();
+        
 
 
 
