@@ -457,7 +457,7 @@ function makeColumns() {
         /* ===================================== */
 
         {
-            title: "OP Status33",
+            title: "OP Status",
             field: "current_status",
             width: 110,
             hozAlign: "center",
@@ -487,20 +487,20 @@ function makeColumns() {
 
                 return `
 
-<span style="
-    background:${colors[v] || "#6b7280"};
-    color:white;
-    padding:4px 8px;
-    border-radius:8px;
-    font-weight:700;
-    display:inline-block;
-    min-width:80px;
-    text-align:center;
-">
+                <span style="
+                    background:${colors[v] || "#6b7280"};
+                    color:white;
+                    padding:4px 8px;
+                    border-radius:8px;
+                    font-weight:700;
+                    display:inline-block;
+                    min-width:80px;
+                    text-align:center;
+                ">
 
-    ${v}
+                 ${v}
 
-</span>
+                </span>
 
         `;
             },
@@ -540,8 +540,6 @@ function makeColumns() {
         // `;
         //     },
         // },
-
-
 
 
         {
@@ -609,17 +607,11 @@ function makeColumns() {
                             })
                         }
                     );
-
-                    toast(
-                        "Lot status updated"
-                    );
+                    toast("Lot status updated");
 
                 } catch (err) {
 
-                    toast(
-                        "Update failed",
-                        false
-                    );
+                    toast("Update failed",false);
 
                     cell.restoreOldValue();
                 }
@@ -634,15 +626,11 @@ function makeColumns() {
             title: "Last Activity",
             field: "last_work_date",
             width: 120,
-
             formatter: (cell) =>
                 formatDate(
                     cell.getValue()
                 ),
         },
-
-
-
     ];
 }
 
@@ -670,9 +658,7 @@ function applyFilter() {
     if (q) {
 
         table.addFilter((d) => {
-
             return (
-
                 String(
                     d.lot_no || ""
                 )
@@ -710,7 +696,6 @@ function applyFilter() {
     /* STATUS */
 
     if (status) {
-
         table.addFilter(
             "current_status",
             "=",
@@ -729,7 +714,6 @@ async function loadData() {
         .disabled = true;
 
     try {
-
         const rows =
             await jfetch(API_URL);
 
@@ -737,7 +721,6 @@ async function loadData() {
             "shop traveler rows",
             rows
         );
-
         table.setData(rows);
 
         applyFilter();
@@ -776,7 +759,6 @@ function initTable() {
         new Tabulator(
             `#${UI.table}`,
             {
-
                 layout:
                     "fitColumns",
 
@@ -790,7 +772,6 @@ function initTable() {
                     makeColumns(),
 
                 initialSort: [
-
                     {
                         column:
                             "progress_percent",
@@ -798,9 +779,7 @@ function initTable() {
                         dir:
                             "desc",
                     },
-
                 ],
-
             }
         );
 
@@ -825,9 +804,7 @@ document.addEventListener(
             });
 
         initTable();
-
         loadData();
-
         /* SEARCH */
 
         els[UI.q]

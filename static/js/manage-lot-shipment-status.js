@@ -869,6 +869,77 @@ function makeColumns() {
     // },
 
     {
+  title: "% Progress",
+  field: "progress_percent",
+  width: 120,
+  hozAlign: "center",
+
+  sorter: (a, b) => {
+    return Number(a || 0) - Number(b || 0);
+  },
+
+  formatter: (cell) => {
+
+    const v =
+      Number(
+        cell.getValue() || 0
+      );
+
+    let color =
+      "#ef4444";
+
+    if (v >= 100)
+      color = "#10b981";
+
+    else if (v >= 50)
+      color = "#f59e0b";
+
+    else if (v > 0)
+      color = "#3b82f6";
+
+    return `
+<div
+  style="
+    position:relative;
+    height:22px;
+    background:#e5e7eb;
+    border-radius:4px;
+    overflow:hidden;
+  "
+>
+
+  <div
+    style="
+      width:${v}%;
+      background:${color};
+      height:100%;
+    "
+  ></div>
+
+  <div style="
+    position:absolute;
+    top:0;
+    left:0;
+    width:100%;
+    height:100%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    color:black;
+    font-weight:700;
+    font-size:12px;
+  ">
+
+    ${v.toFixed(0)}%
+
+  </div>
+
+</div>
+`;
+  },
+},
+
+    {
       title: "Note",
       field: "lot_note", // ✅ มาจาก view
       width: 200,
