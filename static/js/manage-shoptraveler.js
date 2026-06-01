@@ -556,7 +556,7 @@ function makeColumns() {
                 values: {
                     not_start: "Not Start",
                     in_process: "In Process",
-                    hold: "Hold",
+                    shipped: "Shipped",
                     completed: "Completed",
                     canceled: "Canceled",
                 }
