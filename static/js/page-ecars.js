@@ -6,7 +6,7 @@ import {
     from "./api.js";
 
 const API =
-    "/icars";
+    "/ecars";
 
 let table;
 
@@ -17,77 +17,15 @@ function makeColumns() {
 
 
         {
-            title: "Date",
-            field: "issue_date",
-            width: 110,
-
-            formatter: function (cell) {
-
-                const v = cell.getValue();
-
-                if (!v) return "";
-
-                const d = new Date(v);
-
-                const day =
-                    String(d.getDate()).padStart(2, "0");
-
-                const month =
-                    String(d.getMonth() + 1).padStart(2, "0");
-
-                const year =
-                    d.getFullYear();
-
-                return `${day}/${month}/${year}`;
-            },
-
-            editor: function (cell, onRendered, success) {
-
-                const input =
-                    document.createElement("input");
-
-                input.type = "date";
-
-                const value =
-                    cell.getValue();
-
-                input.value =
-                    value || "";
-
-                onRendered(() => {
-                    input.focus();
-                });
-
-                input.addEventListener(
-                    "change",
-                    () => success(input.value)
-                );
-
-                input.addEventListener(
-                    "blur",
-                    () => success(input.value)
-                );
-
-                return input;
-            }
-        },
-
-        {
-            title: "No",
-            field: "icar_no",
+            title: "ECAR No",
+            field: "ecar_no",
             editor: "input",
-            width: 80
-        },
-        {
-            title: "Operator",
-            field: "operator_name",
-            editor: "input",
-            width: 80
+            width: 120
         },
         {
             title: "Lot",
             field: "lot_no",
-            width: 100,
+            width: 120,
 
             editor: "list",
 
@@ -97,98 +35,82 @@ function makeColumns() {
 
                 filterRemote: true,
 
-                valuesURL: "/api/v1/icars/lots/search"
+                valuesURL:
+                    "/api/v1/ecars/lots/search"
             }
         },
-
         {
             title: "Part No",
             field: "part_no",
-
-            width: 100
+            width: 120
         },
-
         {
             title: "Part Name",
             field: "part_name",
-
-            width: 180
+            width: 200
         },
-
-        {
-            title: "Rev",
-            field: "rev",
-
-            width: 80
-        },
-
         {
             title: "PO",
             field: "po_no",
-
-            width: 140
+            width: 120
         },
-
         {
             title: "Customer",
             field: "customer_code",
-
-            width: 80
+            width: 120
         },
-
-
-
-
-
         {
-            title: "Lot Qty",
-            field: "lot_qty",
-            editor: "number",
-            width: 80
-        },
-
-        {
-            title: "Defect Qty",
-            field: "defect_qty",
+            title: "Shipped",
+            field: "shipped_qty",
             editor: "number",
             width: 100
         },
-
+        {
+            title: "RTV",
+            field: "rtv_qty",
+            editor: "number",
+            width: 100
+        },
+        {
+            title: "Rework",
+            field: "customer_rework_qty",
+            editor: "number",
+            width: 100
+        },
+        {
+            title: "Use As Is",
+            field: "use_as_is_qty",
+            editor: "number",
+            width: 100
+        },
         {
             title: "Defect %",
             field: "defect_percent",
+            width: 100,
 
-            width: 100
+            mutator: function (value, data) {
+
+                const shipped =
+                    Number(data.shipped_qty || 0);
+
+                const defect =
+                    Number(data.rtv_qty || 0) +
+                    Number(data.customer_rework_qty || 0) +
+                    Number(data.use_as_is_qty || 0);
+
+                if (!shipped) return "0.00";
+
+                return (
+                    defect / shipped * 100
+                ).toFixed(2);
+            }
         },
-
-
         {
             title: "Remark",
             field: "remark",
             editor: "input",
-            width: 200
+            width: 250
         },
-
-        {
-            title: "Word",
-
-            width: 90,
-
-            formatter: () =>
-                "<button class='btn'>📄 Word</button>",
-
-            cellClick: (e, cell) => {
-
-                const row =
-                    cell.getRow()
-                        .getData();
-
-                window.location =
-                    `/api/v1/icars/${row.id}/export-word`;
-
-            }
-        },
-
         {
             title: "Status",
             field: "status",
@@ -197,28 +119,33 @@ function makeColumns() {
             editorParams: {
                 values: [
                     "open",
-                    "pending",
-                    "approved",
+                    "investigating",
+                    "waiting_customer",
                     "closed"
                 ]
             }
         },
 
         {
-            title: "Delete",
-            formatter: () =>
-                "<button class='btn '>Delete</button>",
+            title: "",
+            width: 80,
+            hozAlign: "center",
+            formatter: function () {
+                return `
+            <button class="btn-danger">
+                Delete
+            </button>
+        `;
+            },
+            cellClick: async function (e, cell) {
 
-            width: 100,
+                const row =
+                    cell.getRow();
 
-            cellClick: (e, cell) => {
-
-                deleteICAR(
-                    cell.getRow()
-                );
+                await deleteECAR(row);
 
             }
-        }
+        },
 
     ];
 
@@ -240,7 +167,7 @@ async function loadData(q = "") {
 
 }
 
-async function createICAR() {
+async function createECAR() {
 
     const result =
         await jfetch(
@@ -266,6 +193,21 @@ async function saveRow(row) {
     const data =
         row.getData();
 
+    data.shipped_qty =
+        Number(data.shipped_qty || 0);
+
+    data.rtv_qty =
+        Number(data.rtv_qty || 0);
+
+    data.customer_rework_qty =
+        Number(data.customer_rework_qty || 0);
+
+    data.use_as_is_qty =
+        Number(data.use_as_is_qty || 0);
+
+    data.defect_percent =
+        Number(data.defect_percent || 0);
+
     await jfetch(
         `${API}/${data.id}`,
         {
@@ -275,17 +217,16 @@ async function saveRow(row) {
     );
 
     toast("Saved");
-
 }
 
-async function deleteICAR(row) {
+async function deleteECAR(row) {
 
     const data =
         row.getData();
 
     if (
         !confirm(
-            `Delete ${data.icar_no || data.id}?`
+            `Delete ${data.ecar_no || data.id}?`
         )
     ) {
         return;
@@ -320,7 +261,7 @@ document.addEventListener(
                         makeColumns(),
 
                     placeholder:
-                        "No ICAR Found"
+                        "No ECAR Found"
                 }
             );
 
@@ -339,8 +280,12 @@ document.addEventListener(
             // =========================
 
             if (
-                cell.getField() === "shipped_qty" ||
-                cell.getField() === "rtv_qty"
+                [
+                    "shipped_qty",
+                    "rtv_qty",
+                    "customer_rework_qty",
+                    "use_as_is_qty"
+                ].includes(cell.getField())
             ) {
 
                 const shipped =
@@ -349,18 +294,31 @@ document.addEventListener(
                 const rtv =
                     Number(data.rtv_qty || 0);
 
+                const rework =
+                    Number(data.customer_rework_qty || 0);
+
+                const useAsIs =
+                    Number(data.use_as_is_qty || 0);
+
                 let defectPercent = 0;
 
                 if (shipped > 0) {
 
                     defectPercent =
-                        (rtv / shipped) * 100;
+                        (
+                            rtv +
+                            rework +
+                            useAsIs
+                        ) / shipped * 100;
                 }
 
                 await row.update({
 
+                    // เก็บเป็น Number ไม่ใช่ String
                     defect_percent:
-                        defectPercent.toFixed(2)
+                        Number(
+                            defectPercent.toFixed(2)
+                        )
 
                 });
             }
@@ -379,7 +337,7 @@ document.addEventListener(
                 await row.update({
 
                     lot_id: info.lot_id,
-
+                    lot_no: info.lot_no,
                     customer_code: info.customer_code,
 
                     po_no: info.po_no,
@@ -401,7 +359,7 @@ document.addEventListener(
         document.getElementById("_add")
             .addEventListener(
                 "click",
-                createICAR
+                createECAR
             );
 
         document.getElementById("_q")

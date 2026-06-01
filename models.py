@@ -2126,6 +2126,32 @@ class ECAR(Base):
         nullable=False,
         default="open"
     )
+
+    # ====================================
+    # SNAPSHOT DATA
+    # ====================================
+
+    customer_code = Column(String)
+    po_no = Column(String)
+    lot_no = Column(String)
+
+    part_no = Column(String)
+    rev = Column(String)
+    part_name = Column(String)
+
+    reject_tag_idr = Column(String)
+    icar_idr = Column(String)
+
+    # ====================================
+    # ICAR DATA
+    # ====================================
+
+    issue_date = Column(Date)
+
+    shipped_qty = Column(Numeric(18,3))
+    reject_qty = Column(Numeric(18,3))
+    reject_percent = Column(Numeric(8,2))
+
     # open
     # investigating
     # waiting_customer

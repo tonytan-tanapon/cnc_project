@@ -457,7 +457,7 @@ function makeColumns() {
         /* ===================================== */
 
         {
-            title: "OP Status",
+            title: "OP Status33",
             field: "current_status",
             width: 110,
             hozAlign: "center",
@@ -543,6 +543,88 @@ function makeColumns() {
 
 
 
+
+        {
+            title: "Lot Status",
+            field: "lot_status",
+            width: 140,
+            hozAlign: "center",
+
+            editor: "select",
+
+            editorParams: {
+                values: {
+                    not_start: "Not Start",
+                    in_process: "In Process",
+                    hold: "Hold",
+                    completed: "Completed",
+                    canceled: "Canceled",
+                }
+            },
+
+            formatter: (cell) => {
+
+                const v = cell.getValue();
+
+                const colors = {
+                    not_start: "#6b7280",
+                    in_process: "#3b82f6",
+                    hold: "#f59e0b",
+                    completed: "#10b981",
+                    canceled: "#ef4444",
+                };
+
+                return `
+        <span style="
+            background:${colors[v] || "#6b7280"};
+            color:white;
+            padding:4px 8px;
+            border-radius:6px;
+            font-weight:600;
+        ">
+            ${v || ""}
+        </span>
+        `;
+            },
+
+            cellEdited: async (cell) => {
+
+                const row =
+                    cell.getRow().getData();
+
+                try {
+
+                    await jfetch(
+                        `/api/v1/lots/${row.lot_id}/status`,
+                        {
+                            method: "PUT",
+                            headers: {
+                                "Content-Type":
+                                    "application/json"
+                            },
+
+                            body: JSON.stringify({
+                                status:
+                                    cell.getValue()
+                            })
+                        }
+                    );
+
+                    toast(
+                        "Lot status updated"
+                    );
+
+                } catch (err) {
+
+                    toast(
+                        "Update failed",
+                        false
+                    );
+
+                    cell.restoreOldValue();
+                }
+            }
+        },
 
         /* ===================================== */
         /* LAST ACTIVITY */

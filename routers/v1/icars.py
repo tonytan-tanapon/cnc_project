@@ -105,6 +105,7 @@ def to_row(i: ICAR):
         "lot_no": i.lot_no,
 
         "part_no": i.part_no,
+        "part_name": i.part_name,
 
         "rev": i.rev,
 
@@ -310,6 +311,12 @@ def lookup_lot(
             if lot.part
             else "",
 
+        "part_name":
+        lot.part.name
+        if lot.part
+        else "",
+
+
         "rev":
             lot.part_revision.rev
             if lot.part_revision
@@ -333,7 +340,7 @@ def search_lots(
         .filter(
             ProductionLot.lot_no.ilike(f"%{term}%")
         )
-        .limit(20)
+        .limit(100)
         .all()
     )
 
@@ -479,7 +486,7 @@ def export_word(
             ),
 
         "{{defect_percent}}":
-    f"{float(icar.defect_percent or 0):.2f}%",
+            f"{float(icar.defect_percent or 0):.2f}%",
 
         "{{remark}}":
             icar.remark or ""
