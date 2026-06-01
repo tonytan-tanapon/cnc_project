@@ -746,8 +746,81 @@ async function loadOperation() {
     document.querySelector("#lot_no").textContent =
       `Lot: ${data.lot?.lot_no || "-"}`;
 
-    document.querySelector("#part_no").textContent =
-      `Part: ${data.lot?.part?.part_no || "-"}`;
+    // document.querySelector("#part_no").textContent =
+    //   `Part: ${data.lot?.part?.part_no || "-"}`;
+
+
+    const part = data.lot?.part || {};
+
+document.querySelector("#part_no").innerHTML = `
+<div>
+
+  <b>Part:</b> ${part.part_no || "-"}
+
+  ${
+    part.ecar === "Y"
+      ? `
+      <span style="
+        color:#dc2626;
+        font-weight:bold;
+        margin-left:10px;
+      ">
+        🚨 ${part.ecar_remark || "ECAR"}
+      </span>
+      `
+      : ""
+  }
+
+  ${
+    part.icar === "Y"
+      ? `
+      <span style="
+        color:#d97706;
+        font-weight:bold;
+        margin-left:10px;
+      ">
+        ⚠️ ${part.icar_remark || "ICAR"}
+      </span>
+      `
+      : ""
+  }
+
+</div>
+`;
+
+//     const part = data.lot?.part || {};
+
+//     document.querySelector("#part_no").innerHTML = `
+//   <div>
+//     <b>Part:</b> ${part.part_no || "-"}
+
+//     ${part.ecar_remark
+//         ? `
+//       <div style="
+//           color:#dc2626;
+//           font-weight:bold;
+//           margin-top:4px;
+//       ">
+//           🚨 ${part.ecar_remark}
+//       </div>
+//       `
+//         : ""
+//       }
+
+//     ${part.icar_remark
+//         ? `
+//       <div style="
+//           color:#d97706;
+//           font-weight:bold;
+//       ">
+//           ⚠️ ${part.icar_remark}
+//       </div>
+//       `
+//         : ""
+//       }
+
+//   </div>
+// `;
 
     document.querySelector("#part_rev").textContent =
       `Rev: ${data.lot?.part?.part_rev || "-"}`;

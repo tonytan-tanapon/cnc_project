@@ -22,6 +22,8 @@ from models import (
     TravelerTemplateStep,
     ShopTravelerStepLog,
 )
+
+from models import ECAR, ICAR
 from pydantic import BaseModel, ConfigDict
 from utils.code_generator import next_code_yearly
 from sqlalchemy import (
@@ -965,6 +967,27 @@ def get_traveler_by_no(
 
         prev_accept = qty_accept
 
+        
+    latest_ecar = (
+        db.query(ECAR)
+        .filter(
+            ECAR.part_no ==
+            traveler.lot.part.part_no
+        )
+        .order_by(ECAR.id.desc())
+        .first()
+    )
+
+    latest_icar = (
+        db.query(ICAR)
+        .filter(
+            ICAR.part_no ==
+            traveler.lot.part.part_no
+        )
+        .order_by(ICAR.id.desc())
+        .first()
+    )
+
     return {
         "id": traveler.id,
         "traveler_no": traveler.traveler_no,
@@ -974,8 +997,27 @@ def get_traveler_by_no(
             "lot_no": traveler.lot.lot_no if traveler.lot else None,
 
             "part": {
-                "part_no": traveler.lot.part.part_no
-                if traveler.lot and traveler.lot.part else None,
+
+                "part_no":
+                    traveler.lot.part.part_no
+                    if traveler.lot and traveler.lot.part
+                    else None,
+
+                "ecar":
+                    "Y" if latest_ecar else "N",
+
+                "icar":
+                    "Y" if latest_icar else "N",
+
+                "ecar_remark":
+                    latest_ecar.remark
+                    if latest_ecar
+                    else None,
+
+                "icar_remark":
+                    latest_icar.remark
+                    if latest_icar
+                    else None,
             },
 
             "part_revision": {

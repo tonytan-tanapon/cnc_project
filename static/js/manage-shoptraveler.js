@@ -172,32 +172,85 @@ function makeColumns() {
         /* ===================================== */
 
         {
-            title: "Part",
-            field: "part_no",
-            width: 100,
+    title: "Part",
+    field: "part_no",
+    width: 180,
 
-            formatter: (cell) => {
+    formatter: (cell) => {
 
-                const row =
-                    cell.getRow().getData();
+        const d = cell.getData();
 
-                return `
+        const rev =
+            d.rev
+                ? ` (${d.rev})`
+                : "";
 
-                <div class="op-card">
+        const ecar =
+            d.ecar === "Y"
+                ? `
+                <a
+                    href="/static/ecars.html?q=${encodeURIComponent(d.part_no || "")}"
+                    style="
+                        color:#c0392b;
+                        font-weight:bold;
+                        text-decoration:none;
+                    "
+                >
+                    ⛔ CAR
+                </a>
+                `
+                : "";
 
-                    <div class="op-title">
-                        ${row.part_no || ""}
-                    </div>
+        const icar =
+            d.icar === "Y"
+                ? `
+                <a
+                    href="/static/icars.html?q=${encodeURIComponent(d.part_no || "")}"
+                    style="
+                        color:#2980b9;
+                        font-weight:bold;
+                        text-decoration:none;
+                    "
+                >
+                    ⚠️ ICAR
+                </a>
+                `
+                : "";
 
-                    <div class="op-sub">
-                        REV: ${row.rev || "-"}
-                    </div>
+        const tags =
+            [ecar, icar]
+                .filter(Boolean)
+                .join(" | ");
 
+        return `
+
+            <div>
+
+                <div style="font-weight:bold;">
+                    ${d.part_no || ""}
+                    ${rev}
                 </div>
 
-            `;
-            },
-        },
+                ${
+                    tags
+                    ? `
+                        <div
+                            style="
+                                margin-top:2px;
+                                font-size:11px;
+                            "
+                        >
+                            ${tags}
+                        </div>
+                    `
+                    : ""
+                }
+
+            </div>
+
+        `;
+    }
+},
 
         /* ===================================== */
         /* CUSTOMER */

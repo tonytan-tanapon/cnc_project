@@ -326,7 +326,7 @@ function makeColumns() {
         href="/static/ecars.html?q=${encodeURIComponent(d.part_no || "")}"
         style="color:#c0392b;font-weight:bold;"
       >
-        ECAR
+        ⛔CAR
       </a>
     `
             : "";
@@ -339,7 +339,7 @@ function makeColumns() {
        
         style="color:#2980b9;font-weight:bold;"
       >
-        ICAR
+        ⚠️ICAR
       </a>
     `
             : "";
