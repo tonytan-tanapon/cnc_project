@@ -852,7 +852,6 @@ def get_traveler_by_no(
             latest_po = None
 
             if s.logs:
-
                 latest_log = sorted(
                     s.logs,
                     key=lambda l: (
@@ -995,9 +994,7 @@ def get_traveler_by_no(
 
         "lot": {
             "lot_no": traveler.lot.lot_no if traveler.lot else None,
-
             "part": {
-
                 "part_no":
                     traveler.lot.part.part_no
                     if traveler.lot and traveler.lot.part

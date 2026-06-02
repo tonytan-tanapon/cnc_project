@@ -153,10 +153,14 @@ for _, r in df.iterrows():
                 clean(
                     r["P.O. No."]
                 ),
-
             part_no=
-                clean(
+                clean(  
                     r["Part No."]
+                ),
+
+            part_name=
+                clean(
+                    r["Description"]
                 ),
 
             part_description=
@@ -219,7 +223,7 @@ for _, r in df.iterrows():
 
             remark=
                 clean(
-                    r["Comments"]
+                    r["Discrepancy"]
                 )
         )
    
