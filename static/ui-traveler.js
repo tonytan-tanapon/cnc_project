@@ -200,7 +200,34 @@ function toastCenter(message, success = true, duration = 1500) {
   }, duration);
 }
 
+window.toastCenter = toastCenter;
 
+function showRemark(title, text) {
+
+  document.querySelector("#remarkTitle").textContent =
+    title;
+
+  document.querySelector("#remarkContent").textContent =
+    text || "No Remark";
+
+  document.querySelector("#remarkModal").style.display =
+    "flex";
+}
+
+window.showRemark = showRemark;
+
+document.addEventListener("click", (e) => {
+
+  if (
+    e.target.id === "closeRemark" ||
+    e.target.id === "remarkModal"
+  ) {
+
+    document.querySelector("#remarkModal").style.display =
+      "none";
+  }
+
+});
 
 document.addEventListener("DOMContentLoaded", () => {
 
@@ -752,75 +779,86 @@ async function loadOperation() {
 
     const part = data.lot?.part || {};
 
-document.querySelector("#part_no").innerHTML = `
+    document.querySelector("#part_no").innerHTML = `
 <div>
 
   <b>Part:</b> ${part.part_no || "-"}
 
-  ${
-    part.ecar === "Y"
-      ? `
-      <span style="
+  ${part.ecar === "Y"
+        ? `
+    <span
+      onclick="showRemark(
+'ECAR',
+'${(part.ecar_remark || 'Open ECAR').replace(/'/g, "\\'")}'
+)"
+      style="
         color:#dc2626;
         font-weight:bold;
         margin-left:10px;
-      ">
-        🚨 ${part.ecar_remark || "ECAR"}
-      </span>
-      `
-      : ""
-  }
-
-  ${
-    part.icar === "Y"
-      ? `
-      <span style="
+        cursor:pointer;
+      "
+    >
+      🚨CAR
+    </span>
+    `
+        : ""
+      }
+  ${part.icar === "Y"
+        ? `
+    <span
+      onclick="showRemark(
+'ICAR',
+'${(part.icar_remark || 'Open ICAR').replace(/'/g, "\\'")}'
+)"
+      style="
         color:#d97706;
         font-weight:bold;
         margin-left:10px;
-      ">
-        ⚠️ ${part.icar_remark || "ICAR"}
-      </span>
-      `
-      : ""
-  }
+        cursor:pointer;
+      "
+    >
+      ⚠️ICAR
+    </span>
+    `
+        : ""
+      }
 
 </div>
 `;
 
-//     const part = data.lot?.part || {};
+    //     const part = data.lot?.part || {};
 
-//     document.querySelector("#part_no").innerHTML = `
-//   <div>
-//     <b>Part:</b> ${part.part_no || "-"}
+    //     document.querySelector("#part_no").innerHTML = `
+    //   <div>
+    //     <b>Part:</b> ${part.part_no || "-"}
 
-//     ${part.ecar_remark
-//         ? `
-//       <div style="
-//           color:#dc2626;
-//           font-weight:bold;
-//           margin-top:4px;
-//       ">
-//           🚨 ${part.ecar_remark}
-//       </div>
-//       `
-//         : ""
-//       }
+    //     ${part.ecar_remark
+    //         ? `
+    //       <div style="
+    //           color:#dc2626;
+    //           font-weight:bold;
+    //           margin-top:4px;
+    //       ">
+    //           🚨 ${part.ecar_remark}
+    //       </div>
+    //       `
+    //         : ""
+    //       }
 
-//     ${part.icar_remark
-//         ? `
-//       <div style="
-//           color:#d97706;
-//           font-weight:bold;
-//       ">
-//           ⚠️ ${part.icar_remark}
-//       </div>
-//       `
-//         : ""
-//       }
+    //     ${part.icar_remark
+    //         ? `
+    //       <div style="
+    //           color:#d97706;
+    //           font-weight:bold;
+    //       ">
+    //           ⚠️ ${part.icar_remark}
+    //       </div>
+    //       `
+    //         : ""
+    //       }
 
-//   </div>
-// `;
+    //   </div>
+    // `;
 
     document.querySelector("#part_rev").textContent =
       `Rev: ${data.lot?.part?.part_rev || "-"}`;

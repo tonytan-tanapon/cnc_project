@@ -940,6 +940,60 @@
   </script>
 
 
+  <!-- ECAR / ICAR Popup -->
+<div id="remarkModal" style="
+  display:none;
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,.5);
+  z-index:99999;
+  align-items:center;
+  justify-content:center;
+">
+
+  <div style="
+    background:white;
+    width:700px;
+    max-width:90%;
+    border-radius:10px;
+    padding:20px;
+  ">
+
+    <div style="
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      margin-bottom:15px;
+    ">
+      <h2 id="remarkTitle">Remark</h2>
+
+      <button
+        id="closeRemark"
+        style="
+          border:none;
+          background:#ef4444;
+          color:white;
+          padding:8px 12px;
+          border-radius:6px;
+          cursor:pointer;
+        "
+      >
+        X
+      </button>
+    </div>
+
+    <div id="remarkContent"
+      style="
+        font-size:22px;
+        line-height:1.6;
+        white-space:pre-wrap;
+      ">
+    </div>
+
+  </div>
+
+</div>
+
 
 </body>
 
