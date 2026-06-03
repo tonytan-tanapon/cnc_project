@@ -743,9 +743,15 @@ async def import_steps(
             part_rev,
         )
 
+        #### SAVE FILE TO TRAVELER  
+        traveler = db.get(ShopTraveler, traveler_id)
 
+        if traveler:
+            traveler.file_dir = file.filename
 
         db.commit()
+
+
 
         apply_template_logic(
             db,

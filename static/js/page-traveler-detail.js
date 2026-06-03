@@ -268,6 +268,7 @@ function markHeaderDirty(on) {
   if (btnHdrSave) btnHdrSave.style.display = on ? "" : "none";
   if (btnHdrCancel) btnHdrCancel.style.display = on ? "" : "none";
 }
+
 function wireHeaderDirtyOnly() {
   [
     "lot_id",
@@ -279,8 +280,8 @@ function wireHeaderDirtyOnly() {
     "lot_planned_qty",
     "lot_shipped_qty",
     "material",
-    "started_at",     // 🔥 add
-    "lot_po_duedate",        // 🔥 add
+    "started_at",             // 🔥 add
+    "lot_po_duedate",         // 🔥 add
     "lot_due_date",
     "created_at"
 
@@ -384,6 +385,9 @@ async function fillTraveler(t) {
 
   $("material").value =
     t.lot?.part_revision?.material || "";
+
+  $("fileInputDir").value =
+    t.file_dir || "";
 
 
 
@@ -2894,7 +2898,7 @@ async function loadLotDetail() {
     $("notes").value = originalLot.all?.note || "";
     $("started_at").value = originalLot.all.started_at ? originalLot.all.started_at.slice(0, 10) : "";
     $("lot_po_duedate").value = originalLot.lot_po_duedate ? originalLot.lot_po_duedate.slice(0, 10) : "";
-    
+
     $("created_at").value = originalLot.all.created_at ? originalLot.all.created_at.slice(0, 10) : "";
     $("lot_due_date").value = originalLot.all.lot_due_date ? originalLot.all.lot_due_date.slice(0, 10) : "";
 
@@ -2984,12 +2988,13 @@ async function handleImportFile(e) {
     setBusyT(true);
 
     const formData = new FormData();
+    //console.log("Importing file:", file);  
 
     formData.append("file", file);
 
     formData.append("traveler_id", travelerId);
 
-    // ✅ ADD THESE
+    // // ✅ ADD THESE
     const partNo =
       originalLot?.part?.part_no || "";
 
@@ -3046,10 +3051,7 @@ async function handleImportFile(e) {
   } catch (err) {
 
     console.error(err);
-
-    toast(
-      err?.message || "Import failed",
-      false
+    toast(err?.message || "Import failed", false
     );
 
   } finally {
@@ -3076,6 +3078,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   // $("btnInspection").addEventListener("click", downloadInspectionBatch);
   $("btnExportTraveler").addEventListener("click", exportTraveler);
   $("btnExportTravelerBlank").addEventListener("click", exportTravelerBlank);
+
 
 
 
@@ -3109,6 +3112,11 @@ document.addEventListener("DOMContentLoaded", async () => {
       });
 
       toast("All steps deleted");
+
+      originalTraveler.file_dir = null;
+
+      $("fileInputDir").value = "";
+
       await reloadSteps();
 
     } catch (err) {
@@ -3197,9 +3205,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       setBusyT(false);
     }
 
-
-
-
   });
 
   document.getElementById("btnSTdetail")?.addEventListener("click", () => {
@@ -3211,7 +3216,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     const url = `/static/traveler-view.html?traveler_id=${travelerId}`;
 
     console.log("Go to:", url);
-
     window.open(url, "_blank");
   });
   document.getElementById("btnAddStep")?.addEventListener("click", async () => {

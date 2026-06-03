@@ -76,6 +76,8 @@ import pytz
 from datetime import datetime
 import pytz
 
+
+
 @router.put("/qa-items/{item_id}")
 def update_item(item_id: int, payload: QAInspectionItemUpdate, db: Session = Depends(get_db)):
     item = db.get(QAInspectionItem, item_id)
@@ -118,6 +120,37 @@ def delete_item(item_id: int, db: Session = Depends(get_db)):
     db.delete(item)
     db.commit()
     return {"ok": True}
+
+@router.delete("/{inspection_id}/items")
+def delete_all_items(
+    inspection_id: int,
+    db: Session = Depends(get_db),
+):
+    inspection = db.get(
+        QAInspection,
+        inspection_id
+    )
+
+    if not inspection:
+        raise HTTPException(
+            404,
+            "Inspection not found"
+        )
+
+    db.query(QAInspectionItem)\
+        .filter(
+            QAInspectionItem.inspection_id == inspection_id
+        )\
+        .delete()
+
+    # 🔥 clear file_dir ด้วย
+    inspection.file_dir = None
+
+    db.commit()
+
+    return {
+        "success": True
+    }
 
 from models import (
     QAInspection,
@@ -195,7 +228,15 @@ def apply_template(
         )
         db.add(new_item)
 
+    tmpl = db.get(
+    QAInspectionTemplate,
+    template_id
+    )
+
+    inspection.file_dir = tmpl.file_dir
+
     db.commit()
+    db.refresh(inspection)
 
     return {"ok": True, "count": len(items)}
 
@@ -277,6 +318,7 @@ def create_template_version(
             name=f"Template from Inspection {inspection.id} (Lot {lot.lot_no})",
             active=True,
             is_latest=True,   # 🔥 เพิ่มตรงนี้
+            file_dir=inspection.file_dir
         )
         db.add(tmpl)
         db.flush()   # 🔥 สำคัญ: ได้ tmpl.id โดยยังไม่ commit
@@ -552,6 +594,7 @@ async def import_inspection(
                 active=True,
 
                 is_latest=True,
+                file_dir=file.filename,   # หรือ path จริง
             )
 
             db.add(tmpl)
@@ -644,6 +687,8 @@ async def import_inspection(
                     emp_id=38,   # ✅ ADD
                 )
             )
+            
+        inspection.file_dir = tmpl.file_dir
 
         db.commit()
 

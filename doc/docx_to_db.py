@@ -442,6 +442,10 @@ def create_template_from_parsed_result(
         template.risk_level = result["traveler"].get(
             "risk"
         )
+
+        template.file_dir = (
+    result["traveler"].get("file_dir")
+)
         # 🔥 UPDATE PART REVISION MATERIAL
         # if part_rev:
 

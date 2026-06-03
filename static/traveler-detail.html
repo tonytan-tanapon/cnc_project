@@ -528,17 +528,25 @@
           </button>
 
           <button id="btnUpdateTravelerTemplate" class="btn-mini">💾 Update Template</button>
-          <button id="btnExportTraveler" class="btn-mini">📝 Export Traveler</button>
-          <button id="btnExportTravelerBlank" class="btn-mini">📝 Export Blank</button>
+          <input  type="text"  id="fileInputDir"  readonly  style=" width:300px;    flex:none;"></input>
+          
           <button id="btnSTdetail" class="btn-mini">📝 Details</button>
 
-          <b>Bold</b> -> **Text** or CTRL+B, Alt + 0216(Ø), 0177(±), 0176(°)
+         
 
         </div>
 
         <div class="list-topbar">
+          <button id="btnExportTraveler" class="btn-mini">📝 Export Traveler</button>
+          <button id="btnExportTravelerBlank" class="btn-mini">📝 Export Blank</button>
           <button id="btnUpdateTravelerStep" class="btn-mini">💾 Save Traveler</button>
-          <button id="btnDeleteAllSteps" class="btn-mini">🗑 Delete All Steps</button>
+           <b>Bold</b> -> **Text** or CTRL+B, Alt + 0216(Ø), 0177(±), 0176(°)
+          <button id="btnDeleteAllSteps"
+        class="btn-mini btn-danger"
+        style="margin-left:auto">
+  🗑 Delete All Steps
+</button>
+
         </div>
 
 
@@ -566,7 +574,7 @@
   <!-- QRCode library (global variable) -->
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
   <!-- Page script -->
-  <script type="module" src="/static/js/page-traveler-detail.js?v=2.2"></script>
+  <script type="module" src="/static/js/page-traveler-detail.js?v=2.3"></script>
 
   <!-- ===== QR Code Modal ===== -->
   <style>

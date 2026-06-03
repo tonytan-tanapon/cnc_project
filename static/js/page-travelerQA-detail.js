@@ -1211,6 +1211,12 @@ async function loadInspection() {
 
   currentInspection = qa;
 
+  const fileDir = document.getElementById("fileInputDir");
+
+  if (fileDir) {
+    fileDir.value = qa.file_dir || "";
+  }
+
   const title = $("inspectionTitle");
   if (title) title.textContent = `QA Inspection `;
 
@@ -1219,7 +1225,6 @@ async function loadInspection() {
     const tmpl = await jfetch(
       `/api/v1/qa-inspections/templates/active?inspection_id=${qa.id}`
     );
-
     showLatestBadge(tmpl.is_latest);
   } catch (e) {
     console.warn("No template / latest not found");
@@ -1516,6 +1521,7 @@ function initImportInspection() {
     handleImportInspection
   );
 }
+
 async function handleImportInspection(e) {
 
   const file = e.target.files[0];
@@ -1604,6 +1610,47 @@ async function handleImportInspection(e) {
     e.target.value = "";
   }
 }
+
+async function deleteAllItems() {
+
+  if (!currentInspection?.id) {
+    toast("Inspection not loaded", false);
+    return;
+  }
+
+  if (!confirm("Delete ALL inspection items?")) {
+    return;
+  }
+
+  try {
+
+    await jfetch(
+      `/qa-inspections/${currentInspection.id}/items`,
+      {
+        method: "DELETE"
+      }
+    );
+
+    qaTable.clearData();
+
+    // 🔥 clear textbox ทันที
+    $("fileInputDir").value = "";
+
+    currentInspection.file_dir = null;
+
+    toast("All items deleted");
+
+  } catch (err) {
+
+    console.error(err);
+
+    toast(
+      err?.message || "Delete failed",
+      false
+    );
+  }
+}
+
 async function loadLotInfo() {
 
   if (!lotId) return;
@@ -1714,7 +1761,15 @@ async function btnAddTemplate() {
     }
 
     toast("QA Template applied");
-    await loadInspectionItems(); // reload QA table
+
+    // update ทันทีจาก template ที่เพิ่งเลือก
+    $("fileInputDir").value =
+      tmpl.file_dir || "";
+
+    currentInspection.file_dir =
+      tmpl.file_dir || "";
+
+    await loadInspectionItems();
   } catch (err) {
     console.error(err);
     toast(err?.message || "Failed to apply QA template", false);
@@ -2056,6 +2111,12 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   $("btnExportBlank").addEventListener("click", btnExportBlank);
   $("btnUpdateInspection").addEventListener("click", btnUpdateInspection);
+
+  $("btnDeleteAll")
+    ?.addEventListener(
+      "click",
+      deleteAllItems
+    );
   try {
     await loadInspection();
     await loadLotInfo();

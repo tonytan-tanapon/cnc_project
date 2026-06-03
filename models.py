@@ -500,7 +500,9 @@ class ProductionLot(Base):
     status = Column(String, nullable=False, default="in_process")
     note =  Column(String,  nullable=True)
     risk = Column(String, nullable=True, default="green")
+    date_closed = Column(DateTime(timezone=True), nullable=True)
     
+    file_dir = Column(String, nullable=True) # QR code url or label url
 
 
     __table_args__ = (
@@ -606,6 +608,8 @@ class ShopTraveler(Base):
     qr_code = Column(String, nullable=True, unique=True, index=True)  # ใช้ encode ใน QR
     materail = Column(String, nullable=True) # type spec
     risk_level = Column(String, nullable=True) # low/medium/high
+
+    file_dir = Column(String, nullable=True) # QR code url or label url
     template_id = Column(
         Integer,
         ForeignKey("traveler_templates.id"),
@@ -867,6 +871,8 @@ class TravelerTemplate(Base):
 
     is_latest = Column(Boolean, nullable=False, default=False, index=True)  # 🔥 ใส่ตรงนี้
 
+    file_dir = Column(String, nullable=True) # QR code url or label url
+
     # relationships
     steps = relationship(
         "TravelerTemplateStep",
@@ -951,6 +957,8 @@ class QAInspection(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
+    file_dir = Column(String, nullable=True) # QR code url or label url
+
     # relationships
     lot = relationship("ProductionLot")
    
@@ -1013,6 +1021,8 @@ class QAInspectionTemplate(Base):
     part = relationship("Part")
     part_revision = relationship("PartRevision")
     is_latest = Column(Boolean, nullable=False, default=False, index=True)  # 🔥 ใส่ตรงนี้
+
+    file_dir = Column(String, nullable=True) # QR code url or label url
 
     items = relationship(
         "QAInspectionTemplateItem",

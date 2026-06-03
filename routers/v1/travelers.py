@@ -40,6 +40,7 @@ class ShopTravelerCreate(BaseModel):
     status: str = "open"
     notes: Optional[str] = None
     production_due_date: Optional[date] = None
+    file_dir: Optional[str]
 
 class ShopTravelerUpdate(BaseModel):
     traveler_no: Optional[str] = None
@@ -48,6 +49,7 @@ class ShopTravelerUpdate(BaseModel):
     status: Optional[str] = None
     notes: Optional[str] = None
     production_due_date: Optional[date] = None
+    file_dir: Optional[str]
 
 class ShopTravelerRowOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -73,6 +75,7 @@ class ShopTravelerRowOut(BaseModel):
     part_rev: Optional[str] = None
 
     stock_qty: Optional[int] = 0
+    file_dir: Optional[str]
 
     
 
@@ -187,6 +190,7 @@ def to_row_out(t: ShopTraveler, db: Session) -> ShopTravelerRowOut:
             if t.lot and t.lot.part_revision
             else None
         ),
+        file_dir=t.file_dir,   # <-- เพิ่มตรงนี้
     )
 
     data = row.model_dump()
@@ -461,6 +465,9 @@ def update_traveler(traveler_id: int, payload: ShopTravelerUpdate, db: Session =
 
     if "production_due_date" in data:
         t.production_due_date = data["production_due_date"]
+    if "file_dir" in data:
+        t.file_dir = data["file_dir"]
+        
 
     db.commit()
     db.refresh(t)
@@ -599,6 +606,7 @@ def create_template_version(
 
             "traveler": {
                 "risk": traveler.risk_level,
+                "file_dir": traveler.file_dir,
             },
 
             "steps": []
@@ -638,6 +646,9 @@ def create_template_version(
         )
 
         traveler.template_id = tmpl.id
+        traveler.file_dir = tmpl.file_dir
+        traveler.file_dir = tmpl.file_dir
+        
 
        
         db.commit()
@@ -700,6 +711,9 @@ def apply_template(
         raise HTTPException(404, "Template not found")
     
     traveler.template_id = tmpl.id
+
+    # 🔥 copy file
+    traveler.file_dir = tmpl.file_dir
 
     # 🔥 APPLY TEMPLATE MATERIAL
     if (
@@ -1063,6 +1077,9 @@ def delete_all_steps(
     db.query(ShopTravelerStep).filter(
         ShopTravelerStep.traveler_id == traveler_id
     ).delete(synchronize_session=False)
+
+    # 🔥 clear file
+    traveler.file_dir = None
 
     db.commit()
 

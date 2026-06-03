@@ -517,8 +517,6 @@ function initShipmentTable() {
         },
       },
 
-
-
       {
         title: "Tracking #",
         field: "tracking_number",
@@ -591,6 +589,7 @@ function initShipmentTable() {
       //       }
       //     },
       //   },
+
       {
         title: "Qty",
         field: "qty",
