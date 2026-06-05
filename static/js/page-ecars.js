@@ -15,17 +15,44 @@ function makeColumns() {
     return [
 
 
-
         {
-            title: "ECAR No",
+    title: "Date",
+    field: "date_initiated",
+    width: 90,
+
+    sorter: function(a, b) {
+
+        const da = a ? new Date(a).getTime() : 0;
+        const db = b ? new Date(b).getTime() : 0;
+
+        return da - db;
+    },
+
+    formatter(cell) {
+
+        const v = cell.getValue();
+
+        if (!v) return "";
+
+        const d = new Date(v);
+
+        const mm = String(d.getMonth() + 1).padStart(2, "0");
+        const dd = String(d.getDate()).padStart(2, "0");
+        const yy = String(d.getFullYear()).slice(-2);
+
+        return `${mm}/${dd}/${yy}`;
+    }
+},
+        {
+            title: "No",
             field: "ecar_no",
             editor: "input",
-            width: 120
+            width: 80
         },
         {
             title: "Lot",
             field: "lot_no",
-            width: 120,
+            width: 90,
 
             editor: "list",
 
@@ -168,6 +195,7 @@ async function loadData(q = "") {
 }
 
 async function createECAR() {
+    console.log("ADD CLICK");
 
     const result =
         await jfetch(
@@ -180,6 +208,7 @@ async function createECAR() {
                 })
             }
         );
+    console.log("RESULT", result);
 
     table.addData(
         [result],
@@ -249,31 +278,34 @@ document.addEventListener(
     "DOMContentLoaded",
     () => {
 
-        table =
-            new Tabulator(
-                "#listBody",
-                {
-                    layout: "fitColumns",
+        table = new Tabulator(
+            "#listBody",
+            {
+                layout: "fitColumns",
+                height: "100%",
 
-                    height: "100%",
+                initialSort: [
+                    {
+                        column: "date_initiated",
+                        dir: "desc"
+                    }
+                ],
 
-                    columns:
-                        makeColumns(),
+                columns: makeColumns(),
 
-                    placeholder:
-                        "No ECAR Found"
-                }
+                placeholder: "No ECAR Found"
+            }
+        );
+        const params =
+            new URLSearchParams(
+                window.location.search
             );
-            const params =
-    new URLSearchParams(
-        window.location.search
-    );
 
         const q =
             params.get("q") || "";
 
-        console.log("Search for", q);   
-        
+        console.log("Search for", q);
+
         if (q) {
 
             document.getElementById("_q").value =
@@ -393,7 +425,7 @@ document.addEventListener(
                 }
             );
 
-       
+
 
 
     }

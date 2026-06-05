@@ -143,7 +143,9 @@ function ensureHeaderButtons() {
   btnHdrSave.onclick = async () => {
     await savePartRevisionMaterial();
     await saveLot();        // 🔥 save lot fields
-    await saveTraveler();   // existing logic
+    // await saveTraveler();   // existing logic
+
+    markHeaderDirty(false);
   };
 
   btnHdrCancel = document.createElement("button");
@@ -246,6 +248,9 @@ async function saveLot() {
         body: JSON.stringify(payload),
       }
     );
+    await loadLotDetail();
+
+    markHeaderDirty(false);
 
     toast("Lot updated");
 
@@ -369,11 +374,16 @@ async function fillTraveler(t) {
       ${badge}
     `;
   }
-  $("start_qty").value =
-    t.start_qty || 0;
+  if (originalLot?.all?.from_lot) {
 
-  $("final_qty").value =
-    t.final_qty || 0;
+    $("start_qty").value = 0;
+    $("final_qty").value = 0;
+
+  } else {
+
+    $("start_qty").value = t.start_qty || 0;
+    $("final_qty").value = t.final_qty || 0;
+  }
 
   $("stock_qty").value =
     t.stock_qty || 0;
@@ -429,10 +439,7 @@ function readTraveler() {
     created_by_id,
 
 
-    lot_planned_qty: numOrNull($("lot_planned_qty")?.value),
 
-    started_at: strOrNull($("started_at")?.value),
-    lot_po_duedate: strOrNull($("lot_po_duedate")?.value),
   };
 }
 
@@ -452,9 +459,7 @@ async function loadTraveler() {
       console.log("Fetched traveler by ID:", t);
     } else if (lotId) {
       // Find by lot_id
-      const list = await jfetch(
-        `/travelers?lot_id=${encodeURIComponent(lotId)}`
-      );
+      const list = await jfetch(`/travelers?lot_id=${encodeURIComponent(lotId)}`);
       if (Array.isArray(list) && list.length > 0) {
         t = list[0];
       } else {
@@ -467,6 +472,7 @@ async function loadTraveler() {
     originalTraveler = t;
     console.log("Original traveler data:", originalTraveler);
     await fillTraveler(t);
+
   } catch (e) {
     setError(e?.message || "Load failed");
   } finally {
@@ -474,27 +480,82 @@ async function loadTraveler() {
   }
 }
 
+// async function saveTraveler() {
+//   if (!travelerId || isSubmitting) return;
+//   try {
+//     isSubmitting = true;
+//     setBusyT(true);
+//     const t = await jfetch(`/travelers/${encodeURIComponent(travelerId)}`, {
+//       method: "PUT",
+//       body: JSON.stringify(readTraveler()),
+//     });
+//     originalTraveler = t;
+//     await fillTraveler(t);
+//     toast("Traveler saved");
+//   } catch (e) {
+//     toast(e?.message || "Save failed", false);
+//   } finally {
+//     isSubmitting = false;
+//     setBusyT(false);
+//   }
+// }
+
 async function saveTraveler() {
+
   if (!travelerId || isSubmitting) return;
+
   try {
+
     isSubmitting = true;
+
     setBusyT(true);
-    const t = await jfetch(`/travelers/${encodeURIComponent(travelerId)}`, {
-      method: "PUT",
-      body: JSON.stringify(readTraveler()),
-    });
+
+    const payload = readTraveler();
+
+    console.log("SAVE TRAVELER", payload);
+
+    const t = await jfetch(
+      `/travelers/${travelerId}`,
+      {
+        method: "PUT",
+        body: JSON.stringify(payload),
+      }
+    );
+
     originalTraveler = t;
+
     await fillTraveler(t);
+
     toast("Traveler saved");
+
   } catch (e) {
-    toast(e?.message || "Save failed", false);
+
+    console.error("SAVE ERROR =", e);
+
+    alert(JSON.stringify(e, null, 2));
+
+    toast(
+      e?.message || "Save failed",
+      false
+    );
+
   } finally {
+
     isSubmitting = false;
+
     setBusyT(false);
   }
 }
-function cancelTraveler() {
-  if (originalTraveler) fillTraveler(originalTraveler);
+
+async function cancelTraveler() {
+
+  if (originalTraveler) {
+    await fillTraveler(originalTraveler);
+  }
+
+  await loadLotDetail();
+
+  markHeaderDirty(false);
 }
 
 /* ---------- Status badge & options ---------- */
@@ -2375,7 +2436,7 @@ function initStepsTable() {
             if (l.supplier_lot) {
 
               lines.push(
-                `<b>Lot:</b> ${l.supplier_lot}`
+                `<b>Heat Lot:</b> ${l.supplier_lot}`
               );
             }
 
@@ -2895,6 +2956,9 @@ async function loadLotDetail() {
       originalLot.all?.risk;
     console.log("originalLot.all.lot_shipped_qty", originalLot.all.lot_shipped_qty)
     $("lot_shipped_qty").value = originalLot.lot_shipped_qty || "";
+
+    $("lot_planned_qty").value =
+      originalLot.all?.planned_qty || "";
     $("notes").value = originalLot.all?.note || "";
     $("started_at").value = originalLot.all.started_at ? originalLot.all.started_at.slice(0, 10) : "";
     $("lot_po_duedate").value = originalLot.lot_po_duedate ? originalLot.lot_po_duedate.slice(0, 10) : "";
@@ -3126,6 +3190,83 @@ document.addEventListener("DOMContentLoaded", async () => {
       setBusyT(false);
     }
   });
+
+  const btnFromLot =
+    document.getElementById("btnFromLot");
+
+  btnFromLot?.addEventListener(
+    "click",
+    async () => {
+
+      const fromLot =
+        document.getElementById("fromLot")
+          ?.value
+          ?.trim();
+
+      if (!fromLot) {
+
+        toast("Enter lot no", false);
+
+        return;
+      }
+
+      const fromLotQTY =
+        document.getElementById("fromLotQTY")
+          ?.value
+          ?.trim();
+
+      if (!fromLotQTY) {
+
+        toast("Enter from lot quantity", false);
+
+        return;
+      }
+
+
+      if (
+        !confirm(
+          `Create from Lot ${fromLot}?`
+        )
+      ) {
+        return;
+      }
+
+      try {
+
+        setBusyT(true);
+
+        await jfetch(
+          `/api/v1/travelers/${travelerId}/copy-from-lot`,
+          {
+            method: "POST",
+
+            body: JSON.stringify({
+              from_lot_no: fromLot,
+              from_lot_qty: Number(fromLotQTY)
+            })
+          }
+        );
+
+        toast("Steps copied");
+
+        await reloadSteps();
+
+      } catch (err) {
+
+        console.error(err);
+
+        toast(
+          err?.message ||
+          "Copy failed",
+          false
+        );
+
+      } finally {
+
+        setBusyT(false);
+      }
+    }
+  );
 
   const btnUpdateTemplate = document.getElementById("btnUpdateTravelerTemplate");
 

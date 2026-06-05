@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 from fastapi.responses import FileResponse
 from database import get_db
@@ -390,6 +391,8 @@ def build_traveler_data_from_db(traveler: ShopTraveler,db: Session) -> dict:
         db
     )
 
+    
+
     print("traveler_row", traveler_row)
 
     lot = traveler.lot
@@ -555,20 +558,19 @@ def build_traveler_data_from_db(traveler: ShopTraveler,db: Session) -> dict:
 
             if log.supplier_po:
 
-                lines.append(f"PO: {log.supplier_po}")
+                lines.append(f"PO: {log.supplier_po.upper()}")
 
             if log.supplier_name:
 
-                lines.append(f"Supplier: {log.supplier_name}")
+                lines.append(f"Supplier: {log.supplier_name.upper()}")
 
             if log.supplier_lot:
 
-                lines.append(f"Heat: {log.supplier_lot}" )
+                lines.append(f"Heat Lot: {log.supplier_lot.upper()}" )
 
             # 🔥 COMMENT
             if log.note:
-
-                lines.append(f"Note: {log.note}")
+                lines.append(f"{log.note.upper()}")
 
             # skip empty
             if not lines:
@@ -628,10 +630,25 @@ def build_traveler_data_from_db(traveler: ShopTraveler,db: Session) -> dict:
         })
 
         prev_accept = accept
+    from sqlalchemy import func
+    from models import CustomerShipmentItem
+    lot_shipped_qty = (
+        db.query(
+            func.coalesce(
+                func.sum(CustomerShipmentItem.qty),
+                0
+            )
+        )
+        .filter(
+            CustomerShipmentItem.lot_id == lot.id
+        )
+        .scalar()
+    )
 
     # ==================================================
     # HEADER
     # ==================================================
+    
     return {
 
         "header": {
@@ -740,11 +757,7 @@ def build_traveler_data_from_db(traveler: ShopTraveler,db: Session) -> dict:
                 ),
             
 
-            "lot_shipped_qty":
-                (
-                    traveler_row.final_qty
-                    - traveler_row.stock_qty
-                ),
+            "lot_shipped_qty": int(lot_shipped_qty or 0),
 
             "risk":
                 lot.risk or "",

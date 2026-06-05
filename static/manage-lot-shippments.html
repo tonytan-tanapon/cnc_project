@@ -239,26 +239,29 @@
 
       <!-- Scrollable Content -->
       <div class="content">
-        <!-- Part Inventory -->
-        <section class="panel">
-          <h3>📦 Part Inventory</h3>
-          <div class="table-wrap">
-            <div id="partTable"></div>
-          </div>
-        </section>
+        
 
         <!-- Shipment Records -->
         <!-- Shipment Records -->
         <section class="panel">
           <div class="panel-header">
             <h3>📦 Shipment Records</h3>
-            <button id="btnCreateShipment" class="btn primary btn-mini">
+            <button id="btnCreateShipment" class="btn primary btn-mini" hidden>
               ➕ Create Shipment
             </button>
           </div>
 
           <div class="table-wrap">
             <div id="shipmentTable"></div>
+          </div>
+        </section>
+
+
+        <!-- Part Inventory -->
+        <section class="panel" hidden>
+          <h3 hidden>📦 Part Inventory</h3>
+          <div class="table-wrap" hidden>
+            <div id="partTable"></div>
           </div>
         </section>
       </div>
@@ -268,7 +271,7 @@
   <!-- JS -->
   <script type="module" src="/static/js/nav-loader.js"></script>
   <script src="/static/vendor/tabulator/tabulator.min.js"></script>
-  <script type="module" src="/static/js/manage-lot-shippments.js?v=1.0"></script>
+  <script type="module" src="/static/js/manage-lot-shippments.js?v=1.2"></script>
 </body>
 
 </html>

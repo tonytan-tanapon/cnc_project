@@ -2,6 +2,11 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from pydantic import BaseModel
+
+class QAInspectionUpdate(BaseModel):
+    inspector_id: int | None = None
+
 from doc.docx_to_db import (
     convert_doc_to_docx,
 )
@@ -18,6 +23,25 @@ from schemas import (
 )
 
 router = APIRouter(prefix="/qa-inspections", tags=["qa-inspections"])
+
+
+@router.put("/{inspection_id}")
+def update_inspection(
+    inspection_id: int,
+    payload: QAInspectionUpdate,
+    db: Session = Depends(get_db),
+):
+    qa = db.get(QAInspection, inspection_id)
+
+    if not qa:
+        raise HTTPException(404, "Inspection not found")
+
+    qa.inspector_id = payload.inspector_id
+
+    db.commit()
+    db.refresh(qa)
+
+    return qa
 
 @router.get("/by-lot/{lot_id}")
 def get_inspection(lot_id: int, db: Session = Depends(get_db)):

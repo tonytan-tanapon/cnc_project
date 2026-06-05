@@ -120,6 +120,7 @@
       height: 36px;
       border-radius: 0;
     }
+    
 
     #steps_wrap {
       flex: 1 1 auto;
@@ -398,11 +399,11 @@
 
 
           <div class="field col-3">
-            <label>created_at</label>
+            <label>Release Date</label>
             <input id="created_at" type="date" />
           </div>
           <div class="field col-3">
-            <label>lot_due_date</label>
+            <label>Due_date</label>
             <input id="lot_due_date" type="date" />
           </div>
 
@@ -489,13 +490,13 @@
           </div>
 
            
-          <div class="field col-3">
-            <label >started_at</label>
-            <input id="started_at" type="date" readonly />
+          <div class="field col-3" hidden>
+            <!-- <label hidden >started_at</label> -->
+            <input id="started_at" type="date" readonly  hidden/>
           </div>
-          <div class="field col-3">
-            <label >Lot PO Duedate</label>
-            <input id="lot_po_duedate" type="date" readonly />
+          <div class="field col-3" hidden>
+            <!-- <label hidden>Lot PO Duedate</label> -->
+            <input id="lot_po_duedate" type="date" readonly hidden />
           </div>
           <!-- ----------------------------------------- -->
 
@@ -517,6 +518,9 @@
 
           <button id="btnAddStep" class="btn-mini">+ Add Step</button>
 
+          <input type="text" id="fromLot" style=" width:100px;    flex:none;" placeholder="From Lot..." />
+          <input type="text" id="fromLotQTY" style=" width:100px;    flex:none;" placeholder="Lot QTY..." />
+          <button id="btnFromLot" class="btn-mini">+ From Lot</button>
 
 
           <!-- Confirm button -->
@@ -574,7 +578,7 @@
   <!-- QRCode library (global variable) -->
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
   <!-- Page script -->
-  <script type="module" src="/static/js/page-traveler-detail.js?v=2.3"></script>
+  <script type="module" src="/static/js/page-traveler-detail.js?v=2.4"></script>
 
   <!-- ===== QR Code Modal ===== -->
   <style>

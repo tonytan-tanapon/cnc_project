@@ -23,6 +23,8 @@ from models import (
     ShopTravelerStepLog,
 )
 
+
+
 from models import ECAR, ICAR
 from pydantic import BaseModel, ConfigDict
 from utils.code_generator import next_code_yearly
@@ -33,6 +35,11 @@ from sqlalchemy import (
 router = APIRouter(prefix="/travelers", tags=["travelers"])
 
 # ---------- Schemas ----------
+
+class CopyLotRequest(BaseModel):
+    from_lot_no: str
+    from_lot_qty: int
+
 class ShopTravelerCreate(BaseModel):
     traveler_no: Optional[str] = None
     lot_id: int
@@ -160,6 +167,11 @@ def to_row_out(t: ShopTraveler, db: Session) -> ShopTravelerRowOut:
     stock_qty = (
         final_qty - lot_shipped_qty
     )
+    if t.lot and t.lot.from_lot:
+
+        start_qty = 0
+        final_qty = 0
+
 
     row = ShopTravelerRowOut(
         id=t.id,
@@ -358,7 +370,9 @@ def list_travelers(
             ShopTraveler.status == status
         )
     rows = query.order_by(ShopTraveler.id.desc()).all()
+    
     return [to_row_out(t, db) for t in rows]
+
 # ---------- GET ----------
 @router.get("/by-lot-code/{lot_no}", response_model=ShopTravelerRowOut)
 def get_traveler_by_lot_no(
@@ -552,6 +566,139 @@ def record_step(traveler_id: int, payload: dict, db: Session = Depends(get_db)):
 
     db.commit()
     return {"message": "✅ Step completed successfully"}
+
+
+@router.post("/{traveler_id}/copy-from-lot")
+def copy_from_lot(
+    traveler_id: int,
+    payload: CopyLotRequest,
+    db: Session = Depends(get_db)
+):
+    print("copy from lot payload:", payload)
+
+    old_steps = (
+        db.query(ShopTravelerStep)
+        .filter(
+            ShopTravelerStep.traveler_id == traveler_id
+        )
+        .all()
+    )
+
+    old_ids = [s.id for s in old_steps]
+
+    if old_ids:
+
+        db.query(ShopTravelerStepLog).filter(
+            ShopTravelerStepLog.step_id.in_(old_ids)
+        ).delete(
+            synchronize_session=False
+        )
+    
+
+    # delete steps
+    db.query(
+        ShopTravelerStep
+    ).filter(
+        ShopTravelerStep.traveler_id ==
+        traveler_id
+    ).delete(
+        synchronize_session=False
+    )
+
+    db.flush()
+
+    source_steps = [
+
+        {
+            "seq": 10,
+            "step_code": "010",
+            "step_name": f"**USE PART FROM LOT #{payload.from_lot_no}**",
+            "step_detail": "",
+            "station": "",
+            "status": "passed",
+            
+        },
+
+        {
+            "seq": 20,
+            "step_code": "020",
+            "step_name": "**FINAL INSPECTION**",
+            "step_detail": "QA TO PERFORM C=0, AQL=1.0%, LEVEL II, SINGLE SAMPLING INSPECTION PER WI# 7.4.3",
+            "station": "QA",
+            "status": "pending",
+        },
+
+        {
+            "seq": 30,
+            "step_code": "030",
+            "step_name": "**PACKING**",
+            "step_detail": "PUT PART IN EGG CRATE AND BAG WITH TAG INDIVIDUALLY. WATCH FOR FOD. PUT IN THE BOX & APPLY LABEL ON THE BOX.",
+            "station": "",
+            "status": "pending",
+        },
+
+        {
+            "seq": 40,
+            "step_code": "040",
+            "step_name": "**SHIPPING**",
+            "step_detail": "PREPARE SHIPPING DOC AND SHIP PER P.O. PREPARE PACKING DOC. AND SHIP TO CUSTOMER PER CUSTOMER INSTRUCTIONS. WATCH FOR FOD.",
+            "station": "",
+            "status": "pending",
+        },
+
+        {
+            "seq": 50,
+            "step_code": "050",
+            "step_name": "**CONFIGURATION AUDIT**",
+            "step_detail": 'PERFORM "CONFIGURATION AUDIT" FOR PART NUMBER, REV, COUNT INTEGRITY, OPERATION SIGN-OFF AND RELATED CONFIGURATION ITEMS.',
+            "station": "QA",
+            "status": "pending",
+        },
+
+    ]
+
+    for s in source_steps:
+
+        step = ShopTravelerStep(
+            traveler_id=traveler_id,
+            **s
+        )
+
+        db.add(step)
+        db.flush()       
+        db.add(
+            ShopTravelerStepLog(
+                step_id=step.id,
+                work_date=date.today(),
+                qty_accept=payload.from_lot_qty,
+                qty_reject=0,
+                qty_rework=0
+            )
+        )
+
+    # หา traveler
+    traveler = db.get(
+        ShopTraveler,
+        traveler_id
+    )
+
+    if traveler and traveler.lot_id:
+
+        lot = db.get(
+            ProductionLot,
+            traveler.lot_id
+        )
+        print("Found lot for traveler:", lot)
+
+        if lot:
+            lot.from_lot = payload.from_lot_no
+
+    db.commit()
+
+    return {
+        "message": "Copied",
+        "count": len(source_steps)
+    }
 
 @router.post("/{traveler_id}/create-template-version")
 def create_template_version(

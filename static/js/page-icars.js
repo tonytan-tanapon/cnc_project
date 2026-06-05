@@ -159,8 +159,26 @@ function makeColumns() {
         {
             title: "Defect %",
             field: "defect_percent",
+            width: 100,
 
-            width: 100
+            formatter: function (cell) {
+
+                const row = cell.getRow().getData();
+
+                const lotQty =
+                    Number(row.lot_qty || 0);
+
+                const defectQty =
+                    Number(row.defect_qty || 0);
+
+                if (lotQty <= 0) {
+                    return "0.00";
+                }
+
+                return (
+                    (defectQty / lotQty) * 100
+                ).toFixed(2);
+            }
         },
 
 
@@ -326,14 +344,14 @@ document.addEventListener(
                 }
             );
 
-            const params =
+        const params =
             new URLSearchParams(
                 window.location.search
             );
 
         const q =
             params.get("q") || "";
-        
+
         if (q) {
 
             document.getElementById("_q").value =
@@ -362,29 +380,27 @@ document.addEventListener(
             // =========================
 
             if (
-                cell.getField() === "shipped_qty" ||
-                cell.getField() === "rtv_qty"
+                cell.getField() === "lot_qty" ||
+                cell.getField() === "defect_qty"
             ) {
 
-                const shipped =
-                    Number(data.shipped_qty || 0);
+                const lotQty =
+                    Number(data.lot_qty || 0);
 
-                const rtv =
-                    Number(data.rtv_qty || 0);
+                const defectQty =
+                    Number(data.defect_qty || 0);
 
-                let defectPercent = 0;
+                const defectPercent =
+                    lotQty > 0
+                        ? (defectQty / lotQty) * 100
+                        : 0;
 
-                if (shipped > 0) {
-
-                    defectPercent =
-                        (rtv / shipped) * 100;
-                }
+                data.defect_percent =
+                    Number(defectPercent.toFixed(2));
 
                 await row.update({
-
                     defect_percent:
-                        defectPercent.toFixed(2)
-
+                        data.defect_percent
                 });
             }
 
@@ -396,8 +412,10 @@ document.addEventListener(
 
                 const info =
                     await jfetch(
-                        `/ecars/lookup/lot/${encodeURIComponent(cell.getValue())}`
+                        `/icars/lookup/lot/${encodeURIComponent(cell.getValue())}`
                     );
+
+                console.log(info);
 
                 await row.update({
 
@@ -414,6 +432,12 @@ document.addEventListener(
                     rev: info.rev
 
                 });
+
+
+                console.log(
+    "ROW AFTER UPDATE",
+    row.getData()
+);
             }
 
             await saveRow(row);
@@ -435,7 +459,7 @@ document.addEventListener(
                 }
             );
 
-        
+
 
 
 

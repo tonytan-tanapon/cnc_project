@@ -503,6 +503,7 @@ class ProductionLot(Base):
     date_closed = Column(DateTime(timezone=True), nullable=True)
     
     file_dir = Column(String, nullable=True) # QR code url or label url
+    from_lot  =  Column(Integer, nullable=True, default=0) # lot_no ที่ copy มาจาก lot อื่น (ถ้ามี)
 
 
     __table_args__ = (
@@ -961,6 +962,8 @@ class QAInspection(Base):
 
     # relationships
     lot = relationship("ProductionLot")
+
+    
    
     inspector = relationship("Employee")
     items = relationship(

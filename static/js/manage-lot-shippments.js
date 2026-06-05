@@ -806,7 +806,7 @@ function initShipmentTable() {
         title: "Note",
         field: "note",
         editor: "input",
-        width: 80,
+        width: 300,
       },
       // {
       //   title: "Report",

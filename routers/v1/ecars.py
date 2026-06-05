@@ -60,6 +60,7 @@ class ECARCreate(BaseModel):
     remark: Optional[str] = None
 
     status: Optional[str] = "open"
+    date_initiated: Optional[date] = None
 
 
 class ECARUpdate(ECARCreate):
@@ -75,6 +76,7 @@ def to_row(e: ECAR):
         "ecar_no": e.ecar_no,
 
         "issue_date": e.issue_date,
+        "date_initiated": e.date_initiated, 
 
         "customer_code": e.customer_code,
 
@@ -207,15 +209,13 @@ def create_ecar(
 
     if not row.issue_date:
         row.issue_date = date.today()
+    if not row.date_initiated:
+        row.date_initiated = date.today()
 
     db.add(row)
-
     db.commit()
-
     db.refresh(row)
-
     return to_row(row)
-
 
 @router.patch("/{ecar_id}")
 def update_ecar(
@@ -228,7 +228,6 @@ def update_ecar(
         ECAR,
         ecar_id
     )
-
     if not row:
         raise HTTPException(
             404,
@@ -238,15 +237,11 @@ def update_ecar(
     for k, v in payload.dict(
         exclude_unset=True
     ).items():
-
         setattr(row, k, v)
 
     db.commit()
-
     db.refresh(row)
-
     return to_row(row)
-
 
 @router.delete("/{ecar_id}")
 def delete_ecar(

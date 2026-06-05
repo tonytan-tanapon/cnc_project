@@ -174,7 +174,7 @@ function makeColumns() {
         {
     title: "Part",
     field: "part_no",
-    width: 180,
+    width: 120,
 
     formatter: (cell) => {
 

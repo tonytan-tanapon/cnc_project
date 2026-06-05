@@ -1195,6 +1195,8 @@ function makeLotLinks(lotId) {
 
 /* ---------- Load Inspection ---------- */
 async function loadInspection() {
+
+
   if (!lotId) {
     toast("Missing lot_id", false);
     return;
@@ -1210,6 +1212,12 @@ async function loadInspection() {
   }
 
   currentInspection = qa;
+  const ddl =
+    document.getElementById("inspectionInspector");
+
+  if (ddl) {
+    ddl.value = qa.inspector_id || "";
+  }
 
   const fileDir = document.getElementById("fileInputDir");
 
@@ -1776,6 +1784,84 @@ async function btnAddTemplate() {
   }
 }
 
+function initSaveAllButton() {
+
+  const btn = document.getElementById("btnSaveAll");
+
+  if (!btn) return;
+
+  btn.addEventListener("click", async () => {
+
+    try {
+
+      setBusyT(true);
+
+      const inspectorId =
+        document.getElementById(
+          "inspectionInspector"
+        )?.value;
+
+      await jfetch(
+        `/qa-inspections/${currentInspection.id}`,
+        {
+          method: "PUT",
+          body: JSON.stringify({
+            inspector_id: inspectorId
+              ? Number(inspectorId)
+              : null
+          })
+        }
+      );
+
+      const rows = qaTable.getRows();
+
+      for (const row of rows) {
+
+        const d = row.getData();
+
+        if (!d.id) continue;
+
+        await jfetch(
+          `/qa-inspections/qa-items/${d.id}`,
+          {
+            method: "PUT",
+            body: JSON.stringify({
+              seq: Number(d.seq),
+              op_no: d.op_no || null,
+              bb_no: d.bb_no || null,
+              dimension: d.dimension || "",
+              actual_value: d.actual_value || "",
+              tqw: d.tqw || "",
+              result: d.result || null,
+              notes: d.notes || null,
+              emp_id: d.emp_id
+                ? Number(d.emp_id)
+                : null,
+              qa_time_stamp: d.qa_time_stamp || null,
+            }),
+          }
+        );
+      }
+
+      toast("All rows saved");
+
+    } catch (err) {
+
+      console.error(err);
+
+      toast(
+        err?.message || "Save All failed",
+        false
+      );
+
+    } finally {
+
+      setBusyT(false);
+
+    }
+  });
+}
+
 async function btnExportInspection() {
   console.log("Export inspection", currentInspection?.id);
 
@@ -2097,6 +2183,35 @@ function excelInputEditor(cell, onRendered, success, cancel) {
 
   return input;
 }
+
+async function loadInspectors() {
+
+  const ddl =
+    document.getElementById("inspectionInspector");
+
+  if (!ddl) return;
+
+  const employees =
+    await jfetch("/employees");
+
+  ddl.innerHTML =
+    '<option value="">Select Inspector</option>';
+
+  employees
+    .filter(emp => emp.position === "QA")
+    .forEach(emp => {
+
+      ddl.insertAdjacentHTML(
+        "beforeend",
+        `
+      <option value="${emp.id}">
+        ${emp.name}
+      </option>
+      `
+      );
+    });
+}
+
 /* ---------- Boot ---------- */
 document.addEventListener("DOMContentLoaded", async () => {
   initTopbar();
@@ -2105,6 +2220,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   initAddRowButton();
   makeLotLinks(lotId);
   initImportInspection();
+  initSaveAllButton();
+  await loadInspectors();   // 👈 เพิ่ม
 
   $("btnAddTemplate").addEventListener("click", btnAddTemplate);
   $("btnExportInspection").addEventListener("click", btnExportInspection);

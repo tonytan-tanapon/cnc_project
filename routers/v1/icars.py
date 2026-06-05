@@ -56,68 +56,48 @@ class ICARCreate(BaseModel):
 
     status: Optional[str] = "open"
     operator_name: Optional[str] = None
+    part_name: Optional[str] = None
 
 
 class ICARUpdate(BaseModel):
     lot_id: Optional[int] = None
     icar_no: Optional[str] = None
-
     customer_code: Optional[str] = None
     po_no: Optional[str] = None
     lot_no: Optional[str] = None
-
     part_no: Optional[str] = None
     rev: Optional[str] = None
-
     issue_date: Optional[date] = None
-
     lot_qty: Optional[Decimal] = None
     defect_qty: Optional[Decimal] = None
     defect_percent: Optional[Decimal] = None
-
     non_conformity: Optional[str] = None
-
     root_cause: Optional[str] = None
-
     immediate_corrective_action: Optional[str] = None
-
     systemic_corrective_action: Optional[str] = None
-
     preventive_action: Optional[str] = None
-
     remark: Optional[str] = None
-
     status: Optional[str] = None
     operator_name: Optional[str] = None
+    part_name: Optional[str] = None
 
 def to_row(i: ICAR):
 
     return {
         "id": i.id,
         "lot_id": i.lot_id,
-
         "icar_no": i.icar_no,
-
         "customer_code": i.customer_code,
-
         "po_no": i.po_no,
-
         "lot_no": i.lot_no,
-
         "part_no": i.part_no,
         "part_name": i.part_name,
-
         "rev": i.rev,
-
         "issue_date": i.issue_date,
-
         "lot_qty": float(i.lot_qty or 0),
-
         "defect_qty": float(i.defect_qty or 0),
-
         "defect_percent": float(i.defect_percent or 0),
         "remark": i.remark,
-
         "status": i.status,
         "operator_name":
             i.operator_name,
@@ -132,11 +112,8 @@ def list_keyset(
 ):
 
     qry = db.query(ICAR)
-
     if q:
-
         like = f"%{q}%"
-
         qry = qry.filter(
             or_(
                 ICAR.icar_no.ilike(like),
@@ -157,9 +134,7 @@ def list_keyset(
     )
 
     has_more = len(rows) > limit
-
     rows = rows[:limit]
-
     next_cursor = None
 
     if has_more and rows:
@@ -262,7 +237,6 @@ def delete_icar(
         "success": True
     }
 
-
 @router.get("/lookup/lot/{lot_no}")
 def lookup_lot(
     lot_no: str,
@@ -312,9 +286,9 @@ def lookup_lot(
             else "",
 
         "part_name":
-        lot.part.name
-        if lot.part
-        else "",
+            lot.part.name
+            if lot.part
+            else "",
 
 
         "rev":
@@ -450,9 +424,9 @@ def export_word(
             icar.icar_no or "",
 
         "{{issue_date}}":
-            str(
-                icar.issue_date or ""
-            ),
+            icar.issue_date.strftime("%m/%d/%y")
+            if icar.issue_date
+            else "",
 
         "{{customer}}":
             icar.customer_code or "",
@@ -477,12 +451,12 @@ def export_word(
 
         "{{lot_qty}}":
             str(
-                icar.lot_qty or 0
+                int(icar.lot_qty or 0)
             ),
 
         "{{defect_qty}}":
             str(
-                icar.defect_qty or 0
+                int(icar.defect_qty or 0)
             ),
 
         "{{defect_percent}}":
