@@ -450,7 +450,7 @@ function makeColumns() {
       },
     },
 
-    
+
     // /* ===== DUE DATE ===== */
     // {
     //   title: "Due po_line",
@@ -1053,6 +1053,20 @@ function makeColumns() {
       },
     },
 
+    {
+  title: "Last Shipped Date",
+  field: "lot_last_ship_date",
+  width: 160,
+
+  sorter: (a, b) => {
+    return new Date(a || 0) - new Date(b || 0);
+  },
+
+  formatter: (cell) => {
+    const v = cell.getValue();
+    return v ? new Date(v).toLocaleDateString() : "";
+  }
+}
 
 
 
@@ -1119,7 +1133,7 @@ async function loadData() {
   els[UI.reload].disabled = true;
   try {
     const res = await jfetch(API_URL);
-    console.log(res);
+    console.log("shipment data:", res);
     table.setData(res);
     applyFilter();
     toast("Data loaded");

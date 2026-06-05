@@ -10,6 +10,7 @@ WITH base AS (
         pl.id AS lot_id,
         pl.lot_no,
         pl.status AS lot_status,
+        pl.last_activity,
         pl.lot_po_date,
         pl.lot_po_duedate,
         pl.planned_qty,
@@ -46,6 +47,7 @@ WITH base AS (
 
     GROUP BY
         pl.id, pl.lot_no, pl.status, pl.lot_po_date, pl.lot_po_duedate,
+        pl.last_activity,
         pl.planned_qty, pl.planned_ship_qty,
         pl.note,
         po.id, po.po_number,
@@ -89,14 +91,51 @@ step_totals AS (
         COALESCE(SUM(l.qty_reject), 0) AS qty_reject
     FROM shop_traveler_step_logs l
     GROUP BY l.step_id
-)
+),
 
+traveler_progress AS (
+    SELECT
+        st.lot_id,
+        ROUND(
+            (
+                COUNT(*)
+                FILTER (
+                    WHERE s.status = 'passed'
+                )::numeric
+                /
+                NULLIF(
+                    COUNT(*),  0  )
+            ) * 100
+        ,2) AS progress_percent
+
+    FROM shop_travelers st
+
+    JOIN shop_traveler_steps s
+        ON s.traveler_id = st.id
+
+    GROUP BY st.lot_id
+),
+
+ecar_parts AS (
+    SELECT DISTINCT part_no
+    FROM ecars
+),
 -- =========================
 -- final result
 -- =========================
+
+
+icar_parts AS (
+    SELECT DISTINCT part_no
+    FROM icars
+)
 SELECT
     b.*,
 
+    COALESCE(
+        tp.progress_percent,
+        0
+    ) AS progress_percent,
     -- =========================
     -- step info (FROM LOGS)
     -- =========================
@@ -121,8 +160,7 @@ SELECT
             - COALESCE(
                 SUM(b.lot_shipped_qty)
                 FILTER (WHERE b.lot_status <> 'not_start')
-                OVER (PARTITION BY b.po_line_id),
-            0)
+                OVER (PARTITION BY b.po_line_id),0)
         ELSE 0
     END AS po_remaining_qty,
 
@@ -152,7 +190,20 @@ SELECT
             THEN 'Fully Shipped'
 
         ELSE 'Overshipped'
+        
+      
     END AS lot_shipment_status,
+ CASE
+    WHEN ep.part_no IS NOT NULL
+    THEN 'Y'
+    ELSE 'N'
+END AS ecar,
+
+CASE
+    WHEN ip.part_no IS NOT NULL
+    THEN 'Y'
+    ELSE 'N'
+END AS icar,
 
     -- =========================
     -- days calculation
@@ -161,6 +212,20 @@ SELECT
     (b.lot_po_duedate::date - CURRENT_DATE) AS lot_po_days_left
 
 FROM base b
-LEFT JOIN last_traveler lt ON lt.lot_id = b.lot_id
-LEFT JOIN last_step ls ON ls.traveler_id = lt.traveler_id
-LEFT JOIN step_totals st ON st.step_id = ls.step_id;
+
+LEFT JOIN icar_parts ip
+    ON ip.part_no = b.part_no
+LEFT JOIN ecar_parts ep
+    ON ep.part_no = b.part_no
+
+LEFT JOIN traveler_progress tp
+    ON tp.lot_id = b.lot_id
+
+LEFT JOIN last_traveler lt
+    ON lt.lot_id = b.lot_id
+
+LEFT JOIN last_step ls
+    ON ls.traveler_id = lt.traveler_id
+
+LEFT JOIN step_totals st
+    ON st.step_id = ls.step_id;

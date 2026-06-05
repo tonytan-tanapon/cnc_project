@@ -504,6 +504,7 @@ class ProductionLot(Base):
     
     file_dir = Column(String, nullable=True) # QR code url or label url
     from_lot  =  Column(Integer, nullable=True, default=0) # lot_no ที่ copy มาจาก lot อื่น (ถ้ามี)
+    last_activity = Column(DateTime(timezone=True), nullable=True)
 
 
     __table_args__ = (
