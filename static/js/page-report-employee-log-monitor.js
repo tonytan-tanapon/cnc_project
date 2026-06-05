@@ -25,7 +25,7 @@ function buildColumns() {
 
     ];
 
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 15; i++) {
 
         const d = new Date();
 
@@ -41,25 +41,30 @@ function buildColumns() {
             d.getDay() === 1;
 
         const dayNames = [
-            "S",
-            "M",
-            "T",
-            "W",
-            "TH",
-            "F",
-            "S"
+            "SUN",
+            "MON",
+            "TUE",
+            "WED",
+            "THU",
+            "FRI",
+            "SAT"
         ];
+
 
         const dayShort =
             dayNames[d.getDay()];
 
+        const mmdd =
+            `${String(d.getMonth() + 1).padStart(2, "0")}/` +
+            `${String(d.getDate()).padStart(2, "0")}`;
+
         columns.push({
 
-            title: `${dayShort}<br>${key.slice(5)}`,
+            title: `${dayShort}<br>${mmdd}`,
 
             field: key,
 
-            width: 85,
+            width: 100,
 
             hozAlign: "center",
 
@@ -71,34 +76,48 @@ function buildColumns() {
                 ? "monday-col"
                 : "",
 
-            formatter(cell){
+            formatter(cell) {
 
-  const v =
-    cell.getValue();
+                const v = cell.getValue();
 
-  if(!v){
-    return "";
-  }
+                if (!v) {
+                    return "";
+                }
 
-  return `
-    <span
-      style="
-        font-size:11px;
-        font-weight:600;
-        color:#2563eb;
-      "
-      title="${v}"
+                return `
+    <a
+        href="/static/traveler-detail.html?lot_id=${v.lot_id}"
+        target="_blank"
+        style="
+            color:#2563eb;
+            text-decoration:none;
+            display:flex;
+            flex-direction:column;
+            line-height:1.1;
+        "
     >
-      ${v}
-    </span>
-  `;
-}
+        <span style="
+            font-size:14px;
+            font-weight:700;
+        ">
+            ${v.part_no}
+        </span>
+
+        <span style="
+            font-size:11px;
+            color:#666;
+        ">
+            OP#${v.step_code || ""}
+        </span>
+    </a>
+`;
+            }
 
         });
 
     }
 
-   
+
 
     return columns;
 }
@@ -122,7 +141,7 @@ async function exportExcel() {
         "Nickname"
     ];
 
-    for(let i=0;i<10;i++){
+    for (let i = 0; i < 15; i++) {
 
         const d = new Date();
 
@@ -131,14 +150,14 @@ async function exportExcel() {
         );
 
         const dayNames = [
-            "S","M","T","W","TH","F","S"
+            "SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"
         ];
 
         const dayShort =
             dayNames[d.getDay()];
 
         header.push(
-            `${dayShort} ${d.toISOString().slice(0,10)}`
+            `${dayShort} ${d.toISOString().slice(0, 10)}`
         );
     }
 
@@ -151,7 +170,7 @@ async function exportExcel() {
             r.nickname
         ];
 
-        for(let i=0;i<10;i++){
+        for (let i = 0; i < 15; i++) {
 
             const d = new Date();
 
@@ -160,10 +179,10 @@ async function exportExcel() {
             );
 
             const key =
-                d.toISOString().slice(0,10);
+                d.toISOString().slice(0, 10);
 
             row.push(
-                r[key] || ""
+                r[key]?.part_no || ""
             );
         }
 
@@ -183,7 +202,7 @@ async function exportExcel() {
     ws["!cols"] = [
         { wch: 8 },
         { wch: 20 },
-        ...Array(10).fill({ wch: 18 })
+        ...Array(15).fill({ wch: 18 })
     ];
 
     XLSX.utils.book_append_sheet(
@@ -194,7 +213,7 @@ async function exportExcel() {
 
     XLSX.writeFile(
         wb,
-        `Employee_Log_${new Date().toISOString().slice(0,10)}.xlsx`
+        `Employee_Log_${new Date().toISOString().slice(0, 10)}.xlsx`
     );
 }
 
@@ -303,11 +322,11 @@ async function init() {
     //     loadData;
 
     document
-    .getElementById(
-      "btnExport"
-    )
-    .onclick =
-    exportExcel;
+        .getElementById(
+            "btnExport"
+        )
+        .onclick =
+        exportExcel;
 
 }
 

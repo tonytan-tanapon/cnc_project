@@ -24,7 +24,7 @@ router = APIRouter(
 
 @router.get("/employee-log-monitor")
 def employee_log_monitor(
-    days_back: int = 10,
+    days_back: int = 15,
     db: Session = Depends(get_db)
 ):
 
@@ -90,7 +90,9 @@ def employee_log_monitor(
         db.query(
             ShopTravelerStepLog.operator_id,
             ShopTravelerStepLog.work_date,
-            Part.part_no
+            ProductionLot.id.label("lot_id"),
+            Part.part_no,
+            ShopTravelerStep.step_code
         )
         .join(
             ShopTravelerStep,
@@ -138,7 +140,11 @@ def employee_log_monitor(
 
             log_map[row.operator_id][
                 row.work_date
-            ] = row.part_no
+            ] = {
+                "part_no": row.part_no,
+                "step_code": row.step_code,
+                "lot_id": row.lot_id,
+            }
 
     # ----------------------------
     # build rows
