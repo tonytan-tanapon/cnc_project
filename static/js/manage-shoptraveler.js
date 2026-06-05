@@ -31,23 +31,13 @@ function formatDate(v) {
 
     if (!v) return "";
 
-    const d = new Date(v);
+    const [y, m, d] =
+        String(v)
+            .substring(0, 10)
+            .split("-");
 
-    const mm =
-        String(d.getMonth() + 1)
-            .padStart(2, "0");
-
-    const dd =
-        String(d.getDate())
-            .padStart(2, "0");
-
-    const yy =
-        String(d.getFullYear())
-            .slice(-2);
-
-    return `${mm}/${dd}/${yy}`;
+    return `${m}/${d}/${y.slice(-2)}`;
 }
-
 /* ===================================== */
 /* EXPORT */
 /* ===================================== */
@@ -128,6 +118,23 @@ function makeColumns() {
 
     return [
 
+        
+        {
+            title: "Last ",
+            field: "last_work_date",
+            width: 80,
+
+            sorter: function (a, b) {
+
+                const da = new Date(a);
+                const db = new Date(b);
+
+                return da - db;
+            },
+
+            formatter: (cell) =>
+                formatDate(cell.getValue())
+        },
         /* ===================================== */
         /* LOT */
         /* ===================================== */
@@ -172,22 +179,22 @@ function makeColumns() {
         /* ===================================== */
 
         {
-    title: "Part",
-    field: "part_no",
-    width: 120,
+            title: "Part",
+            field: "part_no",
+            width: 120,
 
-    formatter: (cell) => {
+            formatter: (cell) => {
 
-        const d = cell.getData();
+                const d = cell.getData();
 
-        const rev =
-            d.rev
-                ? ` (${d.rev})`
-                : "";
+                const rev =
+                    d.rev
+                        ? ` (${d.rev})`
+                        : "";
 
-        const ecar =
-            d.ecar === "Y"
-                ? `
+                const ecar =
+                    d.ecar === "Y"
+                        ? `
                 <a
                     href="/static/ecars.html?q=${encodeURIComponent(d.part_no || "")}"
                     style="
@@ -199,11 +206,11 @@ function makeColumns() {
                     ⛔ CAR
                 </a>
                 `
-                : "";
+                        : "";
 
-        const icar =
-            d.icar === "Y"
-                ? `
+                const icar =
+                    d.icar === "Y"
+                        ? `
                 <a
                     href="/static/icars.html?q=${encodeURIComponent(d.part_no || "")}"
                     style="
@@ -215,14 +222,14 @@ function makeColumns() {
                     ⚠️ ICAR
                 </a>
                 `
-                : "";
+                        : "";
 
-        const tags =
-            [ecar, icar]
-                .filter(Boolean)
-                .join(" | ");
+                const tags =
+                    [ecar, icar]
+                        .filter(Boolean)
+                        .join(" | ");
 
-        return `
+                return `
 
             <div>
 
@@ -231,9 +238,8 @@ function makeColumns() {
                     ${rev}
                 </div>
 
-                ${
-                    tags
-                    ? `
+                ${tags
+                        ? `
                         <div
                             style="
                                 margin-top:2px;
@@ -243,14 +249,14 @@ function makeColumns() {
                             ${tags}
                         </div>
                     `
-                    : ""
-                }
+                        : ""
+                    }
 
             </div>
 
         `;
-    }
-},
+            }
+        },
 
         /* ===================================== */
         /* CUSTOMER */
@@ -269,21 +275,44 @@ function makeColumns() {
             field: "current_op",
             width: 160,
 
-            formatter: (cell) => {
+           formatter: (cell) => {
 
-                const row =
-                    cell.getRow().getData();
+    const row =
+        cell.getRow().getData();
 
-                return `
+    const status =
+        String(
+            row.current_status || ""
+        ).toLowerCase();
+
+    const colors = {
+
+        pending: "#6b7280",
+
+        running: "#3b82f6",
+
+        passed: "#10b981",
+
+        failed: "#ef4444",
+    };
+
+    return `
 
 <div class="op-card">
 
     <div style="
         font-weight:700;
-        color:#2563eb;
         font-size:14px;
+        color:#2563eb;
     ">
         ${row.current_op || "-"}
+        <span style="
+            color:${colors[status] || "#6b7280"};
+            font-weight:600;
+            margin-left:4px;
+        ">
+            (${status})
+        </span>
     </div>
 
     <div class="op-sub">
@@ -292,8 +321,8 @@ function makeColumns() {
 
 </div>
 
-        `;
-            },
+    `;
+},
         },
         /* ===================================== */
         /* OPERATOR */
@@ -335,7 +364,7 @@ function makeColumns() {
         /* ===================================== */
 
         {
-            title: "Incomming",
+            title: "Receive",
             field: "current_receive",
             width: 90,
             hozAlign: "right",
@@ -495,97 +524,6 @@ function makeColumns() {
         },
 
 
-
-        /* ===================================== */
-        /* STATUS */
-        /* ===================================== */
-
-        {
-            title: "OP Status",
-            field: "current_status",
-            width: 110,
-            hozAlign: "center",
-
-            formatter: (cell) => {
-
-                const v =
-                    String(
-                        cell.getValue() || ""
-                    ).toLowerCase();
-
-                const colors = {
-
-                    pending:
-                        "#6b7280",
-
-                    running:
-                        "#3b82f6",
-
-                    // passed:
-                    //     "#10b981",
-
-                    failed:
-                        "#ef4444",
-
-                };
-
-                return `
-
-                <span style="
-                    background:${colors[v] || "#6b7280"};
-                    color:white;
-                    padding:4px 8px;
-                    border-radius:8px;
-                    font-weight:700;
-                    display:inline-block;
-                    min-width:80px;
-                    text-align:center;
-                ">
-
-                 ${v}
-
-                </span>
-
-        `;
-            },
-        },
-
-        /* ===================================== */
-        /* PREVIOUS OP */
-        /* ===================================== */
-
-        // {
-        //     title: "Previous OP",
-        //     field: "previous_op_code",
-        //     width: 130,
-
-        //     formatter: (cell) => {
-
-        //         const row =
-        //             cell.getRow().getData();
-
-        //         return `
-
-        //   <div class="op-card">
-
-        //     <div style="
-        //       font-weight:700;
-        //       color:#6b7280;
-        //     ">
-        //       ${row.previous_op_code || "-"}
-        //     </div>
-
-        //     <div class="op-sub">
-        //       ${row.previous_op_name || ""}
-        //     </div>
-
-        //   </div>
-
-        // `;
-        //     },
-        // },
-
-
         {
             title: "Lot Status",
             field: "lot_status",
@@ -661,15 +599,51 @@ function makeColumns() {
         /* ===================================== */
 
         {
-            title: "Last Activity",
-            field: "last_work_date",
-            width: 120,
-            formatter: (cell) =>
-                formatDate(
-                    cell.getValue()
-                ),
+            title: "Lot Note",
+            field: "lot_note",
+            width: 250,
+
+            editor: "textarea",
+
+            formatter: "textarea",
+
+            cellEdited: async (cell) => {
+
+                const row =
+                    cell.getRow().getData();
+
+                try {
+
+                    await jfetch(
+                        `/api/v1/lots/${row.lot_id}`,
+                        {
+                            method: "PUT",
+                            headers: {
+                                "Content-Type":
+                                    "application/json"
+                            },
+                            body: JSON.stringify({
+                                note: cell.getValue()
+                            })
+                        }
+                    );
+
+                    toast("Note updated");
+
+                } catch (err) {
+
+                    toast(
+                        "Update failed",
+                        false
+                    );
+
+                    cell.restoreOldValue();
+                }
+            }
         },
     ];
+
+
 }
 
 /* ===================================== */
@@ -761,10 +735,10 @@ async function loadData() {
 
         applyFilter();
 
-        table.setSort(
-            "progress_percent",
-            "desc"
-        );
+        // table.setSort(
+        //     "progress_percent",
+        //     "desc"
+        // );
 
         toast(
             `Loaded ${rows.length} travelers`
@@ -810,7 +784,7 @@ function initTable() {
                 initialSort: [
                     {
                         column:
-                            "progress_percent",
+                            "last_work_date",
 
                         dir:
                             "desc",

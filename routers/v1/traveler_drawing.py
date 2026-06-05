@@ -556,17 +556,34 @@ def build_traveler_data_from_db(traveler: ShopTraveler,db: Session) -> dict:
 
             lines = []
 
-            if log.supplier_po:
-
-                lines.append(f"PO: {log.supplier_po.upper()}")
 
             if log.supplier_name:
 
                 lines.append(f"Supplier: {log.supplier_name.upper()}")
+            if log.supplier_po:
+
+                lines.append(f"PO: {log.supplier_po.upper()}")
+
+          
 
             if log.supplier_lot:
 
-                lines.append(f"Heat Lot: {log.supplier_lot.upper()}" )
+                step_code = (
+                    str(s.step_code or "")
+                    .upper()
+                )
+
+                if step_code.startswith("M"):
+
+                    lines.append(
+                        f"Heat Lot: {log.supplier_lot.upper()}"
+                    )
+
+                else:
+
+                    lines.append(
+                        f"Cert: {log.supplier_lot.upper()}"
+                    )
 
             # 🔥 COMMENT
             if log.note:

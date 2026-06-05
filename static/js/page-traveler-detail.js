@@ -2419,12 +2419,7 @@ function initStepsTable() {
             // SUPPLIER INFO
             // =====================
 
-            if (l.supplier_po) {
-
-              lines.push(
-                `<b>PO:</b> ${l.supplier_po}`
-              );
-            }
+            
 
             if (l.supplier_name) {
 
@@ -2432,12 +2427,35 @@ function initStepsTable() {
                 `<b>Supplier:</b> ${l.supplier_name}`
               );
             }
+            if (l.supplier_po) {
+
+              lines.push(
+                `<b>PO:</b> ${l.supplier_po}`
+              );
+            }
 
             if (l.supplier_lot) {
 
-              lines.push(
-                `<b>Heat Lot:</b> ${l.supplier_lot}`
-              );
+              const stepCode =
+                String(
+                  cell.getRow()
+                    .getData()
+                    .step_code || ""
+                ).toUpperCase();
+
+              if (stepCode.startsWith("M")) {
+
+                lines.push(
+                  `<b>Heat Lot:</b> ${l.supplier_lot}`
+                );
+
+              } else {
+
+                lines.push(
+                  `<b>Cert:</b> ${l.supplier_lot}`
+                );
+
+              }
             }
 
             // =====================

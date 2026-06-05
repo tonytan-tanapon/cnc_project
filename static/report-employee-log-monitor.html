@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Employee Log Monitor</title>
+
+    <link rel="stylesheet" href="/static/css/app.css" />
+
+    <link rel="stylesheet" href="/static/vendor/tabulator/tabulator_modern.min.css" />
+
+    <style>
+        .main--edge {
+            padding: 0;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .panel--edge {
+            margin: 0;
+            border-radius: 0;
+            border-left-width: 0;
+            border-right-width: 0;
+        }
+
+        #listPanel {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            min-height: 0;
+        }
+
+        .list-topbar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            height: 44px;
+            padding: 0;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .search-lg {
+            width: 300px;
+            height: 36px;
+        }
+
+        #listBody {
+            flex: 1;
+            min-height: 0;
+            overflow: auto;
+        }
+
+        #listBody .tabulator {
+            height: 100% !important;
+            border: 0;
+        }
+
+        .ok {
+            color: #16a34a;
+            font-weight: bold;
+            font-size: 16px;
+        }
+
+        .missing {
+            color: #dc2626;
+            font-weight: bold;
+            font-size: 16px;
+        }
+
+        .late-row {
+            background: #fff1f2 !important;
+        }
+
+        .monday-col {
+            background: #fef08a !important;
+        }
+    </style>
+
+</head>
+
+<body>
+
+    <div class="app">
+
+        <aside class="sidebar">
+            <div id="navSlot" data-nav-slot></div>
+        </aside>
+
+        <main class="main main--edge">
+
+            <section class="panel panel--edge" id="listPanel">
+
+                <div style="padding:10px;font-weight:600">
+                    Employee Log Monitor
+                </div>
+
+                <div class="list-topbar">
+
+                    <!-- <input id="_q" type="search" class="search-lg" placeholder="Search employee...">
+
+                    <button id="btnRefresh" class="btn">
+                        Refresh
+                    </button> -->
+
+                    <button id="btnExport" class="btn">
+                        Export Excel
+                    </button>
+
+                </div>
+
+                <div id="listBody"></div>
+
+            </section>
+
+        </main>
+
+    </div>
+
+    <script type="module" src="/static/js/nav-loader.js"></script>
+
+    <script src="/static/vendor/tabulator/tabulator.min.js"></script>
+    <script src="/static/vendor/xlsx/xlsx.full.min.js"></script>
+    <script type="module" src="/static/js/page-report-employee-log-monitor.js?v=1.0"></script>
+
+</body>
+
+</html>

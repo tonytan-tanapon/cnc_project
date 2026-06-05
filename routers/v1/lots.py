@@ -513,11 +513,7 @@ def update_lot_put(lot_id: int, payload: ProductionLotUpdate, db: Session = Depe
         if prv.part_id != part_id:
             raise HTTPException(400, "part_revision_id does not belong to part_id")
         
-    data = {
-        k: v
-        for k, v in payload.dict(exclude_unset=True).items()
-        if v is not None
-    }
+    data = payload.dict(exclude_unset=True)
 
     for k, v in data.items():
         setattr(lot, k, v)

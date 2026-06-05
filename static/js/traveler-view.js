@@ -3,7 +3,7 @@ let employees = [];
 let machines = [];
 
 const COLUMN_ORDER = [
- 
+
   "status",
   "op",
   "name",
@@ -400,7 +400,7 @@ async function load() {
 </td>
 `,
 
-        
+
       };
 
       tr.innerHTML =
@@ -614,14 +614,11 @@ async function load() {
 ${employees.map(e => `
 <option
   value="${e.id}"
-
-  ${Number(e.id) ===
-            Number(log.operator_id)
+  ${Number(e.id) === Number(log.operator_id)
             ? "selected"
             : ""}
-
 >
-  ${e.nickname || e.emp_code}
+  ${e.emp_op} - ${e.nickname}
 </option>
 `).join("")}
 
@@ -854,7 +851,7 @@ ${machines.map(m => `
 
         remain: remainCell,
 
-    
+
       };
 
       tr.innerHTML =
@@ -961,8 +958,8 @@ async function ensureLogThenUpdate(
 ) {
 
   const tr =
-  el.closest("tr") ||
-  el.parentElement.closest("tr");
+    el.closest("tr") ||
+    el.parentElement.closest("tr");
 
   // already created
   let log_id =
@@ -1563,12 +1560,31 @@ async function loadMaster() {
   const mRes = await fetch("/api/v1/machines").then(r => r.json());
 
   // 🔥 normalize
-  employees = Array.isArray(eRes) ? eRes : [];
-  machines = Array.isArray(mRes) ? mRes : [];
+  employees = (Array.isArray(eRes) ? eRes : [])
+    .filter(e => e.emp_op)
+    .sort((a, b) => {
 
+      const opCompare =
+        String(a.emp_op || "")
+          .localeCompare(
+            String(b.emp_op || "")
+          );
+
+      if (opCompare !== 0) {
+        return opCompare;
+      }
+
+      return String(a.nickname || "")
+        .localeCompare(
+          String(b.nickname || "")
+        );
+    });
+  machines = Array.isArray(mRes) ? mRes : [];
+  console.log("EMPLOYEES:", employees);
   document.getElementById("input_operator").innerHTML =
     '<option value="">Operator</option>' +
-    employees.map(e => `<option value="${e.id}">${e.emp_code}</option>`).join("");
+    employees.map(e => `<option value="${e.id}">${e.emp_op}</option>`).join("");
+
 
   document.getElementById("input_machine").innerHTML =
     '<option value="">Machine</option>' +

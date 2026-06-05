@@ -2,19 +2,15 @@
 from fastapi import APIRouter
 
 from . import (
-    auth, customers, pos, employees, materials, batches, lots, reports,#lot_uses, 
+    auth, customers, pos, employees, materials, batches, lots, reports, reports_traveler,#lot_uses, 
     travelers, traveler_steps, suppliers, subcon, payroll, time_clock,
     parts, users, pay_periods, payroll_extras, data, data_detail,part_selections,lookups, 
     part_materials,report_materials, po_lines,
     reports_due_date_monitor,lots_browse, shipment_status,customer_shipments,
     lot_materials,inventory,lot_shippments,lot_summary,
     traveler_drawing, time_leaves,qa_inspections,qr,script_runner,  traveler_templates,step_logs,machines,   
-    icars,ecars,
-
-
-
-    ############ auto routers ######################
-    suppliers_auto
+    icars,ecars,suppliers_auto,
+    reports_traveler,
 )
 
 
@@ -86,6 +82,7 @@ api_v1.include_router(traveler_templates.router)
 
 api_v1.include_router(icars.router)
 api_v1.include_router(ecars.router)
+api_v1.include_router(reports_traveler.router)
 
 
 # api_v1.include_router(updateLot.router)
