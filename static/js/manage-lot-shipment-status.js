@@ -722,7 +722,7 @@ function makeColumns() {
     // } , 
 
     {
-      title: "Ship<br><small>details</small>",
+      title: "Shop Link",
       width: 150,
       field: "lot_shipped_qty",
       hozAlign: "center",
@@ -1054,7 +1054,7 @@ function makeColumns() {
     },
 
     {
-  title: "Last Shipped Date",
+  title: "Shipped Date",
   field: "lot_last_ship_date",
   width: 160,
 

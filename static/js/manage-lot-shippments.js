@@ -298,17 +298,38 @@ async function downloadDoc(url, fallbackName, errorMsg = "Download failed") {
 }
 
 async function downloadLabel(row, size, type) {
+
   const shipmentId = row.id;
 
-  // ✅ ALWAYS define params first
   const params = new URLSearchParams();
 
-  // size is part of path, not query (already correct)
-  if (type) params.set("type", type); // fair | cmm | box \ number
+  if (type) {
+    params.set("type", type);
+  }
+
+  // ✅ BOX POPUP
+  if (type === "box") {
+
+    const boxQty = prompt(
+      "Enter number of boxes",
+      "1"
+    );
+
+    if (!boxQty) {
+      return;
+    }
+
+    params.set(
+      "box_qty",
+      Number(boxQty)
+    );
+  }
 
   const url =
     `/api/v1/lot-shippments/${shipmentId}/download/label/${size}` +
-    (params.toString() ? `?${params.toString()}` : "");
+    (params.toString()
+      ? `?${params.toString()}`
+      : "");
 
   try {
     const res = await fetch(url);

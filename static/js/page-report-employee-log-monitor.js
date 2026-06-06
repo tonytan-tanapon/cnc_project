@@ -26,9 +26,7 @@ function buildColumns() {
     ];
 
     for (let i = 0; i < 15; i++) {
-
         const d = new Date();
-
         d.setDate(
             d.getDate() - i
         );
@@ -50,7 +48,6 @@ function buildColumns() {
             "SAT"
         ];
 
-
         const dayShort =
             dayNames[d.getDay()];
 
@@ -63,15 +60,10 @@ function buildColumns() {
             title: `${dayShort}<br>${mmdd}`,
 
             field: key,
-
             width: 100,
-
             hozAlign: "center",
-
             headerHozAlign: "center",
-
             headerVertical: false,
-
             cssClass: isMonday
                 ? "monday-col"
                 : "",
@@ -85,40 +77,35 @@ function buildColumns() {
                 }
 
                 return `
-    <a
-        href="/static/traveler-detail.html?lot_id=${v.lot_id}"
-        target="_blank"
-        style="
-            color:#2563eb;
-            text-decoration:none;
-            display:flex;
-            flex-direction:column;
-            line-height:1.1;
-        "
-    >
-        <span style="
-            font-size:14px;
-            font-weight:700;
-        ">
-            ${v.part_no}
-        </span>
+                    <a
+                        href="/static/traveler-detail.html?lot_id=${v.lot_id}"
+                        target="_blank"
+                        style="
+                            color:#2563eb;
+                            text-decoration:none;
+                            display:flex;
+                            flex-direction:column;
+                            line-height:1.1;
+                        "
+                    >
+                    <span style="
+                        font-size:14px;
+                        font-weight:700;
+                    ">
+                        ${v.part_no}
+                    </span>
 
-        <span style="
-            font-size:11px;
-            color:#666;
-        ">
-            OP#${v.step_code || ""}
-        </span>
-    </a>
-`;
+                    <span style="
+                        font-size:11px;
+                        color:#666;
+                    ">
+                        OP#${v.step_code || ""}
+                    </span>
+                </a>
+            `;
             }
-
         });
-
     }
-
-
-
     return columns;
 }
 
@@ -129,17 +116,13 @@ async function loadData() {
         );
     table.setData(rows);
 }
-async function exportExcel() {
 
+async function exportExcel() {
     const rows =
         table.getData("active");
-
     const wsData = [];
 
-    const header = [
-        "OP",
-        "Nickname"
-    ];
+    const header = [ "OP",   "Nickname"  ];
 
     for (let i = 0; i < 15; i++) {
 
@@ -153,12 +136,9 @@ async function exportExcel() {
             "SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"
         ];
 
-        const dayShort =
-            dayNames[d.getDay()];
+        const dayShort =  dayNames[d.getDay()];
 
-        header.push(
-            `${dayShort} ${d.toISOString().slice(0, 10)}`
-        );
+        header.push(  `${dayShort} ${d.toISOString().slice(0, 10)}` );
     }
 
     wsData.push(header);
@@ -171,19 +151,10 @@ async function exportExcel() {
         ];
 
         for (let i = 0; i < 15; i++) {
-
             const d = new Date();
-
-            d.setDate(
-                d.getDate() - i
-            );
-
-            const key =
-                d.toISOString().slice(0, 10);
-
-            row.push(
-                r[key]?.part_no || ""
-            );
+            d.setDate(  d.getDate() - i );
+            const key =  d.toISOString().slice(0, 10);
+            row.push( r[key]?.part_no || "" );
         }
 
         wsData.push(row);
@@ -248,7 +219,6 @@ async function init() {
                         .add("late-row");
                 }
             }
-
         }
     );
 
@@ -259,11 +229,9 @@ async function init() {
         table.getColumns().forEach(col => {
 
             const field = col.getField();
-
             if (!field || !field.match(/^\d{4}-\d{2}-\d{2}$/)) {
                 return;
             }
-
             const d = new Date(field);
 
             if (d.getDay() === 1) {
@@ -284,7 +252,6 @@ async function init() {
     //     .addEventListener(
     //         "keyup",
     //         function () {
-
     //             const q =
     //                 this.value
     //                     .toLowerCase();
