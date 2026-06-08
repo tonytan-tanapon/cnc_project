@@ -366,8 +366,8 @@ def generate_traveler_from_db(template_path, data: dict, output_path):
         text = step.get("step_name", "") or ""
 
         if step.get("step_detail"):
-            text += "\n" + step["step_detail"]
-
+            text += "<br>" + step["step_detail"]
+        text = clean_html_keep_bold(text)
         add_text_with_bold(p, text)
 
         # -------------------------
@@ -563,6 +563,72 @@ def generate_traveler_from_db(template_path, data: dict, output_path):
     doc.save(str(output_path))
 
 
+import re
+import html
+
+def clean_html_keep_bold(text):
+
+    if not text:
+        return ""
+
+    text = html.unescape(str(text))
+
+    text = re.sub(r"<br\s*/?>", "\n", text, flags=re.I)
+    text = re.sub(r"</p>", "\n", text, flags=re.I)
+
+    text = re.sub(r"<(?:b|strong)[^>]*>", "**", text, flags=re.I)
+    text = re.sub(r"</(?:b|strong)>", "**", text, flags=re.I)
+
+    text = re.sub(r"<[^>]+>", "", text)
+
+    return text
+
+def strip_html(text):
+    if not text:
+        return ""
+    return re.sub(r"<[^>]+>", "", str(text))
+import re
+
+def add_html_bold(paragraph, text):
+
+    if not text:
+        return
+
+    text = re.sub(r"</p>", "\n", text, flags=re.I)
+    text = re.sub(r"<p[^>]*>", "", text, flags=re.I)
+
+    text = text.replace("<br>", "\n")
+    text = text.replace("<br/>", "\n")
+    text = text.replace("<br />", "\n")
+
+    parts = re.split(
+        r"(<b>.*?</b>|<strong>.*?</strong>)",
+        text,
+        flags=re.I | re.S
+    )
+
+    for part in parts:
+
+        if not part:
+            continue
+
+        m = re.match(
+            r"<(?:b|strong)>(.*?)</(?:b|strong)>",
+            part,
+            flags=re.I | re.S
+        )
+
+        if m:
+
+            run = paragraph.add_run(m.group(1))
+            run.bold = True
+
+        else:
+
+            # ลบ tag อื่นที่ไม่รู้จัก
+            clean = re.sub(r"<[^>]+>", "", part)
+
+            paragraph.add_run(clean)
 
 def generate_traveler_from_db_blank(template_path, data: dict, output_path):
     from docx import Document
@@ -678,8 +744,8 @@ def generate_traveler_from_db_blank(template_path, data: dict, output_path):
         text = step.get("step_name", "") or ""
 
         if step.get("step_detail"):
-            text += "\n" + step["step_detail"]
-
+            text += "<br>" + step["step_detail"]
+        text = clean_html_keep_bold(text)
         add_text_with_bold(p, text)
 
         # -------------------------
