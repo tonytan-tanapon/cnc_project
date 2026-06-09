@@ -73,24 +73,11 @@ def _emp_by_code(db: Session, code: str) -> Employee:
         raise HTTPException(401, "Invalid code")
     return emp
 
-# def _current_open_time_entry(db: Session, emp_id: int) -> Optional[TimeEntry]:
-#     return (
-#         db.query(TimeEntry)
-#           .filter(TimeEntry.employee_id == emp_id, TimeEntry.status == "open")
-#           .order_by(TimeEntry.clock_in_at.desc(), TimeEntry.id.desc())
-#           .first()
-#     )
-def _current_open_time_entry(db, emp_id):
+def _current_open_time_entry(db: Session, emp_id: int) -> Optional[TimeEntry]:
     return (
         db.query(TimeEntry)
-          .filter(
-              TimeEntry.employee_id == emp_id,
-              TimeEntry.clock_out_at.is_(None)
-          )
-          .order_by(
-              TimeEntry.clock_in_at.desc(),
-              TimeEntry.id.desc()
-          )
+          .filter(TimeEntry.employee_id == emp_id, TimeEntry.status == "open")
+          .order_by(TimeEntry.clock_in_at.desc(), TimeEntry.id.desc())
           .first()
     )
 
@@ -407,21 +394,41 @@ def state_by_code(code: Annotated[str, Field(min_length=4, max_length=4, pattern
     })
     return payload
 
+# @timeclock_router.post("/start", summary="Kiosk: clock in by code")
+# def kiosk_start(payload: KioskStartPayload, db: Session = Depends(get_db)):
+#     emp = _emp_by_code(db, payload.code)
+
+#     open_te = _current_open_time_entry(db, emp.id)
+#     if open_te:
+#         open_te.clock_out_at = now_utc()
+#         open_te.status = "closed"
+#         db.flush()
+
+#     pay_user = db.query(User).filter(User.employee_id == emp.id).order_by(User.id.asc()).first()
+
+#     te = TimeEntry(
+#         employee_id=emp.id,
+#         created_by_user_id=None,
+#         work_user_id=pay_user.id if pay_user else None,
+#         clock_in_at=now_utc(),
+#         clock_in_method=payload.method or "web",
+#         clock_in_location=payload.location,
+#         status="open",
+#         notes=payload.notes,
+#     )
+#     db.add(te); db.commit(); db.refresh(te)
+#     return {
+#         "id": te.id,
+#         "employee_id": te.employee_id,
+#         "work_user_id": te.work_user_id,
+#         "clock_in_at": te.clock_in_at,
+#         "status": te.status,
+#     }
 @timeclock_router.post("/start", summary="Kiosk: clock in by code")
 def kiosk_start(payload: KioskStartPayload, db: Session = Depends(get_db)):
-    print(f"[CLOCKIN] code={payload.code}")
-
     emp = _emp_by_code(db, payload.code)
 
-    print(f"[CLOCKIN] emp_id={emp.id}")
-
     open_te = _current_open_time_entry(db, emp.id)
-
-    print(
-        f"[CLOCKIN] existing_open="
-        f"{open_te.id if open_te else None}"
-    )
-
     now = now_utc()
     now_local_date = to_local(now).date()
 
@@ -451,7 +458,7 @@ def kiosk_start(payload: KioskStartPayload, db: Session = Depends(get_db)):
 
     te = TimeEntry(
         employee_id=emp.id,
-        payroll_emp_id=emp.payroll_emp_id,
+        payroll_emp_id=emp.payroll_emp_id,  # ✅ ดึงจาก Employee
         created_by_user_id=None,
         work_user_id=pay_user.id if pay_user else None,
         clock_in_at=now,
@@ -460,24 +467,7 @@ def kiosk_start(payload: KioskStartPayload, db: Session = Depends(get_db)):
         status="open",
         notes=payload.notes,
     )
-
-    db.add(te)
-
-    print(
-        f"[CLOCKIN] before_commit emp={emp.id}"
-    )
-
-    db.commit()
-
-    db.refresh(te)
-
-    print(
-        f"[CLOCKIN] created_te={te.id}"
-    )
-
-    print(
-        f"[CLOCKIN] success_te={te.id}"
-    )
+    db.add(te); db.commit(); db.refresh(te)
 
     resp = {
         "id": te.id,
@@ -529,15 +519,8 @@ def kiosk_start(payload: KioskStartPayload, db: Session = Depends(get_db)):
 #     }
 @timeclock_router.post("/stop", summary="Kiosk: clock out (auto-closes open breaks)")
 def kiosk_stop(payload: KioskStopPayload, db: Session = Depends(get_db)):
-    print("CLOCKOUT CODE", payload.code)
-
     emp = _emp_by_code(db, payload.code)
-
-    print("EMP", emp.id)
-
     te = _current_open_time_entry(db, emp.id)
-
-    print("OPEN TE", te.id if te else None)
 
     # ถ้าไม่มี TimeEntry ที่เปิดอยู่
     if not te:
@@ -574,50 +557,7 @@ def kiosk_stop(payload: KioskStopPayload, db: Session = Depends(get_db)):
         te.notes = (te.notes or "") + f"\n[OUT] {payload.notes}"
     te.status = "closed"
 
-
-    print(
-        f"[CLOCKOUT] code={payload.code}"
-    )
-
-    print(
-        f"[CLOCKOUT] emp_id={emp.id}"
-    )
-
-    print(
-        f"[CLOCKOUT] te_id={te.id if te else None}"
-    )
-
-    try:
-
-        db.commit()
-
-        db.refresh(te)
-
-        verify = db.get(
-            TimeEntry,
-            te.id
-        )
-
-        print(
-            "[CLOCKOUT VERIFY]",
-            verify.id,
-            verify.clock_out_at,
-            verify.status
-        )
-
-    except Exception as ex:
-
-        db.rollback()
-
-        print(
-            "CLOCKOUT ERROR",
-            ex
-        )
-
-        raise
-    print(
-        f"[CLOCKOUT] success te_id={te.id}"
-    )
+    db.commit(); db.refresh(te)
     return {
         "id": te.id,
         "employee_id": te.employee_id,
@@ -630,20 +570,8 @@ def kiosk_stop(payload: KioskStopPayload, db: Session = Depends(get_db)):
 
 @breaks_router.post("/start", summary="Kiosk: start break by code")
 def kiosk_start_break(payload: KioskStartBreakPayload, db: Session = Depends(get_db)):
-   
     emp = _emp_by_code(db, payload.code)
     te = _current_open_time_entry(db, emp.id)
-    print(
-        f"[BREAK START] code={payload.code}"
-    )
-
-    print(
-        f"[BREAK START] emp_id={emp.id}"
-    )
-
-    print(
-        f"[BREAK START] te_id={te.id}"
-    )
     if not te:
         raise HTTPException(400, "You must be clocked in to start a break")
 
@@ -665,13 +593,7 @@ def kiosk_start_break(payload: KioskStartBreakPayload, db: Session = Depends(get
         notes=payload.notes,
         is_paid=bool(payload.is_paid),
     )
-    db.add(br)
-    db.commit()
-    db.refresh(br)
-
-    print(
-        f"[BREAK START] break_id={br.id}"
-    )
+    db.add(br); db.commit(); db.refresh(br)
     return _serialize_break(br)
 
 @breaks_router.post("/stop", summary="Kiosk: stop current break by code")
@@ -679,52 +601,22 @@ def kiosk_stop_break(payload: KioskStopBreakPayload, db: Session = Depends(get_d
     emp = _emp_by_code(db, payload.code)
     te = _current_open_time_entry(db, emp.id)
 
-    print(
-        f"[BREAK STOP] code={payload.code}"
-    )
-
-    print(
-        f"[BREAK STOP] emp_id={emp.id}"
-    )
-
-    # เช็คก่อนว่า Clock In อยู่ไหม
+    # ✅ เพิ่ม check ถ้ายังไม่ Clock In
     if not te:
         raise HTTPException(
             status_code=400,
             detail="You must be clocked in to stop a break."
         )
 
-    print(
-        f"[BREAK STOP] te_id={te.id}"
-    )
-
     br = _current_open_break(db, te.id)
-
     if not br:
         raise HTTPException(
             status_code=400,
             detail="No active break found. Please Start Break first."
         )
 
-    print(
-        f"[BREAK STOP] break_id={br.id}"
-    )
-
     br.end_at = now_utc()
-
-    db.commit()
-    db.refresh(br)
-
-    verify = db.get(
-        BreakEntry,
-        br.id
-    )
-
-    print(
-        "[BREAK STOP VERIFY]",
-        verify.id,
-        verify.end_at
-    )
+    db.commit(); db.refresh(br)
     return _serialize_break(br)
 
 # ============================================================
@@ -767,7 +659,7 @@ def list_time_entries(
     if status:
         q = q.filter(Employee.status == status.lower())
 
-    # print(q)
+    print(q)
     if employee_id is not None:
         q = q.filter(TimeEntry.employee_id == employee_id)
     if start_at is not None:
@@ -778,6 +670,36 @@ def list_time_entries(
     rows = q.all()
     return [_serialize_time_entry(te) for te in rows]
 
+
+
+# @timeclock_router.get("", summary="List time entries (optional range filter)")
+# def list_time_entries(
+#     db: Session = Depends(get_db),
+#     employee_id: Optional[int] = Query(default=None),
+#     start_at: Optional[datetime] = Query(default=None, description="clock_in_at >= start_at"),
+#     end_at: Optional[datetime] = Query(default=None, description="clock_in_at < end_at (exclusive)"),
+#     status: Optional[str] = Query(default="active", description="Employee status filter (default=active)"),
+# ) -> List[dict]:
+#     q = (
+#         db.query(TimeEntry)
+#           .join(TimeEntry.employee)  # 🔑 join Employee so we can filter on status
+#           .options(joinedload(TimeEntry.employee), joinedload(TimeEntry.breaks))
+#     )
+
+#     # filter by employee status
+#     if status:
+#         q = q.filter(Employee.status == status.lower())
+
+#     if employee_id is not None:
+#         q = q.filter(TimeEntry.employee_id == employee_id)
+#     if start_at is not None:
+#         q = q.filter(TimeEntry.clock_in_at >= start_at)
+#     if end_at is not None:
+#         q = q.filter(TimeEntry.clock_in_at < end_at)
+
+#     q = q.order_by(TimeEntry.clock_in_at.asc(), TimeEntry.id.asc())
+#     rows = q.all()
+#     return [_serialize_time_entry(te) for te in rows]
 
 @timeclock_router.get("/range", summary="List time entries by range (alias)")
 def list_time_entries_range(

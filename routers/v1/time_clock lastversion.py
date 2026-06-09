@@ -630,20 +630,8 @@ def kiosk_stop(payload: KioskStopPayload, db: Session = Depends(get_db)):
 
 @breaks_router.post("/start", summary="Kiosk: start break by code")
 def kiosk_start_break(payload: KioskStartBreakPayload, db: Session = Depends(get_db)):
-   
     emp = _emp_by_code(db, payload.code)
     te = _current_open_time_entry(db, emp.id)
-    print(
-        f"[BREAK START] code={payload.code}"
-    )
-
-    print(
-        f"[BREAK START] emp_id={emp.id}"
-    )
-
-    print(
-        f"[BREAK START] te_id={te.id}"
-    )
     if not te:
         raise HTTPException(400, "You must be clocked in to start a break")
 
@@ -665,13 +653,7 @@ def kiosk_start_break(payload: KioskStartBreakPayload, db: Session = Depends(get
         notes=payload.notes,
         is_paid=bool(payload.is_paid),
     )
-    db.add(br)
-    db.commit()
-    db.refresh(br)
-
-    print(
-        f"[BREAK START] break_id={br.id}"
-    )
+    db.add(br); db.commit(); db.refresh(br)
     return _serialize_break(br)
 
 @breaks_router.post("/stop", summary="Kiosk: stop current break by code")
@@ -679,52 +661,22 @@ def kiosk_stop_break(payload: KioskStopBreakPayload, db: Session = Depends(get_d
     emp = _emp_by_code(db, payload.code)
     te = _current_open_time_entry(db, emp.id)
 
-    print(
-        f"[BREAK STOP] code={payload.code}"
-    )
-
-    print(
-        f"[BREAK STOP] emp_id={emp.id}"
-    )
-
-    # เช็คก่อนว่า Clock In อยู่ไหม
+    # ✅ เพิ่ม check ถ้ายังไม่ Clock In
     if not te:
         raise HTTPException(
             status_code=400,
             detail="You must be clocked in to stop a break."
         )
 
-    print(
-        f"[BREAK STOP] te_id={te.id}"
-    )
-
     br = _current_open_break(db, te.id)
-
     if not br:
         raise HTTPException(
             status_code=400,
             detail="No active break found. Please Start Break first."
         )
 
-    print(
-        f"[BREAK STOP] break_id={br.id}"
-    )
-
     br.end_at = now_utc()
-
-    db.commit()
-    db.refresh(br)
-
-    verify = db.get(
-        BreakEntry,
-        br.id
-    )
-
-    print(
-        "[BREAK STOP VERIFY]",
-        verify.id,
-        verify.end_at
-    )
+    db.commit(); db.refresh(br)
     return _serialize_break(br)
 
 # ============================================================

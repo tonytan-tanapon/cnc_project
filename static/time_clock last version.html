@@ -1,0 +1,1273 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Kiosk — Time Clock (online only)</title>
+    <style>
+      :root {
+        --bg: #fff;
+        --text: #111;
+        --muted: #6b7280;
+        --line: #e5e7eb;
+        --shadow: 0 2px 10px rgba(0, 0, 0, 0.07);
+        --in: #10b981;
+        --out: #ef4444;
+        --sbr: #f59e0b;
+        --ebr: #6366f1;
+        --disabled: #e5e7eb;
+
+        /* Action button sizing */
+        --btn-min: 220px;
+        --btn-vh: 24vh;
+        --btn-max: 360px;
+        --btn-radius: 12px;
+
+        --btn-fs-min: 42px;
+        --btn-fs-vw: 4.8vw;
+        --btn-fs-max: 84px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font: 20px/1.5 system-ui, -apple-system, Segoe UI, Roboto, Arial;
+      }
+      .wrap {
+        max-width: 980px;
+        margin: 24px auto;
+        padding: 0 14px;
+      }
+      h1 {
+        margin: 0 0 16px;
+        font-size: 28px;
+      }
+      .muted {
+        color: var(--muted);
+      }
+
+      /* View toggling */
+      .view {
+        display: none;
+      }
+      .view.active {
+        display: block;
+      }
+
+      /* Panels & rows */
+      .panel {
+        background: #fff;
+        border: 2px solid var(--line);
+        border-radius: 16px;
+        box-shadow: var(--shadow);
+        padding: 16px;
+      }
+      .row {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+      }
+
+      /* Top display strip */
+      .display {
+        font-size: 28px;
+        font-weight: 700;
+        border: 2px solid var(--line);
+        border-radius: 12px;
+        padding: 12px 14px;
+        min-height: 56px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
+      }
+      .display span.value {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+          "Liberation Mono", monospace;
+      }
+
+      /* Keypad */
+      .keypad {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+        margin-top: 16px;
+      }
+      .key {
+        font-size: 32px;
+        font-weight: 700;
+        border: 2px solid var(--line);
+        border-radius: 10px;
+        padding: 22px 0;
+        background: #fff;
+        cursor: pointer;
+      }
+      .key:active {
+        transform: scale(0.98);
+      }
+
+      /* Status chip */
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        border: 2px solid var(--line);
+        border-radius: 999px;
+        padding: 6px 12px;
+        font-size: 16px;
+      }
+      .dot {
+        width: 14px;
+        height: 14px;
+        border-radius: 999px;
+        display: inline-block;
+      }
+      .dot.off {
+        background: #9ca3af;
+      }
+      .dot.in {
+        background: #16a34a;
+      }
+      .dot.break {
+        background: #d97706;
+      }
+
+      /* Button layout */
+      .grid-actions {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 16px;
+      }
+
+      /* BIG ACTION BUTTONS */
+      .bigbtn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 2px solid transparent;
+        border-radius: var(--btn-radius);
+        min-height: clamp(var(--btn-min), var(--btn-vh), var(--btn-max));
+        padding: 36px 28px;
+        font-weight: 800;
+        color: #fff;
+        box-shadow: var(--shadow);
+        cursor: pointer;
+        font-size: clamp(
+          var(--btn-fs-min),
+          var(--btn-fs-vw),
+          var(--btn-fs-max)
+        );
+        line-height: 1.1;
+        white-space: normal;
+        text-wrap: balance;
+        gap: 14px;
+      }
+      .bigbtn .ico {
+        width: 1.6em;
+        height: 1.6em;
+        flex: 0 0 auto;
+        stroke-width: 2.2;
+      }
+      .bigbtn:hover:not([disabled]) {
+        filter: saturate(1.08) brightness(0.98);
+      }
+      .bigbtn:active:not([disabled]) {
+        transform: scale(0.98);
+        filter: brightness(0.92);
+      }
+      .bigbtn:focus-visible {
+        outline: 3px solid rgba(0, 0, 0, 0.2);
+        outline-offset: 2px;
+      }
+      .bigbtn[disabled] {
+        background: var(--disabled);
+        color: #9ca3af;
+        cursor: not-allowed;
+        box-shadow: none;
+        transform: none;
+      }
+
+      /* Action colors */
+      .btn-in {
+        background: var(--in);
+      }
+      .btn-sbr {
+        background: var(--sbr);
+      }
+      .btn-ebr {
+        background: var(--ebr);
+      }
+      .btn-out {
+        background: var(--out);
+      }
+
+      /* Table & badges */
+      table {
+        border-collapse: collapse;
+
+        table-layout: fixed; /* ✅ ทำให้คอลัมน์กว้างเท่ากัน */
+        font-size: 16px;
+      }
+
+      th,
+      td {
+        box-sizing: border-box;
+      }
+      .badge {
+        display: inline-block;
+        padding: 4px 8px;
+        border-radius: 999px;
+        font-size: 14px;
+        color: #fff;
+      }
+      .b-in {
+        background: var(--in);
+      }
+      .b-out {
+        background: var(--out);
+      }
+      .b-sbr {
+        background: var(--sbr);
+      }
+      .b-ebr {
+        background: var(--ebr);
+      }
+
+      /* Passcode dots */
+      .passdots {
+        display: flex;
+        gap: 14px;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+      }
+      .passdot {
+        width: 16px;
+        height: 16px;
+        border-radius: 999px;
+        border: 2px solid var(--line);
+      }
+      .passdot.filled {
+        background: #111;
+        border-color: #111;
+      }
+
+      /* Topbar */
+      #top_title {
+        font-weight: 700;
+        font-size: 22px;
+      }
+      #id_val {
+        flex: 1;
+        display: flex;
+        justify-content: center;
+        letter-spacing: 3px;
+      }
+      #clock {
+        font-size: 20px;
+        font-weight: 600;
+        white-space: nowrap;
+      }
+
+      /* Row for Start Break + Clock Out side-by-side */
+      .row-2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+      }
+      .row-2:has(.bigbtn[style*="display: none"])
+        .bigbtn:not([style*="display: none"]) {
+        grid-column: 1 / -1;
+      }
+
+      /* Mobile */
+      @media (max-width: 540px) {
+        .row-2 {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      /* Exit overlay */
+      .exitmask {
+        position: fixed;
+        inset: 0;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        background: rgba(255, 255, 255, 0.82);
+        backdrop-filter: blur(2px);
+        z-index: 9999;
+        text-align: center;
+        padding: 24px;
+        font-weight: 800;
+        font-size: 26px;
+        color: #111;
+      }
+      .exitmask .sub {
+        display: block;
+        margin-top: 8px;
+        font-weight: 600;
+        font-size: 18px;
+        color: var(--muted);
+      }
+
+      .week-divider td {
+        border-top: 3px solid #9ca3af;
+        background: #f3f4f6;
+        height: 2px;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- View 1: 4-digit User ID -->
+    <section id="v_id" class="view active">
+      <div class="panel">
+        <div class="display" style="margin-top: 12px">
+          <span id="top_title">TopNotch v1.0</span>
+          <span
+            id="id_val"
+            class="passdots"
+            aria-label="Enter 4-digit code"
+            aria-live="polite"
+          ></span>
+          <span id="clock" aria-live="polite"></span>
+        </div>
+        <div class="keypad" id="id_pad" style="margin-top: 16px"></div>
+      </div>
+    </section>
+
+    <!-- View 2: Actions -->
+    <section id="v_act" class="view">
+      <div class="panel">
+        <div
+          class="row"
+          style="justify-content: space-between; gap: 16px; flex-wrap: wrap"
+        >
+          <div>
+            <div style="font-size: 22px; font-weight: 800">
+              Welcome, <span id="emp_name"></span>
+            </div>
+          </div>
+          <div class="chip" id="chip">
+            <span class="dot off"></span>
+            <span id="chip_status">Off Duty</span>
+            <span
+              id="chip_time"
+              style="margin-left: 8px; font-weight: 600; font-size: 16px"
+            ></span>
+          </div>
+        </div>
+
+        <div class="grid-actions" style="margin-top: 16px">
+          <button class="bigbtn btn-in" id="btn_in" aria-label="Clock In">
+            <svg
+              class="ico"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              aria-hidden="true"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M5 4v16"></path>
+              <path d="M10 12h10"></path>
+              <path d="M16 8l4 4-4 4"></path></svg
+            ><span>Clock In</span>
+          </button>
+
+          <div class="row-2">
+            <button
+              class="bigbtn btn-sbr"
+              id="btn_sbr"
+              aria-label="Start Break"
+            >
+              <svg
+                class="ico"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                aria-hidden="true"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <rect x="3" y="10" width="12" height="6" rx="2"></rect>
+                <path d="M15 11h3a2 2 0 0 1 0 4h-3"></path>
+                <path d="M7 7v2M9 6v2M11 7v2"></path></svg
+              ><span>Start Break</span>
+            </button>
+
+            <button class="bigbtn btn-out" id="btn_out" aria-label="Clock Out">
+              <svg
+                class="ico"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                aria-hidden="true"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M19 4v16"></path>
+                <path d="M14 12H4"></path>
+                <path d="M8 8l-4 4 4 4"></path></svg
+              ><span>Clock Out</span>
+            </button>
+          </div>
+
+          <button class="bigbtn btn-ebr" id="btn_ebr" aria-label="Stop Break">
+            <svg
+              class="ico"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              aria-hidden="true"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <rect x="3" y="8" width="18" height="12" rx="2"></rect>
+              <path d="M9 8V6h6v2"></path>
+              <path d="M3 13h18"></path></svg
+            ><span>Stop Break</span>
+          </button>
+        </div>
+
+        <div
+          class="row"
+          style="justify-content: space-between; margin-top: 16px"
+        >
+          <button class="key action" id="btn_logout" style="padding: 12px 16px">
+            Logout
+          </button>
+        </div>
+      </div>
+
+      <div class="panel" style="margin-top: 16px">
+        <div style="font-size: 22px; font-weight: 700; margin-bottom: 8px">
+          Work Summary
+        </div>
+        <table id="logTable" class="tbl">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Clock In</th>
+              <th>Start Break</th>
+              <th>Stop Break</th>
+              <th>Clock Out</th>
+              <th>hr</th>
+            </tr>
+          </thead>
+          <tbody id="logBody">
+            <tr>
+              <td colspan="6">Loading…</td>
+            </tr>
+          </tbody>
+          <!-- <tfoot id="log_foot"></tfoot> -->
+          <!-- ✅ ต้องมี -->
+        </table>
+      </div>
+    </section>
+
+    <!-- Exit overlay -->
+    <div id="exitmask" class="exitmask" aria-live="polite">
+      Saving…<span class="sub">Please wait</span>
+    </div>
+    <script type="module">
+      import { $, jfetch, toast } from "/static/js/api.js?v=1";
+
+      /* ----------------- API base ----------------- */
+      const API_BASE = ""; // same origin
+      const api = (p) => `${API_BASE}${p}`;
+
+      /* ----------------- Los Angeles timezone helpers ----------------- */
+      const LA_TZ = "America/Los_Angeles";
+      function laOffsetMs(d = new Date()) {
+        const laStr = d.toLocaleString("en-US", { timeZone: LA_TZ });
+        const laAsLocal = new Date(laStr);
+        return laAsLocal.getTime() - d.getTime();
+      }
+      function toLA(d = new Date()) {
+        return new Date(d.getTime() + laOffsetMs(d));
+      }
+      function fromLA(laDate) {
+        return new Date(laDate.getTime() - laOffsetMs(laDate));
+      }
+      function startOfTodayISO_LA() {
+        const laNow = toLA(new Date());
+        const laStart = new Date(
+          laNow.getFullYear(),
+          laNow.getMonth(),
+          laNow.getDate(),
+          0,
+          0,
+          0,
+          0
+        );
+        return fromLA(laStart).toISOString();
+      }
+      function startOfTomorrowISO_LA() {
+        const laNow = toLA(new Date());
+        const laStart = new Date(
+          laNow.getFullYear(),
+          laNow.getMonth(),
+          laNow.getDate() + 1,
+          0,
+          0,
+          0,
+          0
+        );
+        return fromLA(laStart).toISOString();
+      }
+      function startOf30DaysAgoISO_LA() {
+        const laNow = toLA(new Date());
+        const laStart = new Date(
+          laNow.getFullYear(),
+          laNow.getMonth(),
+          laNow.getDate() - 26,
+          0,
+          0,
+          0,
+          0
+        );
+        return fromLA(laStart).toISOString();
+      }
+      function fmtTimeLA_AMPM(ts) {
+        if (!ts) return "";
+        const d = typeof ts === "string" ? new Date(ts) : ts;
+        const la = toLA(d);
+        return la.toLocaleTimeString("en-US", {
+          hour: "numeric",
+          minute: "2-digit",
+          hour12: true,
+          timeZone: LA_TZ,
+        });
+      }
+      function fmtClockLA() {
+        const la = toLA(new Date());
+        return la.toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+          hour12: true,
+          timeZone: LA_TZ,
+        });
+      }
+
+      /* ----------------- state ----------------- */
+      const state = {
+  code: "",
+  idDigits: "",
+  empName: "",
+  employeeId: null,
+  pp_id: null,   // ⭐ เพิ่มตัวนี้
+  timeEntryId: null,
+  breakId: null,
+  status: "off",
+  busy: false,
+  hasBreakUsed: false,
+  exiting: false,
+};
+
+      /* ----------------- misc helpers ----------------- */
+      const startOfTodayISO = startOfTodayISO_LA;
+      const startOfTomorrowISO = startOfTomorrowISO_LA;
+
+      const setView = (id) => {
+        ["v_id", "v_act"].forEach((v) => $(v).classList.remove("active"));
+        $(id).classList.add("active");
+      };
+      function hide(el) {
+        if (!el) return;
+        if (document.activeElement === el) el.blur();
+        el.style.display = "none";
+      }
+      function show(el) {
+        if (!el) return;
+        el.style.display = "";
+      }
+
+      function setChip(status) {
+        const dot = document.querySelector("#chip .dot");
+        const txt = document.getElementById("chip_status");
+        const timeEl = document.getElementById("chip_time");
+        dot.className = "dot " + (status || "off");
+        txt.textContent =
+          status === "in"
+            ? "Clocked In"
+            : status === "break"
+            ? "On Break"
+            : "Off Duty";
+        timeEl.textContent = fmtClockLA();
+      }
+
+      function resetLoginUI() {
+        state.idDigits = "";
+        renderIdDots();
+        const title = document.getElementById("top_title");
+        if (title) title.textContent = "TopNotch v1.0";
+        const nameEl = $("emp_name");
+        if (nameEl) nameEl.textContent = "";
+        setChip("off");
+      }
+
+      function beginSubmitAndLeaveView(msg = "Saving…") {
+        state.exiting = true;
+        const mask = $("exitmask");
+        if (mask) {
+          mask.firstChild.nodeValue = msg;
+          mask.style.display = "flex";
+        }
+        document.querySelectorAll(".bigbtn, #btn_logout").forEach((b) => {
+          b.setAttribute("disabled", "true");
+          b.style.pointerEvents = "none";
+          b.style.visibility = "hidden";
+        });
+        setView("v_id");
+      }
+      function leaveExitMode() {
+        state.exiting = false;
+        const mask = $("exitmask");
+        if (mask) mask.style.display = "none";
+        document.querySelectorAll(".bigbtn, #btn_logout").forEach((b) => {
+          b.removeAttribute("disabled");
+          b.style.pointerEvents = "";
+          b.style.visibility = "";
+        });
+      }
+async function fetchCurrentPayPeriod() {
+  const periods = await jfetch("/pay-periods?status=open");
+
+  if (Array.isArray(periods) && periods.length) {
+    state.pp_id = periods[0].id;
+  }
+}
+      /* ----------------- UI buttons show/hide ----------------- */
+      function updateButtons() {
+        if (state.exiting) {
+          ["btn_in", "btn_out", "btn_sbr", "btn_ebr"].forEach((id) =>
+            hide($(id))
+          );
+          return;
+        }
+        const inBtn = $("btn_in"),
+          outBtn = $("btn_out"),
+          sbrBtn = $("btn_sbr"),
+          ebrBtn = $("btn_ebr");
+        [inBtn, outBtn, sbrBtn, ebrBtn].forEach(hide);
+
+        const st = state.status; // 'off' | 'in' | 'break'
+        const onBreak = !!state.breakId;
+        const usedBreakThisShift = !!state.hasBreakUsed;
+
+        if (st === "off") {
+          show(inBtn);
+          return;
+        }
+        if (st === "break" || onBreak) {
+          show(ebrBtn);
+          return;
+        }
+        if (usedBreakThisShift) {
+          show(outBtn);
+        } else {
+          show(sbrBtn);
+          show(outBtn);
+        }
+      }
+
+      function logout() {
+        setView("v_id");
+        resetLoginUI();
+        toast("Logged out");
+
+        state.code = "";
+        state.empName = "";
+        state.employeeId = null;
+        state.timeEntryId = null;
+        state.breakId = null;
+        state.status = "off";
+        state.hasBreakUsed = false;
+
+        leaveExitMode();
+        updateButtons();
+        renderLog([]);
+      }
+
+      /* ----------------- log renderer ----------------- */
+      
+    
+
+      function groupBy2Week(rows) {
+        if (!rows?.length) return [];
+        // ✅ sort new → old
+        const sorted = [...rows].sort(
+          (a, b) => new Date(a.date) - new Date(b.date)
+        );
+
+        const groups = [];
+        let start = new Date(sorted[0].date);
+        let end = new Date(start);
+        end.setDate(end.getDate() - 13); // 14-day window backward
+        let bucket = [];
+
+        for (const r of sorted) {
+          const d = new Date(r.date);
+          if (d < end) {
+            groups.push({ start: end, end: start, rows: bucket });
+            bucket = [];
+            start = new Date(d);
+            end = new Date(start);
+            end.setDate(end.getDate() - 13);
+          }
+          bucket.push(r);
+        }
+        if (bucket.length)
+          groups.push({ start: end, end: start, rows: bucket });
+
+        return groups; // ✅ newest period first
+      }
+
+      // ========== PAY PERIOD FETCH ==========
+      // ✅ ปรับให้รองรับทั้ง Array และ Object response
+      async function fetchPayPeriods() {
+        const res = await jfetch("/pay-periods");
+
+        // ถ้า backend ส่งเป็น object เช่น { items: [...] } ให้ดึงออกมา
+        const list = Array.isArray(res)
+          ? res
+          : Array.isArray(res.items)
+          ? res.items
+          : [];
+
+        // เรียงจากใหม่ → เก่า
+        return list.sort((a, b) => new Date(a.start_at) - new Date(b.start_at));
+      }
+
+      // กลุ่ม logs ตาม pay-period
+      function groupLogsByPeriod(rows, payPeriods) {
+        const result = [];
+
+        // เรียง period จากใหม่ → เก่า เพื่อให้ดูง่าย
+        const sorted = [...payPeriods].sort(
+          (a, b) => new Date(a.start_at) - new Date(b.start_at)
+        );
+
+        for (let i = 0; i < sorted.length; i++) {
+          const pp = sorted[i];
+          const start = pp.start_at.split("T")[0];
+          const end = pp.end_at.split("T")[0];
+
+          const periodRows = rows.filter((r) => {
+            const d = r.date.split("T")[0];
+            // ✅ ถ้า period ถัดไปเริ่มวันเดียวกัน ไม่เอาวันนั้นซ้ำ
+            return d >= start && d < end;
+          });
+
+          if (periodRows.length > 0) {
+            result.push({ period: pp, rows: periodRows });
+          }
+        }
+
+        return result;
+      }
+      // ========== RENDER WITH PAY PERIOD SUMMARY ==========
+      async function renderLogWithPeriodSummary(rows) {
+        const tbody = document.getElementById("logBody");
+        tbody.innerHTML = "";
+
+        if (!rows?.length) {
+          tbody.innerHTML = `<tr><td colspan="6" class="empty">No data</td></tr>`;
+          return;
+        }
+
+        // ===== คำนวณ Regular/OT =====
+        function parseAMPM(t) {
+          if (!t) return null;
+          const m = t.match(/(\d+):(\d+)\s*(AM|PM)/i);
+          if (!m) return null;
+          let [_, hh, mm, ampm] = m;
+          hh = Number(hh);
+          mm = Number(mm);
+          if (ampm.toUpperCase() === "PM" && hh < 12) hh += 12;
+          if (ampm.toUpperCase() === "AM" && hh === 12) hh = 0;
+          return new Date(1970, 0, 1, hh, mm);
+        }
+        function calcHours(r) {
+          const cin = parseAMPM(r.clock_in);
+          const cout = parseAMPM(r.clock_out);
+          const sb = parseAMPM(r.start_break);
+          const eb = parseAMPM(r.stop_break);
+          if (!cin || !cout) return { reg: 0, ot: 0 };
+          const total = (cout - cin) / 3600000;
+          const breakHrs = sb && eb ? (eb - sb) / 3600000 : 0;
+          const worked = total - breakHrs;
+          return { reg: Math.min(8, worked), ot: Math.max(0, worked - 8) };
+        }
+
+        // ===== Apply 8h + 6-day rule =====
+        rows = rows.map((r) => ({
+          ...r,
+          reg_hours: r.reg_hours ?? r.reg ?? 0,
+          ot_hours: r.ot_hours ?? r.ot ?? 0,
+        }));
+        
+
+        // ===== Fetch Pay Periods =====
+        const payPeriods = await fetchPayPeriods();
+        const grouped = groupLogsByPeriod(rows, payPeriods);
+
+        // ===== Render Table =====
+        tbody.innerHTML = "";
+        for (const g of grouped) {
+          const s = g.period.start_at.slice(0, 10);
+
+// subtract 1 day from end_at
+const endDate = new Date(g.period.end_at);
+endDate.setDate(endDate.getDate() - 1);
+const e = endDate.toISOString().slice(0, 10);
+          const sumReg = g.rows.reduce(
+            (a, b) => a + (+b.reg || +b.reg_hours || 0),
+            0
+          );
+          const sumOT = g.rows.reduce(
+            (a, b) => a + (+b.ot || +b.ot_hours || 0),
+            0
+          );
+
+          // --- Period Header ---
+          const periodTr = document.createElement("tr");
+          periodTr.style.background = "#f9fafb";
+          periodTr.style.fontWeight = "700";
+          periodTr.innerHTML = `
+      <td colspan="6" style="text-align:left;">
+        --- Period ${s} → ${e}
+        &nbsp;&nbsp; Regular hrs: ${sumReg.toFixed(2)}
+        &nbsp;&nbsp; OT hrs: ${sumOT.toFixed(2)} ---
+      </td>`;
+          tbody.appendChild(periodTr);
+
+          let lastWeekKey = null;
+
+          // --- Rows per day ---
+          for (const r of g.rows.sort(
+            (a, b) => new Date(a.date) - new Date(b.date)
+          )) {
+            // แปลงวันที่โดยไม่ให้ timezone เลื่อน
+            const [y, m, day] = r.date.split("-").map(Number);
+            const d = new Date(y, m - 1, day);
+            const dayLetter = ["Su", "M", "T", "W", "Th", "F", "Sa"][
+              d.getDay()
+            ];
+            const weekKey = weekKeyLocal(r.date, 1);
+
+            // เส้นแบ่งสัปดาห์
+            if (lastWeekKey && weekKey !== lastWeekKey) {
+              const sep = document.createElement("tr");
+              sep.className = "week-divider";
+              sep.innerHTML = `<td colspan="6"></td>`;
+              tbody.appendChild(sep);
+            }
+            lastWeekKey = weekKey;
+
+            const tr = document.createElement("tr");
+            tr.innerHTML = `
+        <td>${r.date} (${dayLetter})</td>
+        <td>${r.clock_in || ""}</td>
+        <td>${r.start_break || ""}</td>
+        <td>${r.stop_break || ""}</td>
+        <td>${r.clock_out || ""}</td>
+        <td>${(r.reg_hours + r.ot_hours).toFixed(2)}</td>`;
+            tbody.appendChild(tr);
+          }
+
+          // --- Bottom separator per period ---
+          const divider = document.createElement("tr");
+          divider.innerHTML = `<td colspan="6" style="background:#e5e7eb;height:8px;border:0"></td>`;
+          tbody.appendChild(divider);
+        }
+      }
+
+      
+      /* ----------------- Summary helpers (2-week) ----------------- */
+      function weekKeyLocal(dateISO, weekStartsOn = 1) {
+        const d = new Date(dateISO + "T00:00:00");
+        const day = d.getDay();
+        const diff = (day - weekStartsOn + 7) % 7;
+        const weekStart = new Date(d);
+        weekStart.setDate(d.getDate() - diff);
+        const y = weekStart.getFullYear();
+        const m = String(weekStart.getMonth() + 1).padStart(2, "0");
+        const dd = String(weekStart.getDate()).padStart(2, "0");
+        return `${y}-${m}-${dd}`;
+      }
+
+      function renderPeriodSummary(rows) {
+        const foot = document.getElementById("log_foot");
+        if (!foot) return;
+        foot.innerHTML = "";
+
+        if (!rows.length) return;
+
+        const ruled = rows;
+        const periods = groupBy2Week(ruled);
+
+        // ✅ ใส่ summary ด้านบนสุด
+        for (const p of periods.reverse()) {
+          const sumReg = p.rows.reduce(
+            (a, b) => a + Number(b.reg_hours || 0),
+            0
+          );
+          const sumOT = p.rows.reduce((a, b) => a + Number(b.ot_hours || 0), 0);
+
+          const startStr = p.start.toISOString().slice(0, 10);
+          const endStr = p.end.toISOString().slice(0, 10);
+
+          const tr = document.createElement("tr");
+          tr.style.fontWeight = "700";
+          tr.style.background = "#f9fafb";
+          tr.innerHTML = `
+      <td colspan="6" style="text-align:right;padding:8px 12px;border-bottom:2px solid #000;">
+        Period ${startStr} → ${endStr}
+        &nbsp;&nbsp; Regular hrs: ${sumReg.toFixed(2)}
+        &nbsp;&nbsp; OT hrs: ${sumOT.toFixed(2)}
+      </td>`;
+          foot.prepend(tr);
+        }
+      }
+
+      /* ----------------- fetch 30-day log and summarize ----------------- */
+      async function fetchTodayLog() {
+
+  if (!state.employeeId) {
+    console.warn("employeeId not ready");
+    return;
+  }
+
+  try {
+
+    const rows = await jfetch(
+      api(`/api/v1/payroll/kiosk-timesheet?employee_id=${state.employeeId}`)
+    );
+
+    const summaries = rows.flatMap(block => {
+
+      const entries = block.entries || [];
+
+      return entries.map(r => {
+
+        const clock_in = r.clock_in_at
+          ? fmtTimeLA_AMPM(r.clock_in_at)
+          : "";
+
+        const clock_out = r.clock_out_at
+          ? fmtTimeLA_AMPM(r.clock_out_at)
+          : "";
+
+        let start_break = "";
+        let stop_break = "";
+
+        if (r.breaks?.length) {
+          const br = r.breaks[0];
+          start_break = br.start_at ? fmtTimeLA_AMPM(br.start_at) : "";
+          stop_break = br.end_at ? fmtTimeLA_AMPM(br.end_at) : "";
+        }
+
+        return {
+          date: r.clock_in_at.slice(0,10),
+          clock_in,
+          start_break,
+          stop_break,
+          clock_out,
+          reg_hours: r.reg_hours,
+          ot_hours: r.ot_hours
+        }
+
+      });
+
+    });
+
+    summaries.sort((a,b)=> new Date(a.date) - new Date(b.date));
+
+    renderLogWithPeriodSummary(summaries);
+    renderPeriodSummary(summaries);
+
+    updateButtons();
+
+  } catch(e) {
+
+    console.error(e);
+    toast("Load log failed", false);
+
+  }
+
+}
+
+      /* ----------------- server state ----------------- */
+      async function fetchStateByCode(code) {
+        const data = await jfetch(
+          api(`/time-entries/state/${encodeURIComponent(code)}`)
+        );
+        state.status = data.status || "off";
+        state.timeEntryId = data.time_entry_id || null;
+        state.breakId = data.break_id || null;
+        state.employeeId = data.employee_id || null;
+        state.empName = data.name || state.empName || "Employee";
+
+        $("emp_name").textContent = state.empName;
+        const title = document.getElementById("top_title");
+        if (title) title.textContent = `TopNotch v1.0 — ${state.empName}`;
+        await refreshHasBreakUsed();
+        setChip(state.status);
+        updateButtons();
+        await fetchTodayLog();
+      }
+
+      async function refreshHasBreakUsed() {
+        state.hasBreakUsed = false;
+        try {
+          if (state.timeEntryId) {
+            const te = await jfetch(api(`/time-entries/${state.timeEntryId}`));
+            state.hasBreakUsed =
+              Array.isArray(te.breaks) && te.breaks.some((b) => b.start_at);
+            return;
+          }
+          if (state.employeeId) {
+            const qs = new URLSearchParams({
+              employee_id: String(state.employeeId),
+              start_at: startOfTodayISO(),
+              end_at: startOfTomorrowISO(),
+            }).toString();
+             const rows = await jfetch(
+  api(`/time-entries?${qs}`)
+);
+            const open = rows.find((r) => r.clock_in_at && !r.clock_out_at);
+            if (open) {
+              state.timeEntryId = open.id;
+              state.hasBreakUsed =
+                Array.isArray(open.breaks) &&
+                open.breaks.some((b) => b.start_at);
+            }
+          }
+        } catch {}
+      }
+
+      /* ----------------- actions (online only) ----------------- */
+      async function clockIn() {
+        if (state.busy) return;
+        state.busy = true;
+        beginSubmitAndLeaveView("Saving Clock In…");
+        try {
+          const payload = { code: state.code, method: "web" };
+          if (state.employeeId) payload.employee_id = state.employeeId;
+          await jfetch(api("/time-entries/start"), {
+            method: "POST",
+            body: JSON.stringify(payload),
+          });
+
+          toast("Clocked in");
+          state.code = "";
+          state.idDigits = "";
+          resetLoginUI();
+        } catch (e) {
+          leaveExitMode();
+          setView("v_act");
+          state.busy = false;
+          toast(e.message || "Clock in failed", false);
+          return;
+        }
+        state.busy = false;
+        leaveExitMode();
+      }
+
+      async function clockOut() {
+        if (state.busy) return;
+        state.busy = true;
+        beginSubmitAndLeaveView("Saving Clock Out…");
+        try {
+          await jfetch(api("/time-entries/stop"), {
+            method: "POST",
+            body: JSON.stringify({ code: state.code, method: "web" }),
+          });
+
+          state.status = "off";
+          state.timeEntryId = null;
+          state.breakId = null;
+          state.hasBreakUsed = false;
+          toast("Clocked out");
+          state.code = "";
+          state.idDigits = "";
+          resetLoginUI();
+        } catch (e) {
+          leaveExitMode();
+          setView("v_act");
+          state.busy = false;
+          toast(e.message || "Clock out failed", false);
+          return;
+        }
+        state.busy = false;
+        leaveExitMode();
+      }
+
+      async function startBreak() {
+        if (state.busy) return;
+        state.busy = true;
+        beginSubmitAndLeaveView("Saving Break Start…");
+        try {
+          await jfetch(api("/breaks/start"), {
+            method: "POST",
+            body: JSON.stringify({
+              code: state.code,
+              break_type: "lunch",
+              is_paid: false,
+              method: "web",
+            }),
+          });
+
+          toast("Break started");
+          state.code = "";
+          state.idDigits = "";
+          resetLoginUI();
+        } catch (e) {
+          leaveExitMode();
+          setView("v_act");
+          state.busy = false;
+          toast(e.message || "Start break failed", false);
+          return;
+        }
+        state.busy = false;
+        leaveExitMode();
+      }
+
+      async function stopBreak() {
+        if (state.busy) return;
+        state.busy = true;
+        beginSubmitAndLeaveView("Saving Break Stop…");
+        try {
+          await jfetch(api("/breaks/stop"), {
+            method: "POST",
+            body: JSON.stringify({ code: state.code }),
+          });
+
+          toast("Break stopped");
+
+          // ✅ รีเซ็ตสถานะ
+          state.status = "off";
+          state.breakId = null;
+          state.hasBreakUsed = true;
+          state.busy = false;
+
+          // ✅ กลับไปหน้า PIN
+          setView("v_id");
+          resetLoginUI();
+          state.code = "";
+          state.idDigits = "";
+          leaveExitMode();
+
+          toast("Break stopped");
+        } catch (e) {
+          state.busy = false;
+          leaveExitMode();
+          setView("v_act");
+          toast(e.message || "Stop break failed", false);
+        }
+      }
+
+      /* ----------------- keypad ----------------- */
+      function renderPad(el) {
+        const keys = [
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7",
+          "8",
+          "9",
+          "⌫",
+          "0",
+          "Clear",
+        ];
+        el.innerHTML = keys
+          .map(
+            (k) =>
+              `<button class="key${
+                isNaN(+k) ? " action" : ""
+              }" data-k="${k}">${k}</button>`
+          )
+          .join("");
+        el.addEventListener("click", async (e) => {
+          const b = e.target.closest("button[data-k]");
+          if (!b) return;
+          const k = b.dataset.k;
+          if (!isNaN(+k)) state.idDigits = (state.idDigits + k).slice(0, 4);
+          else if (k === "⌫") state.idDigits = state.idDigits.slice(0, -1);
+          else state.idDigits = "";
+          renderIdDots();
+          if (state.idDigits.length === 4) {
+            await handleFourDigits(state.idDigits);
+          }
+        });
+      }
+
+      async function handleFourDigits(code) {
+        try {
+          await fetchCurrentPayPeriod();
+          await fetchStateByCode(code);
+          state.code = code;
+          setView("v_act");
+        } catch (e) {
+          toast(e.message || "Invalid code", false);
+          clearId();
+        }
+      }
+
+      function renderIdDots() {
+        const n = state.idDigits.length;
+        const dots = Array.from(
+          { length: 4 },
+          (_, i) => `<span class="passdot${i < n ? " filled" : ""}"></span>`
+        ).join("");
+        $("id_val").innerHTML = dots;
+      }
+      function clearId() {
+        state.idDigits = "";
+        renderIdDots();
+      }
+
+      function startClock() {
+        const el = document.getElementById("clock");
+        const tick = () => {
+          el.textContent = fmtClockLA();
+        };
+        tick();
+        return setInterval(tick, 1000);
+      }
+      function startChipClock() {
+        const timeEl = document.getElementById("chip_time");
+        if (!timeEl) return;
+        setInterval(() => {
+          timeEl.textContent = fmtClockLA();
+        }, 1000);
+      }
+
+      /* ----------------- boot ----------------- */
+      document.addEventListener("DOMContentLoaded", () => {
+        renderPad($("id_pad"));
+        renderIdDots();
+        startClock();
+        $("btn_in").addEventListener("click", clockIn);
+        $("btn_out").addEventListener("click", clockOut);
+        $("btn_sbr").addEventListener("click", startBreak);
+        $("btn_ebr").addEventListener("click", stopBreak);
+        $("btn_logout").addEventListener("click", () => {
+          if (!state.exiting) logout();
+        });
+        updateButtons();
+        startChipClock();
+      });
+    </script>
+  </body>
+</html>
