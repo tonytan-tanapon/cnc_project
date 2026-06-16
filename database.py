@@ -16,11 +16,13 @@ from sqlalchemy.orm import sessionmaker, declarative_base, Session
 # - psycopg v3: postgresql+psycopg://user:pass@host:5432/db
 DATABASE_URL = "postgresql+psycopg2://postgres:1234@192.168.1.88:5432/mydb"
 # DATABASE_URL = "postgresql+psycopg2://postgres:1234@100.88.56.126:5432/mydb"
+
 engine = create_engine(
     DATABASE_URL,
     pool_pre_ping=True,   # ช่วยตัด connection ที่ตายแล้ว
     future=True,
 )
+
 SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
 
 Base = declarative_base()

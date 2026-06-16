@@ -210,18 +210,30 @@ class RawMaterialBase(APIBase):
 class RawMaterialCreate(BaseModel):
     code: Optional[str] = None
     name: str
+    type: Optional[str] = None
     spec: Optional[str] = None
     uom: Optional[str] = "kg"
     remark: Optional[str] = None
 
 class RawMaterialUpdate(BaseModel):
     name: Optional[str] = None
+    type: Optional[str] = None
     spec: Optional[str] = None
     uom: Optional[str] = None
     remark: Optional[str] = None
 
-class RawMaterialOut(RawMaterialBase):
+class RawMaterialOut(BaseModel):
     id: int
+    code: str
+    name: str
+    type: str | None = None
+    spec: str | None = None
+    uom: str | None = None
+    remark: str | None = None
+
+    model_config = {
+        "from_attributes": True
+    }
   
 
 # =========================================

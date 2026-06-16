@@ -7,7 +7,7 @@ Allocate LotMaterialUse ONLY when stock exists
 """
 
 from __future__ import annotations
-from openpyxl import load_workbook
+import csv
 from decimal import Decimal
 from datetime import datetime, date
 from pathlib import Path
@@ -25,8 +25,6 @@ CSV_FILE = Path(r"C:\Users\TPSERVER\dev\cnc_project\database_import\import_mater
 # CSV_FILE = Path(r"C:\Users\TPSERVER\dev\cnc_project\database_import\import_material_all.csv")
 CSV_ENCODING = "utf-8-sig"
 
-
-
 # ---------- IMPORT MODELS ----------
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from models import (
@@ -39,7 +37,6 @@ from models import (
     PartMaterial,
     ProductionLot,
     LotMaterialUse,
-    LotMaterialUseHistory
 )
 
 # ---------- ENGINE ----------
@@ -125,29 +122,26 @@ from datetime import date
 from sqlalchemy import select
 
 def upsert_supplier(db, name):
-
-    code = str(name).strip().upper()
+    code = name.strip().upper()
 
     s = db.scalar(
-        select(Supplier).where(
-            Supplier.code == code
-        )
+        select(Supplier).where(Supplier.code == code)
     )
 
     if s:
-        s.name = name
+        # ✅ UPDATE existing
+        s.name = name or s.name
         s.is_material_supplier = True
         return s
 
+    # ✅ INSERT new
     s = Supplier(
         code=code,
         name=name,
         is_material_supplier=True,
     )
-
     db.add(s)
     db.flush()
-
     return s
 
 
@@ -182,7 +176,7 @@ def upsert_material_po(db, supplier, po_no, order_date):
 
 
 def upsert_raw_material(db, type_, spec, size, uom):
-    code = ", ".join(x for x in (type_, spec) if x).upper()
+    code = " ".join(x for x in (type_, spec, size) if x).upper()
 
     rm = db.scalar(
         select(RawMaterial).where(RawMaterial.code == code)
@@ -255,7 +249,6 @@ def upsert_raw_batch(
     mpo,
     line,
     heat_no,
-    size_text,
     length_text,
     weight,
     supplier_id=None,
@@ -273,8 +266,6 @@ def upsert_raw_batch(
         # ✅ Update references (safe)
         rb.po_id = rb.po_id or mpo.id
         rb.material_po_line_id = line.id
-        # 👇 เพิ่ม
-        rb.supplier_id = supplier_id
 
         # ✅ Update metadata
         if heat_no:
@@ -293,17 +284,14 @@ def upsert_raw_batch(
     # ✅ INSERT new batch
     rb = RawBatch(
         material_id=rm.id,
-        supplier_id=supplier_id,
-
         po_id=mpo.id,
         material_po_line_id=line.id,
+        supplier_id=supplier_id,
 
         batch_no=batch_no,
 
         mill_heat_no=heat_no,
-        heat_lot=heat_no,
 
-        size_text=size_text,
         length_text=length_text,
 
         cutting_note=cutting_note,
@@ -395,187 +383,174 @@ def insert_lot_material_use(db, lot, rb, qty, note=None):
     db.flush()
     return lmu
 
-def deleteData(db):
-    from sqlalchemy import delete
-
-    db.execute(delete(LotMaterialUseHistory))
-
-    db.execute(delete(LotMaterialUse))
-    db.execute(delete(RawBatch))
-    db.execute(delete(MaterialPOLine))
-    db.execute(delete(MaterialPO))
-    db.execute(delete(PartMaterial))
-    db.execute(delete(RawMaterial))
-
-    db.commit()
-
 # =====================================================
 # =================== MAIN ============================
 # =====================================================
 
-XLSX_FILE = Path(
-    # r"Z:\Topnotch Group\Public\2026\Material Cert 2026\Material 2026.xlsx"
-    r"Z:\Topnotch Group\Public\Testing APP\importMat\Material 2026.xlsx"
-)
 def main():
-
-    from openpyxl import load_workbook
-
     with SessionLocal() as db:
-        deleteData(db)
-        wb = load_workbook(
-            XLSX_FILE,
-            data_only=True,
-            read_only=True
-        )
+        with open(CSV_FILE, encoding=CSV_ENCODING, newline="", errors="ignore") as f:
+            reader = csv.DictReader(f)
+            count = 0
+           
+          
+            for row in reader:
+                
+                
+                company = normalize(row.get("Company"))
+                vendor_po = normalize(row.get("Vendor PO")) or normalize(row.get("Heat lot"))
+              
+                part_no = normalize(row.get("Part no."))
+                size = row.get("Size")
+                lenght = row.get("Length")
 
-        # ws = wb.active
-        ws = wb["Order"]
+                
+                
+                ## 1. suppliers Table
+                supplier = upsert_supplier(db, company)
 
-        headers = [
-            str(c.value).strip() if c.value else ""
-            for c in ws[1]
-        ]
+                
 
-        count = 0
-
-        for values in ws.iter_rows(
-            min_row=2,
-            values_only=True
-        ):
-
-            row = dict(zip(headers, values))
-
-            if not any(values):
-                continue
-
-            company = normalize(
-                row.get("Company")
-            )
-
-            vendor_po = (
-                normalize(row.get("Vendor PO"))
-                or normalize(row.get("Heat lot"))
-            )
-
-            part_no = normalize(
-                row.get("Part no.")
-            )
-
-            size = row.get("Size")
-            lenght = row.get("Length")
-
-            if not company:
-
-                if vendor_po:
-                    company = f"UNKNOWN-{vendor_po}"
-                else:
-                    company = "UNKNOWN-NO-PO"
-
-            supplier = upsert_supplier(
-                db,
-                company
-            )
-
-            rm = upsert_raw_material(
-                db,
-                normalize(row.get("Type")),
-                normalize(row.get("Spec.") or row.get("Spec")),
-                normalize(row.get("Size")),
-                "feet"
-            )
-
-            mpo = upsert_material_po(
-                db,
-                supplier,
-                vendor_po,
-                parse_date(row.get("Date"))
-            )
-
-            po_items = parse_po_qty(
-                row.get("PO#, Qty")
-            )
-
-            for it in po_items:
-
-                if not part_no:
-                    print(
-                        "⚠️ SKIP row: missing Part no."
-                    )
-                    continue
-
-                part_items = part_no.split()
-
-                for pp_no in part_items:
-
-                    part = db.scalar(
-                        select(Part).where(
-                            Part.part_no == pp_no
-                        )
-                    )
-
-                    if not part:
-                        continue
-
-                    upsert_part_material(
-                        db,
-                        part.id,
-                        rm.id
-                    )
-
-                    line = upsert_material_po_line(
-                        db,
-                        mpo,
-                        part_no,
-                        rm,
-                        it["qty"],
-                        size,
-                        lenght,
-                    )
-
-                    rb = upsert_raw_batch(
-                        db,
-                        vendor_po,
-                        rm,
-                        mpo,
-                        line,
-                        supplier,      # 👈 เพิ่มตรงนี้
-                        normalize(row.get("Heat lot")),
-                        normalize(row.get("Length")),
-                        parse_decimal(it["qty"]),
-                        cutting_note=row.get("Cutting Receiving/HT"),
-                        po_note=row.get("PO#, Qty"),
-                    )
-
-                    lot = get_lot_by_po(
-                        db,
-                        it["po"]
-                    )
-
-                    if not lot:
-                        continue
-
-                    insert_lot_material_use(
-                        db,
-                        lot=lot,
-                        rb=rb,
-                        qty=it["qty"],
-                        note=it["note"],
-                    )
-
-            count += 1
-
-            if count % 50 == 0:
-                db.commit()
-                print(
-                    f"✅ {count} rows processed"
+                # # 2. raw material
+                rm = upsert_raw_material(
+                    db,
+                    normalize(row.get("Type")),
+                    normalize(row.get("Spec.") or row.get("Spec")),
+                    normalize(row.get("Size")),#
+                    'feet'#
                 )
 
-        db.commit()
+                # # Materail PO
+                mpo = upsert_material_po(db, supplier, vendor_po, parse_date(row.get("Date")))
+                po_items = parse_po_qty(row.get("PO#, Qty"))
+                
+                for it in po_items:
+                    
+                    if not part_no:
+                        print("⚠️ SKIP row: missing Part no.")
+                        continue
+                    part_item = part_no.split(" ")
 
-        print(
-            f"🎉 DONE: {count} rows imported"
-        )
+                    for pp_no in part_item:
+                        part = db.scalar(select(Part).where(Part.part_no == pp_no))
+                        if part:
+                            # Part Material USE
+                            upsert_part_material(db, part.id, rm.id)
+
+                            # Mat po line
+                            line = upsert_material_po_line(
+                                db,
+                                mpo,
+                                part_no,
+                                rm,
+                                it["qty"],
+                                size,
+                                lenght,
+                            )
+
+                            # Raw batch
+                            rb = upsert_raw_batch(
+                                db,
+                                vendor_po,
+                                rm,
+                                mpo,
+                                line,
+                                normalize(row.get("Heat lot")),
+                                normalize(row.get("Length")),
+                                parse_decimal(it["qty"]),
+
+                                supplier_id=supplier.id,
+
+                                cutting_note=row.get("Cutting Note"),
+                                po_note=row.get("PO Note"),
+                            )
+
+                            lot = get_lot_by_po(db, it["po"])
+                       
+                            if not lot:
+                                # print(f"❌ LOT NOT FOUND for PO {it['po']}")
+                                continue
+                            # ## Allocate MAT    
+                            insert_lot_material_use(
+                                db,
+                                lot=lot,
+                                rb=rb,
+                                qty=it["qty"],
+                                note=it["note"],
+                            )
+                           
+                # ---------- SAFE ALLOCATION ----------
+                # i=0
+                
+                # if part_no:
+                #     part = db.scalar(select(Part).where(Part.part_no == part_no))
+                #     print(part)
+                #     if part:
+                #         upsert_part_material(db, part.id, rm.id)
+                # if part_no:
+                #     pp_no = part_no.split(" ")
+                # else:
+                #     pp_no = []
+                # print(pp_no)
+                
+                # n= len(pp_no)
+                # for it in po_items:
+                   
+                #     if not it["qty"]:
+                #         continue
+
+                #     i+=1
+                #     if i<n and pp_no[i] :
+                #         print(pp_no[i])
+                #         part = db.scalar(select(Part).where(Part.part_no == pp_no[i]))
+                       
+                #         if part:
+                #             upsert_part_material(db, part.id, rm.id)
+                #         # Mat po line
+                #         line = upsert_material_po_line(
+                #             db,
+                #             mpo,
+                #             part_no,
+                #             rm,
+                #             it["qty"],
+                #             size,
+                #             lenght,
+                #         )
+
+                #         # recive MAT
+                     
+                #         rb = upsert_raw_batch(
+                #             db,
+                #             vendor_po,
+                #             rm,
+                #             mpo,
+                #             line,
+                #             normalize(row.get("Heat lot")),
+                #             normalize(row.get("Length")),
+                #             parse_decimal(it["qty"]),
+                #         )
+                #         lot = get_lot_by_po(db, it["po"])
+
+                #         # print(lot, lot.id,it["qty"])
+                #         if not lot:
+                #             # print(f"❌ LOT NOT FOUND for PO {it['po']}")
+                #             continue
+                #         # ## Allocate MAT    
+                #         insert_lot_material_use(
+                #             db,
+                #             lot=lot,
+                #             rb=rb,
+                #             qty=it["qty"],
+                #             note=it["note"],
+                #         )
+
+                count += 1
+                if count % 50 == 0:
+                    db.commit()
+                    print(f"✅ {count} rows processed")
+
+            db.commit()
+            print(f"🎉 DONE: {count} rows imported")
 
 
 if __name__ == "__main__":

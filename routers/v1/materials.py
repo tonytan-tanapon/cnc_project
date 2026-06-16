@@ -162,6 +162,7 @@ def create_material(payload: RawMaterialCreate, db: Session = Depends(get_db)):
     m = RawMaterial(
         code=code,
         name=payload.name.strip(),
+        type=payload.type,
         spec=payload.spec,
         uom=payload.uom,
         remark=payload.remark,

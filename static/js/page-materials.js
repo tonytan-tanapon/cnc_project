@@ -21,10 +21,10 @@ const trim = (v) => (v == null ? "" : String(v).trim());
 
 function buildPayload(row) {
   return {
-    code:   row.code ? String(row.code).toUpperCase() : null,
-    name:   trim(row.name) || null,
-    spec:   row.spec ? trim(row.spec) : null,
-    uom:    row.uom ? trim(row.uom) : null,
+    code: row.code ? String(row.code).toUpperCase() : null,
+    name: trim(row.name) || null,
+    spec: row.spec ? trim(row.spec) : null,
+    uom: row.uom ? trim(row.uom) : null,
     remark: row.remark ? trim(row.remark) : null,
   };
 }
@@ -56,18 +56,25 @@ function normalizeRow(r) {
     spec: r.spec ?? "",
     uom: r.uom ?? "",
     remark: r.remark ?? "",
+    type: r.type ?? "",
   };
 }
 
 /* ===== TABLE COLUMNS ===== */
 function makeColumns() {
   return [
-   
-    { title: "Code",   field: "code",   width: 110, editor: "input" },
-    { title: "Name",   field: "name",   minWidth: 160, editor: "input", validator: "required" },
-    { title: "Spec",   field: "spec",   widthGrow: 2, minWidth: 220, maxWidth: 600, editor: "input", cssClass: "wrap" },
-    { title: "UoM",    field: "uom",    width: 100, hozAlign: "center", editor: "input" },
-    { title: "Remark", field: "remark", widthGrow: 2, minWidth: 220, maxWidth: 600, editor: "input", cssClass: "wrap" },
+
+    { title: "Code", field: "code", width: 220, editor: "input", cssClass: "wrap" },
+    // { title: "Name",   field: "name",   minWidth: 160, editor: "input", validator: "required" },
+    {
+      title: "Type",
+      field: "type",
+      width: 150,
+      editor: "input"
+    },
+    { title: "Spec", field: "spec", widthGrow: 2, minWidth: 120, maxWidth: 200, editor: "input", cssClass: "wrap" },
+    { title: "UoM", field: "uom", width: 100, hozAlign: "center", editor: "input" },
+    { title: "Remark", field: "remark", widthGrow: 2, minWidth: 120, maxWidth: 200, editor: "input", cssClass: "wrap" },
     {
       title: "Actions",
       field: "_actions",
@@ -142,7 +149,7 @@ async function autosaveCell(cell, opts = {}) {
   const { fromHistory = false, revert } = opts;
 
   const row = cell.getRow();
-  const d   = row.getData();
+  const d = row.getData();
   const fld = cell.getField();
   const newVal = cell.getValue();
   const oldVal = fromHistory ? undefined : cell.getOldValue();
@@ -157,59 +164,60 @@ async function autosaveCell(cell, opts = {}) {
 
   // Build full payload using the latest row data
   const payload = {
-    code:   d.code ? String(d.code).toUpperCase() : null,
-    name:   trim(d.name) || null,
-    spec:   d.spec ? trim(d.spec) : null,
-    uom:    d.uom ? trim(d.uom) : null,
+    code: d.code ? String(d.code).toUpperCase() : null,
+    name: trim(d.name) || null,
+    type: trim(d.type) || null,
+    spec: d.spec ? trim(d.spec) : null,
+    uom: d.uom ? trim(d.uom) : null,
     remark: d.remark ? trim(d.remark) : null,
   };
 
   // 2) CREATE: only when we have no id AND name is present
   // CREATE when no id yet (first valid edit)
-if (!d.id) {
-  if (!payload.name) return; // don't create until we have a name
+  if (!d.id) {
+    if (!payload.name) return; // don't create until we have a name
 
-  if (createInFlight.has(row)) return;
-  createInFlight.add(row);
-  try {
-    const created = await jfetch(ENDPOINTS.base, {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
-    const norm = normalizeRow(created || d);
-    row.update({ ...norm });
-    toast(`Material "${norm.name}" created`);   // ✅ success message
-  } catch (e) {
-    if (!fromHistory && oldVal !== undefined) cell.setValue(oldVal, true);
-    else if (typeof revert === "function") revert();
-    toast(e?.message || "Create failed", false); // ✅ error message
-  } finally {
-    createInFlight.delete(row);
+    if (createInFlight.has(row)) return;
+    createInFlight.add(row);
+    try {
+      const created = await jfetch(ENDPOINTS.base, {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      const norm = normalizeRow(created || d);
+      row.update({ ...norm });
+      toast(`Material "${norm.name}" created`);   // ✅ success message
+    } catch (e) {
+      if (!fromHistory && oldVal !== undefined) cell.setValue(oldVal, true);
+      else if (typeof revert === "function") revert();
+      toast(e?.message || "Create failed", false); // ✅ error message
+    } finally {
+      createInFlight.delete(row);
+    }
+    return;
   }
-  return;
-}
 
-// UPDATE existing (debounced)
-if (patchTimers.has(row)) clearTimeout(patchTimers.get(row));
+  // UPDATE existing (debounced)
+  if (patchTimers.has(row)) clearTimeout(patchTimers.get(row));
 
-const t = setTimeout(async () => {
-  patchTimers.delete(row);
-  try {
-    const updated = await jfetch(`${ENDPOINTS.base}/${encodeURIComponent(d.id)}`, {
-      method: "PATCH",
-      body: JSON.stringify(payload),
-    });
-    const norm = normalizeRow(updated || d);
-    row.update({ ...d, ...norm, id: norm.id ?? d.id });
-    toast(`Saved changes to "${norm.name}"`);   // ✅ success message
-  } catch (e) {
-    if (!fromHistory && oldVal !== undefined) cell.setValue(oldVal, true);
-    else if (typeof revert === "function") revert();
-    toast(e?.message || "Save failed", false);  // ✅ error message
-  }
-}, PATCH_DEBOUNCE_MS);
+  const t = setTimeout(async () => {
+    patchTimers.delete(row);
+    try {
+      const updated = await jfetch(`${ENDPOINTS.base}/${encodeURIComponent(d.id)}`, {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+      });
+      const norm = normalizeRow(updated || d);
+      row.update({ ...d, ...norm, id: norm.id ?? d.id });
+      toast(`Saved changes to "${norm.name}"`);   // ✅ success message
+    } catch (e) {
+      if (!fromHistory && oldVal !== undefined) cell.setValue(oldVal, true);
+      else if (typeof revert === "function") revert();
+      toast(e?.message || "Save failed", false);  // ✅ error message
+    }
+  }, PATCH_DEBOUNCE_MS);
 
-patchTimers.set(row, t);
+  patchTimers.set(row, t);
 
 }
 
@@ -371,7 +379,7 @@ function bindAdd() {
   if (!btn) return;
   btn.addEventListener("click", async () => {
     const row = await table.addRow(
-      { code: "", name: "", spec: "", uom: "", remark: "" },
+      { code: "", name: "", spec: "", uom: "", remark: "",type: "",},
       true
     );
     // start editing "name" to encourage valid create

@@ -353,12 +353,19 @@ class RawBatch(Base):
     length_text = Column(String, nullable=True)   # ✅ NEW (raw text เช่น "20 ft")
     weight = Column(Numeric(18, 3), nullable=True)
     cert = Column(Text, nullable=True)
+    
+    mat_po = Column(Text, nullable=True)
+    cutting_note = Column(Text, nullable=True)
+    po_note = Column(Text, nullable=True)
+    file_url = Column(Text, nullable=True)
     # relations
     material = relationship("RawMaterial", back_populates="batches")
     supplier = relationship("Supplier", back_populates="raw_batches")
     po_line = relationship("MaterialPOLine", back_populates="batches", foreign_keys=[material_po_line_id])
     po = relationship("MaterialPO", foreign_keys=[po_id])
     uses = relationship("LotMaterialUse", back_populates="batch")
+
+    
 
     __table_args__ = (
         UniqueConstraint("material_id", "batch_no", "supplier_id", name="uq_batch_material_supplier"),
@@ -1192,7 +1199,7 @@ class SubconReceiptItem(Base):
 # ================ Machines ===============
 # =========================================
 
-class Machine(Base):
+class Machine(Base): 
     __tablename__ = "machines"
     id = Column(Integer, primary_key=True)
     code = Column(String, unique=True, index=True, nullable=False)   # e.g. CNC-01
@@ -1923,27 +1930,31 @@ def _lmu_before_insert_guard(mapper, connection, target: LotMaterialUse):
             f"batch {target.batch_id}: total_used would be {total_after} > qty_received {qty_received}"
         )
 
-from decimal import Decimal   # ✅ เพิ่มตรงนี้
+from decimal import Decimal
+
 @event.listens_for(LotMaterialUse, "before_update")
-def _lmu_before_update_guard(mapper, connection, target: LotMaterialUse):
+def _lmu_before_update_guard(mapper, connection, target):
+
     total_used_other = connection.execute(
         select(func.coalesce(func.sum(LotMaterialUse.qty), 0)).where(
-            (LotMaterialUse.batch_id == target.batch_id) & (LotMaterialUse.id != target.id)
+            (LotMaterialUse.batch_id == target.batch_id)
+            & (LotMaterialUse.id != target.id)
         )
     ).scalar_one()
 
-    qty_received = connection.execute(
-        select(func.coalesce(RawBatch.qty_received, 0)).where(RawBatch.id == target.batch_id)
-    ).scalar_one()
-    qty_value = getattr(target, "qty", 0)   # ✅ เพิ่มบรรทัดนี้
-    total_after = Decimal(total_used_other or 0) + Decimal(qty_value or 0)
+    qty_value = getattr(target, "qty", 0)
+
+    total_after = (
+        Decimal(total_used_other or 0)
+        + Decimal(qty_value or 0)
+    )
+
     if total_after < 0:
-        raise ValueError(f"batch {target.batch_id}: total_used would be {total_after} < 0")
-    if total_after > (qty_received or 0):
         raise ValueError(
-            f"batch {target.batch_id}: total_used would be {total_after} > qty_received {qty_received}"
+            f"batch {target.batch_id}: total_used would be {total_after} < 0"
         )
 
+    # ❌ ไม่ check qty_received แล้ว
 
 # =========================================
 # === Computed stock properties (read-only)
