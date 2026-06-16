@@ -216,6 +216,7 @@ class RawMaterialCreate(BaseModel):
     remark: Optional[str] = None
 
 class RawMaterialUpdate(BaseModel):
+    code: Optional[str] = None
     name: Optional[str] = None
     type: Optional[str] = None
     spec: Optional[str] = None
@@ -275,6 +276,9 @@ class RawBatchCreate(BaseModel):
     qty_received: Decimal = Field(default=Decimal("0"), ge=Decimal("0"))
     location: str | None = None
     cert_file: str | None = None
+    heat_lot: str | None = None
+    size_text: str | None = None
+    length_text: str | None = None
 
     # Ignore stray fields instead of 422
     model_config = ConfigDict(extra="ignore")

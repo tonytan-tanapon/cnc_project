@@ -1,6 +1,7 @@
 // /static/js/page-batch-ledger.js
 import { $, jfetch, toast } from "./api.js";
-
+let materialOptions = {};
+let supplierOptions = {};
 /* ===== CONFIG ===== */
 const ENDPOINT = "/reports/materials/batches";
 const PER_PAGE = 50;
@@ -29,22 +30,81 @@ const nowMs = () => performance?.now?.() || Date.now();
 const underCooldown = () => nowMs() - lastFetchAt < FETCH_COOLDOWN_MS;
 const markFetched = () => { lastFetchAt = nowMs(); };
 
+
+async function loadMaterialOptions() {
+
+  const rows =
+    await jfetch("/materials/options");
+
+  materialOptions = {};
+
+  const dl =
+    document.getElementById("materialList");
+
+  dl.innerHTML = "";
+
+  rows.forEach(r => {
+
+    materialOptions[r.label] = r.value;
+
+    const opt =
+      document.createElement("option");
+
+    opt.value = r.label;
+
+    dl.appendChild(opt);
+  });
+}
+
+async function loadSupplierOptions() {
+
+  const rows =
+    await jfetch("/suppliers/options");
+
+  supplierOptions = {};
+
+  const dl =
+    document.getElementById("supplierList");
+
+  dl.innerHTML = "";
+
+  rows.forEach(r => {
+
+    supplierOptions[r.label] = r.value;
+
+    const opt =
+      document.createElement("option");
+
+    opt.value = r.label;
+
+    dl.appendChild(opt);
+  });
+}
 /* ===== COLUMNS ===== */
 function makeColumns() {
   return [
-    { title: "No.", width: 70, headerSort: false, formatter: "rownum" },
-    { title: "Batch No", field: "batch_no", width: 160 },
+    // { title: "No.", width: 70, headerSort: false, formatter: "rownum" },
+    { title: "Batch No", field: "batch_no", width: 110 },
+
+    { title: "Size", field: "size_text", width: 100 },
+    { title: "Length", field: "length_text", width: 100 },
+    { title: "Heat Lot", field: "heat_lot", width: 100 },
+
+
     { title: "Material", field: "material_code", width: 160 },
+    { title: "Type", field: "material_type", width: 120 },
+
+    { title: "Spec", field: "material_spec", width: 220 },
     { title: "Supplier", field: "supplier_code", width: 140 },
-    {
-      title: "Received At",
-      field: "received_at",
-      width: 150,
-      formatter: (cell) => (cell.getValue() ? new Date(cell.getValue()).toLocaleDateString() : ""),
-    },
-    { title: "Qty Received", field: "qty_received", width: 140, hozAlign: "right", formatter: (c) => numFmt(c.getValue()) },
-    { title: "Qty Used", field: "qty_used", width: 120, hozAlign: "right", formatter: (c) => numFmt(c.getValue()) },
-    { title: "Available", field: "qty_available", width: 120, hozAlign: "right", formatter: (c) => numFmt(c.getValue()) },
+    // {
+    //   title: "Received At",
+    //   field: "received_at",
+    //   width: 150,
+    //   formatter: (cell) => (cell.getValue() ? new Date(cell.getValue()).toLocaleDateString() : ""),
+    // },
+    // { title: "Qty Received", field: "qty_received", width: 140, hozAlign: "right", formatter: (c) => numFmt(c.getValue()) },
+    // { title: "Qty Used", field: "qty_used", width: 120, hozAlign: "right", formatter: (c) => numFmt(c.getValue()) },
+    // { title: "Available", field: "qty_available", width: 120, hozAlign: "right", formatter: (c) => numFmt(c.getValue()) },
     { title: "Location", field: "location", width: 140 },
   ];
 }
@@ -185,8 +245,123 @@ function bindExport() {
   });
 }
 
+function bindAddPanel() {
+
+  console.log("bindAddPanel loaded");
+
+  const btn = document.getElementById("_add");
+
+  console.log(btn);
+
+  btn?.addEventListener("click", () => {
+
+    console.log("ADD CLICKED");
+
+    const panel =
+      document.getElementById("addPanel");
+
+    panel.style.display = "block";
+
+  });
+
+}
+
+
 /* ===== BOOT ===== */
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
+
+  await loadMaterialOptions();
+  await loadSupplierOptions();
+
+  // bind UI ก่อน
+  bindFilters();
+  bindExport();
+  bindAddPanel();
+
+  // SAVE BUTTON
+  document.getElementById("_save")
+    ?.addEventListener("click", async () => {
+
+      console.log("SAVE CLICKED");
+
+      try {
+
+        const material_id =
+          materialOptions[
+          document.getElementById("_material_id").value
+          ];
+
+        const supplier_id =
+          supplierOptions[
+          document.getElementById("_supplier_id").value
+          ];
+        console.log(material_id);
+        console.log(supplier_id);
+
+        if (!material_id) {
+          toast("Please select material", false);
+          return;
+        }
+
+        if (!supplier_id) {
+          toast("Please select supplier", false);
+          return;
+        }
+
+        const payload = {
+          batch_no:
+            document.getElementById("_batch_no")?.value?.trim() || "",
+
+          material_id,
+          supplier_id,
+
+          heat_lot:
+            document.getElementById("_heat_lot")?.value?.trim() || "",
+
+          size_text:
+            document.getElementById("_size_text")?.value?.trim() || "",
+
+          length_text:
+            document.getElementById("_length_text")?.value?.trim() || "",
+
+          qty_received:
+            Number(
+              document.getElementById("_qty_received")?.value || 0
+            )
+        };
+
+        console.log(payload);
+
+        await jfetch("/raw_batches/raw-batches", {
+          method: "POST",
+          body: JSON.stringify(payload)
+        });
+          
+        toast("Saved");
+
+        document.getElementById("addPanel").style.display = "none";
+
+        document.getElementById("_batch_no").value = "";
+        document.getElementById("_material_id").value = "";
+        document.getElementById("_supplier_id").value = "";
+        document.getElementById("_heat_lot").value = "";
+        document.getElementById("_size_text").value = "";
+        document.getElementById("_length_text").value = "";
+        document.getElementById("_qty_received").value = "";
+        await resetAndLoadFirst();
+
+      } catch (e) {
+
+        console.error("SAVE ERROR:", e);
+
+        toast(
+          e?.message || "Save failed",
+          false
+        );
+      }
+    });
+
+  // TABLE
   table = new Tabulator(`#${UI.tableMount}`, {
     layout: "fitColumns",
     height: "600px",
@@ -194,15 +369,14 @@ document.addEventListener("DOMContentLoaded", () => {
     placeholder: "No data",
     reactiveData: true,
     index: "batch_id",
-    // Optionally: provide empty initial data so no setData happens before built
     data: [],
   });
 
-  // Wait until Tabulator is fully initialized before any data ops
   table.on("tableBuilt", () => {
+
     tableBuilt = true;
-    bindFilters();
-    bindExport();
-    resetAndLoadFirst();     // <-- safe now
+
+    resetAndLoadFirst();
   });
+
 });

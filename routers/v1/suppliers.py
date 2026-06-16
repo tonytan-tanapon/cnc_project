@@ -45,6 +45,26 @@ class SupplierCursorPage(BaseModel):
     prev_cursor: int | None = None
     has_more: bool
 
+
+
+@router.get("/options")
+def supplier_options(db: Session = Depends(get_db)):
+
+    rows = (
+        db.query(Supplier)
+        .filter(Supplier.is_material_supplier == True)
+        .order_by(Supplier.code)
+        .all()
+    )
+
+    return [
+        {
+            "value": r.id,
+            "label": f"{r.code} | {r.name}"
+        }
+        for r in rows
+    ]
+
 @router.get("", response_model=SupplierPage)
 def list_suppliers(
     q: Optional[str] = Query(None, description="Search by code or name (ilike)"),
@@ -206,3 +226,4 @@ def delete_supplier(supplier_id: int, db: Session = Depends(get_db)):
     db.delete(s)
     db.commit()
     return {"message": "Supplier deleted"}
+

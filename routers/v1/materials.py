@@ -182,6 +182,24 @@ def create_material(payload: RawMaterialCreate, db: Session = Depends(get_db)):
     raise HTTPException(500, "Failed to generate unique material code")
 
 
+
+@router.get("/options")
+def material_options(db: Session = Depends(get_db)):
+
+    rows = (
+        db.query(RawMaterial)
+        .order_by(RawMaterial.code)
+        .all()
+    )
+
+    return [
+        {
+            "value": r.id,
+            "label": f"{r.code} | {r.type or ''} | {r.spec or ''}"
+        }
+        for r in rows
+    ]
+
 # ---------- get/update/delete ----------
 @router.get("/{mat_id}", response_model=RawMaterialOut)
 def get_material(mat_id: int, db: Session = Depends(get_db)):
@@ -193,12 +211,23 @@ def get_material(mat_id: int, db: Session = Depends(get_db)):
 
 @router.patch("/{mat_id}", response_model=RawMaterialOut)
 def update_material(mat_id: int, payload: RawMaterialUpdate, db: Session = Depends(get_db)):
+
+    print(payload)
     m = db.get(RawMaterial, mat_id)
     if not m:
         raise HTTPException(404, "Material not found")
     for k, v in payload.dict(exclude_unset=True).items():
         setattr(m, k, v)
-    db.commit()
+    
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            409,
+            "Material code already exists"
+        )
+
     db.refresh(m)
     return m
 
@@ -214,3 +243,4 @@ def delete_material(mat_id: int, db: Session = Depends(get_db)):
     db.delete(m)
     db.commit()
     return {"message": "Material deleted"}
+

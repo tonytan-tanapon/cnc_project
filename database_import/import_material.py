@@ -180,34 +180,46 @@ def upsert_material_po(db, supplier, po_no, order_date):
     return mpo
 
 
+from utils.code_generator import next_code
 
 def upsert_raw_material(db, type_, spec, size, uom):
-    code = ", ".join(x for x in (type_, spec) if x).upper()
+
+
+
+    name = ", ".join(
+        x for x in (type_, spec) if x
+    ).upper()
 
     rm = db.scalar(
-        select(RawMaterial).where(RawMaterial.code == code)
+        select(RawMaterial).where(
+            func.lower(RawMaterial.type) == type_.lower(),
+            func.lower(RawMaterial.spec) == spec.lower()
+        )
     )
 
     if rm:
-        # ✅ UPDATE existing row
-        rm.type = type_ or rm.type
-        rm.spec = spec or rm.spec
         rm.size_text = size or rm.size_text
         rm.uom = uom or rm.uom
-        rm.name = rm.name or code   # optional safety
         return rm
 
-    # ✅ INSERT new row
     rm = RawMaterial(
-        code=code,
-        name=code,
+        code=next_code(
+            db,
+            RawMaterial,
+            "code",
+            prefix="M",
+            width=4
+        ),
+        name=name,
         type=type_,
         spec=spec,
         size_text=size,
         uom=uom,
     )
+
     db.add(rm)
     db.flush()
+
     return rm
 
 
@@ -534,15 +546,19 @@ def main():
                     )
 
                     rb = upsert_raw_batch(
-                        db,
-                        vendor_po,
-                        rm,
-                        mpo,
-                        line,
-                        supplier,      # 👈 เพิ่มตรงนี้
-                        normalize(row.get("Heat lot")),
-                        normalize(row.get("Length")),
-                        parse_decimal(it["qty"]),
+                        db=db,
+                        batch_no=vendor_po,
+                        rm=rm,
+                        mpo=mpo,
+                        line=line,
+
+                        heat_no=normalize(row.get("Heat lot")),
+                        size_text=normalize(row.get("Size")),
+                        length_text=normalize(row.get("Length")),
+                        weight=parse_decimal(it["qty"]),
+
+                        supplier_id=supplier.id,
+
                         cutting_note=row.get("Cutting Receiving/HT"),
                         po_note=row.get("PO#, Qty"),
                     )

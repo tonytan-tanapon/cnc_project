@@ -64,16 +64,17 @@ function normalizeRow(r) {
 function makeColumns() {
   return [
 
-    { title: "Code", field: "code", width: 220, editor: "input", cssClass: "wrap" },
-    // { title: "Name",   field: "name",   minWidth: 160, editor: "input", validator: "required" },
+    { title: "Code", field: "code", width: 100, editor: "input", cssClass: "wrap" },
+    { title: "Name",   field: "name",   minWidth: 110, editor: "input", validator: "required" },
+    
     {
       title: "Type",
       field: "type",
-      width: 150,
+      width: 200,
       editor: "input"
     },
-    { title: "Spec", field: "spec", widthGrow: 2, minWidth: 120, maxWidth: 200, editor: "input", cssClass: "wrap" },
-    { title: "UoM", field: "uom", width: 100, hozAlign: "center", editor: "input" },
+    { title: "Spec", field: "spec", widthGrow: 2, minWidth: 120, maxWidth: 300, editor: "input", cssClass: "wrap" },
+    // { title: "UoM", field: "uom", width: 100, hozAlign: "center", editor: "input" },
     { title: "Remark", field: "remark", widthGrow: 2, minWidth: 120, maxWidth: 200, editor: "input", cssClass: "wrap" },
     {
       title: "Actions",
@@ -225,7 +226,7 @@ async function autosaveCell(cell, opts = {}) {
 /* ===== INIT ===== */
 function initTable() {
   table = new Tabulator(`#${UI.tableMount}`, {
-    layout: "fitColumns",
+    // layout: "fitColumns",
     height: "100%",
     columns: makeColumns(),
     placeholder: "No materials",

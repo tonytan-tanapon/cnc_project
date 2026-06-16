@@ -120,14 +120,32 @@ def material_batch_ledger(
 
     where_sql = ("WHERE " + " AND ".join(where)) if where else ""
     sql = f"""
-      SELECT
-        v.batch_id, v.batch_no, v.material_code, v.material_name, v.supplier_code,
-        v.received_at, v.qty_received, v.qty_used, v.qty_available, v.location
-      FROM v_material_batch_ledger v
-      {where_sql}
-      ORDER BY v.received_at DESC NULLS LAST, v.batch_no
-      OFFSET :skip LIMIT :limit
-    """
+        SELECT
+            v.batch_id,
+            v.batch_no,
+
+            v.size_text,
+            v.length_text,
+            v.heat_lot,
+
+            v.material_code,
+            v.material_name,
+            v.material_type,
+            v.material_spec,
+
+            v.supplier_code,
+
+            v.received_at,
+            v.qty_received,
+            v.qty_used,
+            v.qty_available,
+            v.location
+
+        FROM v_material_batch_ledger v
+        {where_sql}
+        ORDER BY v.received_at DESC NULLS LAST, v.batch_no
+        OFFSET :skip LIMIT :limit
+        """
     params.update(pg)
 
     rows = db.execute(text(sql), params).mappings().all()
@@ -135,8 +153,25 @@ def material_batch_ledger(
     if export == "csv":
         buf = io.StringIO()
         writer = csv.DictWriter(buf, fieldnames=[
-            "batch_id","batch_no","material_code","material_name","supplier_code",
-            "received_at","qty_received","qty_used","qty_available","location"
+            "batch_id",
+            "batch_no",
+
+            "size_text",
+            "length_text",
+            "heat_lot",
+
+            "material_code",
+            "material_name",
+            "material_type",
+            "material_spec",
+
+            "supplier_code",
+
+            "received_at",
+            "qty_received",
+            "qty_used",
+            "qty_available",
+            "location"
         ])
         writer.writeheader()
         writer.writerows(rows)
