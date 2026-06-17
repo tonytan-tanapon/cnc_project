@@ -71,6 +71,84 @@ function makeColumns() {
             }
         },
         {
+            title: "QR",
+            width: 120,
+            hozAlign: "center",
+
+            formatter() {
+                return `
+            <button class="btn btn-sm btn-success qr40">
+                4
+            </button>
+
+            <button class="btn btn-sm btn-primary qr30">
+                30
+            </button>
+        `;
+            },
+
+            async cellClick(e, cell) {
+
+                const row = cell.getRow().getData();
+
+                let qty = 4;
+
+                if (e.target.classList.contains("qr30")) {
+                    qty = 30;
+                }
+
+                const res = await fetch(
+                    `/api/v1/material-traceability/export-docx/${row.lot_material_use_id}?qty=${qty}`
+                );
+
+                const blob = await res.blob();
+
+                const url = window.URL.createObjectURL(blob);
+
+                const a = document.createElement("a");
+
+                a.href = url;
+                a.download = `qr_${qty}.docx`;
+
+                a.click();
+
+                window.URL.revokeObjectURL(url);
+            }
+        },
+        
+        {
+            title: "QR",
+            field: "lot_material_use_id",
+            width: 120,
+            hozAlign: "center",
+
+            formatter(cell) {
+
+                const id = cell.getValue();
+
+                return `
+            <img
+                src="/api/v1/material-traceability/qr/${id}"
+                style="
+                    width:80px;
+                    height:80px;
+                    cursor:pointer;
+                "
+            />
+        `;
+            },
+
+            cellClick(e, cell) {
+
+                const id = cell.getValue();
+
+                window.open(
+                    `/api/v1/material-traceability/qr/${id}`,
+                    "_blank"
+                );
+            }
+        },
+        {
             title: "Lot No",
             field: "lot_no",
             // editor: "input",
@@ -368,7 +446,7 @@ async function loadData(keyword = "") {
 function initTable() {
 
     table = new Tabulator("#listBody", {
-        
+
         height: "100%",
         placeholder: "No Material Traceability Records",
         movableColumns: true,

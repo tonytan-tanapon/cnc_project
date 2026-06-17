@@ -347,6 +347,10 @@ class RawBatchUpdate(BaseModel):
     # qty_used: Optional[Decimal] = Field(None, ge=Decimal("0"))     # ← NEW
     location: Optional[str] = None
     cert_file: Optional[str] = None
+    heat_lot: Optional[str] = None
+    size_text: Optional[str] = None
+    length_text: Optional[str] = None
+
 
     received_qty: Optional[Decimal] = None
     unit_cost: Optional[Decimal] = None

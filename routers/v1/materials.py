@@ -182,7 +182,6 @@ def create_material(payload: RawMaterialCreate, db: Session = Depends(get_db)):
     raise HTTPException(500, "Failed to generate unique material code")
 
 
-
 @router.get("/options")
 def material_options(db: Session = Depends(get_db)):
 
@@ -195,11 +194,16 @@ def material_options(db: Session = Depends(get_db)):
     return [
         {
             "value": r.id,
-            "label": f"{r.code} | {r.type or ''} | {r.spec or ''}"
+
+            "label":
+                f"{r.type or ''} | {r.spec or ''}",
+
+            "code": r.code,
+            "type": r.type,
+            "spec": r.spec
         }
         for r in rows
     ]
-
 # ---------- get/update/delete ----------
 @router.get("/{mat_id}", response_model=RawMaterialOut)
 def get_material(mat_id: int, db: Session = Depends(get_db)):

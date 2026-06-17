@@ -60,7 +60,7 @@ def supplier_options(db: Session = Depends(get_db)):
     return [
         {
             "value": r.id,
-            "label": f"{r.code} | {r.name}"
+            "label": f"{r.code}"
         }
         for r in rows
     ]

@@ -1,7 +1,11 @@
 // /static/js/page-batch-ledger.js
 import { $, jfetch, toast } from "./api.js";
+let editingBatchId = null;
+let supplierEditorOptions = {};
 let materialOptions = {};
 let supplierOptions = {};
+let materialEditorOptions = {};
+let materialLookup = {};
 /* ===== CONFIG ===== */
 const ENDPOINT = "/reports/materials/batches";
 const PER_PAGE = 50;
@@ -37,6 +41,8 @@ async function loadMaterialOptions() {
     await jfetch("/materials/options");
 
   materialOptions = {};
+  materialEditorOptions = {};
+  materialLookup = {};
 
   const dl =
     document.getElementById("materialList");
@@ -46,6 +52,10 @@ async function loadMaterialOptions() {
   rows.forEach(r => {
 
     materialOptions[r.label] = r.value;
+
+    materialEditorOptions[r.value] = r.label;
+
+    materialLookup[r.value] = r;
 
     const opt =
       document.createElement("option");
@@ -62,6 +72,7 @@ async function loadSupplierOptions() {
     await jfetch("/suppliers/options");
 
   supplierOptions = {};
+  supplierEditorOptions = {};
 
   const dl =
     document.getElementById("supplierList");
@@ -71,6 +82,8 @@ async function loadSupplierOptions() {
   rows.forEach(r => {
 
     supplierOptions[r.label] = r.value;
+
+    supplierEditorOptions[r.value] = r.label;
 
     const opt =
       document.createElement("option");
@@ -84,18 +97,152 @@ async function loadSupplierOptions() {
 function makeColumns() {
   return [
     // { title: "No.", width: 70, headerSort: false, formatter: "rownum" },
-    { title: "Batch No", field: "batch_no", width: 110 },
 
-    { title: "Size", field: "size_text", width: 100 },
-    { title: "Length", field: "length_text", width: 100 },
-    { title: "Heat Lot", field: "heat_lot", width: 100 },
+    {
+      title: "QR",
+      width: 120,
+      hozAlign: "center",
+
+      formatter() {
+        return `
+      <button class="btn btn-sm btn-primary qr4">
+        4
+      </button>
+
+      <button class="btn btn-sm btn-success qr30">
+        30
+      </button>
+    `;
+      },
+
+      async cellClick(e, cell) {
 
 
-    { title: "Material", field: "material_code", width: 160 },
-    { title: "Type", field: "material_type", width: 120 },
 
-    { title: "Spec", field: "material_spec", width: 220 },
-    { title: "Supplier", field: "supplier_code", width: 140 },
+        const row = cell.getRow().getData();
+
+        let url = "";
+
+        if (e.target.classList.contains("qr4")) {
+          url = `/api/v1/batches/export-docx/${row.batch_id}?qty=4`;
+
+        } else if (e.target.classList.contains("qr30")) {
+          url = `/api/v1/batches/export-docx/${row.batch_id}?qty=30`;
+
+        } else {
+          return;
+        }
+
+        const res = await fetch(url);
+
+        const blob = await res.blob();
+
+        const fileUrl = window.URL.createObjectURL(blob);
+
+        const a = document.createElement("a");
+
+        a.href = fileUrl;
+        a.download = `${row.batch_no}.docx`;
+
+        a.click();
+
+        window.URL.revokeObjectURL(fileUrl);
+      }
+    },
+    {
+      title: "Batch No",
+      field: "batch_no",
+      width: 110,
+      editor: "input"
+    },
+
+    {
+      title: "Size",
+      field: "size_text",
+      width: 100,
+      editor: "input"
+    },
+
+    {
+      title: "Length",
+      field: "length_text",
+      width: 100,
+      editor: "input"
+    },
+
+    {
+      title: "Heat Lot",
+      field: "heat_lot",
+      width: 100,
+      editor: "input"
+    },
+
+    {
+      title: "Location",
+      field: "location",
+      width: 140,
+      editor: "input"
+    },
+
+    {
+      title: "Material",
+      field: "material_id",
+      width: 250,
+
+      editor: "list",
+
+      editorParams: {
+        values: materialEditorOptions,
+
+        autocomplete: true,
+        filterFunc(term, label, value) {
+
+          const mat = materialLookup[value];
+
+          if (!mat) return false;
+
+          term = term.toLowerCase();
+
+          return (
+            (mat.code || "").toLowerCase().includes(term) ||
+            (mat.type || "").toLowerCase().includes(term) ||
+            (mat.spec || "").toLowerCase().includes(term)
+          );
+        }
+      },
+
+      formatter(cell) {
+
+        const mat =
+          materialLookup[cell.getValue()];
+
+        if (!mat) return "";
+
+        return `${mat.type || ""} | ${mat.spec || ""}`;
+      }
+    },
+    // { title: "Type", field: "material_type", width: 120 },
+
+    // { title: "Spec", field: "material_spec", width: 220 },
+    {
+      title: "Supplier",
+      field: "supplier_id",
+      width: 180,
+
+      editor: "list",
+
+      editorParams: {
+        values: supplierEditorOptions,
+
+        autocomplete: true,
+        listOnEmpty: true,
+        freetext: false
+      },
+
+      formatter(cell) {
+        return supplierEditorOptions[cell.getValue()] || "";
+      }
+    },
     // {
     //   title: "Received At",
     //   field: "received_at",
@@ -105,7 +252,55 @@ function makeColumns() {
     // { title: "Qty Received", field: "qty_received", width: 140, hozAlign: "right", formatter: (c) => numFmt(c.getValue()) },
     // { title: "Qty Used", field: "qty_used", width: 120, hozAlign: "right", formatter: (c) => numFmt(c.getValue()) },
     // { title: "Available", field: "qty_available", width: 120, hozAlign: "right", formatter: (c) => numFmt(c.getValue()) },
-    { title: "Location", field: "location", width: 140 },
+
+
+    {
+      title: "Del",
+      width: 70,
+      hozAlign: "center",
+
+      formatter() {
+        return `
+            <button class="btn btn-sm btn-danger">
+                🗑
+            </button>
+        `;
+      },
+
+      async cellClick(e, cell) {
+
+        const row = cell.getRow().getData();
+        console.log(row);
+
+
+        if (!confirm(`Delete Batch ${row.batch_no}?`)) {
+          return;
+        }
+
+        try {
+
+          await jfetch(
+            `/api/v1/batches/${row.batch_id}`,
+            {
+              method: "DELETE"
+            }
+          );
+
+          cell.getRow().delete();
+
+          toast("Batch deleted");
+
+        } catch (err) {
+
+          console.error(err);
+
+          toast(
+            err?.message || "Delete failed",
+            false
+          );
+        }
+      }
+    },
   ];
 }
 function numFmt(v) {
@@ -264,6 +459,20 @@ function bindAddPanel() {
 
   });
 
+  btn?.addEventListener("click", () => {
+
+    editingBatchId = null;
+
+    document.getElementById("_batch_no").value = "";
+    document.getElementById("_heat_lot").value = "";
+    document.getElementById("_size_text").value = "";
+    document.getElementById("_length_text").value = "";
+    document.getElementById("_qty_received").value = "";
+
+    document.getElementById("addPanel").style.display =
+      "block";
+  });
+
 }
 
 
@@ -332,11 +541,31 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         console.log(payload);
 
-        await jfetch("/raw_batches/raw-batches", {
-          method: "POST",
-          body: JSON.stringify(payload)
-        });
-          
+        if (editingBatchId) {
+
+          await jfetch(
+            `/api/v1/batches/${editingBatchId}`,
+            {
+              method: "PUT",
+              body: JSON.stringify(payload)
+            }
+          );
+
+          toast("Updated");
+
+        } else {
+
+          await jfetch(
+            "/raw_batches/raw-batches",
+            {
+              method: "POST",
+              body: JSON.stringify(payload)
+            }
+          );
+
+          toast("Saved");
+        }
+        editingBatchId = null;
         toast("Saved");
 
         document.getElementById("addPanel").style.display = "none";
@@ -370,6 +599,57 @@ document.addEventListener("DOMContentLoaded", async () => {
     reactiveData: true,
     index: "batch_id",
     data: [],
+  });
+  table.on("cellClick", (e, cell) => {
+    console.log(cell.getRow().getData());
+  });
+
+  table.on("cellEdited", async function (cell) {
+
+    const row = cell.getRow().getData();
+
+    if (cell.getField() === "material_id") {
+
+      const mat =
+        materialLookup[row.material_id];
+
+      if (mat) {
+
+        cell.getRow().update({
+          material_type: mat.type,
+          material_spec: mat.spec
+        });
+      }
+    }
+
+    try {
+
+      await jfetch(
+        `/api/v1/batches/${row.batch_id}`,
+        {
+          method: "PUT",
+          body: JSON.stringify({
+            batch_no: row.batch_no,
+            size_text: row.size_text,
+            length_text: row.length_text,
+            heat_lot: row.heat_lot,
+            location: row.location,
+            supplier_id: row.supplier_id,
+            material_id: row.material_id
+          })
+        }
+      );
+
+      toast("Saved");
+
+    } catch (err) {
+
+      console.error(err);
+
+      toast("Save failed", false);
+
+      cell.restoreOldValue();
+    }
   });
 
   table.on("tableBuilt", () => {

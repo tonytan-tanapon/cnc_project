@@ -7,7 +7,7 @@ from typing import List, Optional
 from pydantic import BaseModel
 
 from database import get_db
-from models import RawMaterial, RawBatch
+from models import RawMaterial, RawBatch,Supplier
 from schemas import RawBatchCreate, RawBatchUpdate, RawBatchOut
 from utils.code_generator import next_code  # same helper used by customers/materials
 
@@ -271,3 +271,162 @@ def delete_batch(batch_id: int, db: Session = Depends(get_db)):
         raise HTTPException(400, "Batch already used; cannot delete")
     db.delete(b); db.commit()
     return {"message": "Batch deleted"}
+
+from fastapi.responses import FileResponse
+from docx import Document
+from docx.shared import Inches
+import tempfile
+import qrcode
+
+@router.get("/export-docx/{batch_id}")
+def export_batch_docx(
+    batch_id: int,
+    qty: int = 30,
+    db: Session = Depends(get_db)
+):
+    print(qty)   # 4 หรือ 30
+
+    row = (
+        db.query(
+            RawBatch.batch_no,
+            RawBatch.size_text,
+            RawBatch.length_text,
+            RawBatch.heat_lot,
+
+            RawMaterial.type,
+            RawMaterial.spec,
+
+            Supplier.name.label("supplier_name")
+        )
+
+        .join(
+            RawMaterial,
+            RawMaterial.id == RawBatch.material_id
+        )
+
+        .outerjoin(
+            Supplier,
+            Supplier.id == RawBatch.supplier_id
+        )
+
+        .filter(
+            RawBatch.id == batch_id
+        )
+
+        .first()
+    )
+
+    if not row:
+        raise HTTPException(
+            status_code=404,
+            detail="Batch not found"
+        )
+
+    # -------------------------
+    # Generate QR
+    # -------------------------
+    qr_text = (
+        f"BATCH:{row.batch_no}\n"
+        f"TYPE:{row.type}\n"
+        f"SPEC:{row.spec}\n"
+        f"SIZE:{row.size_text}\n"
+        f"LENGTH:{row.length_text}\n"
+        f"SUPPLIER:{row.supplier_name or ''}"
+    )
+
+    qr = qrcode.QRCode(
+        version=1,
+        box_size=10,
+        border=2
+    )
+
+    qr.add_data(qr_text)
+    qr.make(fit=True)
+
+    img = qr.make_image(
+        fill_color="black",
+        back_color="white"
+    )
+
+    tmp_qr = tempfile.NamedTemporaryFile(
+        delete=False,
+        suffix=".png"
+    )
+
+    img.save(tmp_qr.name)
+
+    # -------------------------
+    # Open Template
+    # -------------------------
+    qr_size = 2
+    if qty == 4: 
+        doc = Document(
+            "templates/qr_template_bat_4.docx"
+        )
+        qr_size = 1
+    else:
+         doc = Document(
+            "templates/qr_template_bat_30.docx"
+        )
+         qr_size = 0.8
+
+    mapping = {
+        "{{supplier}}" :  row.supplier_name or "",
+        "{{batch}}" :  row.batch_no or "",
+        "{{mat_po}}": row.batch_no or "",
+        "{{type}}": row.type or "",
+        "{{spec}}": row.spec or "",
+        "{{size}}": row.size_text or "",
+        "{{length}}": row.length_text or ""
+    }
+
+    print("mapping", mapping)
+    # Replace placeholders
+    from docx.shared import Pt
+
+    for table in doc.tables:
+        for row_ in table.rows:
+            for cell in row_.cells:
+
+                for para in cell.paragraphs:
+                    for run in para.runs:
+                        for old, new in mapping.items():
+                            if old in run.text:
+                                run.text = run.text.replace(
+                                    old,
+                                    str(new)
+                                )
+
+    # Insert QR
+    for table in doc.tables:
+        for row_ in table.rows:
+            for cell in row_.cells:
+
+                if "{{QR}}" in cell.text:
+
+                    cell.text = ""
+
+                    p = cell.paragraphs[0]
+
+                    run = p.add_run()
+
+                    run.add_picture(
+                        tmp_qr.name,
+                        width=Inches(qr_size)
+                    )
+
+    # -------------------------
+    # Save
+    # -------------------------
+    tmp_doc = tempfile.NamedTemporaryFile(
+        delete=False,
+        suffix=".docx"
+    )
+
+    doc.save(tmp_doc.name)
+
+    return FileResponse(
+        tmp_doc.name,
+        filename=f"{row.batch_no}.docx",
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    )

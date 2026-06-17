@@ -127,12 +127,14 @@ def material_batch_ledger(
             v.size_text,
             v.length_text,
             v.heat_lot,
-
+            
+            v.material_id,
             v.material_code,
             v.material_name,
             v.material_type,
             v.material_spec,
 
+            v.supplier_id,
             v.supplier_code,
 
             v.received_at,

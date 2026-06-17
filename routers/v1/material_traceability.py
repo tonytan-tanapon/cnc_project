@@ -307,3 +307,448 @@ def delete_lot_material_use(
     return {
         "ok": True
     }
+from fastapi import Depends, HTTPException
+from fastapi.responses import FileResponse
+
+from sqlalchemy.orm import Session
+
+from docx import Document
+from docx.shared import Inches
+
+import tempfile
+import qrcode
+
+
+from docx.shared import Pt
+
+def replace_cell(cell, placeholder, value, size=10):
+
+    if placeholder in cell.text:
+
+        cell.text = ""
+
+        p = cell.paragraphs[0]
+
+        run = p.add_run(str(value))
+
+        run.font.size = Pt(size)
+
+@router.get("/export-docx/{lot_material_use_id}")
+def export_docx(
+    lot_material_use_id: int,
+    qty: int = 4,
+    db: Session = Depends(get_db)
+):
+    print("QTY =", qty)
+    row = (
+        db.query(
+            ProductionLot.lot_no,
+            Part.part_no,
+
+            RawBatch.batch_no,
+            RawBatch.size_text,
+            RawBatch.length_text,
+
+            RawMaterial.type,
+            RawMaterial.spec,
+        )
+
+        .join(
+            LotMaterialUse,
+            LotMaterialUse.lot_id == ProductionLot.id
+        )
+
+        .join(
+            RawBatch,
+            RawBatch.id == LotMaterialUse.batch_id
+        )
+
+        .join(
+            RawMaterial,
+            RawMaterial.id == RawBatch.material_id
+        )
+
+        .join(
+            Part,
+            Part.id == ProductionLot.part_id
+        )
+
+        .filter(
+            LotMaterialUse.id == lot_material_use_id
+        )
+
+        .first()
+    )
+
+    if not row:
+        raise HTTPException(
+            status_code=404,
+            detail="Record not found"
+        )
+
+    # -------------------------
+    # Generate QR
+    # -------------------------
+    qr_text = (
+        f"LOT:{row.lot_no}\n"
+        f"PART:{row.part_no}\n"
+        f"BATCH:{row.batch_no}\n"
+        f"TYPE:{row.type}\n"
+        f"SPEC:{row.spec}\n"
+        f"SIZE:{row.size_text}\n"
+        f"LENGTH:{row.length_text}"
+    )
+
+    qr = qrcode.QRCode(
+        version=1,
+        box_size=10,
+        border=2
+    )
+
+    qr.add_data(qr_text)
+    qr.make(fit=True)
+
+    img = qr.make_image(
+        fill_color="black",
+        back_color="white"
+    )
+
+    tmp_qr = tempfile.NamedTemporaryFile(
+        delete=False,
+        suffix=".png"
+    )
+
+    img.save(tmp_qr.name)
+
+    # -------------------------
+    # Open Template
+    # -------------------------
+
+    if qty == 4: 
+        doc = Document(
+            "templates/qr_template_mat_4.docx"
+        )
+    else:
+         doc = Document(
+            "templates/qr_template.docx"
+        )
+
+
+
+    mapping = {
+        "{{lot}}": row.lot_no or "",
+        "{{part}}": row.part_no or "",
+        "{{batch}}": row.batch_no or "",
+        "{{type}}": row.type or "",
+        "{{spec}}": row.spec or "",
+        "{{size}}": row.size_text or "",
+        "{{length}}": row.length_text or "",
+    }
+
+    # -------------------------
+    # Replace text in paragraphs
+    # -------------------------
+    for p in doc.paragraphs:
+
+        for old, new in mapping.items():
+
+            if old in p.text:
+
+                p.text = p.text.replace(
+                    old,
+                    str(new)
+                )
+
+    # -------------------------
+    # Replace text in tables
+    # -------------------------
+    fields = {
+        "{{lot}}": (row.lot_no, 22),
+        "{{part}}": (row.part_no, 22),
+        "{{batch}}": (row.batch_no, 22),
+        "{{type}}": (row.type, 22),
+        "{{spec}}": (row.spec, 22),
+        "{{size}}": (row.size_text, 22),
+        "{{length}}": (row.length_text, 22 ),
+    }
+
+    for table in doc.tables:
+        for row_ in table.rows:
+            for cell in row_.cells:
+
+                before = cell.text
+
+                for key, (value, size) in fields.items():
+                    if key in cell.text:
+                        cell.text = cell.text.replace(
+                            key,
+                            str(value or "")
+                        )
+
+                if before != cell.text:
+                    print("REPLACED:", before, "->", cell.text)
+                for p in cell.paragraphs:
+                    for run in p.runs:
+                        run.font.size = Pt(size)
+
+    # -------------------------
+    # Insert QR at {{QR}}
+    # -------------------------
+    for table in doc.tables:
+        for row_ in table.rows:
+            for cell in row_.cells:
+
+                if "{{QR}}" in cell.text:
+
+                    cell.text = ""
+
+                    p = cell.paragraphs[0]
+
+                    run = p.add_run()
+
+                    run.add_picture(
+                        tmp_qr.name,
+                        width=Inches(2)
+                    )
+
+                    # p.add_run(
+                    #     "  " + (row.lot_no or "")
+                    # )
+    # -------------------------
+    # Save
+    # -------------------------
+    tmp_doc = tempfile.NamedTemporaryFile(
+        delete=False,
+        suffix=".docx"
+    )
+
+    doc.save(tmp_doc.name)
+
+    return FileResponse(
+        tmp_doc.name,
+        filename=f"{row.lot_no}.docx",
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    )
+
+# from docx.shared import Inches
+# @router.get("/export-docx/{lot_material_use_id}")
+# def export_docx(
+#     lot_material_use_id: int,
+#     db: Session = Depends(get_db)
+# ):
+
+#     row = (
+#         db.query(
+#             ProductionLot.lot_no,
+#             Part.part_no,
+
+#             RawBatch.batch_no,
+#             RawBatch.size_text,
+#             RawBatch.length_text,
+
+#             RawMaterial.type,
+#             RawMaterial.spec,
+#         )
+
+#         .join(
+#             LotMaterialUse,
+#             LotMaterialUse.lot_id == ProductionLot.id
+#         )
+
+#         .join(
+#             RawBatch,
+#             RawBatch.id == LotMaterialUse.batch_id
+#         )
+
+#         .join(
+#             RawMaterial,
+#             RawMaterial.id == RawBatch.material_id
+#         )
+
+#         .join(
+#             Part,
+#             Part.id == ProductionLot.part_id
+#         )
+
+#         .filter(
+#             LotMaterialUse.id == lot_material_use_id
+#         )
+
+#         .first()
+#     )
+
+#     if not row:
+#         raise HTTPException(
+#             status_code=404,
+#             detail="Record not found"
+#         )
+
+#     doc = Document()
+
+#     doc.add_heading(
+#         "Material Traceability",
+#         level=1
+#     )
+
+#     table = doc.add_table(
+#         rows=7,
+#         cols=2
+#     )
+
+#     table.cell(0, 0).text = "Lot"
+#     table.cell(0, 1).text = row.lot_no or ""
+
+#     table.cell(1, 0).text = "Part"
+#     table.cell(1, 1).text = row.part_no or ""
+
+#     table.cell(2, 0).text = "Batch No"
+#     table.cell(2, 1).text = row.batch_no or ""
+
+#     table.cell(3, 0).text = "Type"
+#     table.cell(3, 1).text = row.type or ""
+
+#     table.cell(4, 0).text = "Spec"
+#     table.cell(4, 1).text = row.spec or ""
+
+#     table.cell(5, 0).text = "Size"
+#     table.cell(5, 1).text = row.size_text or ""
+
+#     table.cell(6, 0).text = "Length"
+#     table.cell(6, 1).text = row.length_text or ""
+
+#     tmp = tempfile.NamedTemporaryFile(
+#         delete=False,
+#         suffix=".docx"
+#     )
+
+#     qr_text = (
+#         f"LOT:{row.lot_no}\n"
+#         f"PART:{row.part_no}\n"
+        
+#         f"BATCH:{row.batch_no}\n"
+#         f"TYPE:{row.type}\n"
+#         f"SPEC:{row.spec}\n"
+#         f"SIZE:{row.size_text}\n"
+        
+#         f"LENGTH:{row.length_text}"
+#     )
+
+#     qr = qrcode.QRCode(
+#         version=1,
+#         box_size=10,
+#         border=2
+#     )
+
+#     qr.add_data(qr_text)
+#     qr.make(fit=True)
+
+#     img = qr.make_image(
+#         fill_color="black",
+#         back_color="white"
+#     )
+
+#     tmp_qr = tempfile.NamedTemporaryFile(
+#         delete=False,
+#         suffix=".png"
+#     )
+
+#     img.save(tmp_qr.name)
+
+#     doc.add_paragraph("")
+#     doc.add_heading("QR Code", level=2)
+
+#     doc.add_picture(
+#         tmp_qr.name,
+#         width=Inches(2)
+#     )
+
+#     doc.save(tmp.name)
+
+#     return FileResponse(
+#         tmp.name,
+#         filename=f"{row.lot_no}.docx",
+#         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+#     )
+
+
+@router.get("/qr/{lot_material_use_id}")
+def get_qr(
+    lot_material_use_id: int,
+    db: Session = Depends(get_db)
+):
+    import io
+    import qrcode
+
+    row = (
+        db.query(
+            ProductionLot.lot_no,
+            Part.part_no,
+
+            RawBatch.batch_no,
+            RawBatch.size_text,
+            RawBatch.length_text,
+
+            RawMaterial.type,
+            RawMaterial.spec,
+        )
+
+        .join(
+            LotMaterialUse,
+            LotMaterialUse.lot_id == ProductionLot.id
+        )
+
+        .join(
+            RawBatch,
+            RawBatch.id == LotMaterialUse.batch_id
+        )
+
+        .join(
+            RawMaterial,
+            RawMaterial.id == RawBatch.material_id
+        )
+
+        .join(
+            Part,
+            Part.id == ProductionLot.part_id
+        )
+
+        .filter(
+            LotMaterialUse.id == lot_material_use_id
+        )
+
+        .first()
+    )
+
+    if not row:
+        raise HTTPException(
+            status_code=404,
+            detail="Record not found"
+        )
+
+    qr_text = (
+        f"LOT:{row.lot_no}\n"
+        f"PART:{row.part_no}\n"
+        f"BATCH:{row.batch_no}\n"
+        f"TYPE:{row.type}\n"
+        f"SPEC:{row.spec}\n"
+        f"SIZE:{row.size_text}\n"
+        f"LENGTH:{row.length_text}"
+    )
+
+    img = qrcode.make(qr_text)
+
+    buf = io.BytesIO()
+
+    img.save(
+        buf,
+        format="PNG"
+    )
+
+    buf.seek(0)
+
+    from fastapi.responses import StreamingResponse
+
+    return StreamingResponse(
+        buf,
+        media_type="image/png"
+    )
