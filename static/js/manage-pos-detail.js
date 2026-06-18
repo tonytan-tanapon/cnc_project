@@ -807,16 +807,16 @@ function initLinesTable() {
         editorParams: { step: "1" },
         formatter: (c) => fmtQty(c.getValue()),
       },
-      {
-        title: "Price",
-        field: "unit_price",
-        width: 80,
-        hozAlign: "right",
-        headerHozAlign: "right",
-        editor: "number",
-        editorParams: { step: "0.01" },
-        formatter: (c) => fmtMoney(c.getValue()),
-      },
+      // {
+      //   title: "Price",
+      //   field: "unit_price",
+      //   width: 80,
+      //   hozAlign: "right",
+      //   headerHozAlign: "right",
+      //   editor: "number",
+      //   editorParams: { step: "0.01" },
+      //   formatter: (c) => fmtMoney(c.getValue()),
+      // },
 
       {
         title: "Due 1",

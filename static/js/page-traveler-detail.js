@@ -16,6 +16,52 @@ let isSubmitting = false;
 let employees = [];
 let machines = [];
 
+function checkDueDate() {
+
+  const releaseEl = $("created_at");
+  const dueEl = $("lot_due_date");
+
+  if (!releaseEl || !dueEl) return;
+
+  const releaseDate = new Date(releaseEl.value);
+  const dueDate = new Date(dueEl.value);
+
+  console.log("release =", releaseEl.value);
+  console.log("due =", dueEl.value);
+  console.log("compare =", dueDate < releaseDate);
+
+  dueEl.style.backgroundColor = "";
+  dueEl.style.color = "";
+
+  if (
+    !isNaN(releaseDate) &&
+    !isNaN(dueDate) &&
+    dueDate < releaseDate
+  ) {
+    dueEl.style.setProperty(
+      "background-color",
+      "#ef4444",
+      "important"
+    );
+
+    dueEl.style.setProperty(
+      "color",
+      "white",
+      "important"
+    );
+  }
+}
+
+// ผูก event
+$("created_at")?.addEventListener(
+  "change",
+  checkDueDate
+);
+
+$("lot_due_date")?.addEventListener(
+  "change",
+  checkDueDate
+);
 
 async function loadMasterData() {
 
@@ -2419,7 +2465,7 @@ function initStepsTable() {
             // SUPPLIER INFO
             // =====================
 
-            
+
 
             if (l.supplier_name) {
 
@@ -2543,7 +2589,158 @@ function initStepsTable() {
       // },
 
 
+      {
+        title: "Check",
+        width: 200,
 
+        formatter(cell) {
+
+          const errors = [];
+
+          const current =
+            cell.getRow().getData();
+
+          const rows =
+            cell.getTable()
+              .getData()
+              .slice()
+              .sort((a, b) =>
+                Number(a.seq) - Number(b.seq)
+              );
+
+          // =====================
+          // current log
+          // =====================
+
+          const currentLog =
+            current.logs?.at(-1);
+
+          // =====================
+          // operator required
+          // =====================
+
+          const hasOperator =
+
+            current.logs?.some(
+              l => l.operator_id
+            );
+
+          if (!hasOperator) {
+
+            errors.push(
+              "Operator Missing"
+            );
+          }
+
+          if (!currentLog?.work_date) {
+            return "";
+          }
+
+          const currentDate =
+            new Date(currentLog.work_date);
+
+          // =====================
+          // 1. compare previous OP
+          // =====================
+
+          const idx =
+            rows.findIndex(
+              r => r.id === current.id
+            );
+
+          if (idx > 0) {
+
+            const prev =
+              rows[idx - 1];
+
+            const prevLog =
+              prev.logs?.at(-1);
+
+            if (prevLog?.work_date) {
+
+              const prevDate =
+                new Date(prevLog.work_date);
+
+              if (currentDate < prevDate) {
+
+                errors.push(
+                  `Date < ${prev.step_code}`
+                );
+              }
+            }
+          }
+
+          // =====================
+          // 2. first OP before release date
+          // =====================
+
+          if (idx === 0) {
+
+            const releaseDate =
+              $("created_at")?.value;
+
+            if (releaseDate) {
+
+              if (
+                currentLog.work_date <
+                releaseDate
+              ) {
+
+                errors.push(
+                  `Before Release Date`
+                );
+              }
+            }
+          }
+
+          // =====================
+          // 3. last OP after due date
+          // =====================
+
+          if (idx === rows.length - 1) {
+
+            const dueDate =
+              $("lot_due_date")?.value;
+
+            if (
+              dueDate &&
+              currentLog.work_date >
+              dueDate
+            ) {
+
+              errors.push(
+                `After Due Date`
+              );
+            }
+          }
+
+          // =====================
+          // display
+          // =====================
+
+          if (!errors.length) {
+
+            return `
+        <span style="
+          color:green;
+          font-weight:bold;
+        ">
+          ✓
+        </span>
+      `;
+          }
+
+          return `
+      <div style="
+        color:red;
+        font-weight:bold;
+        line-height:1.2;
+      ">
+        ${errors.join("<br>")}
+      </div>
+    `;
+        }
+      },
 
 
       // 🔥 DELETE STEP
@@ -2942,9 +3139,10 @@ function showTravelerQR() {
     qrModal.style.display = "none";
   });
 }
-
 async function loadLotDetail() {
+
   console.log("Loading lot detail for lotId:", lotId);
+
   if (!lotId) return;
 
   try {
@@ -2952,7 +3150,9 @@ async function loadLotDetail() {
     const lot = await jfetch(
       `/lots/${encodeURIComponent(lotId)}`
     );
+
     originalLot = lot;
+
     console.log("lot detail:", originalLot);
 
     const partEl = $("part_no");
@@ -2961,33 +3161,74 @@ async function loadLotDetail() {
     const poEl = $("po_no");
     const customerEl = $("customer_code");
 
-
-
-    if (partEl) { partEl.value = originalLot.part?.part_no || ""; }
-    if (revEl) { revEl.value = originalLot.part_revision?.rev || ""; }
-    if (lotEl) { lotEl.value = originalLot.all?.lot_no || ""; }
-    if (poEl) { poEl.value = originalLot.po?.po_number || ""; }
-    if (customerEl) { customerEl.value = originalLot.customer?.code || ""; }
+    if (partEl) partEl.value = originalLot.part?.part_no || "";
+    if (revEl) revEl.value = originalLot.part_revision?.rev || "";
+    if (lotEl) lotEl.value = originalLot.all?.lot_no || "";
+    if (poEl) poEl.value = originalLot.po?.po_number || "";
+    if (customerEl) customerEl.value = originalLot.customer?.code || "";
 
     $("status").value = originalLot.all.status;
-    $("risk").value =
-      originalLot.all?.risk;
-    console.log("originalLot.all.lot_shipped_qty", originalLot.all.lot_shipped_qty)
-    $("lot_shipped_qty").value = originalLot.lot_shipped_qty || "";
+    const risk =
+      originalLot.all?.risk || "green";
+
+    $("risk").value = risk;
+
+    if (!originalLot.all?.risk) {
+
+      await jfetch(
+        `/lots/${lotId}`,
+        {
+          method: "PUT",
+          body: JSON.stringify({
+            risk: "green"
+          })
+        }
+      );
+
+      console.log("Default risk=green saved");
+    }
+    $("lot_shipped_qty").value =
+      originalLot.lot_shipped_qty || "";
 
     $("lot_planned_qty").value =
       originalLot.all?.planned_qty || "";
-    $("notes").value = originalLot.all?.note || "";
-    $("started_at").value = originalLot.all.started_at ? originalLot.all.started_at.slice(0, 10) : "";
-    $("lot_po_duedate").value = originalLot.lot_po_duedate ? originalLot.lot_po_duedate.slice(0, 10) : "";
 
-    $("created_at").value = originalLot.all.created_at ? originalLot.all.created_at.slice(0, 10) : "";
-    $("lot_due_date").value = originalLot.all.lot_due_date ? originalLot.all.lot_due_date.slice(0, 10) : "";
+    $("notes").value =
+      originalLot.all?.note || "";
 
+    $("started_at").value =
+      originalLot.all.started_at
+        ? originalLot.all.started_at.slice(0, 10)
+        : "";
+
+    $("lot_po_duedate").value =
+      originalLot.lot_po_duedate
+        ? originalLot.lot_po_duedate.slice(0, 10)
+        : "";
+
+    $("created_at").value =
+      originalLot.all.created_at
+        ? originalLot.all.created_at.slice(0, 10)
+        : "";
+
+    $("lot_due_date").value =
+      originalLot.all.lot_due_date
+        ? originalLot.all.lot_due_date.slice(0, 10)
+        : "";
+
+    console.log(
+      "AFTER LOAD",
+      $("created_at").value,
+      $("lot_due_date").value
+    );
+
+    checkDueDate();
 
   } catch (err) {
-    console.error(err);
-    toast("Failed to load lot", false);
+
+    console.error("loadLotDetail error", err);
+
+    toast("Load lot failed", false);
   }
 }
 
@@ -3154,6 +3395,18 @@ document.addEventListener("DOMContentLoaded", async () => {
   ensureHeaderButtons();
   wireHeaderDirtyOnly();
   initHeaderAutocomplete();
+
+  // 🔥 add here
+  $("created_at")?.addEventListener(
+    "change",
+    checkDueDate
+  );
+
+  $("lot_due_date")?.addEventListener(
+    "change",
+    checkDueDate
+  );
+  checkDueDate();
   // ---> Add Drawing diagram batch download
   // $("btnDrawing").addEventListener("click", downloadDrawingBatch);
   // $("btnTraveler").addEventListener("click", downloadTravelerBatch);
