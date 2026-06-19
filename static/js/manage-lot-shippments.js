@@ -363,6 +363,19 @@ async function downloadLabel(row, size, type) {
   }
 }
 
+function confirmReworkLot() {
+  const lotNo = TABLE_HEADER?.lot_no || "";
+
+  console.log("LOT CHECK =", lotNo);
+
+  if (lotNo.toUpperCase().includes("R")) {
+    return confirm(
+      `⚠️ This Lot is rework lot.\n\nDo you want to process ${lotNo}?`
+    );
+  }
+
+  return true;
+}
 
 function logShipmentRow(row) {
   console.log("====== Shipment Log ======");
@@ -728,7 +741,10 @@ function initShipmentTable() {
           const rowData = row.getData();
           console.log("Doc action:", { action, rowData });
           try {
+            if (!confirmReworkLot()) return;
             if (action === "cofc") {
+
+              if (!confirmReworkLot()) return;
 
               await markLotAsShipped(rowData);
 
@@ -788,6 +804,7 @@ function initShipmentTable() {
 `,
 
         cellClick: async (e, cell) => {
+          if (!confirmReworkLot()) return;
           const btn = e.target.closest("button");
           if (!btn) return;
 
