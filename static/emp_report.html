@@ -766,21 +766,21 @@
 
       // ===== footer totals =====
       $("#tblFoot").innerHTML = `
-<tr>
-  <td colspan="7" class="num">Total</td>
-  <td class="num mono">${sumBreak.toFixed(2)}</td>
-  <td class="num mono">${sumReg.toFixed(2)}</td>
-  <td class="num mono">${sumOT.toFixed(2)}</td>
-  <td></td><td></td>
-  <td class="num mono">${currency(sumPayReg)}</td>
-  <td class="num mono">${currency(sumPayOT)}</td>
-  <td class="num mono">${currency(sumPayReg + sumPayOT)}</td>
-</tr>`;
+      <tr>
+        <td colspan="7" class="num">Total</td>
+        <td class="num mono">${sumBreak.toFixed(2)}</td>
+        <td class="num mono">${sumReg.toFixed(2)}</td>
+        <td class="num mono">${sumOT.toFixed(2)}</td>
+        <td></td><td></td>
+        <td class="num mono">${currency(sumPayReg)}</td>
+        <td class="num mono">${currency(sumPayOT)}</td>
+        <td class="num mono">${currency(sumPayReg + sumPayOT)}</td>
+      </tr>`;
 
       // ===== Edit/Delete per row =====
       tb.querySelectorAll("tr[data-idx]").forEach((tr) => {
         const i = Number(tr.dataset.idx);
-        const te = details[i];
+        const te = details[i]; 
         if (!te) return;
         const cells = tr.children;
         const btnEdit = tr.querySelector(".editBtn");
@@ -2025,14 +2025,8 @@
     //   .addEventListener("click", exportCSV);
     document.addEventListener("DOMContentLoaded", () => loadPage(true));
   </script>
-
-
   <!-- Time leave -->
-
-
   <hr style="margin:40px 0" />
-
-
   <h2 style="margin-bottom:10px">
     Time Leave
     <button id="toggleLeaveBtn" style="
