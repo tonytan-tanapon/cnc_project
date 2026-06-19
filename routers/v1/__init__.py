@@ -10,7 +10,7 @@ from . import (
     lot_materials,inventory,lot_shippments,lot_summary,
     traveler_drawing, time_leaves,qa_inspections,qr,script_runner,  traveler_templates,step_logs,machines,   
     icars,ecars,suppliers_auto,
-    reports_traveler,material_traceability,raw_batches,
+    reports_traveler,material_traceability,raw_batches,part_inventory,
 )
 
 
@@ -85,7 +85,7 @@ api_v1.include_router(ecars.router)
 api_v1.include_router(reports_traveler.router)
 api_v1.include_router(material_traceability.router)
 api_v1.include_router(raw_batches.router)
-
+api_v1.include_router(part_inventory.router)
 
 # api_v1.include_router(updateLot.router)
 

@@ -2501,3 +2501,70 @@ class GageCalibration(Base):
         "Gage",
         back_populates="calibrations"
     )
+
+
+class Inventory(Base):
+    __tablename__ = "inventory"
+    id = Column(Integer, primary_key=True)
+
+    lot_id = Column(
+        Integer,
+        ForeignKey("production_lots.id"),
+        nullable=False,
+        unique=True
+    )
+
+
+    prod_qty = Column(Integer, default=0)
+    ship_qty = Column(Integer, default=0)
+    stock_qty = Column(Integer, default=0)
+
+    note = Column(String)
+    created_at = Column(
+    DateTime(timezone=True),
+    server_default=func.now(),
+    nullable=False
+)
+
+    lot = relationship("ProductionLot")
+
+class LotTransfer(Base):
+    __tablename__ = "lot_transfers"
+
+    id = Column(Integer, primary_key=True)
+
+    from_lot_id = Column(
+        Integer,
+        ForeignKey("production_lots.id"),
+        nullable=False,
+        index=True
+    )
+
+    to_lot_id = Column(
+        Integer,
+        ForeignKey("production_lots.id"),
+        nullable=False,
+        index=True
+    )
+
+    qty = Column(Integer, nullable=False)
+
+    transfer_date = Column(Date)
+
+    note = Column(Text)
+
+    created_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False
+    )
+
+    from_lot = relationship(
+        "ProductionLot",
+        foreign_keys=[from_lot_id]
+    )
+
+    to_lot = relationship(
+        "ProductionLot",
+        foreign_keys=[to_lot_id]
+    )
