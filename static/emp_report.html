@@ -1628,41 +1628,25 @@
               totalPay += payTotal;
 
               rows.push([
-
                 idx + 1,
-
-                fmtMDY(
-                  utcDateKey(
-                    te.clock_in_at
-                  )
-                ),
-
+                fmtMDY(utcDateKey(te.clock_in_at)),
                 fmtTime(te.clock_in_at),
-
                 fmtTime(br?.start_at),
-
                 fmtTime(br?.end_at),
-
                 fmtTime(te.clock_out_at),
 
                 breakHrs.toFixed(2),
-
                 reg.toFixed(2),
-
                 ot.toFixed(2),
 
-                rate.toFixed(2),
+                `$${rate.toFixed(2)}`,
+                `$${otRate.toFixed(2)}`,
 
-                otRate.toFixed(2),
-
-                payReg.toFixed(2),
-
-                payOT.toFixed(2),
-
-                payTotal.toFixed(2),
+                `$${payReg.toFixed(2)}`,
+                `$${payOT.toFixed(2)}`,
+                `$${payTotal.toFixed(2)}`,
 
                 emp || ""
-
               ]);
 
             });
@@ -1671,20 +1655,20 @@
             rows.push([]); // เว้นบรรทัด
 
             rows.push([
-              "",                 // No
-              "",                 // Date
-              "",                 // Clock In
-              "",                 // start_break
-              "",                 // stop_break
-              "",                 // Clock Out
-              "Total",            // break_unpaid_h
+              "",
+              "",
+              "",
+              "",
+              "",
+              "",
+              "Total",
               totalReg.toFixed(2),
               totalOT.toFixed(2),
               "",
               "",
-              totalPayReg.toFixed(2),
-              totalPayOT.toFixed(2),
-              totalPay.toFixed(2),
+              `$${totalPayReg.toFixed(2)}`,
+              `$${totalPayOT.toFixed(2)}`,
+              `$${totalPay.toFixed(2)}`,
               ""
             ]);
             const rate =
@@ -1709,7 +1693,7 @@
                 rows.push([
                   ...L,
                   employeeNames[i], "",
-                  employeeTotals[i].toFixed(2)
+                  `$${employeeTotals[i].toFixed(2)}`
                 ]);
               }
 
@@ -1743,7 +1727,7 @@
               rows.push([
                 ...L,
                 "Extra", "",
-                extraAmount.toFixed(2)
+                `$${extraAmount.toFixed(2)}`
               ]);
 
               rows.push([]);
@@ -1771,20 +1755,20 @@
                   ...L,
                   employeeNames[i],
                   split_team.toFixed(2),
-                  ot_paid.toFixed(2)
+                  `$${ot_paid.toFixed(2)}`
                 ]);
               }
               rows.push([
                 ...L,
                 "Extra", "",
-                ot_paid_all.toFixed(2)
+                `$${ot_paid_all.toFixed(2)}`
               ]);
 
 
               // 
               rows.push([]);
 
-              
+
               let sum_paid = 0;
               for (let i = 1; i < allEmployees.length; i++) {
 
@@ -1794,13 +1778,13 @@
                   ...L,
                   employeeNames[i],
                   "",
-                  final_pay.toFixed(2)
+                  `$${final_pay.toFixed(2)}`
                 ]);
               }
               rows.push([
                 ...L,
                 "Total", "",
-                sum_paid.toFixed(2)
+                `$${sum_paid.toFixed(2)}`
               ]);
 
 
@@ -1827,10 +1811,10 @@
           // EXPORT FILE
           // =========================
 
-          XLSX.writeFile(
-            wb,
-            `Payroll_${payee.name}.xlsx`
-          );
+          const fname =
+            `${safeFilename(payee.name)}_${currentPpStart}_${currentPpEnd}.xlsx`;
+
+          XLSX.writeFile(wb, fname);
 
         };
 
