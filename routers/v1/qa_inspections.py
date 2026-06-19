@@ -565,6 +565,9 @@ async def import_inspection(
             tmpl.active = True
             tmpl.is_latest = True
 
+            # 🔥 update filename ด้วย
+            tmpl.file_dir = file.filename
+
             db.query(
                 QAInspectionTemplateItem
             ).filter(
@@ -573,7 +576,7 @@ async def import_inspection(
             ).delete()
 
             db.flush()
-
+        
         # =========================
         # CREATE NEW TEMPLATE
         # =========================
@@ -624,7 +627,7 @@ async def import_inspection(
             db.add(tmpl)
 
             db.flush()
-
+        inspection.file_dir = tmpl.file_dir
         # =========================
         # INSERT TEMPLATE ITEMS
         # =========================
