@@ -38,3 +38,4 @@ typeguard==4.4.4
 typing-inspection==0.4.1
 typing_extensions==4.14.1
 uvicorn==0.35.0
+openpyxl==3.1.5
