@@ -1151,8 +1151,6 @@
         "",
       ]);
 
-      
-
       const wb = XLSX.utils.book_new();
 
       const employeeTotals = [];
@@ -1196,8 +1194,6 @@
       const totalRow = ref.e.r;
       const firstDataRow = 2;
       const lastDataRow = totalRow - 1; // exclude Total row itself
-
-      
 
       // helper
       const excelCol = (c) => XLSX.utils.encode_col(c);

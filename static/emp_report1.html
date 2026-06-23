@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Employee Timesheet</title>
+  <style>
+    :root {
+      --line: #e5e7eb;
+      --muted: #6b7280;
+    }
+
+    body {
+      font: 16px/1.5 system-ui, -apple-system, Segoe UI, Roboto, Arial;
+      margin: 0;
+      padding: 20px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 22px;
+    }
+
+    .muted {
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 4px;
+    }
+
+    input[type="number"] {
+      width: 110px;
+      text-align: right;
+      padding: 6px 8px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    button {
+      padding: 8px 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #111;
+      color: #fff;
+      cursor: pointer;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-top: 12px;
+    }
+
+    th,
+    td {
+      border: 1px solid var(--line);
+      padding: 6px 8px;
+      text-align: center;
+      vertical-align: top;
+    }
+
+    th {
+      background: #f8fafc;
+    }
+
+    .num {
+      text-align: right;
+    }
+
+    .left {
+      text-align: left;
+    }
+
+    .nowrap {
+      white-space: nowrap;
+    }
+
+    .mono {
+      font-variant-numeric: tabular-nums;
+    }
+
+    .empty {
+      color: var(--muted);
+      padding: 10px;
+    }
+
+    .page-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 0 0 8px;
+    }
+
+    .back-link {
+      margin-left: auto;
+      text-decoration: none;
+      color: #2563eb;
+      font-weight: 600;
+    }
+
+    .back-link:hover {
+      text-decoration: underline;
+    }
+
+    .bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin: 12px 0;
+      justify-content: flex-end;
+    }
+
+    .link {
+      color: #2563eb;
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    .link:hover {
+      text-decoration: underline;
+    }
+
+    .center {
+      text-align: center;
+    }
+
+    /* ==== Make Action column smaller ==== */
+    th:first-child,
+    td.actions {
+      width: 50px;
+      /* ความกว้างคงที่ */
+      text-align: center;
+      white-space: nowrap;
+      padding: 4px 6px;
+      /* ลดช่องว่างด้านใน */
+    }
+
+    .actions button {
+      border: none;
+      background: none;
+      cursor: pointer;
+      font-size: 1.1rem;
+      color: #111;
+      padding: 2px 4px;
+      transition: color 0.2s, transform 0.1s;
+    }
+
+    .actions button:hover {
+      color: #2563eb;
+      transform: scale(1.15);
+    }
+
+    .actions button i {
+      pointer-events: none;
+    }
+
+
+    .cell-alert {
+      background-color: #fee2e2;
+      /* light red */
+      color: #991b1b;
+      font-weight: 600;
+    }
+
+    .cell-alert-border {
+      border: 2px solid #dc2626;
+    }
+
+    .center-cell {
+    text-align: center;
+    vertical-align: middle;
+}
+  </style>
+</head>
+
+<body>
+  <div class="page-header">
+    <h1 id="header">Payroll</h1>
+    <button id="btnPayee" style="
+          margin-left: 8px;
+          background: #2563eb;
+          color: #fff;
+          border: none;
+          border-radius: 6px;
+          padding: 6px 10px;
+          font-size: 14px;
+          cursor: pointer;
+          display: none;
+        ">
+      Payee
+    </button>
+    <a class="back-link" href="payroll_period_employees.html">← Back</a>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>
+  
+  <button id="addBtn"
+          type="button"
+          style="
+            border:none;
+            background:none;
+            color:#2563eb;
+            cursor:pointer;
+            font-size:18px;
+            margin-left:4px;
+          ">
+    ➕
+  </button>
+</th>
+        <th>No</th>
+        <th>Date</th>
+        <th>Clock In</th>
+        <th>Start Break</th>
+        <th>Stop Break</th>
+        <th>Clock Out</th>
+        <th>Break (hrs)*</th>
+        <th>Reg (hrs)</th>
+        <th>OT (hrs)</th>
+        <th>Rate</th>
+        <th>OT Rate</th>
+        <th>Pay (Reg)</th>
+        <th>Pay (OT)</th>
+        <th>Total Pay</th>
+        <th>Note</th>
+      </tr>
+    </thead>
+    <tbody id="tblBody">
+      <tr>
+        <td colspan="16" class="empty">Loading…</td>
+      </tr>
+    </tbody>
+    <tfoot id="tblFoot"></tfoot>
+  </table>
+  <div class="muted" style="margin-top: 4px">* Unpaid break hours</div>
+  <div class="bar">
+    <label>Rate:
+      <input id="rate" type="number" step="0.01" min="0" value="20.00" inputmode="decimal" />
+    </label>
+    <label>OT Rate:
+      <input id="ot_rate" type="number" step="0.01" placeholder="default 1.5×" /></label>
+    <button id="recalc">calculate</button>
+    <button id="exportPayeeBtn" style="
+          background: #2563eb;
+          color: #fff;
+          border: none;
+          border-radius: 6px;
+          padding: 6px 10px;
+          font-size: 14px;
+          cursor: pointer;
+        ">
+      Export Payee
+    </button>
+    <button id="exportBtn">Export Excel</button>
+    <!-- <button id="exportCSVBtn">Export CSV Only</button> -->
+  </div>
+
+
+  <div id="payeeInfo"
+     style="
+        margin-top:15px;
+        padding:10px;
+        border:1px solid #e5e7eb;
+        border-radius:6px;
+        background:#f9fafb;
+        display:none;
+     ">
+</div>
+  <!-- Time leave -->
+  <hr style="margin:40px 0" />
+  <h2 style="margin-bottom:10px">
+    Time Leave
+
+    <span id="leaveTypeTotals" style="margin-left:8px;color:#6b7280;"></span>
+
+  </h2>
+
+
+
+  <div id="leaveSection" data-pp-start="" data-pp-end="">
+    <table>
+      <thead>
+        <tr>
+          <th>
+  
+</th>
+          <th>No</th>
+          <th>Type</th>
+          <th>From</th>
+          <th>To</th>
+          <th>Hours</th>
+          <th>Paid</th>
+          <th>Status</th>
+          <th class="left">Notes</th>
+        </tr>
+      </thead>
+      <tbody id="leaveTblBody">
+        <tr>
+          <td colspan="9" class="empty">Loading…</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <script type="module" src="/static/emp_report1.js?v=1.5"></script>
+  <script type="module" src="/static/js/time-leaves.js?v=1.5"></script>
+
+</body>
+
+</html>

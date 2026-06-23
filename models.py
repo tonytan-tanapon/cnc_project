@@ -2521,10 +2521,10 @@ class Inventory(Base):
 
     note = Column(String)
     created_at = Column(
-    DateTime(timezone=True),
-    server_default=func.now(),
-    nullable=False
-)
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False
+    )
 
     lot = relationship("ProductionLot")
 

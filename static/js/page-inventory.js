@@ -36,37 +36,25 @@ function makeColumns() {
     {
       title: "Produced",
       field: "prod_qty",
+      editor: "input",
       width: 120,
       hozAlign: "right",
-      formatter(cell) {
-        return Number(
-          cell.getValue() || 0
-        ).toLocaleString();
-      }
     },
 
     {
       title: "Shipped",
       field: "ship_qty",
+      editor: "input",
       width: 120,
       hozAlign: "right",
-      formatter(cell) {
-        return Number(
-          cell.getValue() || 0
-        ).toLocaleString();
-      }
     },
 
     {
       title: "Stock",
       field: "stock_qty",
+      editor: "input",
       width: 120,
       hozAlign: "right",
-      formatter(cell) {
-        return Number(
-          cell.getValue() || 0
-        ).toLocaleString();
-      }
     },
 
     {
@@ -74,11 +62,6 @@ function makeColumns() {
       field: "part_rev_total_qty",
       width: 140,
       hozAlign: "right",
-      formatter(cell) {
-        return Number(
-          cell.getValue() || 0
-        ).toLocaleString();
-      }
     },
 
     {
@@ -95,32 +78,91 @@ function makeColumns() {
       },
 
       cellClick(e, cell) {
-        const row =
-          cell.getRow().getData();
+        const row = cell.getRow().getData();
 
-        console.log(
-          "Transfer",
-          row
-        );
+        console.log("Transfer", row);
 
-        toast(
-          `Transfer ${row.lot_no}`
-        );
+        toast(`Transfer ${row.lot_no}`);
       }
     }
   ];
 }
 
 function initTable() {
-  table = new Tabulator(
-    "#listBody",
-    {
-      layout: "fitColumns",
-      height: "100%",
-      placeholder: "No inventory",
-      columns: makeColumns(),
+
+  table = new Tabulator("#listBody", {
+    layout: "fitColumns",
+    height: "100%",
+    data: [],
+    columns: makeColumns(),
+
+    editable: true,
+    reactiveData: true,
+  });
+
+  table.on("cellClick", (e, cell) => {
+    console.log(
+      "CELL CLICK",
+      cell.getField()
+    );
+  });
+
+  table.on("cellEdited", async (cell) => {
+
+    console.log(
+      "CELL EDITED",
+      cell.getField(),
+      cell.getValue()
+    );
+
+    const row =
+      cell.getRow().getData();
+
+    try {
+
+      const res = await fetch(
+        `/api/v1/part_inventory/${row.id}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type":
+              "application/json"
+          },
+          body: JSON.stringify({
+            prod_qty:
+              Number(row.prod_qty || 0),
+
+            ship_qty:
+              Number(row.ship_qty || 0),
+
+            stock_qty:
+              Number(row.stock_qty || 0)
+          })
+        }
+      );
+
+      if (!res.ok) {
+        throw new Error(
+          await res.text()
+        );
+      }
+
+      toast("Saved");
+
+      await loadData(
+  els._q?.value?.trim() || ""
+);
+
+    } catch (err) {
+
+      console.error(err);
+
+      toast(
+        err.message,
+        false
+      );
     }
-  );
+  });
 }
 
 async function loadData(
@@ -187,6 +229,11 @@ function bindSearch() {
 document.addEventListener(
   "DOMContentLoaded",
   async () => {
+
+    console.log(
+      "Tabulator Version:",
+      Tabulator.prototype.version
+    );
 
     Object.values(UI)
       .forEach(

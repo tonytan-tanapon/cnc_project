@@ -18,6 +18,8 @@ router = APIRouter(
 )
 
 
+
+
 @router.get("")
 def get_part_inventory(
     q: str | None = Query(None),
@@ -102,3 +104,39 @@ def get_part_inventory(
         }
         for r in rows.all()
     ]
+
+
+from pydantic import BaseModel
+
+class InventoryUpdate(BaseModel):
+    prod_qty: int
+    ship_qty: int
+    stock_qty: int
+
+from fastapi import HTTPException
+@router.put("/{inventory_id}")
+def update_inventory(
+    inventory_id: int,
+    payload: InventoryUpdate,
+    db: Session = Depends(get_db)
+):
+
+    row = (
+        db.query(Inventory)
+        .filter(Inventory.id == inventory_id)
+        .first()
+    )
+
+    if not row:
+        raise HTTPException(
+            status_code=404,
+            detail="Inventory not found"
+        )
+
+    row.prod_qty = payload.prod_qty
+    row.ship_qty = payload.ship_qty
+    row.stock_qty = payload.stock_qty
+
+    db.commit()
+
+    return {"success": True}

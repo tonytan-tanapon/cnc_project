@@ -1,12 +1,17 @@
 import pandas as pd
 import os
 
-folder_path = r"Z:\Topnotch Group\Public\Testing APP\excel_export\Data"
-# folder_path = r"Z:\Topnotch Group\Public\Data Base & Inventory Stock\Data"
+# folder_path = r"Z:\Topnotch Group\Public\Testing APP\excel_export\Data"
+folder_path = r"Z:\Topnotch Group\Public\Data Base & Inventory Stock\Data"
 
 output_rows = []
 i = 1
 for file_name in os.listdir(folder_path):
+    if file_name.startswith("~$"):
+        continue
+
+    if not file_name.endswith(".xlsm"):
+        continue
     
     if file_name.endswith(".xlsm") :
         
@@ -15,7 +20,7 @@ for file_name in os.listdir(folder_path):
             
         try:
             df = pd.read_excel(file_path, header=None, engine="openpyxl")
-            print(df)
+            # print(df)
             # ===============================
             # 🔥 HEADER (fixed positions)
             # ===============================
@@ -35,8 +40,7 @@ for file_name in os.listdir(folder_path):
                 if pd.isna(lot_no) or str(lot_no).strip() == "":
                     # print(f"⛔ Stop at row {idx+1}")
                     break
-                output_rows.append({
-                    # 🔥 FROM HEADER (same for all rows in file)
+                row_data = {
                     "Part No": part_no,
                     "Part Name": part_name,
                     "Rev": rev,
@@ -64,33 +68,57 @@ for file_name in os.listdir(folder_path):
                     "*Remark (Reject)": df.iloc[idx, 19],
                     "Incoming Rework": df.iloc[idx, 20],
                     "Finish goods in stock": df.iloc[idx, 21],
-                    "Lot Number": df.iloc[idx, 22],
-                    "PO Number": df.iloc[idx, 23],
+                    "Lot Number 2": df.iloc[idx, 22],
+                    "PO Number 2": df.iloc[idx, 23],
                     "Qty Take Out": df.iloc[idx, 24],
                     "Date Take Out Stock": df.iloc[idx, 25],
                     "Blank": df.iloc[idx, 26],
-                    "WIP": df.iloc[idx, 27],
-                    "WIP Cont w/Lot": df.iloc[idx, 28],
-                    "QTY Rework": df.iloc[idx, 29],
-                    "Green Tag": df.iloc[idx, 30],
-                    "Rework w lot": df.iloc[idx, 31],
-                    "QTY Prod": df.iloc[idx, 32],
-                    "QTY Shipped": df.iloc[idx, 33],
-                    "Residual": df.iloc[idx,34],
-                    "QTY Used1": df.iloc[idx, 35],
-                    "Balance1": df.iloc[idx, 36],
-                    "BaScraplance1": df.iloc[idx, 37],
-                    "From Lot1": df.iloc[idx, 38],
-                    "Lot ST Status1": df.iloc[idx, 39],
-                    "Note1": df.iloc[idx, 40],
-                    "date2": df.iloc[idx, 41],
-                    # "Date": df.iloc[idx, 42],
-                    # "Tracking No31": df.iloc[idx, 43],
+                }
                    
+                if len(df.columns) >= 42:
 
-                  
-                    
-                })
+                    # Format 1
+                    row_data.update({
+                        "WIP": df.iloc[idx, 27],
+                        "WIP Cont w/Lot": df.iloc[idx, 28],
+                        "QTY Rework": df.iloc[idx, 29],
+                        "Green Tag": df.iloc[idx, 30],
+                        "Rework w lot": df.iloc[idx, 31],
+                        "QTY Prod": df.iloc[idx, 32],
+                        "QTY Shipped2": df.iloc[idx, 33],
+                        "Residual": df.iloc[idx, 34],
+                        "QTY Used1": df.iloc[idx, 35],
+                        "Balance1": df.iloc[idx, 36],
+                        "BaScraplance1": df.iloc[idx, 37],
+                        "From Lot1": df.iloc[idx, 38],
+                        "Lot ST Status1": df.iloc[idx, 39],
+                        "Note1": df.iloc[idx, 40],
+                        "date2": df.iloc[idx, 41],
+                    })
+
+                else:
+
+                    # Format 2
+                    row_data.update({
+                        "WIP": "",
+                        "WIP Cont w/Lot": "",
+                        "QTY Rework": "",
+                        "Green Tag": "",
+                        "Rework w lot": df.iloc[idx, 30],
+                        "QTY Prod": df.iloc[idx, 27],
+                        "QTY Shipped2": df.iloc[idx, 29],
+                        "Residual": df.iloc[idx, 33],
+                        "QTY Used1": "",
+                        "Balance1": "",
+                        "BaScraplance1": "",
+                        "From Lot1": "",
+                        "Lot ST Status1": "",
+                        "Note1": "",
+                        "date2": "",
+
+                    })
+
+                output_rows.append(row_data)
 
         except Exception as e:
             print(f"Error in {file_name}: {e}")
@@ -106,6 +134,7 @@ final_df["Date"] = final_df["PO Date"]
 # 🔥 Convert to datetime
 final_df["Date"] = pd.to_datetime(final_df["Date"], errors="coerce")
 final_df["Due Date"] = pd.to_datetime(final_df["Due Date"], errors="coerce")
+final_df["PO Date"] = pd.to_datetime(final_df["PO Date"], errors="coerce")
 
 # 🔥 Format like your example (MM/DD/YY)
 final_df["Date"] = final_df["Date"].dt.strftime("%m/%d/%Y")

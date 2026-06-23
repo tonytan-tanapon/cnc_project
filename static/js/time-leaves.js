@@ -10,7 +10,7 @@ const payrollYear = payrollStart
 
 
 let totalLeaveHours = 0;
-let showAllLeaves = false; // ✅ default = show ONLY payroll period
+let showAllLeaves = true ; // ✅ default = show ONLY payroll period
 const qs = new URL(location.href).searchParams;
 const employeeId = Number(qs.get("employee_id"));
 
@@ -190,6 +190,7 @@ function renderTimeLeaves(leaves) {
   let yearlyTotal = 0;
 
   leaves.forEach((lv) => {
+     console.log("LV:", lv);
     if (!lv.start_at) return;
 
     /* ===== YEAR TOTAL (always count) ===== */
@@ -205,7 +206,6 @@ function renderTimeLeaves(leaves) {
       payrollEnd
     );
 
-    if (!showAllLeaves && !inPeriod) return;
 
     /* ===== PERIOD TOTAL ===== */
     periodTotal += Number(lv.hours || 0);
@@ -227,7 +227,7 @@ function renderTimeLeaves(leaves) {
       <td class="mono">${fmtDT_DDMMYY_HHMM(lv.start_at)}</td>
       <td class="mono">${fmtDT_DDMMYY_HHMM(lv.end_at)}</td>
       <td class="num mono">${fmtHours(lv.hours)}</td>
-      <td>${lv.is_paid ? "✔" : ""}</td>
+      <td>${lv.is_paid ? "YES" : "NO"}</td>
       <td>${lv.status}</td>
       <td class="left">${lv.notes ?? ""}</td>
     `;
@@ -486,14 +486,14 @@ function wireLeaveRow(tr, lv) {
     };
   };
 }
-document.getElementById("toggleLeaveBtn").onclick = () => {
-  showAllLeaves = !showAllLeaves;
+// document.getElementById("toggleLeaveBtn").onclick = () => {
+//   showAllLeaves = !showAllLeaves;
 
-  document.getElementById("toggleLeaveBtn").textContent =
-    showAllLeaves ? "Hide" : "Show all";
+//   document.getElementById("toggleLeaveBtn").textContent =
+//     showAllLeaves ? "Hide" : "Show all";
 
-  loadLeaves(); // re-render
-};
+//   loadLeaves(); // re-render
+// };
 /* =================== INIT =================== */
 
 document.addEventListener("DOMContentLoaded", loadLeaves);
