@@ -805,27 +805,43 @@ function initShipmentTable() {
 
         cellClick: async (e, cell) => {
           if (!confirmReworkLot()) return;
+
+          // ✅ เช็ค Customer TS1046
+          const customerCode =
+            TABLE_HEADER?.customer_code ||
+            cell.getRow().getData().customer_code;
+
+          console.log("customerCode:", customerCode)
+
+          if (customerCode === "TS1046") {
+
+            const proceed = confirm(
+              `Customer: ${customerCode}\n\nTS1046 does not require a label.\n\nContinue anyway?`
+            );
+
+            if (!proceed) {
+              return;
+            }
+          }
+
           const btn = e.target.closest("button");
           if (!btn) return;
 
           const rowComponent = cell.getRow();
           const row = rowComponent.getData();
 
-          const action = btn.dataset.action;   // ✅ works now
-          var size = btn.dataset.size;       // string | undefined
-          var type = btn.dataset.type;       // string | undefined
+          const action = btn.dataset.action;
+          let size = btn.dataset.size;
+          let type = btn.dataset.type;
+
           if (size === undefined) {
-            size = 30; // default size
+            size = 30;
           }
+
           if (type === undefined) {
-            type = 'label'; // default type
+            type = "label";
           }
-          console.log("Button clicked:", {
-            action,
-            size,
-            type,
-            shipmentId: row.id,
-          });
+
           await markLotAsShipped(row);
           await loadShipmentTable();
           await loadLotHeader();
@@ -833,9 +849,6 @@ function initShipmentTable() {
           await downloadLabel(row, Number(size), type);
 
           toast("✅ Lot marked as shipped");
-          return;
-
-
         },
 
       },
