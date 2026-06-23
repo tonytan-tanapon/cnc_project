@@ -2568,3 +2568,53 @@ class LotTransfer(Base):
         "ProductionLot",
         foreign_keys=[to_lot_id]
     )
+
+
+class Ticket(Base):
+    __tablename__ = "tickets"
+
+    id = Column(Integer, primary_key=True)
+
+    emp_id = Column(
+        Integer,
+        ForeignKey("employees.id"),
+        nullable=True,
+        index=True
+    )
+
+    title = Column(String, nullable=True)
+
+    description = Column(Text, nullable=True)
+
+    category = Column(String, nullable=True)
+    # IT / Production / Quality / Inventory / Payroll
+
+    priority = Column(
+        String,
+        nullable=True,
+        default="normal"
+    )
+    # low / normal / high
+
+    status = Column(
+        String,
+        nullable=True,
+        default="open"
+    )
+    # open / in_progress / closed
+
+    note = Column(Text, nullable=True)
+    # หมายเหตุของ IT
+
+    created_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False
+    )
+
+    closed_at = Column(
+        DateTime(timezone=True),
+        nullable=True
+    )
+
+    employee = relationship("Employee")

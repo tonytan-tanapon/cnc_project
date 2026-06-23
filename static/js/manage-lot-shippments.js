@@ -847,7 +847,6 @@ function initShipmentTable() {
           await loadLotHeader();
 
           await downloadLabel(row, Number(size), type);
-
           toast("✅ Lot marked as shipped");
         },
 

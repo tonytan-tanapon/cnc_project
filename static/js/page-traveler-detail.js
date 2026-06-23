@@ -2354,58 +2354,58 @@ function initStepsTable() {
         formatter: (c) => Math.round(c.getValue() ?? 0)
       },
 
-      {
-        title: "Yield %",
-        width: 110,
-        hozAlign: "right",
+    //   {
+    //     title: "Yield %",
+    //     width: 110,
+    //     hozAlign: "right",
 
-        formatter: function (cell) {
+    //     formatter: function (cell) {
 
-          const row =
-            cell.getRow().getData();
+    //       const row =
+    //         cell.getRow().getData();
 
-          const recv =
-            Number(row.total_receive || 0);
+    //       const recv =
+    //         Number(row.total_receive || 0);
 
-          const accept =
-            Number(row.total_accept || 0);
+    //       const accept =
+    //         Number(row.total_accept || 0);
 
-          const reject =
-            Number(row.total_reject || 0);
+    //       const reject =
+    //         Number(row.total_reject || 0);
 
-          const denominator =
-            accept + reject;
+    //       const denominator =
+    //         accept + reject;
 
-          let yieldValue = 0;
+    //       let yieldValue = 0;
 
-          // 🔥 use receive
-          if (recv > 0) {
+    //       // 🔥 use receive
+    //       if (recv > 0) {
 
-            yieldValue =
-              (accept / recv) * 100;
-          }
+    //         yieldValue =
+    //           (accept / recv) * 100;
+    //       }
 
-          let color = "#ef4444";
+    //       let color = "#ef4444";
 
-          if (yieldValue >= 95)
-            color = "#10b981";
+    //       if (yieldValue >= 95)
+    //         color = "#10b981";
 
-          else if (yieldValue >= 80)
-            color = "#f59e0b";
+    //       else if (yieldValue >= 80)
+    //         color = "#f59e0b";
 
-          return `
-      <div style="
-        font-weight:700;
-        color:${color};
-      ">
-        ${yieldValue.toFixed(2)}%
-      </div>
-    `;
-        }
-      },
+    //       return `
+    //   <div style="
+    //     font-weight:700;
+    //     color:${color};
+    //   ">
+    //     ${yieldValue.toFixed(2)}%
+    //   </div>
+    // `;
+    //     }
+    //   },
       {
         title: "Operator",
-        width: 120,
+        width: 100,
 
         formatter: (cell) => {
 
@@ -2426,7 +2426,7 @@ function initStepsTable() {
 
       {
         title: "Machine",
-        width: 120,
+        width: 100,
 
         formatter: (cell) => {
 
