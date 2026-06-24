@@ -16,6 +16,8 @@ from database import SessionLocal, engine, get_db
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from services.pay_period_auto import ensure_next_pay_period
+from services.traveler_close_auto import run_traveler_close
+
 
 
 # ------------------------------
@@ -30,15 +32,30 @@ scheduler = BackgroundScheduler()
 
 @app.on_event("startup")
 def start_scheduler():
+
+    print("Starting Scheduler...")
+
     scheduler.add_job(
         ensure_next_pay_period,
         "cron",
         hour=0,
         minute=1,
+        id="pay_period"
     )
+
+    scheduler.add_job(
+        run_traveler_close,
+        "cron",
+        day_of_week="mon-fri",
+        hour=1,
+        minute=0,
+        id="traveler_close"
+    )
+
     scheduler.start()
 
-    # run once when server starts
+    print("Scheduler Started")
+
     ensure_next_pay_period()
 
 origins = [

@@ -118,7 +118,7 @@ function setupSortableHeaders() {
     "part_rev",
     "current_op",
     "current_machine",
-    
+
     "op_status"
   ];
 
@@ -208,7 +208,7 @@ async function loadInProcessLots() {
 
       const tr = document.createElement("tr");
 
-      
+
 
       const opStatusClass =
         row.op_status === "running"
@@ -347,7 +347,7 @@ const layout = [
   ["1", "2", "3"],
   ["4", "5", "6"],
   ["7", "8", "9"],
-  ["DEL", "0", "-"]
+  ["R", "0", "-"]
 ];
 
 layout.flat().forEach(key => {
@@ -361,18 +361,10 @@ layout.flat().forEach(key => {
 
   btn.onclick = () => {
 
-    if (key === "DEL") {
+    if (lotValue.length >= 20)
+      return;
 
-      lotValue =
-        lotValue.slice(0, -1);
-
-    } else {
-
-      if (lotValue.length >= 20)
-        return;
-
-      lotValue += key;
-    }
+    lotValue += key;
 
     renderLotDisplay();
   };
@@ -383,7 +375,7 @@ layout.flat().forEach(key => {
 // CLEAR
 lotClearBtn?.addEventListener("click", () => {
 
-  lotValue = "";
+  lotValue = lotValue.slice(0, -1);
 
   renderLotDisplay();
 });
@@ -396,9 +388,9 @@ lotOkBtn?.addEventListener("click", async () => {
 
   // USE RAW LOT NUMBER
   let finalLot =
-  "L" + lotValue.trim().toUpperCase();
+    "L" + lotValue.trim().toUpperCase();
 
- 
+
 
   console.log(
     "Selected Lot:",
