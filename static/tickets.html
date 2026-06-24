@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Tickets · Topnotch – MFG</title>
+
+    <link rel="stylesheet" href="/static/css/app.css" />
+
+    <link rel="stylesheet" href="/static/vendor/tabulator/tabulator_modern.min.css" />
+
+    <style>
+        .main--edge {
+            padding: 0;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .panel--edge {
+            margin: 0;
+            border-radius: 0;
+            border-left-width: 0;
+            border-right-width: 0;
+        }
+
+        #listPanel {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            min-height: 0;
+        }
+
+        .list-topbar {
+
+            display: flex;
+            align-items: center;
+            gap: 8px;
+
+            height: 44px;
+
+            padding: 0;
+
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .list-topbar .search-lg {
+
+            flex: 0 0 260px;
+            min-width: 200px;
+
+            height: 36px;
+
+            padding: 0 12px;
+
+            border-radius: 0;
+        }
+
+        #_add {
+
+            height: 36px;
+            border-radius: 0;
+        }
+
+        #listBody {
+
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow: auto;
+        }
+
+        #listBody .tabulator {
+            height: 100% !important;
+            border: 0;
+        }
+
+        .status-open {
+            color: red;
+            font-weight: bold;
+        }
+
+        .status-progress {
+            color: orange;
+            font-weight: bold;
+        }
+
+        .status-closed {
+            color: green;
+            font-weight: bold;
+        }
+
+        .priority-high {
+            color: red;
+            font-weight: bold;
+        }
+
+        .priority-normal {
+            color: #444;
+        }
+
+        .priority-low {
+            color: #666;
+        }
+    </style>
+
+</head>
+
+<body>
+
+    <div class="app">
+
+        <aside class="sidebar">
+            <div id="navSlot" data-nav-slot></div>
+        </aside>
+
+        <main class="main main--edge">
+
+            <section class="panel panel--edge" id="listPanel">
+
+                <div>Tickets</div>
+
+                <div class="list-topbar">
+
+                    <input id="_q" type="search" class="search-lg" placeholder="Search tickets...">
+
+                    
+                </div>
+
+
+                <div id="addPanel" class="panel" style="padding:12px;">
+
+                    <div style="display:flex;gap:10px;margin-bottom:10px;">
+
+                        <input id="title" class="input" placeholder="Title" style="width:300px;">
+                        <button id="saveTicketBtn" class="btn" type="button">
+                        +Add Ticket
+                    </button>
+
+<!-- 
+                        <select id="category">
+
+                            <option value="IT">IT</option>
+                            <option value="Production">Production</option>
+                            <option value="Quality">Quality</option>
+                            <option value="Inventory">Inventory</option>
+                            <option value="Payroll">Payroll</option>
+
+                        </select> -->
+
+                        <!-- <select id="priority">
+
+                            <option value="low">
+                                Low
+                            </option>
+
+                            <option value="normal" selected>
+                                Normal
+                            </option>
+
+                            <option value="high">
+                                High
+                            </option>
+
+                        </select>
+
+                    </div> -->
+<!-- 
+                    <div style="margin-bottom:10px;">
+
+                        <textarea id="description" placeholder="Description" style="
+                width:100%;
+                height:120px;
+            "></textarea>
+
+                    </div> -->
+
+                    
+
+                </div>
+                <div id="listBody"></div>
+
+            </section>
+
+        </main>
+
+    </div>
+
+    <div class="toast" id="toast">
+        <span id="toastText"></span>
+    </div>
+
+    <script type="module" src="/static/js/nav-loader.js"></script>
+
+    <script src="/static/vendor/tabulator/tabulator.min.js"></script>
+
+    <script type="module" src="/static/js/page-tickets.js?v=1.1"></script>
+
+</body>
+
+</html>

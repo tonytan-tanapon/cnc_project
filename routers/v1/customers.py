@@ -31,7 +31,9 @@ class CustomerMini(BaseModel):
   code: str | None = None
   name: str | None = None
   class Config:
-    orm_mode = True  # ถ้าใช้ Pydantic v2: model_config = {"from_attributes": True}
+    
+    # orm_mode = True  # ถ้าใช้ Pydantic v2: 
+    model_config = {"from_attributes": True}
 
 # >>> ---------- schema สำหรับ keyset (cursor) ----------
 class CustomerCursorPage(BaseModel):

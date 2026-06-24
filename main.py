@@ -33,8 +33,7 @@ scheduler = BackgroundScheduler()
 @app.on_event("startup")
 def start_scheduler():
 
-    print("Starting Scheduler...")
-
+    
     scheduler.add_job(
         ensure_next_pay_period,
         "cron",
@@ -53,9 +52,6 @@ def start_scheduler():
     )
 
     scheduler.start()
-
-    print("Scheduler Started")
-
     ensure_next_pay_period()
 
 origins = [

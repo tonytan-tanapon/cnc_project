@@ -36,7 +36,8 @@ class SupplierMini(BaseModel):
     code: str | None = None
     name: str | None = None
     class Config:
-        orm_mode = True  # if pydantic v2: model_config = {"from_attributes": True}
+        # orm_mode = True  # if pydantic v2: 
+        model_config = {"from_attributes": True}
 
 # ---------- keyset (cursor) ----------
 class SupplierCursorPage(BaseModel):
