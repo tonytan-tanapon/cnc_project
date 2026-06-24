@@ -15,18 +15,18 @@ df_file = pd.read_excel(file_list_path)
 df_lot = pd.read_excel(lot_report_path)
 
 ### Selct year
-# YEAR = 2026
+YEAR = 2026
 
-# df_lot = pd.read_excel(lot_report_path)
+df_lot = pd.read_excel(lot_report_path)
 
-# df_lot["Real Shipped Date"] = pd.to_datetime(
-#     df_lot["Real Shipped Date"],
-#     errors="coerce"
-# )
+df_lot["Real Shipped Date"] = pd.to_datetime(
+    df_lot["Real Shipped Date"],
+    errors="coerce"
+)
 
-# df_lot = df_lot[
-#     df_lot["Real Shipped Date"].dt.year == YEAR
-# ]
+df_lot = df_lot[
+    df_lot["Real Shipped Date"].dt.year == YEAR
+]
 
 # =========================================
 # REMOVE SPACE FROM COLUMN NAMES
@@ -162,7 +162,7 @@ df_result = pd.DataFrame(results)
 
 import os
 
-output_path = r"Z:\Topnotch Group\Public\AS9100\Shop Traveler\Shop Traveler Scan\checklist\check_listALL.xlsx"
+output_path = r"Z:\Topnotch Group\Public\AS9100\Shop Traveler\Shop Traveler Scan\checklist\check_list2026.xlsx"
 
 os.makedirs(
     os.path.dirname(output_path),

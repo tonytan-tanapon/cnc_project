@@ -109,9 +109,11 @@ final_df = final_df.rename(columns={
     "Rev": "Rev."
 })
 
+
 # Save
-output_folder_path = "C:\\Users\\TPSERVER\\dev\\cnc_project\\database_export\\output"
+output_folder_path = "Z:\\Topnotch Group\\Public\\Testing APP\\ScanList"
+# output_folder_path = "C:\\Users\\TPSERVER\\dev\\cnc_project\\database_export\\output"
 output_file = os.path.join(output_folder_path, "lot_report_format.xlsx")
 final_df.to_excel(output_file, index=False)
 
-print("✅ DONE! File created:", output_file)
+print("DONE! File created:", output_file)
