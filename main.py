@@ -17,6 +17,8 @@ from database import SessionLocal, engine, get_db
 from apscheduler.schedulers.background import BackgroundScheduler
 from services.pay_period_auto import ensure_next_pay_period
 from services.traveler_close_auto import run_traveler_close
+from databaseExport import database_backup
+from database_import import update_lot_shippment
 
 
 
@@ -51,6 +53,22 @@ def start_scheduler():
         id="traveler_close"
     )
 
+    scheduler.add_job(
+        run_traveler_close,
+        "cron",
+        day_of_week="mon-fri",
+        hour=1,
+        minute=0,
+        id="update_lot_shippment"
+    )
+    scheduler.add_job(
+        database_backup,
+        "cron",
+        day=28,
+        hour=1,      # ตัวอย่าง รันตี 1
+        minute=0,
+        id="database_export"
+    )
     scheduler.start()
     ensure_next_pay_period()
 
