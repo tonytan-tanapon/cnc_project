@@ -1,3 +1,12 @@
+ const token =
+      localStorage.getItem("token");
+
+    if (!token) {
+      location.href = "/static/login.html";
+    }
+
+
+
 import { $, jfetch, toast } from "/static/js/api.js";
 
 const tblBody = document.getElementById("tblBody");

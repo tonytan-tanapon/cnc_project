@@ -40,7 +40,6 @@ def start_scheduler():
         print("Scheduler disabled.")
         return
 
-    
     scheduler.add_job(
         ensure_next_pay_period,
         "cron",
@@ -66,7 +65,7 @@ def start_scheduler():
         minute=0,
         id="update_lot_shippment"
     )
-    
+
     scheduler.add_job(
         database_backup,
         "cron",
@@ -114,7 +113,6 @@ def index():
 def login_page():
     return RedirectResponse(url="/static/login.html")
 
-
 @app.get("/time-clock", include_in_schema=False)
 def time_clock_page():
     return RedirectResponse(url="/static/time_clock.html")
@@ -126,7 +124,6 @@ def time_clock_page():
 @app.get("/index", include_in_schema=False)
 def time_clock_page():
     return RedirectResponse(url="/static/traveler_steps.html")
-
 
 ui_router = APIRouter(prefix="/ui", tags=["ui"])
 templates = Jinja2Templates(directory="templates")
