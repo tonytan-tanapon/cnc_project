@@ -4,13 +4,40 @@ const ENDPOINTS = {
   list: (qs) => `/part_inventory?${qs}`,
 };
 
+
+
 const UI = {
   q: "_q",
+  add: "_add",
   table: "listBody",
 };
 
 let table = null;
 let els = {};
+
+function bindAdd() {
+
+  els._add.addEventListener("click", () => {
+
+    table.addRow({
+
+      id: null,
+
+      part_no: "",
+      rev: "",
+      lot_no: "",
+
+      prod_qty: 0,
+      ship_qty: 0,
+      stock_qty: 0,
+
+      isNew: true
+
+    }, true);
+
+  });
+
+}
 
 function makeColumns() {
   return [
@@ -19,18 +46,21 @@ function makeColumns() {
       title: "Part",
       field: "part_no",
       width: 180,
+      editor: "input"
     },
 
     {
       title: "Rev",
       field: "rev",
       width: 80,
+      editor: "input"
     },
 
     {
       title: "Lot",
       field: "lot_no",
       width: 180,
+      editor: "input"
     },
 
     {
@@ -100,68 +130,60 @@ function initTable() {
     reactiveData: true,
   });
 
-  table.on("cellClick", (e, cell) => {
-    console.log(
-      "CELL CLICK",
-      cell.getField()
-    );
-  });
 
   table.on("cellEdited", async (cell) => {
 
-    console.log(
-      "CELL EDITED",
-      cell.getField(),
-      cell.getValue()
-    );
-
-    const row =
-      cell.getRow().getData();
+    const row = cell.getRow().getData();
 
     try {
 
-      const res = await fetch(
-        `/api/v1/part_inventory/${row.id}`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type":
-              "application/json"
-          },
-          body: JSON.stringify({
-            prod_qty:
-              Number(row.prod_qty || 0),
+      let url;
+      let method;
 
-            ship_qty:
-              Number(row.ship_qty || 0),
+      if (row.id) {
 
-            stock_qty:
-              Number(row.stock_qty || 0)
-          })
-        }
-      );
+        url = `/api/v1/part_inventory/${row.id}`;
+        method = "PUT";
+
+      } else {
+
+        url = "/api/v1/part_inventory";
+        method = "POST";
+
+      }
+
+      const res = await fetch(url, {
+        method,
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+
+          part_no: row.part_no,
+          rev: row.rev,
+          lot_no: row.lot_no,
+
+          prod_qty: Number(row.prod_qty || 0),
+          ship_qty: Number(row.ship_qty || 0),
+          stock_qty: Number(row.stock_qty || 0)
+
+        })
+      });
 
       if (!res.ok) {
-        throw new Error(
-          await res.text()
-        );
+        throw new Error(await res.text());
       }
 
       toast("Saved");
 
-      await loadData(
-  els._q?.value?.trim() || ""
-);
+      await loadData();
 
     } catch (err) {
 
-      console.error(err);
+      toast(err.message, false);
 
-      toast(
-        err.message,
-        false
-      );
     }
+
   });
 }
 
@@ -245,6 +267,7 @@ document.addEventListener(
     initTable();
 
     bindSearch();
+    bindAdd();
 
     await loadData();
   }

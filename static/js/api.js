@@ -64,6 +64,7 @@ function isJSON(res) {
 //   return isJSON(res) ? res.json() : res.text();
 // }
 /** jfetch: ใช้กับทุก API เพื่อให้ base ตรงกันหมด */
+
 function _hasBody(res) {
   // no-body statuses per spec
   if (res.status === 204 || res.status === 205 || res.status === 304)
