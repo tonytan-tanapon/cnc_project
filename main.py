@@ -19,7 +19,7 @@ from services.pay_period_auto import ensure_next_pay_period
 from services.traveler_close_auto import run_traveler_close
 from databaseExport import database_backup
 from database_import import update_lot_shippment
-
+import os
 
 
 # ------------------------------
@@ -34,6 +34,11 @@ scheduler = BackgroundScheduler()
 
 @app.on_event("startup")
 def start_scheduler():
+
+    # เปิด Scheduler เฉพาะตอนที่ตั้ง Environment Variable
+    if os.getenv("ENABLE_SCHEDULER") != "1":
+        print("Scheduler disabled.")
+        return
 
     
     scheduler.add_job(
@@ -61,6 +66,7 @@ def start_scheduler():
         minute=0,
         id="update_lot_shippment"
     )
+    
     scheduler.add_job(
         database_backup,
         "cron",
