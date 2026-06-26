@@ -1,5 +1,3 @@
-
-
 import os
 import glob
 import pandas as pd
@@ -12,7 +10,6 @@ def collect_files_and_sheets(base_dir):
     for f in files:
         if os.path.basename(f).startswith("~$"):  # skip Excel temp/lock files
             continue
-
         try:
             xl = pd.ExcelFile(f)
             for sheet in xl.sheet_names:
@@ -42,3 +39,5 @@ if __name__ == "__main__":
         f.write("]\n")
 
     print(f"✅ Saved {len(FILES)} entries into {out_file}")
+
+    

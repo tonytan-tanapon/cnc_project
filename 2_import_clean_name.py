@@ -17,8 +17,7 @@ with open(input_file, "r", encoding="utf-8") as f:
 
                 # get filename without .xlsm
                 filename = os.path.splitext(os.path.basename(path))[0]
-                
-
+    
                 # keep only if sheet == filename
                 if sheet == filename:
                     cleaned_lines.append(line)
