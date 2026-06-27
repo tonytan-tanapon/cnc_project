@@ -77,7 +77,6 @@ def get_part_inventory_data(db: Session, lot_id: int):
     planned_qty = float(lot.planned_qty or 0)
     finished_qty = float(finished_qty)
     shipped_qty = float(shipped_qty)
-
     available_qty = max(finished_qty - shipped_qty, 0)
 
     return {

@@ -18,7 +18,6 @@ class MachineOut(BaseModel):
     id: int
     code: str  | None = None 
     name: str | None = None
-
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -28,7 +27,6 @@ class MachineOut(BaseModel):
 @router.get("", response_model=List[MachineOut])
 def get_machines(db: Session = Depends(get_db)):
     machines = db.query(Machine).all()
-
     return [
         {
             "id": m.id,
@@ -52,3 +50,4 @@ def get_machine_by_code(code: str, db: Session = Depends(get_db)):
     if not machine:
         raise HTTPException(status_code=404, detail="Machine not found")
     return machine
+

@@ -24,6 +24,7 @@ const escapeHtml = (s) =>
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
+    
 const numOrNull = (v) => (v === "" || v == null ? null : Number(v));
 const strOrNull = (v) => {
   if (v == null) return null;
