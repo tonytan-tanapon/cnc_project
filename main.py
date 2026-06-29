@@ -49,14 +49,14 @@ def start_scheduler():
         id="pay_period"
     )
 
-    scheduler.add_job(
-        run_traveler_close,
-        "cron",
-        day_of_week="mon-fri",
-        hour=1,
-        minute=0,
-        id="traveler_close"
-    )
+    # scheduler.add_job(
+    #     run_traveler_close,
+    #     "cron",
+    #     day_of_week="mon-fri",
+    #     hour=1,
+    #     minute=0,
+    #     id="traveler_close"
+    # )
 
     # scheduler.add_job(
     #     run_traveler_close,
