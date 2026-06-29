@@ -11,6 +11,7 @@ project_root = Path(__file__).resolve().parents[1]
 sys.path.append(str(project_root))
 
 from database import SessionLocal
+import traceback
 from models import ProductionLot
 
 def update_lot_shippment():
@@ -109,7 +110,16 @@ def update_lot_shippment():
         print()
         print(f"Updated {updated} lots.")
 
+    except Exception as e:
+        db.rollback()
+        print("=" * 60)
+        print("update_lot_shippment FAILED")
+        print(e)
+        traceback.print_exc()
+        print("=" * 60)
+
     finally:
         db.close()
 
-update_lot_shippment()
+# update_lot_shippment()
+
