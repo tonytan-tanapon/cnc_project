@@ -89,28 +89,30 @@ class ShopTravelerRowOut(BaseModel):
 # ---------- Helpers ----------
 def to_row_out(t: ShopTraveler, db: Session) -> ShopTravelerRowOut:
 
-     # =========================
+  
+
+    # =========================
     # START QTY
     # =========================
 
     start_qty = 0
 
-    op010 = next(
-        (
-            s for s in t.steps
-            if str(s.step_code).strip() == "010"
+    steps_sorted = sorted(
+        t.steps or [],
+        key=lambda s: (
+            0 if str(s.step_code or "").upper().startswith("M") else 1,
+            int("".join(filter(str.isdigit, str(s.step_code or ""))) or 999999),
         ),
-        None
     )
 
-    if op010:
+    if steps_sorted:
 
-        for log in op010.logs or []:
+        first_step = steps_sorted[0]
 
-            start_qty += (
-                (log.qty_accept or 0)
-                + (log.qty_reject or 0)
-            )
+        start_qty = sum(
+            (log.qty_accept or 0) + (log.qty_reject or 0)
+            for log in (first_step.logs or [])
+        )
 
     # =========================
     # FINAL QTY
@@ -950,7 +952,13 @@ def get_traveler_by_no(
     # FIND ACTIVE STEP
     # =========================
 
-    sorted_steps = sorted(traveler.steps, key=lambda x: x.seq)
+    sorted_steps = sorted(
+        traveler.steps,
+        key=lambda s: (
+            0 if str(s.step_code or "").upper().startswith("M") else 1,
+            int("".join(filter(str.isdigit, str(s.step_code or ""))) or 999999),
+        ),
+    )
 
     active_step = None
 
@@ -1058,15 +1066,20 @@ def get_traveler_by_no(
     # =========================
     # STEP DATA
     # =========================
+    # =========================
+    # STEP DATA
+    # =========================
     steps = []
 
     prev_accept = 0
 
-    for i, s in enumerate(sorted(traveler.steps, key=lambda x: x.seq)):
+    # ใช้ sorted_steps ที่คำนวณไว้ด้านบน
+    for i, s in enumerate(sorted_steps):
 
         qty_accept = sum(float(l.qty_accept or 0) for l in s.logs)
         qty_reject = sum(float(l.qty_reject or 0) for l in s.logs)
 
+        # Receive
         if i == 0:
             qty_receive = qty_accept + qty_reject
         else:
@@ -1077,7 +1090,6 @@ def get_traveler_by_no(
         latest_po = None
 
         if s.logs:
-
             latest_log = sorted(
                 s.logs,
                 key=lambda l: (
@@ -1091,7 +1103,7 @@ def get_traveler_by_no(
         prev_step_code = None
 
         if i > 0:
-            prev_step_code = sorted(traveler.steps, key=lambda x: x.seq)[i - 1].step_code
+            prev_step_code = sorted_steps[i - 1].step_code
 
         status = calculate_step_status(
             qty_receive,
@@ -1103,14 +1115,6 @@ def get_traveler_by_no(
             prev_step_code,
         )
 
-        print(
-            "BY_NO STATUS:",
-            s.step_code,
-            s.input_mode,
-            latest_po,
-            status
-        )
-
         steps.append({
             "id": s.id,
             "seq": s.seq,
@@ -1118,13 +1122,13 @@ def get_traveler_by_no(
             "step_name": s.step_name,
             "status": status,
             "input_mode": s.input_mode,
-
             "qty_receive": qty_receive,
             "qty_accept": qty_accept,
             "qty_reject": qty_reject,
             "qty_remain": qty_remain,
         })
 
+        # Step ถัดไป Receive = Accept ของ Step ก่อนหน้า
         prev_accept = qty_accept
 
         
