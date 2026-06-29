@@ -58,14 +58,14 @@ def start_scheduler():
         id="traveler_close"
     )
 
-    scheduler.add_job(
-        run_traveler_close,
-        "cron",
-        day_of_week="mon-fri",
-        hour=1,
-        minute=0,
-        id="update_lot_shippment"
-    )
+    # scheduler.add_job(
+    #     run_traveler_close,
+    #     "cron",
+    #     day_of_week="mon-fri",
+    #     hour=1,
+    #     minute=0,
+    #     id="update_lot_shippment"
+    # )
 
     scheduler.add_job(
         database_backup,
