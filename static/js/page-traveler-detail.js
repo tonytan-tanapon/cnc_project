@@ -13,6 +13,7 @@ let originalTraveler = null;
 let originalLot = null;
 let isSubmitting = false;
 
+
 let employees = [];
 let machines = [];
 
@@ -347,8 +348,6 @@ function wireHeaderDirtyOnly() {
 /* ---------- Header Autocomplete ---------- */
 function initHeaderAutocomplete() {
   const elLot = $("lot_id");
-
-
 
 
   // LOT → lot_no only

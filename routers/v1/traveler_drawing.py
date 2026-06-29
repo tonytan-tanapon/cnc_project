@@ -583,7 +583,6 @@ def build_traveler_data_from_db(traveler: ShopTraveler,db: Session) -> dict:
 
             "operator_position": operator_position,
            
-
             "created_at":
                 created_at_str,
 
@@ -605,6 +604,7 @@ def build_traveler_data_from_db(traveler: ShopTraveler,db: Session) -> dict:
         })
 
         prev_accept = accept
+        
     from sqlalchemy import func
     from models import CustomerShipmentItem
     lot_shipped_qty = (
