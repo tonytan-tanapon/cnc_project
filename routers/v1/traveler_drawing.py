@@ -488,64 +488,34 @@ def build_traveler_data_from_db(traveler: ShopTraveler,db: Session) -> dict:
         #     sorted(set(operators))
         # )
 
+        # หา log ล่าสุด
+        latest_log = max(
+            (log for log in logs if log.work_date),
+            key=lambda x: x.work_date,
+            default=None
+        )
+       
+
         operator_str = ""
         operator_position = ""
+        created_at_str = ""
 
-        for log in logs:
+        if latest_log:
 
-            if log.operator:
+            if latest_log.operator:
 
-                # -------------------------
-                # NAME
-                # -------------------------
-                if getattr(
-                    log.operator,
-                    "emp_op",
-                    None
-                ):
+                operator_str = (
+                    latest_log.operator.emp_op
+                    or latest_log.operator.nickname
+                    or ""
+                )
 
-                    operator_str = log.operator.emp_op
+                operator_position = (
+                    latest_log.operator.position
+                    or ""
+                )
 
-                elif getattr(
-                    log.operator,
-                    "nickname",
-                    None
-                ):
-
-                    operator_str = log.operator.nickname
-
-                # -------------------------
-                # POSITION
-                # -------------------------
-                operator_position = getattr(
-                    log.operator,
-                    "position",
-                    ""
-                ) or ""
-
-                break
-
-        # print("Operator and POsition", operator_str, operator_position)
-
-        # -------------------------
-        # CREATED DATE
-        # -------------------------
-        dates = [
-
-            log.work_date
-
-            for log in logs
-
-            if log.work_date
-        ]
-
-        created_at_str = (
-
-            min(dates).strftime("%m/%d/%y")
-
-            if dates else ""
-
-        )
+            created_at_str = latest_log.work_date.strftime("%m/%d/%y")
 
         # ==================================================
         # 🔥 SUPPLIER TEXT FROM LOGS
@@ -556,48 +526,36 @@ def build_traveler_data_from_db(traveler: ShopTraveler,db: Session) -> dict:
 
             lines = []
 
+            supplier_name = (log.supplier_name or "").strip()
+            supplier_po = (log.supplier_po or "").strip()
+            supplier_lot = (log.supplier_lot or "").strip()
+            note = (log.note or "").strip()
 
-            if log.supplier_name:
+            if supplier_name:
+                lines.append(f"Supplier: {supplier_name.upper()}")
 
-                lines.append(f"Supplier: {log.supplier_name.upper()}")
-            if log.supplier_po:
+            if supplier_po:
+                lines.append(f"PO: {supplier_po.upper()}")
 
-                lines.append(f"PO: {log.supplier_po.upper()}")
+            if supplier_lot:
 
-          
-
-            if log.supplier_lot:
-
-                step_code = (
-                    str(s.step_code or "")
-                    .upper()
-                )
+                step_code = str(s.step_code or "").upper()
 
                 if step_code.startswith("M"):
-
-                    lines.append(
-                        f"Heat Lot: {log.supplier_lot.upper()}"
-                    )
-
+                    lines.append(f"Heat Lot: {supplier_lot.upper()}")
                 else:
+                    lines.append(f"Cert: {supplier_lot.upper()}")
 
-                    lines.append(
-                        f"Cert: {log.supplier_lot.upper()}"
-                    )
+            if note:
+                lines.append(note.upper())
 
-            # 🔥 COMMENT
-            if log.note:
-                lines.append(f"{log.note.upper()}")
-
-            # skip empty
+            # ถ้าไม่มีข้อมูลเลย ข้าม log นี้
             if not lines:
                 continue
 
             block = "\n".join(lines)
 
-            # prevent duplicate
             if block not in supplier_blocks:
-
                 supplier_blocks.append(block)
 
         supplier_text = "\n\n".join(

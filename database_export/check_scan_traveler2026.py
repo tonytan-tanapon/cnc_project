@@ -141,7 +141,6 @@ for _, row in df_lot.iterrows():
         for f in matched_files:
 
             results.append({
-
                 "Lot#": lot_no,
                 "Part No.": part_no,
                 "Real Shipped Date": shipped_date,
