@@ -18,38 +18,27 @@ async function loadTickets() {
             "#listBody",
             {
                 layout: "fitColumns",
-
                 height: "100%",
-
                 editable: true,
-
                 data: rows,
-
                 columns: [
-
                     // {
                     //     title: "ID",
                     //     field: "id",
                     //     width: 80
                     // },
-
                     {
                         title: "Created",
                         field: "created_at",
                         width: 120,
-
                         formatter(cell) {
-
                             const v =
                                 cell.getValue();
-
                             if (!v) {
                                 return "";
                             }
-
                             const d =
                                 new Date(v);
-
                             const mm =
                                 String(
                                     d.getMonth() + 1
@@ -159,11 +148,9 @@ async function loadTickets() {
                         ,
 
                         cellClick(e, cell) {
-
                             const row =
                                 cell.getRow()
                                     .getData();
-
                             deleteTicket(
                                 row.id
                             );

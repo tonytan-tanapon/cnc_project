@@ -422,33 +422,45 @@ def build_traveler_data_from_db(traveler: ShopTraveler,db: Session) -> dict:
     #         "step_code =", s.step_code
     #     )
 
-    
+    first_step = sorted_steps[0] if sorted_steps else None
 
     for s in sorted_steps:
 
-        # -------------------------
-        # ACCEPT / REJECT
-        # -------------------------
         accept = int(s.total_accept or 0)
         reject = int(s.total_reject or 0)
 
-        # -------------------------
-        # RECEIVE
-        # -------------------------
-        if s.seq == 1:
-            receive = accept
-            # receive =  (
-            #     lot.planned_qty
-            #     if (
-            #         lot.planned_qty and
-            #         lot.planned_qty > 0
-            #     )
-            #     else accept
-            # )
-
+        if s.id == first_step.id:
+            receive = accept + reject 
         else:
-
             receive = prev_accept
+
+        prev_accept = accept 
+
+    # for s in sorted_steps:
+
+    #     # -------------------------
+    #     # ACCEPT / REJECT
+    #     # -------------------------
+    #     accept = int(s.total_accept or 0)
+    #     reject = int(s.total_reject or 0)
+
+    #     # -------------------------
+    #     # RECEIVE
+    #     # -------------------------
+    #     if s.seq == 1:
+    #         receive = accept
+    #         # receive =  (
+    #         #     lot.planned_qty
+    #         #     if (
+    #         #         lot.planned_qty and
+    #         #         lot.planned_qty > 0
+    #         #     )
+    #         #     else accept
+    #         # )
+
+    #     else:
+
+    #         receive = prev_accept
 
         # ==================================================
         # STEP LOGS
