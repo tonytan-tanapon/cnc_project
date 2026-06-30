@@ -36,10 +36,10 @@ scheduler = BackgroundScheduler()
 def start_scheduler():
 
     # เปิด Scheduler เฉพาะตอนที่ตั้ง Environment Variable
-    # print("os.getenv(ABLE_SCHEDULER)",os.getenv("ENABLE_SCHEDULER"))
-    # if os.getenv("ENABLE_SCHEDULER") != "1":
-    #     print("Scheduler disabled.")
-    #     return
+    print("os.getenv(ABLE_SCHEDULER)",os.getenv("ENABLE_SCHEDULER"))
+    if os.getenv("ENABLE_SCHEDULER") != "1":
+        print("Scheduler disabled.")
+        return
 
     scheduler.add_job(
         ensure_next_pay_period,
@@ -49,23 +49,23 @@ def start_scheduler():
         id="pay_period"
     )
 
-    # scheduler.add_job(
-    #     run_traveler_close,
-    #     "cron",
-    #     day_of_week="mon-fri",
-    #     hour=1,
-    #     minute=0,
-    #     id="traveler_close"
-    # )
+    scheduler.add_job(
+        run_traveler_close,
+        "cron",
+        day_of_week="mon-fri",
+        hour=1,
+        minute=0,
+        id="traveler_close"
+    )
 
-    # scheduler.add_job(
-    #     run_traveler_close,
-    #     "cron",
-    #     day_of_week="mon-fri",
-    #     hour=1,
-    #     minute=0,
-    #     id="update_lot_shippment"
-    # )
+    scheduler.add_job(
+        run_traveler_close,
+        "cron",
+        day_of_week="mon-fri",
+        hour=1,
+        minute=0,
+        id="update_lot_shippment"
+    )
 
     scheduler.add_job(
         database_backup,
