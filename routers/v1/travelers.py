@@ -701,6 +701,194 @@ def copy_from_lot(
         "count": len(source_steps)
     }
 
+@router.post("/{traveler_id}/copy-from-blank")
+def copy_from_blank(
+    traveler_id: int,
+    db: Session = Depends(get_db)
+):
+    print("copy from blank")
+
+    # =========================
+    # Delete old logs
+    # =========================
+    old_steps = (
+        db.query(ShopTravelerStep)
+        .filter(
+            ShopTravelerStep.traveler_id == traveler_id
+        )
+        .all()
+    )
+
+    old_ids = [s.id for s in old_steps]
+
+    if old_ids:
+        db.query(ShopTravelerStepLog).filter(
+            ShopTravelerStepLog.step_id.in_(old_ids)
+        ).delete(
+            synchronize_session=False
+        )
+
+    # =========================
+    # Delete old steps
+    # =========================
+    db.query(
+        ShopTravelerStep
+    ).filter(
+        ShopTravelerStep.traveler_id == traveler_id
+    ).delete(
+        synchronize_session=False
+    )
+
+    db.flush()
+
+    # =========================
+    # Create new steps
+    # =========================
+    source_steps = [
+
+        {
+            "seq": 1,
+            "step_code": "M1",
+            "step_name": "**MATERIAL SIZE:** \n\n**TOTAL LENGTH:** ",
+            "step_detail": "",
+            "station": "",
+            "status": "passed",
+        },
+
+        {
+            "seq": 2,
+            "step_code": "M2",
+            "step_name": "**MATERIAL SIZE:** \n\n**TOTAL LENGTH:** ",
+            "step_detail": "",
+            "station": "",
+            "status": "passed",
+        },
+
+     
+
+        {
+            "seq": 3,
+            "step_code": "010",
+            "step_name": "**LATHE OP #010**",
+            "step_detail": "\n**-QA TO APPROVE FA 1 PC, THEN STAMP ON INSPECTION SHEET OP #010.**",
+            "station": "",
+            "status": "passed",
+        },
+        {
+            "seq": 4,
+            "step_code": "020",
+            "step_name": "**LATHE OP #020**",
+            "step_detail": "\n**-QA TO APPROVE FA 1 PC, THEN STAMP ON INSPECTION SHEET OP #020.**",
+            "station": "",
+            "status": "passed",
+        },
+         {
+            "seq": 5,
+            "step_code": "030",
+            "step_name": "**LATHE OP #030**",
+            "step_detail": "\n**-QA TO APPROVE FA 1 PC, THEN STAMP ON INSPECTION SHEET OP #030.**",
+            "station": "",
+            "status": "passed",
+        },
+         {
+            "seq": 6,
+            "step_code": "040",
+            "step_name": "**LATHE OP #040**",
+            "step_detail": "\n**-QA TO APPROVE FA 1 PC, THEN STAMP ON INSPECTION SHEET OP #040.**",
+            "station": "",
+            "status": "passed",
+        },
+        {
+            "seq": 7,
+            "step_code": "050",
+            "step_name": "**DEBURRING**",
+            "step_detail": "\n-BREAK SHARP EDGES 0.005 -0.015",
+            "station": "",
+            "status": "passed",
+        },
+
+        {
+            "seq": 8,
+            "step_code": "060",
+            "step_name": "**OUTSIDE PROCESSING**\n\n",
+            "step_detail": "",
+            "station": "",
+            "status": "passed",
+        },
+
+        {
+            "seq": 20,
+            "step_code": "070",
+            "step_name": "**FINAL INSPECTION**",
+            "step_detail": "QA TO PERFORM C=0, AQL=1.0%, LEVEL II, SINGLE SAMPLING INSPECTION PER WI# 7.4.3",
+            "station": "QA",
+            "status": "pending",
+        },
+
+        {
+            "seq": 30,
+            "step_code": "080",
+            "step_name": "**PUT PART IN EGG CRATE AND BAG WITH TAG INDIVIDUALLY. WATCH FOR FOD.** PUT IN THE BOX & APPLY LABEL ON THE BOX.",
+            "step_detail": "",
+            "station": "",
+            "status": "pending",
+        },
+
+        {
+            "seq": 40,
+            "step_code": "090",
+            "step_name": "**PREPARE SHIPPING DOC AND SHIP PER P.O.**\nPREPARE PACKING DOC. AND SHIP TO CUSTOMER PER CUSTOMER INSTRUCTIONS. WATCH FOR FOD.",
+            "step_detail": "",
+            "station": "",
+            "status": "pending",
+        },
+        {
+            "seq": 50,
+            "step_code": "100",
+            "step_name": '**PERFORM "CONFIGURATION AUDIT" FOR PART NUMBER, REV, COUNT INTEGRITY, OPERATION SIGN-OFF AND RELATED CONFIGURATION ITEMS.**',
+            "step_detail": "",
+            "station": "",
+            "status": "pending",
+        },
+
+        # {
+        #     "seq": 50,
+        #     "step_code": "100",
+        #     "step_name": "**PERFORM "CONFIGURATION AUDIT" FOR PART NUMBER, REV, COUNT INTEGRITY, OPERATION SIGN-OFF AND RELATED CONFIGURATION ITEMS.**",
+        #     "step_detail": "",
+        #     "station": "QA",
+        #     "status": "pending",
+        # },
+
+    ]
+
+    for s in source_steps:
+
+        step = ShopTravelerStep(
+            traveler_id=traveler_id,
+            **s
+        )
+
+        db.add(step)
+        db.flush()
+
+        db.add(
+            ShopTravelerStepLog(
+                step_id=step.id,
+                work_date=date.today(),
+                qty_accept=0,
+                qty_reject=0,
+                qty_rework=0,
+            )
+        )
+
+    db.commit()
+
+    return {
+        "message": "Copied",
+        "count": len(source_steps),
+    }
+
 @router.post("/{traveler_id}/create-template-version")
 def create_template_version(
     traveler_id: int,

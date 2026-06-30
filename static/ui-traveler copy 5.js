@@ -13,9 +13,7 @@ let selectedLogId = null;
 let currentLotId = null;
 let manualRowSelected = false;
 let currentStepData = null;   // ✅ FIX สำคัญ
-let currentMachineId = null;      // Header
-let editingMachineId = null;      // Log ที่กำลังแก้
-
+let currentMachineId = null;
 let selectedLengthUOM = "foot";
 
 const machineIdFromURL = new URLSearchParams(location.search).get("machine_id");
@@ -232,67 +230,42 @@ document.addEventListener("click", (e) => {
 
 });
 
-async function openMachineSelect(isEditLog = false) {
-
-  const machines = await jfetch("/api/v1/machines");
-
-  const list = document.querySelector("#machineList");
-
-  list.innerHTML = "";
-
-  machines.forEach(m => {
-
-    const btn = document.createElement("button");
-
-    btn.className = "machine-btn";
-    btn.innerText = m.code || m.name;
-
-    btn.onclick = async () => {
-
-      document.querySelector("#machineOverlay").style.display = "none";
-
-      // ===== แก้จากตาราง =====
-      if (isEditLog && selectedLogId) {
-
-        editingMachineId = m.id;
-
-        await jfetch(`/api/v1/step-logs/${selectedLogId}`, {
-          method: "PATCH",
-          body: JSON.stringify({
-            machine_id: editingMachineId
-          })
-        });
-
-        await loadOperation();
-        editingMachineId = null;
-        selectedLogId = null;
-        return;
-      }
-
-      // ===== เปลี่ยน Machine Header =====
-      currentMachineId = m.id;
-
-      document.querySelector("#machinename").textContent =
-        m.name || m.code;
-    };
-
-    list.appendChild(btn);
-
-  });
-
-  document.querySelector("#machineOverlay").style.display = "flex";
-}
-
 document.addEventListener("DOMContentLoaded", () => {
 
-  document
-    .querySelector("#machinename")
-    .addEventListener("click", () => {
+  document.querySelector("#machinename").addEventListener("click", async () => {
 
-      selectedLogId = null;
+    const machines = await jfetch("/api/v1/machines");
 
-      openMachineSelect(false);
+    let html = "";
+
+    machines.forEach(m => {
+      html += `
+            <option value="${m.id}"
+                ${m.id === currentMachineId ? "selected" : ""}>
+                ${m.name}
+            </option>
+        `;
     });
+
+    const value = prompt(
+      machines.map(m => `${m.id} : ${m.name}`).join("\n") +
+      "\n\nEnter Machine ID"
+    );
+
+    if (!value) return;
+
+    currentMachineId = Number(value);
+
+    const machine = machines.find(
+      m => m.id === currentMachineId
+    );
+
+    if (machine) {
+      document.querySelector("#machinename").textContent =
+        machine.name;
+    }
+
+  });
 
   document
     .querySelectorAll(".length-uom-btn")
@@ -509,7 +482,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
                 operator_id,
 
-                machine_id: editingMachineId || currentMachineId,
+                machine_id: currentMachineId,
 
                 note: remark,
               }
@@ -521,7 +494,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
                 operator_id,
 
-                machine_id: editingMachineId || currentMachineId,
+                machine_id: currentMachineId,
 
                 note: remark,
               }
@@ -550,7 +523,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
                 operator_id,
 
-                machine_id: editingMachineId || currentMachineId,
+                machine_id: currentMachineId,
 
                 note: remark,
               }
@@ -566,7 +539,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
                 operator_id,
 
-                machine_id: editingMachineId || currentMachineId,
+                machine_id: currentMachineId,
 
                 note: remark,
               }
@@ -669,7 +642,7 @@ document.addEventListener("DOMContentLoaded", () => {
             qty_accept,
             qty_reject,
             operator_id,
-            machine_id: editingMachineId || currentMachineId,
+            machine_id: currentMachineId,
             note: remark,
           }),
         });
@@ -819,8 +792,7 @@ function calcReceive(step, steps, allLogs, todayAccept, todayReject) {
 
 async function loadOperation() {
 
-  console.log("machineIdFromURL =", machineIdFromURL);
-  console.log("currentMachineId =", currentMachineId);
+
   // =========================
   // MACHINE
   // =========================
@@ -1193,11 +1165,8 @@ async function loadOperation() {
             tr.innerHTML = isMachineMode
 
               ? `
-          <td>
-
-
-
-            ${l.work_date
+<td>
+  ${l.work_date
                 ? (() => {
                   const [y, m, d] = l.work_date.split("-");
                   return `${m}/${d}/${y.slice(2)}`;
@@ -1224,11 +1193,7 @@ async function loadOperation() {
   ${l.operator_nickname || l.operator_name || "-"}
 </td>
 
-<td class="machine-cell"
-    data-log-id="${l.id}"
-    data-machine-id="${l.machine_id || ""}">
-    ${l.machine_name || "-"}
-</td>
+<td>${l.machine_name || "-"}</td>
 `
 
               : `
@@ -1248,27 +1213,8 @@ async function loadOperation() {
 
 <td>${l.operator_nickname || l.operator_name || "-"}</td>
 
-<td class="machine-cell"
-    data-log-id="${l.id}"
-    data-machine-id="${l.machine_id}">
-    ${l.machine_name || "-"}
-</td>
+<td>${l.machine_name || "-"}</td>
 `;
-
-            const machineCell = tr.querySelector(".machine-cell");
-
-            if (machineCell) {
-
-              machineCell.onclick = (e) => {
-
-                e.stopPropagation();
-
-                selectedLogId = l.id;
-                editingMachineId = l.machine_id;
-
-                openMachineSelect(true);   // true = edit log
-              };
-            }
 
             tbody.appendChild(tr);
           });
@@ -1397,13 +1343,9 @@ async function loadOperation() {
 
     let machineText = "-";
 
-    // ใช้ค่าใน URL แค่ครั้งแรก
-    if (!currentMachineId && machineIdFromURL) {
+    if (machineIdFromURL) {
       currentMachineId = Number(machineIdFromURL);
-    }
 
-
-    if (currentMachineId) {
       try {
         const m = await jfetch(`/api/v1/machines/${currentMachineId}`);
         machineText = m.name || m.code || currentMachineId;
@@ -1416,10 +1358,7 @@ async function loadOperation() {
     //   "Machine: " + machineText;
 
     document.querySelector("#operatorName").textContent =
-      operatorText;
-
-    document.querySelector("#machinename").textContent =
-      machineText;
+      `${operatorText}` + ":" + machineText;
 
     // document.querySelector("#loginOP").textContent =
     //   `Login: ${travelerEmp}`;

@@ -3533,6 +3533,57 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   );
 
+
+  const btnFromBlank =
+    document.getElementById("btnFromBlank");
+
+    
+
+  btnFromBlank?.addEventListener("click", async () => {
+      console.log("from blank")
+       if (
+    !confirm("Create from Blank?")
+  ) {
+    return;
+  }
+      try {
+
+        setBusyT(true);
+
+        await jfetch(
+          `/api/v1/travelers/${travelerId}/copy-from-blank`,
+          {
+            method: "POST",
+
+            body: JSON.stringify({
+              from_lot_no: 111,
+              from_lot_qty: 111
+            })
+          }
+        );
+
+        toast("From Blank completed");
+
+        await reloadSteps();
+
+      } catch (err) {
+
+        console.error(err);
+
+        toast(
+          err?.message ||
+          "Copy failed",
+          false
+        );
+
+      } finally {
+
+        setBusyT(false);
+      }
+    }
+
+  );
+
   const btnUpdateTemplate = document.getElementById("btnUpdateTravelerTemplate");
 
   btnUpdateTemplate?.addEventListener("click", async () => {
