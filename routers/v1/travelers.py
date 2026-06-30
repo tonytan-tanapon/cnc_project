@@ -106,7 +106,6 @@ def to_row_out(t: ShopTraveler, db: Session) -> ShopTravelerRowOut:
     )
 
     if steps_sorted:
-
         first_step = steps_sorted[0]
 
         start_qty = sum(
