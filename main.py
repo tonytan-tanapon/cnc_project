@@ -36,10 +36,10 @@ scheduler = BackgroundScheduler()
 def start_scheduler():
 
     # เปิด Scheduler เฉพาะตอนที่ตั้ง Environment Variable
-    print("os.getenv(ABLE_SCHEDULER)",os.getenv("ENABLE_SCHEDULER"))
-    if os.getenv("ENABLE_SCHEDULER") != "1":
-        print("Scheduler disabled.")
-        return
+    # print("os.getenv(ABLE_SCHEDULER)",os.getenv("ENABLE_SCHEDULER"))
+    # if os.getenv("ENABLE_SCHEDULER") != "1":
+    #     print("Scheduler disabled.")
+    #     return
 
     scheduler.add_job(
         ensure_next_pay_period,
