@@ -790,17 +790,17 @@ def copy_from_blank(
             "station": "",
             "status": "passed",
         },
-         {
-            "seq": 6,
-            "step_code": "040",
-            "step_name": "**LATHE OP #040**",
-            "step_detail": "\n**-QA TO APPROVE FA 1 PC, THEN STAMP ON INSPECTION SHEET OP #040.**",
-            "station": "",
-            "status": "passed",
-        },
+        #  {
+        #     "seq": 6,
+        #     "step_code": "040",
+        #     "step_name": "**LATHE OP #040**",
+        #     "step_detail": "\n**-QA TO APPROVE FA 1 PC, THEN STAMP ON INSPECTION SHEET OP #040.**",
+        #     "station": "",
+        #     "status": "passed",
+        # },
         {
             "seq": 7,
-            "step_code": "050",
+            "step_code": "040",
             "step_name": "**DEBURRING**",
             "step_detail": "\n-BREAK SHARP EDGES 0.005 -0.015",
             "station": "",
@@ -809,7 +809,7 @@ def copy_from_blank(
 
         {
             "seq": 8,
-            "step_code": "060",
+            "step_code": "050",
             "step_name": "**OUTSIDE PROCESSING**\n\n",
             "step_detail": "",
             "station": "",
@@ -818,7 +818,7 @@ def copy_from_blank(
 
         {
             "seq": 20,
-            "step_code": "070",
+            "step_code": "060",
             "step_name": "**FINAL INSPECTION**",
             "step_detail": "QA TO PERFORM C=0, AQL=1.0%, LEVEL II, SINGLE SAMPLING INSPECTION PER WI# 7.4.3",
             "station": "QA",
@@ -827,7 +827,7 @@ def copy_from_blank(
 
         {
             "seq": 30,
-            "step_code": "080",
+            "step_code": "070",
             "step_name": "**PUT PART IN EGG CRATE AND BAG WITH TAG INDIVIDUALLY. WATCH FOR FOD.** PUT IN THE BOX & APPLY LABEL ON THE BOX.",
             "step_detail": "",
             "station": "",
@@ -836,7 +836,7 @@ def copy_from_blank(
 
         {
             "seq": 40,
-            "step_code": "090",
+            "step_code": "080",
             "step_name": "**PREPARE SHIPPING DOC AND SHIP PER P.O.**\nPREPARE PACKING DOC. AND SHIP TO CUSTOMER PER CUSTOMER INSTRUCTIONS. WATCH FOR FOD.",
             "step_detail": "",
             "station": "",
@@ -844,7 +844,7 @@ def copy_from_blank(
         },
         {
             "seq": 50,
-            "step_code": "100",
+            "step_code": "090",
             "step_name": '**PERFORM "CONFIGURATION AUDIT" FOR PART NUMBER, REV, COUNT INTEGRITY, OPERATION SIGN-OFF AND RELATED CONFIGURATION ITEMS.**',
             "step_detail": "",
             "station": "",
