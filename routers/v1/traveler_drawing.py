@@ -8,6 +8,8 @@ import os
 import tempfile
 from datetime import datetime
 from routers.v1.travelers import to_row_out
+
+from utils.traveler_utils import calculate_traveler_steps
 router = APIRouter(prefix="/traveler_drawing", tags=["traveler_drawing"])
 
 
@@ -400,14 +402,10 @@ def build_traveler_data_from_db(traveler: ShopTraveler,db: Session) -> dict:
     customer = po.customer if po else None
 
     steps = []
-
-    prev_accept = lot.planned_qty or 0
-
     sorted_steps = sorted(
         traveler.steps,
         key=lambda s: (
             0 if str(s.step_code).startswith("M") else 1,
-
             int(
                 ''.join(
                     filter(str.isdigit, str(s.step_code))
@@ -415,90 +413,48 @@ def build_traveler_data_from_db(traveler: ShopTraveler,db: Session) -> dict:
             )
         )
     )
-   
-    # for s in sorted_steps:
-    #     print(
-    #         "seq =", s.seq,
-    #         "step_code =", s.step_code
-    #     )
 
-    first_step = sorted_steps[0] if sorted_steps else None
+    step_data = calculate_traveler_steps(sorted_steps)
 
-    for s in sorted_steps:
+    # =================================
+    # START / FINAL QTY
+    # =================================
 
-        accept = int(s.total_accept or 0)
-        reject = int(s.total_reject or 0)
+    start_qty = 0
 
-        if s.id == first_step.id:
-            receive = accept + reject 
-        else:
-            receive = prev_accept
+    # Receive ของ OP แรก
+    for item in step_data:
 
-        prev_accept = accept 
+        if not item["is_material"]:
 
-    # for s in sorted_steps:
+            start_qty = int(item["receive"])
+            break
 
-    #     # -------------------------
-    #     # ACCEPT / REJECT
-    #     # -------------------------
-    #     accept = int(s.total_accept or 0)
-    #     reject = int(s.total_reject or 0)
+    # ถ้าไม่มี OP (มีแต่ Material)
+    if start_qty == 0 and step_data:
 
-    #     # -------------------------
-    #     # RECEIVE
-    #     # -------------------------
-    #     if s.seq == 1:
-    #         receive = accept
-    #         # receive =  (
-    #         #     lot.planned_qty
-    #         #     if (
-    #         #         lot.planned_qty and
-    #         #         lot.planned_qty > 0
-    #         #     )
-    #         #     else accept
-    #         # )
+        start_qty = sum(
+            int(item["accept"])
+            for item in step_data
+            if item["is_material"]
+        )
 
-    #     else:
+    # Final Qty = Accept ของ Step สุดท้าย
+    final_qty = (
+        int(step_data[-1]["accept"])
+        if step_data
+        else 0
+    )
 
-    #         receive = prev_accept
+    for item in step_data:
 
-        # ==================================================
-        # STEP LOGS
-        # ==================================================
+        s = item["step"]
+
+        receive = int(item["receive"])
+        accept = int(item["accept"])
+        reject = int(item["reject"])
+    
         logs = s.logs or []
-
-        # -------------------------
-        # OPERATOR STRING
-        # -------------------------
-        # operators = []
-
-        # for log in logs:
-
-        #     if log.operator:
-
-        #         if getattr(
-        #             log.operator,
-        #             "emp_op",
-        #             None
-        #         ):
-
-        #             operators.append(
-        #                 log.operator.emp_op
-        #             )
-
-        #         elif getattr(
-        #             log.operator,
-        #             "nickname",
-        #             None
-        #         ):
-
-        #             operators.append(
-        #                 log.operator.nickname
-        #             )
-
-        # operator_str = ", ".join(
-        #     sorted(set(operators))
-        # )
 
         # หา log ล่าสุด
         latest_log = max(
@@ -611,11 +567,10 @@ def build_traveler_data_from_db(traveler: ShopTraveler,db: Session) -> dict:
             "supplier_text":
                 supplier_text,
 
-            "remain":
-                receive - accept - reject,
+            "remain": int(item["remain"]),
         })
 
-        prev_accept = accept
+       
         
     from sqlalchemy import func
     from models import CustomerShipmentItem
@@ -712,17 +667,10 @@ def build_traveler_data_from_db(traveler: ShopTraveler,db: Session) -> dict:
             # REUSE API VALUES
             # =================================
 
-            "start_qty":
-                traveler_row.start_qty,
-
-            "final_qty":
-                traveler_row.final_qty,
-
-            "stock_qty":
-                traveler_row.stock_qty,
-
-            "order_qty":
-                lot.planned_qty or 0,
+            "start_qty": start_qty,
+            "final_qty": final_qty,
+            "stock_qty":  traveler_row.stock_qty,
+            "order_qty": lot.planned_qty or 0,
             "started_at":
                 (
                     lot.started_at.strftime("%m/%d/%y")
@@ -746,8 +694,7 @@ def build_traveler_data_from_db(traveler: ShopTraveler,db: Session) -> dict:
 
             "lot_shipped_qty": int(lot_shipped_qty or 0),
 
-            "risk":
-                lot.risk or "",
+            "risk":  lot.risk or "",
 
             "lot_po_date":
                 (

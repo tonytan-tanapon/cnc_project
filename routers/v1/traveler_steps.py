@@ -96,7 +96,9 @@ def list_traveler_steps(traveler_id: Optional[int] = None, db: Session = Depends
         )
         result = []
 
-        prev_accept = None
+        m_accept_total = 0
+        prev_accept = 0
+        first_op_found = False
 
         for i, (step, emp) in enumerate(rows):
           
@@ -107,15 +109,29 @@ def list_traveler_steps(traveler_id: Optional[int] = None, db: Session = Depends
             total_reject = sum((l.qty_reject or 0) for l in logs)
 
             # 🔥 NEW LOGIC
-            if i == 0:
+            is_material = (
+                str(step.step_code or "")
+                .upper()
+                .startswith("M")
+            )
+
+            if is_material:
+
                 receive = total_accept + total_reject
+                m_accept_total += total_accept
+
+            elif not first_op_found:
+
+                receive = m_accept_total
+                first_op_found = True
+
             else:
-                receive = prev_accept or 0
+
+                receive = prev_accept
 
             remain = receive - total_accept - total_reject
   
 
-            is_first = (i == 0)
 
             latest_po = None
 
@@ -148,7 +164,7 @@ def list_traveler_steps(traveler_id: Optional[int] = None, db: Session = Depends
                 receive,
                 total_accept,
                 total_reject,
-                is_first,
+                is_material,
                 step.input_mode,
                 latest_po,
                 prev_step_code,
@@ -256,7 +272,8 @@ def list_traveler_steps(traveler_id: Optional[int] = None, db: Session = Depends
             })
 
             # 🔥 carry forward to next step
-            prev_accept = total_accept
+            if not is_material:
+                prev_accept = total_accept
 
         return result
 

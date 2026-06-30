@@ -105,14 +105,22 @@ def to_row_out(t: ShopTraveler, db: Session) -> ShopTravelerRowOut:
         ),
     )
 
-    if steps_sorted:
-        first_step = steps_sorted[0]
+    m_accept_total = 0
 
-        start_qty = sum(
-            (log.qty_accept or 0) + (log.qty_reject or 0)
-            for log in (first_step.logs or [])
+    for step in steps_sorted:
+
+        accept = sum(
+            log.qty_accept or 0
+            for log in (step.logs or [])
         )
 
+        if str(step.step_code or "").upper().startswith("M"):
+
+            m_accept_total += accept
+
+        else:
+            start_qty = m_accept_total
+            break
     # =========================
     # FINAL QTY
     # =========================
@@ -1159,21 +1167,38 @@ def get_traveler_by_no(
     # ✅ auto find running/pending
     if not active_step:
 
-        for i, s in enumerate(sorted_steps):
+        m_accept_total = 0
+        prev_accept = 0
+        first_op_found = False
 
-            qty_accept = sum(float(l.qty_accept or 0) for l in s.logs)
-            qty_reject = sum(float(l.qty_reject or 0) for l in s.logs)
+        for idx, s in enumerate(sorted_steps):
+            qty_accept = sum(
+                float(l.qty_accept or 0)
+                for l in s.logs
+            )
 
-            # receive
-            if i == 0:
+            qty_reject = sum(
+                float(l.qty_reject or 0)
+                for l in s.logs
+            )
+
+            is_material = (
+                str(s.step_code or "")
+                .upper()
+                .startswith("M")
+            )
+
+            if is_material:
+
                 qty_receive = qty_accept + qty_reject
-            else:
-                prev = sorted_steps[i - 1]
+                m_accept_total += qty_accept
 
-                prev_accept = sum(
-                    float(l.qty_accept or 0)
-                    for l in prev.logs
-                )
+            elif not first_op_found:
+
+                qty_receive = m_accept_total
+                first_op_found = True
+
+            else:
 
                 qty_receive = prev_accept
 
@@ -1191,60 +1216,48 @@ def get_traveler_by_no(
 
                 latest_po = latest_log.supplier_po
 
-            latest_po = None
-
-            if s.logs:
-
-                latest_log = sorted(
-                    s.logs,
-                    key=lambda l: (
-                        l.work_date or date.min,
-                        l.id or 0
-                    )
-                )[-1]
-
-                latest_po = latest_log.supplier_po
-
-            latest_po = None
-
-            if s.logs:
-                latest_log = sorted(
-                    s.logs,
-                    key=lambda l: (
-                        l.work_date or date.min,
-                        l.id or 0
-                    )
-                )[-1]
-
-                latest_po = latest_log.supplier_po
-
             prev_step_code = None
 
-            if i > 0:
-                prev_step_code = sorted_steps[i - 1].step_code
+          
+
+            if idx > 0:
+                prev_step_code = str(
+                    sorted_steps[idx - 1].step_code or ""
+                ).upper()
 
             status = calculate_step_status(
                 qty_receive,
                 qty_accept,
                 qty_reject,
-                i == 0,
+                is_material,
                 s.input_mode,
                 latest_po,
                 prev_step_code,
             )
 
             print(
+                f"{s.step_code} | "
+                f"Receive={qty_receive} | "
+                f"Accept={qty_accept} | "
+                f"Reject={qty_reject} | "
+                f"M_Total={m_accept_total}"
+            )
+
+            print(
                 "BY_NO STATUS:",
                 s.step_code,
-                s.input_mode,
-                latest_po,
+                qty_receive,
+                qty_accept,
+                qty_reject,
                 status
             )
 
-            # ⭐ FIRST non-passed step
             if status != "passed":
                 active_step = s
                 break
+
+            if not is_material:
+                prev_accept = qty_accept
 
     # ✅ fallback
     if not active_step and sorted_steps:
@@ -1258,25 +1271,59 @@ def get_traveler_by_no(
     # =========================
     steps = []
 
+    m_accept_total = 0
     prev_accept = 0
+    first_op_found = False
 
-    # ใช้ sorted_steps ที่คำนวณไว้ด้านบน
-    for i, s in enumerate(sorted_steps):
+    for idx, s in enumerate(sorted_steps):
 
-        qty_accept = sum(float(l.qty_accept or 0) for l in s.logs)
-        qty_reject = sum(float(l.qty_reject or 0) for l in s.logs)
+        qty_accept = sum(
+            float(l.qty_accept or 0)
+            for l in s.logs
+        )
 
-        # Receive
-        if i == 0:
+        qty_reject = sum(
+            float(l.qty_reject or 0)
+            for l in s.logs
+        )
+
+        is_material = (
+            str(s.step_code or "")
+            .upper()
+            .startswith("M")
+        )
+
+        # =========================
+        # RECEIVE
+        # =========================
+        if is_material:
+
+            # Material รับของตัวเอง
             qty_receive = qty_accept + qty_reject
+
+            # เก็บ Accept ของ Material ไว้รวม
+            m_accept_total += qty_accept
+
+        elif not first_op_found:
+
+            # Operation แรก (เช่น 010)
+            qty_receive = m_accept_total
+            first_op_found = True
+
         else:
+
+            # Operation ถัดไป
             qty_receive = prev_accept
 
-        qty_remain = qty_receive - (qty_accept + qty_reject)
+        qty_remain = (
+            qty_receive
+            - (qty_accept + qty_reject)
+        )
 
         latest_po = None
 
         if s.logs:
+
             latest_log = sorted(
                 s.logs,
                 key=lambda l: (
@@ -1289,14 +1336,18 @@ def get_traveler_by_no(
 
         prev_step_code = None
 
-        if i > 0:
-            prev_step_code = sorted_steps[i - 1].step_code
+       
+
+        if idx > 0:
+            prev_step_code = str(
+                sorted_steps[idx - 1].step_code or ""
+            ).upper()
 
         status = calculate_step_status(
             qty_receive,
             qty_accept,
             qty_reject,
-            i == 0,
+            is_material,
             s.input_mode,
             latest_po,
             prev_step_code,
@@ -1315,8 +1366,9 @@ def get_traveler_by_no(
             "qty_remain": qty_remain,
         })
 
-        # Step ถัดไป Receive = Accept ของ Step ก่อนหน้า
-        prev_accept = qty_accept
+        # Operation เท่านั้นที่ส่ง Accept ไป Step ถัดไป
+        if not is_material:
+            prev_accept = qty_accept
 
         
     latest_ecar = (

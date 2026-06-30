@@ -3,7 +3,7 @@ def calculate_step_status(
     receive,
     accept,
     reject,
-    is_first,
+    is_material,
     input_mode=None,
     supplier_po=None,
     prev_step_code=None,
@@ -30,7 +30,7 @@ def calculate_step_status(
     # ====================================
     if (
         prev_step_code
-        and str(prev_step_code).startswith("M")
+        and str(prev_step_code).upper().startswith("M")
     ):
 
         if total > 0:
@@ -41,7 +41,7 @@ def calculate_step_status(
     # ====================================
     # ⭐ FIRST STEP
     # ====================================
-    if is_first:
+    if is_material:
 
         if accept > 0:
             return "passed"
