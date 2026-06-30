@@ -828,8 +828,8 @@ def copy_from_blank(
         {
             "seq": 30,
             "step_code": "070",
-            "step_name": "**PUT PART IN EGG CRATE AND BAG WITH TAG INDIVIDUALLY. WATCH FOR FOD.** PUT IN THE BOX & APPLY LABEL ON THE BOX.",
-            "step_detail": "",
+            "step_name": "**PUT PART IN EGG CRATE AND BAG WITH TAG INDIVIDUALLY. WATCH FOR FOD.**",
+            "step_detail": "PUT IN THE BOX & APPLY LABEL ON THE BOX.",
             "station": "",
             "status": "pending",
         },
@@ -837,8 +837,8 @@ def copy_from_blank(
         {
             "seq": 40,
             "step_code": "080",
-            "step_name": "**PREPARE SHIPPING DOC AND SHIP PER P.O.**\nPREPARE PACKING DOC. AND SHIP TO CUSTOMER PER CUSTOMER INSTRUCTIONS. WATCH FOR FOD.",
-            "step_detail": "",
+            "step_name": "**PREPARE SHIPPING DOC AND SHIP PER P.O.**",
+            "step_detail": "PREPARE PACKING DOC. AND SHIP TO CUSTOMER PER CUSTOMER INSTRUCTIONS. WATCH FOR FOD.",
             "station": "",
             "status": "pending",
         },
