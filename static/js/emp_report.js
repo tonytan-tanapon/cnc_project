@@ -560,7 +560,11 @@ function editRow(tr, row) {
         </td>
 
         <td colspan="9">
-            Edit Mode
+            <textarea
+                id="editNote"
+                rows="2"
+                style="width:100%;box-sizing:border-box;"
+            >${row.note || ""}</textarea>
         </td>
     `;
 
@@ -588,13 +592,17 @@ function editRow(tr, row) {
             const clockOut =
                 inputs[4].value;
 
+             const note =
+                document.getElementById("editNote").value;
+
             console.log({
                 rowId: row.id,
                 workDate,
                 clockIn,
                 breakStart,
                 breakEnd,
-                clockOut
+                clockOut,
+                note
             });
 
             // TODO:
@@ -622,7 +630,8 @@ function editRow(tr, row) {
                             status:
                                 clockOut
                                     ? "closed"
-                                    : "open"
+                                    : "open",
+                            notes: note
                         })
                     }
                 );
@@ -810,6 +819,9 @@ function addNewRow() {
             const breakStart = inputs[2].value;
             const breakEnd = inputs[3].value;
             const clockOut = inputs[4].value;
+
+            const note =
+                document.getElementById("editNote").value;
 
             const employee_id =
                 Number(getQS("employee_id"));
