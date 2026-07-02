@@ -65,13 +65,19 @@ def create_batch(payload: RawBatchCreate, db: Session = Depends(get_db)):
         material_id=payload.material_id,
         batch_no=batch_no,
         supplier_id=payload.supplier_id,
+
         supplier_batch_no=payload.supplier_batch_no,
         mill_name=payload.mill_name,
         mill_heat_no=payload.mill_heat_no,
+
         received_at=payload.received_at,
-        qty_received=payload.qty_received,  # keep if your schema has it
+        qty_received=payload.qty_received,
         cert_file=payload.cert_file,
         location=payload.location,
+
+        heat_lot=payload.heat_lot,
+        size_text=payload.size_text,
+        length_text=payload.length_text,
     )
 
     for _ in range(3):

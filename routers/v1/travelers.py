@@ -640,8 +640,8 @@ def copy_from_lot(
         {
             "seq": 30,
             "step_code": "030",
-            "step_name": "**PACKING**",
-            "step_detail": "PUT PART IN EGG CRATE AND BAG WITH TAG INDIVIDUALLY. WATCH FOR FOD. PUT IN THE BOX & APPLY LABEL ON THE BOX.",
+            "step_name": "**PUT PART IN EGG CRATE AND BAG WITH TAG INDIVIDUALLY. WATCH FOR FOD. **",
+            "step_detail": "PUT IN THE BOX & APPLY LABEL ON THE BOX.",
             "station": "",
             "status": "pending",
         },
@@ -649,8 +649,8 @@ def copy_from_lot(
         {
             "seq": 40,
             "step_code": "040",
-            "step_name": "**SHIPPING**",
-            "step_detail": "PREPARE SHIPPING DOC AND SHIP PER P.O. PREPARE PACKING DOC. AND SHIP TO CUSTOMER PER CUSTOMER INSTRUCTIONS. WATCH FOR FOD.",
+            "step_name": "**PREPARE SHIPPING DOC AND SHIP PER P.O. **",
+            "step_detail": "PREPARE PACKING DOC. AND SHIP TO CUSTOMER PER CUSTOMER INSTRUCTIONS. WATCH FOR FOD.",
             "station": "",
             "status": "pending",
         },
@@ -658,8 +658,8 @@ def copy_from_lot(
         {
             "seq": 50,
             "step_code": "050",
-            "step_name": "**CONFIGURATION AUDIT**",
-            "step_detail": 'PERFORM "CONFIGURATION AUDIT" FOR PART NUMBER, REV, COUNT INTEGRITY, OPERATION SIGN-OFF AND RELATED CONFIGURATION ITEMS.',
+            "step_name": '**PERFORM "CONFIGURATION AUDIT" FOR PART NUMBER, REV, COUNT INTEGRITY, OPERATION SIGN-OFF AND RELATED CONFIGURATION ITEMS.**',
+            "step_detail": "",
             "station": "QA",
             "status": "pending",
         },

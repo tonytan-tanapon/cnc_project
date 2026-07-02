@@ -77,125 +77,164 @@ def material_batch_ledger(
     received_from: Optional[str] = Query(None, description="YYYY-MM-DD"),
     received_to: Optional[str] = Query(None, description="YYYY-MM-DD"),
     export: Optional[str] = Query(None, pattern="^(csv)$"),
-    pg = Depends(paginate_params),
+
+    sort_field: str = Query("printed"),
+    sort_dir: str = Query("asc"),
+
+    pg=Depends(paginate_params),
 ):
-    """
-    GET /reports/materials/batches
-    Filters:
-      - q: free text across code/supplier/batch/location
-      - material_code, supplier_code, batch_no, location
-      - received_from / received_to (inclusive)
-    Pagination: skip, limit
-    export=csv -> CSV file
-    """
     where = []
     params = {}
 
     if material_code:
         where.append("v.material_code = :material_code")
         params["material_code"] = material_code
+
     if supplier_code:
         where.append("v.supplier_code = :supplier_code")
         params["supplier_code"] = supplier_code
+
     if batch_no:
         where.append("v.batch_no = :batch_no")
         params["batch_no"] = batch_no
+
     if location:
         where.append("v.location = :location")
         params["location"] = location
+
     if received_from:
         where.append("v.received_at >= :received_from::date")
         params["received_from"] = received_from
+
     if received_to:
         where.append("v.received_at <= :received_to::date")
         params["received_to"] = received_to
+
     if q:
-        where.append("""(
-            v.batch_no ILIKE :q OR
-            v.material_code ILIKE :q OR
-            COALESCE(v.supplier_code,'') ILIKE :q OR
-            COALESCE(v.location,'') ILIKE :q
+        where.append("""
+        (
+            v.batch_no ILIKE :q
+            OR v.material_code ILIKE :q
+            OR COALESCE(v.supplier_code,'') ILIKE :q
+            OR COALESCE(v.location,'') ILIKE :q
             OR COALESCE(v.part_list,'') ILIKE :q
             OR COALESCE(v.po_list,'') ILIKE :q
             OR COALESCE(v.lot_list,'') ILIKE :q
-        )""")
+        )
+        """)
         params["q"] = f"%{q}%"
 
-    where_sql = ("WHERE " + " AND ".join(where)) if where else ""
+    where_sql = "WHERE " + " AND ".join(where) if where else ""
+
+    # -------------------------
+    # Sorting
+    # -------------------------
+    order_map = {
+        "printed": "COALESCE(v.printed,false)",
+        "batch_no": "v.batch_no",
+        "material_id": "v.material_id",
+        "supplier_id": "v.supplier_id",
+        "size_text": "v.size_text",
+        "length_text": "v.length_text",
+        "location": "v.location",
+        "received_at": "v.received_at",
+    }
+
+    order_col = order_map.get(sort_field, "COALESCE(v.printed,false)")
+    direction = "DESC" if sort_dir.lower() == "desc" else "ASC"
+
     sql = f"""
-        SELECT
-            v.batch_id,
-            v.batch_no,
+    SELECT
+        v.batch_id,
+        v.batch_no,
 
-            v.printed,
+        v.printed,
 
-            v.part_list,
-            v.rev_list,
-            v.po_list,
-            v.lot_list,
+        v.part_list,
+        v.rev_list,
+        v.po_list,
+        v.lot_list,
 
-            v.size_text,
-            v.length_text,
-            v.heat_lot,
-            
-            v.material_id,
-            v.material_code,
-            v.material_name,
-            v.material_type,
-            v.material_spec,
+        v.size_text,
+        v.length_text,
+        v.heat_lot,
 
-            v.supplier_id,
-            v.supplier_code,
+        v.material_id,
+        v.material_code,
+        v.material_name,
+        v.material_type,
+        v.material_spec,
 
-            v.received_at,
-            v.qty_received,
-            v.qty_used,
-            v.qty_available,
-            v.location
+        v.supplier_id,
+        v.supplier_code,
 
-        FROM v_material_batch_ledger v
-        {where_sql}
-        ORDER BY v.batch_no DESC
-        OFFSET :skip LIMIT :limit
-        """
+        v.received_at,
+        v.qty_received,
+        v.qty_used,
+        v.qty_available,
+        v.location
+
+    FROM v_material_batch_ledger v
+
+    {where_sql}
+
+    ORDER BY
+        {order_col} {direction},
+        v.batch_no DESC
+
+    OFFSET :skip
+    LIMIT :limit
+    """
+
     params.update(pg)
 
     rows = db.execute(text(sql), params).mappings().all()
 
     if export == "csv":
+
         buf = io.StringIO()
-        writer = csv.DictWriter(buf, fieldnames=[
-            "batch_id",
-            "batch_no",
-            "part_list",
-            "rev_list",
-            "po_list",
-            "lot_list",
 
-            "printed",
+        writer = csv.DictWriter(
+            buf,
+            fieldnames=[
+                "batch_id",
+                "batch_no",
+                "printed",
+                "part_list",
+                "rev_list",
+                "po_list",
+                "lot_list",
+                "size_text",
+                "length_text",
+                "heat_lot",
+                "material_code",
+                "material_name",
+                "material_type",
+                "material_spec",
+                "supplier_code",
+                "received_at",
+                "qty_received",
+                "qty_used",
+                "qty_available",
+                "location",
+            ],
+        )
 
-            "size_text",
-            "length_text",
-            "heat_lot",
-
-            "material_code",
-            "material_name",
-            "material_type",
-            "material_spec",
-
-            "supplier_code",
-
-            "received_at",
-            "qty_received",
-            "qty_used",
-            "qty_available",
-            "location"
-        ])
         writer.writeheader()
         writer.writerows(rows)
+
         return Response(
             content=buf.getvalue(),
             media_type="text/csv",
-            headers={"Content-Disposition": 'attachment; filename="material_batch_ledger.csv"'}
+            headers={
+                "Content-Disposition":
+                'attachment; filename="material_batch_ledger.csv"'
+            },
         )
-    return {"items": rows, "count": len(rows), "skip": pg["skip"], "limit": pg["limit"]}
+
+    return {
+        "items": rows,
+        "count": len(rows),
+        "skip": pg["skip"],
+        "limit": pg["limit"],
+    }

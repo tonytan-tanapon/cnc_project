@@ -6,9 +6,14 @@ let materialOptions = {};
 let supplierOptions = {};
 let materialEditorOptions = {};
 let materialLookup = {};
+
+
 /* ===== CONFIG ===== */
 const ENDPOINT = "/reports/materials/batches";
 const PER_PAGE = 50;
+
+let sortField = "printed";
+let sortDir = "asc";
 const UI = {
   q: "_q",
   from: "_from",
@@ -98,63 +103,86 @@ function makeColumns() {
   return [
     // { title: "No.", width: 70, headerSort: false, formatter: "rownum" },
 
-    // {
-    //   title: "QR",
-    //   width: 120,
-    //   hozAlign: "center",
+    {
+      title: "QR",
+      width: 120,
+      hozAlign: "center",
 
-    //   formatter() {
-    //     return `
-    //   <button class="btn btn-sm btn-primary qr4">
-    //     4
-    //   </button>
+      formatter() {
+        return `
+      <button class="btn btn-sm btn-primary qr4">
+        4
+      </button>
 
-    //   <button class="btn btn-sm btn-success qr30">
-    //     30
-    //   </button>
-    // `;
-    //   },
+      <button class="btn btn-sm btn-success qr30">
+        30
+      </button>
+    `;
+      },
 
-    //   async cellClick(e, cell) {
+      async cellClick(e, cell) {
 
 
 
-    //     const row = cell.getRow().getData();
+        const row = cell.getRow().getData();
 
-    //     let url = "";
+        let url = "";
 
-    //     if (e.target.classList.contains("qr4")) {
-    //       url = `/api/v1/batches/export-docx/${row.batch_id}?qty=4`;
+        if (e.target.classList.contains("qr4")) {
+          url = `/api/v1/batches/export-docx/${row.batch_id}?qty=4`;
 
-    //     } else if (e.target.classList.contains("qr30")) {
-    //       url = `/api/v1/batches/export-docx/${row.batch_id}?qty=30`;
+        } else if (e.target.classList.contains("qr30")) {
+          url = `/api/v1/batches/export-docx/${row.batch_id}?qty=30`;
 
-    //     } else {
-    //       return;
-    //     }
+        } else {
+          return;
+        }
 
-    //     const res = await fetch(url);
+        const res = await fetch(url);
 
-    //     const blob = await res.blob();
+        const blob = await res.blob();
 
-    //     const fileUrl = window.URL.createObjectURL(blob);
+        const fileUrl = window.URL.createObjectURL(blob);
 
-    //     const a = document.createElement("a");
+        const a = document.createElement("a");
 
-    //     a.href = fileUrl;
-    //     a.download = `${row.batch_no}.docx`;
+        a.href = fileUrl;
+        a.download = `${row.batch_no}.docx`;
 
-    //     a.click();
+        a.click();
 
-    //     window.URL.revokeObjectURL(fileUrl);
-    //   }
-    // },
+        window.URL.revokeObjectURL(fileUrl);
+      }
+    },
 
     {
       title: "Printed",
       field: "printed",
       width: 90,
       hozAlign: "center",
+
+      headerSort: false,
+
+      headerClick: function () {
+
+        if (sortField === "printed") {
+
+          sortDir =
+            sortDir === "asc"
+              ? "desc"
+              : "asc";
+
+        } else {
+
+          sortField = "printed";
+          sortDir = "asc";
+        }
+
+        resetAndLoadFirst();
+      },
+
+
+
 
       formatter: "tickCross",
 
@@ -177,6 +205,9 @@ function makeColumns() {
           );
 
           cell.setValue(newValue);
+
+          // โหลดใหม่ทั้งหมด
+          await resetAndLoadFirst();
 
         } catch (err) {
 
@@ -234,8 +265,8 @@ function makeColumns() {
     //   editor: "input"
     // },
 
-   
-    
+
+
 
     {
       title: "Material",
@@ -275,7 +306,7 @@ function makeColumns() {
       }
     },
 
-     {
+    {
       title: "Location",
       field: "location",
       width: 140,
@@ -371,12 +402,19 @@ function numFmt(v) {
 
 /* ===== QUERY ===== */
 function buildQueryParams(skipVal = 0) {
+
   const usp = new URLSearchParams();
+
   usp.set("limit", String(PER_PAGE));
   usp.set("skip", String(skipVal));
+
+  usp.set("sort_field", sortField);
+  usp.set("sort_dir", sortDir);
+
   if (filt.q) usp.set("q", filt.q);
   if (filt.received_from) usp.set("received_from", filt.received_from);
   if (filt.received_to) usp.set("received_to", filt.received_to);
+
   return usp.toString();
 }
 
@@ -716,6 +754,28 @@ document.addEventListener("DOMContentLoaded", async () => {
   table.on("tableBuilt", () => {
 
     tableBuilt = true;
+
+    resetAndLoadFirst();
+  });
+
+  table.on("headerClick", function (e, column) {
+
+    const field = column.getField();
+
+    if (!field) return;
+
+    if (sortField === field) {
+
+      sortDir =
+        sortDir === "asc"
+          ? "desc"
+          : "asc";
+
+    } else {
+
+      sortField = field;
+      sortDir = "asc";
+    }
 
     resetAndLoadFirst();
   });

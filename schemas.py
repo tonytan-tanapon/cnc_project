@@ -350,6 +350,7 @@ class RawBatchUpdate(BaseModel):
     heat_lot: Optional[str] = None
     size_text: Optional[str] = None
     length_text: Optional[str] = None
+    printed: Optional[bool] = None
 
 
     received_qty: Optional[Decimal] = None

@@ -417,6 +417,34 @@ def build_traveler_data_from_db(traveler: ShopTraveler,db: Session) -> dict:
     step_data = calculate_traveler_steps(sorted_steps)
 
     # =================================
+    # USE PART FROM LOT ?
+    # =================================
+    use_part_from_lot = False
+
+    op010_accept = 0
+
+    for item in step_data:
+
+        s = item["step"]
+
+        if str(s.step_code) == "010":
+
+            detail = (s.step_name or "").upper()
+
+            if "FROM LOT" in detail:
+
+                use_part_from_lot = True
+
+                op010_accept = int(item["accept"])
+
+                # Receive = Accept
+                item["receive"] = op010_accept
+
+                # Remain = 0
+                item["remain"] = 0
+
+                break
+    # =================================
     # START / FINAL QTY
     # =================================
 
@@ -440,11 +468,15 @@ def build_traveler_data_from_db(traveler: ShopTraveler,db: Session) -> dict:
         )
 
     # Final Qty = Accept ของ Step สุดท้าย
-    final_qty = (
-        int(step_data[-1]["accept"])
-        if step_data
-        else 0
-    )
+    # print("use_part_from_lot", use_part_from_lot)
+    if use_part_from_lot:
+        final_qty = 0
+    else:
+        final_qty = (
+            int(step_data[-1]["accept"])
+            if step_data
+            else 0
+        )
 
     for item in step_data:
 
@@ -667,9 +699,14 @@ def build_traveler_data_from_db(traveler: ShopTraveler,db: Session) -> dict:
             # REUSE API VALUES
             # =================================
 
-            "start_qty": start_qty,
-            "final_qty": final_qty,
-            "stock_qty":  traveler_row.stock_qty,
+            "start_qty": 0 if use_part_from_lot else start_qty,
+
+            "final_qty": 0 if use_part_from_lot else final_qty,
+
+            # QTY TO STOCK
+            "stock_qty": 0 if use_part_from_lot else traveler_row.stock_qty,
+
+           
             "order_qty": lot.planned_qty or 0,
             "started_at":
                 (
@@ -692,7 +729,9 @@ def build_traveler_data_from_db(traveler: ShopTraveler,db: Session) -> dict:
                 ),
             
 
-            "lot_shipped_qty": int(lot_shipped_qty or 0),
+             # QTY TO SHIP
+            "lot_shipped_qty":
+                op010_accept if use_part_from_lot else int(lot_shipped_qty or 0),
 
             "risk":  lot.risk or "",
 
