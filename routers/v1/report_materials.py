@@ -115,6 +115,9 @@ def material_batch_ledger(
             v.material_code ILIKE :q OR
             COALESCE(v.supplier_code,'') ILIKE :q OR
             COALESCE(v.location,'') ILIKE :q
+            OR COALESCE(v.part_list,'') ILIKE :q
+            OR COALESCE(v.po_list,'') ILIKE :q
+            OR COALESCE(v.lot_list,'') ILIKE :q
         )""")
         params["q"] = f"%{q}%"
 
@@ -123,6 +126,13 @@ def material_batch_ledger(
         SELECT
             v.batch_id,
             v.batch_no,
+
+            v.printed,
+
+            v.part_list,
+            v.rev_list,
+            v.po_list,
+            v.lot_list,
 
             v.size_text,
             v.length_text,
@@ -145,7 +155,7 @@ def material_batch_ledger(
 
         FROM v_material_batch_ledger v
         {where_sql}
-        ORDER BY v.received_at DESC NULLS LAST, v.batch_no
+        ORDER BY v.batch_no DESC
         OFFSET :skip LIMIT :limit
         """
     params.update(pg)
@@ -157,6 +167,12 @@ def material_batch_ledger(
         writer = csv.DictWriter(buf, fieldnames=[
             "batch_id",
             "batch_no",
+            "part_list",
+            "rev_list",
+            "po_list",
+            "lot_list",
+
+            "printed",
 
             "size_text",
             "length_text",

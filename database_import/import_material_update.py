@@ -479,15 +479,15 @@ def upsert_raw_batch_reference(
 XLSX_FILE = Path(
     # r"Z:\Topnotch Group\Public\2026\Material Cert 2026\Material 2026.xls"
     
-    r"Z:\Topnotch Group\Public\Testing APP\importMat\ALL MATERIAL.xlsx"
-    # r"Z:\Topnotch Group\Public\Testing APP\importMat\Material 2026.xlsx"
+    # r"Z:\Topnotch Group\Public\Testing APP\importMat\ALL MATERIAL.xlsx"
+    r"Z:\Topnotch Group\Public\Testing APP\importMat\Material 2026.xlsx"
 )
 def main():
 
     from openpyxl import load_workbook
 
     with SessionLocal() as db:
-        deleteData(db)
+        # deleteData(db)
         wb = load_workbook(
             XLSX_FILE,
             data_only=True,
@@ -495,9 +495,9 @@ def main():
         )
 
         # ws = wb.active
-        # ws = wb["Order"]
-        ws = wb["Sort by size"]
-        
+        ws = wb["Order"]
+        # ws = wb["Sort by size"]
+        # 
 
         headers = [
             str(c.value).strip() if c.value else ""

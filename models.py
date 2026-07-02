@@ -317,6 +317,64 @@ class MaterialPOLine(Base):
     material = relationship("RawMaterial")
 
 
+class RawBatchReference(Base):
+    __tablename__ = "raw_batch_references"
+
+    id = Column(Integer, primary_key=True)
+
+    batch_id = Column(
+        Integer,
+        ForeignKey("raw_batches.id"),
+        nullable=False,
+        index=True,
+    )
+
+    part_id = Column(
+        Integer,
+        ForeignKey("parts.id"),
+        nullable=False,
+        index=True,
+    )
+
+    part_revision_id = Column(
+        Integer,
+        ForeignKey("part_revisions.id"),
+        nullable=True,
+        index=True,
+    )
+
+    po_id = Column(
+        Integer,
+        ForeignKey("purchase_orders.id"),
+        nullable=True,
+        index=True,
+    )
+
+    lot_id = Column(
+        Integer,
+        ForeignKey("production_lots.id"),
+        nullable=True,
+        index=True,
+    )
+
+    note = Column(Text)
+
+    batch = relationship("RawBatch", back_populates="references")
+    part = relationship("Part")
+    revision = relationship("PartRevision")
+    po = relationship("PO")
+    lot = relationship("ProductionLot")
+
+    __table_args__ = (
+        UniqueConstraint(
+            "batch_id",
+            "part_id",
+            "part_revision_id",
+            "po_id",
+            "lot_id",
+            name="uq_batch_reference",
+        ),
+    )
 
     
 
@@ -358,12 +416,22 @@ class RawBatch(Base):
     cutting_note = Column(Text, nullable=True)
     po_note = Column(Text, nullable=True)
     file_url = Column(Text, nullable=True)
+
+    from sqlalchemy import Boolean
+
+    printed = Column(Boolean, nullable=True, default=False)
     # relations
     material = relationship("RawMaterial", back_populates="batches")
     supplier = relationship("Supplier", back_populates="raw_batches")
     po_line = relationship("MaterialPOLine", back_populates="batches", foreign_keys=[material_po_line_id])
     po = relationship("MaterialPO", foreign_keys=[po_id])
     uses = relationship("LotMaterialUse", back_populates="batch")
+
+    references = relationship(
+    "RawBatchReference",
+    back_populates="batch",
+    cascade="all, delete-orphan",
+)
 
     
 
@@ -372,6 +440,8 @@ class RawBatch(Base):
         Index("ix_raw_batches_mat_recv", "material_id", "received_at"),
         Index("ix_raw_batches_supplier", "supplier_id"),
         Index("ix_raw_batches_po", "po_id"),
+       
+    
     )
 
     def __repr__(self):

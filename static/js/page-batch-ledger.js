@@ -98,55 +98,90 @@ function makeColumns() {
   return [
     // { title: "No.", width: 70, headerSort: false, formatter: "rownum" },
 
+    // {
+    //   title: "QR",
+    //   width: 120,
+    //   hozAlign: "center",
+
+    //   formatter() {
+    //     return `
+    //   <button class="btn btn-sm btn-primary qr4">
+    //     4
+    //   </button>
+
+    //   <button class="btn btn-sm btn-success qr30">
+    //     30
+    //   </button>
+    // `;
+    //   },
+
+    //   async cellClick(e, cell) {
+
+
+
+    //     const row = cell.getRow().getData();
+
+    //     let url = "";
+
+    //     if (e.target.classList.contains("qr4")) {
+    //       url = `/api/v1/batches/export-docx/${row.batch_id}?qty=4`;
+
+    //     } else if (e.target.classList.contains("qr30")) {
+    //       url = `/api/v1/batches/export-docx/${row.batch_id}?qty=30`;
+
+    //     } else {
+    //       return;
+    //     }
+
+    //     const res = await fetch(url);
+
+    //     const blob = await res.blob();
+
+    //     const fileUrl = window.URL.createObjectURL(blob);
+
+    //     const a = document.createElement("a");
+
+    //     a.href = fileUrl;
+    //     a.download = `${row.batch_no}.docx`;
+
+    //     a.click();
+
+    //     window.URL.revokeObjectURL(fileUrl);
+    //   }
+    // },
+
     {
-      title: "QR",
-      width: 120,
+      title: "Printed",
+      field: "printed",
+      width: 90,
       hozAlign: "center",
 
-      formatter() {
-        return `
-      <button class="btn btn-sm btn-primary qr4">
-        4
-      </button>
+      formatter: "tickCross",
 
-      <button class="btn btn-sm btn-success qr30">
-        30
-      </button>
-    `;
-      },
-
-      async cellClick(e, cell) {
-
-
+      cellClick: async function (e, cell) {
 
         const row = cell.getRow().getData();
 
-        let url = "";
+        const newValue = !row.printed;
 
-        if (e.target.classList.contains("qr4")) {
-          url = `/api/v1/batches/export-docx/${row.batch_id}?qty=4`;
+        try {
 
-        } else if (e.target.classList.contains("qr30")) {
-          url = `/api/v1/batches/export-docx/${row.batch_id}?qty=30`;
+          await jfetch(
+            `/api/v1/batches/${row.batch_id}`,
+            {
+              method: "PUT",
+              body: JSON.stringify({
+                printed: newValue
+              })
+            }
+          );
 
-        } else {
-          return;
+          cell.setValue(newValue);
+
+        } catch (err) {
+
+          toast("Save failed", false);
         }
-
-        const res = await fetch(url);
-
-        const blob = await res.blob();
-
-        const fileUrl = window.URL.createObjectURL(blob);
-
-        const a = document.createElement("a");
-
-        a.href = fileUrl;
-        a.download = `${row.batch_no}.docx`;
-
-        a.click();
-
-        window.URL.revokeObjectURL(fileUrl);
       }
     },
     {
@@ -155,7 +190,29 @@ function makeColumns() {
       width: 110,
       editor: "input"
     },
+    // {
+    //   title: "Part",
+    //   field: "part_list",
+    //   width: 220,
+    // },
 
+    // {
+    //   title: "Rev",
+    //   field: "rev_list",
+    //   width: 70,
+    // },
+
+    // {
+    //   title: "PO",
+    //   field: "po_list",
+    //   width: 180,
+    // },
+
+    // {
+    //   title: "Lot",
+    //   field: "lot_list",
+    //   width: 160,
+    // },
     {
       title: "Size",
       field: "size_text",
@@ -170,19 +227,15 @@ function makeColumns() {
       editor: "input"
     },
 
-    {
-      title: "Heat Lot",
-      field: "heat_lot",
-      width: 100,
-      editor: "input"
-    },
+    // {
+    //   title: "Heat Lot",
+    //   field: "heat_lot",
+    //   width: 100,
+    //   editor: "input"
+    // },
 
-    {
-      title: "Location",
-      field: "location",
-      width: 140,
-      editor: "input"
-    },
+   
+    
 
     {
       title: "Material",
@@ -221,6 +274,14 @@ function makeColumns() {
         return `${mat.type || ""} | ${mat.spec || ""}`;
       }
     },
+
+     {
+      title: "Location",
+      field: "location",
+      width: 140,
+      editor: "input"
+    },
+
     // { title: "Type", field: "material_type", width: 120 },
 
     // { title: "Spec", field: "material_spec", width: 220 },
