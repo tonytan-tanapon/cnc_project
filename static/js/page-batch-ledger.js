@@ -105,7 +105,7 @@ function makeColumns() {
 
     {
       title: "QR",
-      width: 120,
+      width: 160,
       hozAlign: "center",
 
       formatter() {
@@ -116,6 +116,9 @@ function makeColumns() {
 
       <button class="btn btn-sm btn-success qr30">
         30
+      </button>
+      <button class="btn btn-sm btn-success qr80">
+        80
       </button>
     `;
       },
@@ -134,6 +137,8 @@ function makeColumns() {
         } else if (e.target.classList.contains("qr30")) {
           url = `/api/v1/batches/export-docx/${row.batch_id}?qty=30`;
 
+        } else if (e.target.classList.contains("qr80")) {
+          url = `/api/v1/batches/export-docx/${row.batch_id}?qty=80`;
         } else {
           return;
         }
@@ -243,9 +248,6 @@ function makeColumns() {
     //   editor: "input"
     // },
 
-
-
-
     {
       title: "Material",
       field: "material_id",
@@ -290,6 +292,32 @@ function makeColumns() {
       width: 140,
       editor: "input"
     },
+
+    {
+      title: "Heat PO",
+      field: "heat_po",
+      width: 120,
+
+      editor: "input"
+    },
+    {
+      title: "Heat Type",
+      field: "heat_type",
+      width: 120,
+      editor: "input"
+    },
+    {
+    title: "Created",
+    field: "date_created",
+    width: 140,
+
+    formatter(cell) {
+        const v = cell.getValue();
+        return v
+            ? new Date(v).toLocaleDateString()
+            : "";
+    }
+},
 
     // { title: "Type", field: "material_type", width: 120 },
 
@@ -401,7 +429,7 @@ async function fetchPage() {
   const url = `${ENDPOINT}?${buildQueryParams(skip)}`;
   const res = await jfetch(url);
 
-   console.log(res.items[0]);   // <-- เพิ่มบรรทัดนี้
+  console.log(res.items[0]);   // <-- เพิ่มบรรทัดนี้
   return Array.isArray(res?.items) ? res.items : [];
 }
 
@@ -441,9 +469,9 @@ async function loadNext() {
     } else {
       await table.addData(items, false);
 
-      
+
     }
-console.log("test",table.getRows().length);
+    console.log("test", table.getRows().length);
     skip += items.length;
   } catch (e) {
     hasMore = false;
@@ -721,7 +749,10 @@ document.addEventListener("DOMContentLoaded", async () => {
             heat_lot: row.heat_lot,
             location: row.location,
             supplier_id: row.supplier_id,
-            material_id: row.material_id
+            material_id: row.material_id,
+            heat_po: row.heat_po,
+            heat_type: row.heat_type,
+            date_created: row.date_created,
           })
         }
       );

@@ -298,9 +298,13 @@ def export_batch_docx(
             RawBatch.size_text,
             RawBatch.length_text,
             RawBatch.heat_lot,
+            RawBatch.date_created,
+            RawBatch.heat_po,
+            RawBatch.heat_type,
 
             RawMaterial.type,
             RawMaterial.spec,
+            
 
             Supplier.name.label("supplier_name")
         )
@@ -331,6 +335,7 @@ def export_batch_docx(
     # -------------------------
     # Generate QR
     # -------------------------
+    print("row", row)
     qr_text = (
         f"BATCH:{row.batch_no}\n"
         f"TYPE:{row.type}\n"
@@ -370,12 +375,17 @@ def export_batch_docx(
             "templates/qr_template_bat_4.docx"
         )
         qr_size = 1
-    else:
-         doc = Document(
+    elif qty == 30:
+        doc = Document(
             "templates/qr_template_bat_30.docx"
         )
-         qr_size = 0.8
-
+        qr_size = 0.8
+    elif qty == 80:
+         doc = Document(
+            "templates/qr_template_bat_80.docx"
+        )
+         qr_size = 0.4
+    print("row.batch_no", row.batch_no)
     mapping = {
         "{{supplier}}" :  row.supplier_name or "",
         "{{batch}}" :  row.batch_no or "",

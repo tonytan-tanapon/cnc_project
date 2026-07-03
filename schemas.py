@@ -355,6 +355,9 @@ class RawBatchUpdate(BaseModel):
 
     received_qty: Optional[Decimal] = None
     unit_cost: Optional[Decimal] = None
+    heat_po: Optional[str] = None
+    heat_type: Optional[str] = None
+    date_created: Optional[datetime] = None
 
     @field_validator('received_qty', 'unit_cost', mode='before', check_fields=False)
     @classmethod

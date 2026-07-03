@@ -383,6 +383,7 @@ class RawBatch(Base):
     __tablename__ = "raw_batches"
 
     id = Column(Integer, primary_key=True)
+    date_created = Column(DateTime(timezone=True), server_default=func.now(), nullable=True)
     material_id = Column(Integer, ForeignKey("raw_materials.id"), nullable=False, index=True)
     supplier_id = Column(Integer, ForeignKey("suppliers.id"), nullable=True, index=True)
 
@@ -420,18 +421,23 @@ class RawBatch(Base):
     from sqlalchemy import Boolean
 
     printed = Column(Boolean, nullable=True, default=False)
+
+    
+    heat_po = Column(String, nullable=True)
+
     # relations
     material = relationship("RawMaterial", back_populates="batches")
     supplier = relationship("Supplier", back_populates="raw_batches")
     po_line = relationship("MaterialPOLine", back_populates="batches", foreign_keys=[material_po_line_id])
     po = relationship("MaterialPO", foreign_keys=[po_id])
     uses = relationship("LotMaterialUse", back_populates="batch")
+    heat_type = Column(String, nullable=True)  # ex. "Hot Rolled", "Cold Rolled", "Extruded"
 
     references = relationship(
-    "RawBatchReference",
-    back_populates="batch",
-    cascade="all, delete-orphan",
-)
+        "RawBatchReference",
+        back_populates="batch",
+        cascade="all, delete-orphan",
+    )
 
     
 

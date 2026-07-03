@@ -205,7 +205,10 @@ def material_batch_ledger(
         v.qty_received,
         v.qty_used,
         v.qty_available,
-        v.location
+        v.location,
+        v.date_created,
+        v.heat_po,
+        v.heat_type
 
     FROM v_material_batch_ledger v
 
@@ -222,9 +225,6 @@ def material_batch_ledger(
     params.update(pg)
 
     rows = db.execute(text(sql), params).mappings().all()
-
-   
-
     if export == "csv":
 
         buf = io.StringIO()
@@ -235,22 +235,32 @@ def material_batch_ledger(
                 "batch_id",
                 "batch_no",
                 "printed",
+
+                "date_created",
+                "heat_po",
+                "heat_type",
+
                 "part_list",
                 "rev_list",
                 "po_list",
                 "lot_list",
+
                 "size_text",
                 "length_text",
                 "heat_lot",
+
                 "material_code",
                 "material_name",
                 "material_type",
                 "material_spec",
+
                 "supplier_code",
+
                 "received_at",
                 "qty_received",
                 "qty_used",
                 "qty_available",
+
                 "location",
             ],
         )
