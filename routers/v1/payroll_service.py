@@ -612,10 +612,16 @@ def export_excel(
 
     output.seek(0)
 
+    start_date = payroll["pay_period"]["start_at"].strftime("%Y-%m-%d")
+    end_date = payroll["pay_period"]["end_at"].strftime("%Y-%m-%d")
     filename = (
-        f"Payroll_"
-        f"{payroll['employee']['name']}.xlsx"
+        f"{payroll['employee']['name']}_{start_date}_{end_date}.xlsx"
     )
+
+    # filename = (
+    #     f"Payroll_"
+    #     f"{payroll['employee']['name']}.xlsx"
+    # )
 
     return StreamingResponse(
         output,

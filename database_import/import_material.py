@@ -533,7 +533,6 @@ def main():
             lenght = row.get("Length")
 
             if not company:
-
                 if vendor_po:
                     company = f"UNKNOWN-{vendor_po}"
                 else:

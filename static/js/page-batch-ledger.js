@@ -13,7 +13,7 @@ const ENDPOINT = "/reports/materials/batches";
 const PER_PAGE = 50;
 
 let sortField = "printed";
-let sortDir = "asc";
+let sortDir = "desc";
 const UI = {
   q: "_q",
   from: "_from",
@@ -161,28 +161,6 @@ function makeColumns() {
       width: 90,
       hozAlign: "center",
 
-      headerSort: false,
-
-      headerClick: function () {
-
-        if (sortField === "printed") {
-
-          sortDir =
-            sortDir === "asc"
-              ? "desc"
-              : "asc";
-
-        } else {
-
-          sortField = "printed";
-          sortDir = "asc";
-        }
-
-        resetAndLoadFirst();
-      },
-
-
-
 
       formatter: "tickCross",
 
@@ -207,7 +185,7 @@ function makeColumns() {
           cell.setValue(newValue);
 
           // โหลดใหม่ทั้งหมด
-          await resetAndLoadFirst();
+          // await resetAndLoadFirst();
 
         } catch (err) {
 
@@ -422,6 +400,8 @@ function buildQueryParams(skipVal = 0) {
 async function fetchPage() {
   const url = `${ENDPOINT}?${buildQueryParams(skip)}`;
   const res = await jfetch(url);
+
+   console.log(res.items[0]);   // <-- เพิ่มบรรทัดนี้
   return Array.isArray(res?.items) ? res.items : [];
 }
 
@@ -456,7 +436,14 @@ async function loadNext() {
       hasMore = false;
       return;
     }
-    await table.addData(items, false);
+    if (skip === 0) {
+      await table.setData(items);
+    } else {
+      await table.addData(items, false);
+
+      
+    }
+console.log("test",table.getRows().length);
     skip += items.length;
   } catch (e) {
     hasMore = false;
@@ -776,6 +763,8 @@ document.addEventListener("DOMContentLoaded", async () => {
       sortField = field;
       sortDir = "asc";
     }
+
+    console.log("Sorting by", sortField, sortDir);
 
     resetAndLoadFirst();
   });

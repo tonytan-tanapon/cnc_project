@@ -272,6 +272,16 @@ def upsert_raw_batch(
     cutting_note=None,
     po_note=None,
 ):
+    if batch_no == "19593":
+        print("upsert_raw_batch: batch_no =", batch_no)
+        print("rm =", rm)
+        print("mpo =", mpo)
+        print("line =", line)
+        print("heat_no =", heat_no)
+        print("size_text =", size_text)
+        print("length_text =", length_text)
+        print("weight =", weight)
+        print("supplier_id =", supplier_id)
     rb = db.scalar(
         select(RawBatch).where(
             RawBatch.material_id == rm.id,
@@ -524,6 +534,8 @@ def main():
                 normalize(row.get("Vendor PO"))
                 or normalize(row.get("Heat lot"))
             )
+            if vendor_po == "19593":
+                print(vendor_po)
 
             part_no = normalize(
                 row.get("Part no.")
@@ -599,7 +611,8 @@ def main():
                         size,
                         lenght,
                     )
-
+                    if vendor_po == "19593":
+                        print("before upsert_raw_batch: vendor_po =", vendor_po)
                     rb = upsert_raw_batch(
                         db=db,
                         batch_no=vendor_po,

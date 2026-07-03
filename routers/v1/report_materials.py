@@ -17,9 +17,13 @@ def paginate_params(skip: int = Query(0, ge=0), limit: int = Query(50, ge=1, le=
 @router.get("/on-hand")
 def material_on_hand(
     db: Session = Depends(get_db),
-    q: Optional[str] = Query(None, description="search in material_code/name"),
+    q: Optional[str] = Query(None),
     material_code: Optional[str] = Query(None),
     export: Optional[str] = Query(None, pattern="^(csv)$"),
+
+    sort_field: str = Query("material_code"),
+    sort_dir: str = Query("asc"),
+
     pg = Depends(paginate_params),
 ):
     """
@@ -41,16 +45,40 @@ def material_on_hand(
         params["q"] = f"%{q}%"
 
     where_sql = ("WHERE " + " AND ".join(where)) if where else ""
+
+    # -------------------------
+    order_map = {
+        "material_code": "rm.material_code",
+        "material_name": "rm.material_name",
+        "total_on_hand": "rm.total_on_hand",
+    }
+
+    order_col = order_map.get(sort_field, "rm.material_code")
+    direction = "DESC" if sort_dir.lower() == "desc" else "ASC"
+
     sql = f"""
-      SELECT rm.material_id, rm.material_code, rm.material_name, rm.total_on_hand
-      FROM v_material_on_hand rm
-      {where_sql}
-      ORDER BY rm.material_code
-      OFFSET :skip LIMIT :limit
-    """
+        SELECT
+            rm.material_id,
+            rm.material_code,
+            rm.material_name,
+            rm.total_on_hand
+
+        FROM v_material_on_hand rm
+
+        {where_sql}
+
+        ORDER BY
+            {order_col} {direction},
+            rm.material_code
+
+        OFFSET :skip
+        LIMIT :limit
+        """
     params.update(pg)
 
     rows = db.execute(text(sql), params).mappings().all()
+
+    
 
     if export == "csv":
         buf = io.StringIO()
@@ -83,6 +111,8 @@ def material_batch_ledger(
 
     pg=Depends(paginate_params),
 ):
+    
+    
     where = []
     params = {}
 
@@ -143,6 +173,9 @@ def material_batch_ledger(
     order_col = order_map.get(sort_field, "COALESCE(v.printed,false)")
     direction = "DESC" if sort_dir.lower() == "desc" else "ASC"
 
+    
+
+
     sql = f"""
     SELECT
         v.batch_id,
@@ -185,10 +218,12 @@ def material_batch_ledger(
     OFFSET :skip
     LIMIT :limit
     """
-
+    
     params.update(pg)
 
     rows = db.execute(text(sql), params).mappings().all()
+
+   
 
     if export == "csv":
 
