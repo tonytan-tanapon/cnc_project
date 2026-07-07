@@ -168,9 +168,9 @@
     }
 
     .center-cell {
-    text-align: center;
-    vertical-align: middle;
-}
+      text-align: center;
+      vertical-align: middle;
+    }
   </style>
 </head>
 
@@ -197,10 +197,8 @@
     <thead>
       <tr>
         <th>
-  
-  <button id="addBtn"
-          type="button"
-          style="
+
+          <button id="addBtn" type="button" style="
             border:none;
             background:none;
             color:#2563eb;
@@ -208,9 +206,9 @@
             font-size:18px;
             margin-left:4px;
           ">
-    ➕
-  </button>
-</th>
+            ➕
+          </button>
+        </th>
         <th>No</th>
         <th>Date</th>
         <th>Clock In</th>
@@ -259,8 +257,7 @@
   </div>
 
 
-  <div id="payeeInfo"
-     style="
+  <div id="payeeInfo" style="
         margin-top:15px;
         padding:10px;
         border:1px solid #e5e7eb;
@@ -268,7 +265,7 @@
         background:#f9fafb;
         display:none;
      ">
-</div>
+  </div>
   <!-- Time leave -->
   <hr style="margin:40px 0" />
   <h2 style="margin-bottom:10px">
@@ -284,26 +281,24 @@
     <table>
       <thead>
         <tr>
-          <th> </th>
+          <th></th>
           <th>No</th>
           <th>Type</th>
           <th>From</th>
-          <th>To</th>
-          <th>Hours</th>
-          <th>Paid</th>
           <th>Status</th>
           <th class="left">Notes</th>
         </tr>
       </thead>
+
       <tbody id="leaveTblBody">
         <tr>
-          <td colspan="9" class="empty">Loading…</td>
+          <td colspan="6" class="empty">Loading…</td>
         </tr>
       </tbody>
     </table>
   </div>
   <script type="module" src="/static/js/emp_report.js?v=1.6"></script>
-  <script type="module" src="/static/js/time-leaves.js?v=1.6"></script>
+  <script type="module" src="/static/js/time-leaves.js?v=1.8"></script>
 
 </body>
 

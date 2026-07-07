@@ -293,17 +293,9 @@ def calculate_payroll_data(
     )
     # print("leave_rows", leave_rows)
     leave_total = (
-        db.query(
-            func.coalesce(
-                func.sum(TimeLeave.hours),
-                0
-            )
-        )
+        db.query(func.count(TimeLeave.id))
         .filter(
             TimeLeave.employee_id.in_(employee_ids),
-            # TimeLeave.status == "approved",
-            # TimeLeave.end_at >= pp.start_at,
-            # TimeLeave.start_at <= pp.end_at,
         )
         .scalar()
     )
@@ -343,7 +335,7 @@ def calculate_payroll_data(
         ),
 
         "leave_rows": leave_rows,
-        "total_leave_hours": float(leave_total),
+        "total_leave_days": int(leave_total),
     }
 
 @router.get("/calculate")
@@ -553,9 +545,10 @@ def export_excel(
     
     ws.cell(row_no, 1, "No")
     ws.cell(row_no, 2, "Start Date")
-    ws.cell(row_no, 3, "End Date")
-    ws.cell(row_no, 4, "Type")
-    ws.cell(row_no, 5, "Hours")
+  
+    ws.cell(row_no, 3, "Type")
+   
+
 
     row_no += 1
 
@@ -576,31 +569,23 @@ def export_excel(
             leave.start_at.strftime("%m/%d/%y")
         )
 
+      
+
         ws.cell(
             row_no,
             3,
-            leave.end_at.strftime("%m/%d/%y")
-        )
-
-        ws.cell(
-            row_no,
-            4,
             leave.leave_type
         )
 
-        ws.cell(
-            row_no,
-            5,
-            float(leave.hours or 0)
-        )
+       
 
         row_no += 1
 
-    ws.cell(row_no, 4, "Total Leave")
+    ws.cell(row_no, 2, "Total Leave")
     ws.cell(
         row_no,
-        5,
-        payroll["total_leave_hours"]
+        3,
+        f'{payroll["total_leave_days"]} day(s)'
     )
     # ==========================
     # Save Memory Stream
@@ -982,9 +967,9 @@ def export_payee(
 
     ws.cell(row_no, 1, "No")
     ws.cell(row_no, 2, "Start Date")
-    ws.cell(row_no, 3, "End Date")
-    ws.cell(row_no, 4, "Type")
-    ws.cell(row_no, 5, "Hours")
+   
+    ws.cell(row_no, 3, "Type")
+  
 
     for col in range(1, 6):
         ws.cell(row_no, col).font = Font(bold=True)
@@ -1004,32 +989,24 @@ def export_payee(
             leave.start_at.strftime("%m/%d/%y")
         )
 
+       
+
         ws.cell(
             row_no,
             3,
-            leave.end_at.strftime("%m/%d/%y")
-        )
-
-        ws.cell(
-            row_no,
-            4,
             leave.leave_type
         )
 
-        ws.cell(
-            row_no,
-            5,
-            float(leave.hours or 0)
-        )
+        
 
         row_no += 1
 
-    ws.cell(row_no, 4, "Total Leave")
+    ws.cell(row_no, 2, "Total Leave")
 
     ws.cell(
         row_no,
-        5,
-        payroll["total_leave_hours"]
+        3,
+        f'{payroll["total_leave_days"]} day(s)'
     )
 
     ws.cell(row_no, 4).font = Font(bold=True)

@@ -1651,7 +1651,7 @@ class TimeLeave(Base):
     employee_id = Column(Integer, ForeignKey("employees.id"), nullable=False, index=True)
     leave_type = Column(String, nullable=False)  # vacation/sick/...
     start_at = Column(DateTime(timezone=True), nullable=False)
-    end_at = Column(DateTime(timezone=True), nullable=False)
+    end_at = Column(DateTime(timezone=True), nullable=True)
     hours = Column(Numeric(5, 2), nullable=True)
     is_paid = Column(Boolean, nullable=False, default=True)
     status = Column(String, nullable=False, default="approved")

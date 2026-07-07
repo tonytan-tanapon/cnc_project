@@ -337,14 +337,13 @@ def export_batch_docx(
     # -------------------------
     print("row", row)
     qr_text = (
-        f"BATCH:{row.batch_no}\n"
-        f"TYPE:{row.type}\n"
-        f"SPEC:{row.spec}\n"
-        f"SIZE:{row.size_text}\n"
-        f"LENGTH:{row.length_text}\n"
-        f"SUPPLIER:{row.supplier_name or ''}"
+        (f"HT:{row.heat_po}\n" if row.heat_po else "")
+        + f"PO:{row.batch_no}\n"
+        + f"{row.type} x {row.spec}\n"
+        + f"{row.size_text} x {row.length_text}\n"
+        + f"{row.supplier_name or ''}"
     )
-
+    
     qr = qrcode.QRCode(
         version=1,
         box_size=10,
@@ -386,14 +385,23 @@ def export_batch_docx(
         )
          qr_size = 0.4
     print("row.batch_no", row.batch_no)
+
+
+    supplier_text = (
+        f"HT:{row.heat_po}"
+        if row.heat_po
+        else (row.supplier_name or "")
+    )
+
     mapping = {
-        "{{supplier}}" :  row.supplier_name or "",
+        "{{supplier}}" : supplier_text,
         "{{batch}}" :  row.batch_no or "",
         "{{mat_po}}": row.batch_no or "",
         "{{type}}": row.type or "",
         "{{spec}}": row.spec or "",
         "{{size}}": row.size_text or "",
         "{{length}}": row.length_text or ""
+
     }
 
     print("mapping", mapping)
@@ -403,7 +411,6 @@ def export_batch_docx(
     for table in doc.tables:
         for row_ in table.rows:
             for cell in row_.cells:
-
                 for para in cell.paragraphs:
                     for run in para.runs:
                         for old, new in mapping.items():

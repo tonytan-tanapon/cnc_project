@@ -1042,11 +1042,13 @@ class TimeLeaveBase(BaseModel):
     employee_id: int
     leave_type: str
     start_at: datetime
-    end_at: datetime
+    end_at: Optional[datetime] = None
     hours: Optional[Decimal] = None
     is_paid: bool = True
     status: str = "approved"
     notes: Optional[str] = None
+
+from typing import Optional
 
 
 class TimeLeaveCreate(TimeLeaveBase):
@@ -1054,13 +1056,13 @@ class TimeLeaveCreate(TimeLeaveBase):
 
 
 class TimeLeaveUpdate(BaseModel):
-    leave_type: Optional[str]
-    start_at: Optional[datetime]
-    end_at: Optional[datetime]
-    hours: Optional[Decimal]
-    is_paid: Optional[bool]
-    status: Optional[str]
-    notes: Optional[str]
+    leave_type: Optional[str] = None
+    start_at: Optional[datetime] = None
+    end_at: Optional[datetime] = None
+    hours: Optional[Decimal] = None
+    is_paid: Optional[bool] = None
+    status: Optional[str] = None
+    notes: Optional[str] = None
 
 
 class TimeLeaveOut(TimeLeaveBase):

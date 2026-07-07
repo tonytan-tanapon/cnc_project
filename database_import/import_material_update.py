@@ -530,13 +530,16 @@ def main():
                 row.get("Company")
             )
 
+            
+
             vendor_po = (
                 normalize(row.get("Vendor PO"))
                 or normalize(row.get("Heat lot"))
             )
-            if vendor_po == "19593":
-                print(vendor_po)
 
+            if vendor_po == "19593":
+                print("row", row)
+                
             part_no = normalize(
                 row.get("Part no.")
             )
@@ -563,7 +566,8 @@ def main():
                 normalize(row.get("Size")),
                 "feet"
             )
-
+         
+            
             mpo = upsert_material_po(
                 db,
                 supplier,
@@ -575,18 +579,26 @@ def main():
                 row.get("PO#, Qty")
             )
 
+            if not po_items:
+                po_items = [{
+                    "po": None,
+                    "qty": None,
+                    "note": "NO PO"
+                }]
+          
             for it in po_items:
 
                 if not part_no:
+
                     print(
                         "⚠️ SKIP row: missing Part no."
                     )
                     continue
 
                 part_items = part_no.split()
-
+               
                 for pp_no in part_items:
-
+                    
                     part = db.scalar(
                         select(Part).where(
                             Part.part_no == pp_no
@@ -594,6 +606,7 @@ def main():
                     )
 
                     if not part:
+                        
                         continue
 
                     upsert_part_material(
@@ -631,10 +644,13 @@ def main():
                         po_note=row.get("PO#, Qty"),
                     )
 
-                    lot = get_lot_by_po(
-                        db,
-                        it["po"]
-                    )
+                    lot = None
+
+                    if it["po"]:
+                        lot = get_lot_by_po(
+                            db,
+                            it["po"]
+                        )
 
                     upsert_raw_batch_reference(
                         db=db,
@@ -644,16 +660,14 @@ def main():
                         lot=lot,
                     )
 
-                    if not lot:
-                        continue
-
-                    insert_lot_material_use(
-                        db,
-                        lot=lot,
-                        rb=rb,
-                        qty=it["qty"],
-                        note=it["note"],
-                    )
+                    if lot:
+                        insert_lot_material_use(
+                            db,
+                            lot=lot,
+                            rb=rb,
+                            qty=it["qty"],
+                            note=it["note"],
+                        )
 
             count += 1
 

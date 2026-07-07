@@ -10,7 +10,7 @@ const payrollYear = payrollStart
 
 
 let totalLeaveHours = 0;
-let showAllLeaves = true ; // ✅ default = show ONLY payroll period
+let showAllLeaves = true; // ✅ default = show ONLY payroll period
 const qs = new URL(location.href).searchParams;
 const employeeId = Number(qs.get("employee_id"));
 
@@ -46,46 +46,18 @@ const fmtHours = (h) =>
   h === null || h === undefined ? "" : Number(h).toFixed(2);
 
 
-function calcHours(fromISO, toISO, leaveType = "") {
-  if (!fromISO || !toISO) return "";
-
-  const start = new Date(fromISO);
-  const end = new Date(toISO);
-
-  if (end <= start) return "";
-
-  // ✅ Vacation = workdays × 8 hrs
-  if (leaveType === "vacation" || leaveType === "holiday") {
-    let hours = 0;
-
-    const d = new Date(start);
-    d.setHours(0, 0, 0, 0);
-
-    const endDate = new Date(end);
-    endDate.setHours(0, 0, 0, 0);
-
-    while (d <= endDate) {
-      const day = d.getDay(); // 0=Sun, 6=Sat
-      if (day !== 0 && day !== 6) {
-        hours += 8;
-      }
-      d.setDate(d.getDate() + 1);
-    }
-
-    return hours.toFixed(2);
-  }
-
-
-  // ✅ Other leave types = exact hours
-  return ((end - start) / 3600000).toFixed(2);
-}
 
 
 function overlapsPeriod(leaveFrom, leaveTo, ps, pe) {
-  if (!ps || !pe) return false;
+  if (!ps || !pe || !leaveFrom) return false;
 
   const lf = new Date(leaveFrom);
-  const lt = new Date(leaveTo);
+
+  // ถ้าไม่มี To ถือว่าเป็นวันเดียวกับ From
+  const lt = leaveTo
+    ? new Date(leaveTo)
+    : new Date(leaveFrom);
+
   const pStart = new Date(ps);
   const pEnd = new Date(pe);
 
@@ -108,10 +80,13 @@ async function loadLeaves() {
 
   if (totalsEl) {
     totalsEl.innerHTML = Object.entries(typeTotals)
-      .map(
-        ([type, hrs]) =>
-          `<strong>${type}</strong>: ${hrs.toFixed(2)} hrs`
-      )
+      .map(([type, value]) => {
+        if (["vacation", "holiday", "sick"].includes(type)) {
+          return `<strong>${type}</strong>: ${Number(value.toFixed(2))} days`;
+        }
+
+        return `<strong>${type}</strong>: ${value.toFixed(2)} hrs`;
+      })
       .join(" &nbsp; | &nbsp; ");
   }
 
@@ -119,7 +94,13 @@ async function loadLeaves() {
   renderTimeLeaves(leaves);
 }
 
+function fmtDateDisplay(v) {
+  if (!v) return "";
 
+  const d = new Date(v);
+
+  return `${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}/${String(d.getFullYear()).slice(-2)}`;
+}
 function fmtDT_DDMMYY_HHMM(v) {
   if (!v) return "";
 
@@ -134,19 +115,14 @@ function fmtDT_DDMMYY_HHMM(v) {
 
   return `${mm}/${dd}/${yy} ${hh}:${mi}`;
 }
-function defaultWorkTime(hours, minutes) {
+function defaultDate() {
   const d = new Date();
-
-  d.setHours(hours, minutes, 0, 0);
 
   const yyyy = d.getFullYear();
   const mm = String(d.getMonth() + 1).padStart(2, "0");
   const dd = String(d.getDate()).padStart(2, "0");
-  const hh = String(d.getHours()).padStart(2, "0");
-  const mi = String(d.getMinutes()).padStart(2, "0");
 
-  // ✅ local time format for datetime-local
-  return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
+  return `${yyyy}-${mm}-${dd}`;
 }
 
 /* =================== RENDER =================== */
@@ -190,7 +166,7 @@ function renderTimeLeaves(leaves) {
   let yearlyTotal = 0;
 
   leaves.forEach((lv) => {
-     console.log("LV:", lv);
+    console.log("LV:", lv);
     if (!lv.start_at) return;
 
     /* ===== YEAR TOTAL (always count) ===== */
@@ -218,19 +194,16 @@ function renderTimeLeaves(leaves) {
     }
 
     tr.innerHTML = `
-      <td class="actions">
-        <button class="editBtn">🖉</button>
-        <button class="delBtn">🗑️</button>
-      </td>
-      <td>${index++}</td>
-      <td>${lv.leave_type ?? "vacation"}</td>
-      <td class="mono">${fmtDT_DDMMYY_HHMM(lv.start_at)}</td>
-      <td class="mono">${fmtDT_DDMMYY_HHMM(lv.end_at)}</td>
-      <td class="num mono">${fmtHours(lv.hours)}</td>
-      <td>${lv.is_paid ? "YES" : "NO"}</td>
-      <td>${lv.status}</td>
-      <td class="left">${lv.notes ?? ""}</td>
-    `;
+  <td class="actions">
+    <button class="editBtn">🖉</button>
+    <button class="delBtn">🗑️</button>
+  </td>
+  <td>${index++}</td>
+  <td>${lv.leave_type ?? "vacation"}</td>
+  <td>${fmtDateDisplay(lv.start_at)}</td>
+  <td>${lv.status}</td>
+  <td class="left">${lv.notes ?? ""}</td>
+`;
 
     tb.appendChild(tr);
     wireLeaveRow(tr, lv);
@@ -256,7 +229,13 @@ function calcLeaveTypeTotals(leaves, year) {
 
     const type = lv.leave_type || "unknown";
 
-    totals[type] = (totals[type] || 0) + Number(lv.hours || 0);
+    const hours = Number(lv.hours || 0);
+
+    if (["vacation", "holiday", "sick"].includes(type)) {
+      totals[type] = (totals[type] || 0) + hours / 8;
+    } else {
+      totals[type] = (totals[type] || 0) + hours;
+    }
   });
 
   return totals;
@@ -292,22 +271,15 @@ function addLeaveRow() {
   </select>
 </td>
 
-<td><input type="datetime-local"></td>
-<td><input type="datetime-local"></td>
-<td class="num mono"></td>
+<td><input type="date"></td>
+
+
 
 <td>
   <select>
-    <option value="true">Paid</option>
-    <option value="false">Unpaid</option>
-  </select>
-</td>
-
-<td>
-  <select>
-    <option>approved</option>
-    <option>pending</option>
-    <option>rejected</option>
+    <option value="pending" selected>pending</option>
+    <option value="approved">approved</option>
+    <option value="rejected">rejected</option>
   </select>
 </td>
 
@@ -318,32 +290,22 @@ function addLeaveRow() {
   tb.prepend(tr);
 
   const fromInput = tr.children[3].querySelector("input");
-  const toInput = tr.children[4].querySelector("input");
-  const hoursCell = tr.children[5];
+
   const leaveTypeSelect = tr.children[2].querySelector("select");
-  fromInput.value = defaultWorkTime(8, 0);
-  toInput.value = defaultWorkTime(16, 0);
+  fromInput.value = defaultDate();
 
-  const updateHours = () => {
-    hoursCell.textContent = calcHours(
-      fromInput.value,
-      toInput.value,
-      leaveTypeSelect.value
-    );
-  };
 
-  fromInput.onchange = updateHours;
-  toInput.onchange = updateHours;
-  leaveTypeSelect.onchange = updateHours;
 
   tr.querySelector(".cancelBtn").onclick = () => tr.remove();
 
   tr.querySelector(".saveBtn").onclick = async () => {
-    if (!fromInput.value || !toInput.value) {
-      toast("From / To required");
+    if (!fromInput.value) {
+      toast("From is required");
       return;
     }
-    console.log(hoursCell.textContent)
+
+
+    const start = new Date(`${fromInput.value}T08:00:00`);
     await jfetch("/api/v1/leaves", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -351,21 +313,31 @@ function addLeaveRow() {
         employee_id: employeeId,
         leave_type: tr.children[2].querySelector("select").value,
 
-        start_at: new Date(fromInput.value).toISOString(),
-        end_at: new Date(toInput.value).toISOString(),
 
-        hours: Number(hoursCell.textContent || 0),
+        start_at: start.toISOString(),
+        end_at: null,
 
-        is_paid: tr.children[6].querySelector("select").value === "true",
-        status: tr.children[7].querySelector("select").value,
-        notes: tr.children[8].querySelector("input").value,
+
+        status: tr.children[4].querySelector("select").value,
+
+        notes: tr.children[5].querySelector("input").value,
       }),
     });
 
     loadLeaves();
   };
 }
+function fmtDate(v) {
+  if (!v) return "";
 
+  const d = new Date(v);
+
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+
+  return `${yyyy}-${mm}-${dd}`;
+}
 
 /* =================== EDIT / DELETE =================== */
 
@@ -405,37 +377,29 @@ function wireLeaveRow(tr, lv) {
 `;
 
     /* ===== From / To ===== */
-    cells[3].innerHTML = `<input type="datetime-local" value="${fmtDTLocal(lv.start_at)}">`;
-    cells[4].innerHTML = `<input type="datetime-local" value="${fmtDTLocal(lv.end_at)}">`;
+    cells[3].innerHTML =
+      `<input type="date" value="${fmtDate(lv.start_at)}">`;
 
-    /* ===== Paid ===== */
-    cells[6].innerHTML = `
-    <select>
-      <option value="true" ${lv.is_paid ? "selected" : ""}>Paid</option>
-      <option value="false" ${!lv.is_paid ? "selected" : ""}>Unpaid</option>
-    </select>
-  `;
+
 
     /* ===== Status ===== */
-    cells[7].innerHTML = `
-    <select>
-      <option value="approved" ${lv.status === "approved" ? "selected" : ""}>approved</option>
-      <option value="pending" ${lv.status === "pending" ? "selected" : ""}>pending</option>
-      <option value="rejected" ${lv.status === "rejected" ? "selected" : ""}>rejected</option>
-    </select>
-  `;
+    cells[4].innerHTML = `
+<select>
+  <option value="approved" ${lv.status === "approved" ? "selected" : ""}>approved</option>
+  <option value="pending" ${lv.status === "pending" ? "selected" : ""}>pending</option>
+  <option value="rejected" ${lv.status === "rejected" ? "selected" : ""}>rejected</option>
+</select>
+`;
 
     /* ===== Notes ===== */
-    cells[8].innerHTML = `<input value="${lv.notes ?? ""}">`;
+    cells[5].innerHTML =
+      `<input value="${lv.notes ?? ""}">`;
+
 
     const fromInput = cells[3].querySelector("input");
-    const toInput = cells[4].querySelector("input");
+
     const leaveTypeSelect = cells[2].querySelector("select");
-    function updateHours() {
-      cells[5].textContent = calcHours(fromInput.value, toInput.value, leaveTypeSelect.value);
-    }
-    fromInput.onchange = updateHours;
-    toInput.onchange = updateHours;
+
 
     /* ===== Cancel ===== */
     tr.querySelector(".cancelBtn").onclick = () => {
@@ -445,40 +409,37 @@ function wireLeaveRow(tr, lv) {
 
     /* ===== Save ===== */
     tr.querySelector(".saveBtn").onclick = async () => {
+
       try {
+        const start = new Date(`${fromInput.value}T08:00:00`);
         const payload = {
           leave_type: cells[2].querySelector("select").value,
-
-          start_at: fromInput.value
-            ? new Date(fromInput.value).toISOString()
-            : null,
-
-          end_at: toInput.value
-            ? new Date(toInput.value).toISOString()
-            : null,
-
-          hours: Number(cells[5].textContent || 0),
-
-          is_paid: cells[6].querySelector("select").value === "true",
-
-          status: cells[7].querySelector("select").value,
-
-          notes: cells[8].querySelector("input").value || null,
+          start_at: start.toISOString(),
+          end_at: null,
+          status: cells[4].querySelector("select").value,
+          notes: cells[5].querySelector("input").value || null,
         };
 
         const res = await fetch(`/api/v1/leaves/${lv.id}`, {
           method: "PUT",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json"
+          },
           body: JSON.stringify(payload),
         });
 
         if (!res.ok) {
           const err = await res.json();
-          alert(err.detail || "Save failed");
+
+          console.log(err);
+
+          alert(JSON.stringify(err, null, 2));
+
           return;
         }
 
         loadLeaves();
+
       } catch (err) {
         console.error(err);
         alert(err.message || "Unexpected error");
