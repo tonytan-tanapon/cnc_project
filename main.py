@@ -40,7 +40,7 @@ def start_scheduler():
     if os.getenv("ENABLE_SCHEDULER") != "1":
         print("Scheduler disabled.")
         return
-   
+    print("Scheduler enabled.")
     scheduler.add_job(
         ensure_next_pay_period,
         "cron",
