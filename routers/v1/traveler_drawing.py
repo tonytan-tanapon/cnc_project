@@ -121,7 +121,23 @@ def build_drawing_batch(traveler_id: int, db: Session = Depends(get_db)):
     #     f'start "" "{folder}"',
 
     # ]
+
+
     print(f"Building .bat for drawing open...")
+
+
+    if cus_code == "BE5503":
+        cus_code_folder = "BEI"
+    if cus_code == "SA8884":
+        cus_code_folder = "Skurka all drawing are restrict for export controlled cannot send via email"
+    if cus_code == "AF6182":
+        cus_code_folder = "Aero Fluid"
+    if cus_code == "AA4519":
+        cus_code_folder = "Atomic"
+    if cus_code == "AT9110":
+        cus_code_folder = "Ametek"
+   
+       
     bat = [
         "@echo off",
         f"echo Lot: {lot_no}",
@@ -136,8 +152,11 @@ def build_drawing_batch(traveler_id: int, db: Session = Depends(get_db)):
         "",
 
         # ---- Folder candidates ----
-        f'set PATH1=Z:\\Public\\AS9100\\Shop Traveler\\Control Drawing for Production\\{cus_code}',
-        f'set PATH2=Z:\\Topnotch Group\\Public\\AS9100\\Shop Traveler\\Control Drawing for Production\\{cus_code}',
+        # f'set PATH1=Z:\\Public\\AS9100\\Shop Traveler\\Control Drawing for Production\\{cus_code}',
+        # f'set PATH2=Z:\\Topnotch Group\\Public\\AS9100\\Shop Traveler\\Control Drawing for Production\\{cus_code}',
+
+        f'set PATH1=Z:\\Public\\Blue Print\\{cus_code_folder}\\Ballooned Drawing',
+        f'set PATH2=Z:\\Topnotch Group\\Public\\Blue Print\\{cus_code_folder}\\Ballooned Drawing',
         "",
 
         # ---- Try open PDF ----
@@ -218,6 +237,24 @@ def build_traveler_doc_batch(traveler_id: int, db: Session = Depends(get_db)):
 
     # print(prefix)
     # print(f"Latest PDF: {pdf_path}")
+
+    if cus_code == "BE5503":
+        cus_code_folder = "BEI"
+    if cus_code == "SA8884":
+        cus_code_folder = "Skurka all drawing are restrict for export controlled cannot send via email"
+    if cus_code == "AF6182":
+        cus_code_folder = "Aero Fluid"
+    if cus_code == "AA4519":
+        cus_code_folder = "Atomic"
+    if cus_code == "AT9110":
+        cus_code_folder = "Ametek"
+    if cus_code == "BE5503":
+        cus_code_folder = "BEI"
+    if cus_code == "BE5503":
+        cus_code_folder = "BEI"
+    if cus_code == "BE5503":
+        cus_code_folder = "BEI"
+
     bat = [
         "@echo off",
         f"echo Lot: {lot_no}",
@@ -233,8 +270,12 @@ def build_traveler_doc_batch(traveler_id: int, db: Session = Depends(get_db)):
         "",
 
         # ---- Base paths ----
-        f'set BASE1=Z:\\Public\\AS9100\\Shop Traveler\\SHOP TRAVELER\\{cus_code}',
-        f'set BASE2=Z:\\Topnotch Group\\Public\\AS9100\\Shop Traveler\\SHOP TRAVELER\\{cus_code}',
+        # f'set BASE1=Z:\\Public\\AS9100\\Shop Traveler\\SHOP TRAVELER\\{cus_code}',
+        # f'set BASE2=Z:\\Topnotch Group\\Public\\AS9100\\Shop Traveler\\SHOP TRAVELER\\{cus_code}',
+
+        # Z:\Topnotch Group\Public\Blue Print\Aero Fluid
+        f'set BASE1=Z:\\Public\\Blue Print\\{cus_code}\\Ballooned Drawing',
+        f'set BASE2=Z:\\Topnotch Group\\Public\\Blue Print\\{cus_code}\\Ballooned Drawing',
         "",
 
         # ---- Subfolder candidates (with & without rev) ----

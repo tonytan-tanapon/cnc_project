@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <title>Attendance Summary · Topnotch MFG</title>
+
+    <link rel="stylesheet" href="/static/css/app.css">
+    <link rel="stylesheet" href="/static/vendor/tabulator/tabulator_modern.min.css">
+
+    <style>
+        .main--edge {
+            padding: 0;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .panel--edge {
+            margin: 0;
+            border-radius: 0;
+            border-left: 0;
+            border-right: 0;
+        }
+
+        #listPanel {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        .page-title {
+            font-size: 20px;
+            font-weight: 600;
+            padding: 12px 16px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .toolbar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 16px;
+            border-bottom: 1px solid #e5e7eb;
+
+            flex-wrap: nowrap;
+            /* ไม่ขึ้นบรรทัดใหม่ */
+        }
+
+        .toolbar .btn {
+            flex: 0 0 auto;
+        }
+
+        .toolbar input[type="date"] {
+            width: 150px;
+            /* กำหนดขนาดเอง */
+            min-width: 150px;
+            max-width: 150px;
+            flex: 0 0 150px;
+            /* ไม่ให้ขยาย */
+        }
+
+        .toolbar input[type="search"] {
+            width: 260px;
+            flex: 0 0 260px;
+        }
+
+        .summary-cards {
+
+            display: grid;
+
+            grid-template-columns: repeat(5, 1fr);
+
+            gap: 12px;
+
+            padding: 16px;
+
+            border-bottom: 1px solid #e5e7eb;
+
+            background: #fafafa;
+
+        }
+
+        .card {
+
+            background: white;
+
+            border: 1px solid #ddd;
+
+            padding: 12px;
+
+        }
+
+        .card-title {
+
+            color: #777;
+
+            font-size: 13px;
+
+        }
+
+        .card-value {
+
+            margin-top: 8px;
+
+            font-size: 28px;
+
+            font-weight: bold;
+
+        }
+
+        #listBody {
+
+            flex: 1;
+
+            min-height: 0;
+
+        }
+
+        #listBody .tabulator {
+
+            border: 0;
+
+            height: 100%;
+
+        }
+
+        .employee-info {
+            display: flex;
+            align-items: center;
+            gap: 30px;
+
+            padding: 12px 16px;
+
+            border-bottom: 1px solid #e5e7eb;
+
+            white-space: nowrap;
+
+            font-size: 15px;
+        }
+
+        .employee-info>div {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .employee-info strong {
+            color: #666;
+            font-weight: 600;
+        }
+
+        .summary-info {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 24px;
+
+            padding: 12px 16px;
+
+            border-bottom: 1px solid #e5e7eb;
+
+            font-size: 15px;
+        }
+
+        .summary-info>div {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            white-space: nowrap;
+        }
+
+        .summary-info strong {
+            color: #666;
+            font-weight: 600;
+        }
+
+        .summary-info span {
+            font-weight: 700;
+            color: #0f172a;
+        }
+    </style>
+
+</head>
+
+<body>
+
+    <div class="app">
+
+        <aside class="sidebar">
+            <div id="navSlot" data-nav-slot></div>
+        </aside>
+
+        <main class="main main--edge">
+
+            <section class="panel panel--edge" id="listPanel">
+
+                <div class="page-title">
+                    Attendance Detail
+                </div>
+
+                <div class="toolbar">
+
+                    <button class="btn" id="btnBack">
+                        ← Back
+                    </button>
+
+                    <input id="dateFrom" type="date">
+
+                    <input id="dateTo" type="date">
+
+                    <button class="btn" id="btnSearch">
+                        Search
+                    </button>
+
+                </div>
+
+                <div class="employee-info">
+
+                    <div><strong>Employee Code:</strong> <span id="empCode"></span></div>
+
+                    <div><strong>Employee:</strong> <span id="employeeName"></span></div>
+
+                    <div><strong>Position:</strong> <span id="position"></span></div>
+
+                    <div><strong>First Work Date:</strong> <span id="firstWorkDate"></span></div>
+
+                    <div><strong>Last Work Date:</strong> <span id="lastWorkDate"></span></div>
+                    <div><strong>Department:</strong> <span id="department"></span></div>
+
+                </div>
+
+
+                <div class="summary-info">
+
+                    <div><strong>Present:</strong> <span id="presentDays">0</span></div>
+
+                    <div><strong>Late:</strong> <span id="lateDays">0</span></div>
+
+                    <div><strong>Absent:</strong> <span id="absentDays">0</span></div>
+
+                    <div><strong>Half Day:</strong> <span id="halfDays">0</span></div>
+
+                    <div><strong>Vacation:</strong> <span id="vacationDays">0</span></div>
+
+                    <div><strong>Sick:</strong> <span id="sickDays">0</span></div>
+
+                    <div><strong>Holiday:</strong> <span id="holidayDays">0</span></div>
+
+                    <div><strong>Work Hours:</strong> <span id="workHours">0</span></div>
+
+                    <div><strong>OT Hours:</strong> <span id="otHours">0</span></div>
+
+                    <div><strong>Attendance %:</strong> <span id="attendanceRate">0%</span></div>
+
+                </div>
+
+
+                <div id="listBody"></div>
+
+
+            </section>
+
+
+
+        </main>
+
+    </div>
+
+    <div class="toast" id="toast">
+        <span id="toastText"></span>
+    </div>
+
+    <script type="module" src="/static/js/nav-loader.js"></script>
+
+    <script src="/static/vendor/tabulator/tabulator.min.js"></script>
+
+    <script type="module" src="/static/js/page-attendance-detail.js?v=1.1">
+    </script>
+
+</body>
+
+</html>

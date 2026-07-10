@@ -10,7 +10,7 @@ def list_lot_summary(
     page: int = 1,
     size: int = 5000,
 
-    sort_by: str = "lot_id",
+    sort_by: str = "lot_no",
     sort_dir: str = "asc",
 
     q: str | None = None,

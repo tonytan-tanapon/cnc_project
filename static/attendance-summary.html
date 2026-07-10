@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <title>Attendance Summary · Topnotch MFG</title>
+
+    <link rel="stylesheet" href="/static/css/app.css">
+    <link rel="stylesheet" href="/static/vendor/tabulator/tabulator_modern.min.css">
+
+    <style>
+        .main--edge {
+            padding: 0;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .panel--edge {
+            margin: 0;
+            border-radius: 0;
+            border-left: 0;
+            border-right: 0;
+        }
+
+        #listPanel {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        .page-title {
+            font-size: 20px;
+            font-weight: 600;
+            padding: 12px 16px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .toolbar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: nowrap;
+        }
+
+        .toolbar input[type="search"] {
+            width: 180px;
+            flex: 0 0 180px;
+        }
+
+        .toolbar input[type="date"] {
+            width: 130px;
+            flex: 0 0 130px;
+        }
+
+        .toolbar select {
+            width: 170px;
+            flex: 0 0 170px;
+        }
+
+        .toolbar .btn {
+            flex: 0 0 auto;
+        }
+
+        #listBody {
+
+            flex: 1;
+
+            min-height: 0;
+
+        }
+
+        #listBody .tabulator {
+
+            border: 0;
+
+            height: 100%;
+
+        }
+    </style>
+
+</head>
+
+<body>
+
+    <div class="app">
+
+        <aside class="sidebar">
+            <div id="navSlot" data-nav-slot></div>
+        </aside>
+
+        <main class="main main--edge">
+
+            <section class="panel panel--edge" id="listPanel">
+
+                <div class="page-title">
+                    Attendance Summary
+                </div>
+
+                <div class="toolbar">
+
+                    <input id="q" type="search" placeholder="Search Employee... " hidden>
+
+                    <input id="dateFrom" type="date">
+
+                    <input id="dateTo" type="date">
+
+                    <select id="department" hidden>
+                        <option value="">All Department</option>
+                    </select>
+
+                    <button class="btn" id="btnSearch">
+                        Search
+                    </button>
+<!-- 
+                    <button class="btn" id="btnExport">
+                        Export
+                    </button> -->
+
+                </div>
+
+                
+
+                <div id="listBody"></div>
+
+            </section>
+
+        </main>
+
+    </div>
+
+    <div class="toast" id="toast">
+        <span id="toastText"></span>
+    </div>
+
+    <script type="module" src="/static/js/nav-loader.js"></script>
+
+    <script src="/static/vendor/tabulator/tabulator.min.js"></script>
+
+    <script type="module" src="/static/js/page-attendance-summary.js?v=1.4"></script>
+
+</body>
+
+</html>

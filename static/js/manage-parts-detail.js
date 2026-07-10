@@ -1009,6 +1009,7 @@ function initTable() {
     `;
         },
       },
+
       {
         title: "Shipped<br>Date",
         field: "lot_shipped_at",
@@ -1181,6 +1182,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     await fetchMaterials();
   }, 50);
 });
+
 // document.addEventListener("DOMContentLoaded", async () => {
 //   console.log("part-detail");
 //   initTopbar?.();
