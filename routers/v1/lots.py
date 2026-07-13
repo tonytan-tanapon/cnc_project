@@ -418,7 +418,8 @@ def get_lot(lot_id: int, db: Session = Depends(get_db)):
         db.query(ProductionLot)
         .options(
             joinedload(ProductionLot.part),
-            joinedload(ProductionLot.po).joinedload(PO.customer),
+            joinedload(ProductionLot.po).
+            joinedload(PO.customer),
             joinedload(ProductionLot.part_revision),
         )
         .filter(ProductionLot.id == lot_id)
