@@ -210,8 +210,6 @@ def list_lot_shipments(lot_id: int, db: Session = Depends(get_db)):
 
     return result
 
-
-
 # ============================================================
 # 2️⃣  Allocate / Return part
 # ============================================================
@@ -1103,7 +1101,7 @@ def download_label(
                     keep_label = False
                     actual_index = label_index
 
-            print(label_index, cell.text[:20])
+            # print(label_index, cell.text[:20])
 
             if keep_label:
 
