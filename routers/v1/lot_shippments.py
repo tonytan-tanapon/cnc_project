@@ -1103,7 +1103,7 @@ def download_label(
                     keep_label = False
                     actual_index = label_index
 
-          
+            print(label_index, cell.text[:20])
 
             if keep_label:
 

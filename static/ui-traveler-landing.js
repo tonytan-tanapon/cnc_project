@@ -6,7 +6,8 @@ const manualInput = document.getElementById("manualInput");
 const btnGo = document.getElementById("btnGo");
 const scanInput = document.getElementById("scanInput");
 const result = document.getElementById("result");
-
+const lotSearch =
+    document.getElementById("lotSearch");
 let currentSortField = "lot_no";
 
 let currentSortDir = "asc";
@@ -16,7 +17,86 @@ let cachedRows = [];
 let scanTimer = null;
 let traver_id = null;
 let traveler_no = null;
+function renderLots(rows) {
 
+    const tbody =
+        document.querySelector("#lotTable tbody");
+
+    tbody.innerHTML = "";
+
+    rows.sort((a, b) => {
+
+        const av =
+            String(a[currentSortField] || "").toLowerCase();
+
+        const bv =
+            String(b[currentSortField] || "").toLowerCase();
+
+        return currentSortDir === "asc"
+            ? av.localeCompare(bv)
+            : bv.localeCompare(av);
+
+    });
+
+    rows.forEach(row => {
+
+        const tr = document.createElement("tr");
+
+        const opStatusClass =
+            row.op_status === "running"
+                ? "status-running"
+                : row.op_status === "passed"
+                ? "status-passed"
+                : "status-pending";
+
+        tr.innerHTML = `
+            <td>${row.lot_no || "-"}</td>
+            <td>${row.part_no || "-"}</td>
+            <td>${row.part_rev || "-"}</td>
+            <td style="font-weight:700;color:#2563eb;">
+                ${row.current_op || "-"}
+            </td>
+            <td style="font-weight:700;color:#059669;">
+                ${row.current_machine || "-"}
+            </td>
+            <td>
+                <span class="status-badge ${opStatusClass}">
+                    ${row.op_status || "-"}
+                </span>
+            </td>
+        `;
+
+        tr.onclick = async () => {
+
+            const traveler = await jfetch(
+                api(`/travelers/by-lot-code/${encodeURIComponent(row.lot_no)}`)
+            );
+
+            if (!traveler || !traveler.traveler_no) {
+                alert("Traveler not found");
+                return;
+            }
+
+            traveler_no = traveler.traveler_no;
+
+            const pin = await showPinPad();
+
+            if (!pin) return;
+
+            if (!(await verifyPin(pin))) {
+                alert("❌ Invalid PIN");
+                return;
+            }
+
+            openMachineSelect(row.lot_no, pin);
+
+        };
+
+        tbody.appendChild(tr);
+
+    });
+
+}
 async function verifyLot(code) {
 
   try {
@@ -185,106 +265,9 @@ async function loadInProcessLots() {
 
     tbody.innerHTML = "";
 
+cachedRows = rows;
 
-    rows.sort((a, b) => {
-
-      const av =
-        String(a[currentSortField] || "")
-          .toLowerCase();
-
-      const bv =
-        String(b[currentSortField] || "")
-          .toLowerCase();
-
-      if (currentSortDir === "asc") {
-
-        return av.localeCompare(bv);
-      }
-
-      return bv.localeCompare(av);
-    });
-
-    rows.forEach(row => {
-
-      const tr = document.createElement("tr");
-
-
-
-      const opStatusClass =
-        row.op_status === "running"
-          ? "status-running"
-          : row.op_status === "passed"
-            ? "status-passed"
-            : "status-pending";
-
-      tr.innerHTML = `
-        <td>${row.lot_no || "-"}</td>
-
-        <td>${row.part_no || "-"}</td>
-
-        <td>${row.part_rev || "-"}</td>
-
-        <td style="
-          font-weight:700;
-          color:#2563eb;
-        ">
-          ${row.current_op || "-"}
-        </td>
-
-        <td style="
-          font-weight:700;
-          color:#059669;
-        ">
-          ${row.current_machine || "-"}
-        </td>
-
-      
-
-  <td>
-    <span class="status-badge ${opStatusClass}">
-  ${row.op_status || "-"}
-</span>
-  </td>
-      `;
-
-      // ⭐ CLICK ROW
-      tr.onclick = async () => {
-
-        console.log("OPEN LOT =", row);
-
-        const traveler = await jfetch(
-          api(`/travelers/by-lot-code/${encodeURIComponent(row.lot_no)}`)
-        );
-
-        console.log("TRAVELER =", traveler);
-
-        if (!traveler || !traveler.traveler_no) {
-          alert("Traveler not found");
-          return;
-        }
-
-        traveler_no = traveler.traveler_no;
-        console.log("Set traveler_no =", traveler_no);
-
-        // 🔐 ask PIN first
-        const pin = await showPinPad();
-
-        if (!pin) return;
-
-        const isValid = await verifyPin(pin);
-
-        if (!isValid) {
-          alert("❌ Invalid PIN");
-          return;
-        }
-
-        openMachineSelect(row.lot_no, pin);
-
-      };
-
-      tbody.appendChild(tr);
-
-    });
+renderLots(cachedRows);
 
   } catch (err) {
 
@@ -436,10 +419,26 @@ async function openMachineSelect(code, pin) {
 
   document.getElementById("machineOverlay").style.display = "flex";
 }
+
+lotSearch.addEventListener("input", () => {
+
+    console.log("SEARCH =", lotSearch.value);
+
+    const q = lotSearch.value.trim().toLowerCase();
+
+    const filtered = cachedRows.filter(r =>
+        (r.lot_no || "").toLowerCase().includes(q) ||
+        (r.part_no || "").toLowerCase().includes(q)
+    );
+
+    console.log(filtered);
+
+    renderLots(filtered);
+});
 // Default focus = scanner
 window.addEventListener("DOMContentLoaded", async () => {
 
-  scanInput.focus();
+  // scanInput.focus();
 
   await loadInProcessLots();
   setupSortableHeaders();
@@ -447,16 +446,30 @@ window.addEventListener("DOMContentLoaded", async () => {
 });
 
 // Click outside manual -> refocus scan
-document.addEventListener("click", (e) => {
-  if (e.target === manualInput || e.target === btnGo) return;
-  scanInput.focus({ preventScroll: true });
-});
+// document.addEventListener("click", (e) => {
+//   if (e.target === manualInput || e.target === btnGo) return;
+//   scanInput.focus({ preventScroll: true });
+// });
+
+// document.addEventListener("click", (e) => {
+
+//     if (
+//         e.target.closest("#lotSearch") ||
+//         e.target.closest("#manualInput") ||
+//         e.target.closest("#btnGo")
+//     ) {
+//         return;
+//     }
+
+//     scanInput.focus({ preventScroll: true });
+
+// });
 
 // Manual: Go button
 btnGo.addEventListener("click", async () => {
   await handleCode(manualInput.value, "manual");
   manualInput.value = "";
-  scanInput.focus({ preventScroll: true });
+  // scanInput.focus({ preventScroll: true });
 });
 
 // Manual: press Enter = same as Go
@@ -468,15 +481,15 @@ manualInput.addEventListener("keydown", async (e) => {
 });
 
 // Scan: auto trigger after scan finishes typing
-scanInput.addEventListener("input", () => {
-  clearTimeout(scanTimer);
-  scanTimer = setTimeout(async () => {
-    const value = scanInput.value;
-    scanInput.value = "";
-    await handleCode(value, "scan");
-    scanInput.focus({ preventScroll: true });
-  }, 150);
-});
+// scanInput.addEventListener("input", () => {
+//   clearTimeout(scanTimer);
+//   scanTimer = setTimeout(async () => {
+//     const value = scanInput.value;
+//     scanInput.value = "";
+//     await handleCode(value, "scan");
+//     scanInput.focus({ preventScroll: true });
+//   }, 150);
+// });
 
 /////////////////
 let pinValue = "";
