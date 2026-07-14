@@ -1914,6 +1914,7 @@ async function btnExportInspection() {
     alert("Unexpected error while exporting inspection");
   }
 }
+
 function setBusyT(on) {
   const body = document.body;
 
@@ -2212,8 +2213,44 @@ async function loadInspectors() {
     });
 }
 
+function initDetailButton() {
+  const btn = document.getElementById("btnDetail");
+  if (!btn) return;
+
+  btn.addEventListener("click", () => {
+    if (!lotId) {
+      toast("Lot not found", false);
+      return;
+    }
+// location.href =
+//   `/static/ui-inspection-entry.html`;
+    location.href =
+  `/static/ui-inspection-entry.html?lot_id=${encodeURIComponent(lotId)}&inspection_id=${currentInspection.id}`;
+  });
+}
+
 /* ---------- Boot ---------- */
 document.addEventListener("DOMContentLoaded", async () => {
+
+  document.addEventListener("change", async (e) => {
+
+    if (!e.target.classList.contains("remark"))
+        return;
+
+    const row = e.target.closest("tr");
+
+    const id = Number(row.dataset.id);
+
+    const item = inspectionItems.find(x => x.id === id);
+
+    if (!item)
+        return;
+
+    item.notes = e.target.value;
+
+    await saveItem(item);
+
+});
   initTopbar();
   initInspectorAutocomplete();
   initQATable();
@@ -2221,6 +2258,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   makeLotLinks(lotId);
   initImportInspection();
   initSaveAllButton();
+  initDetailButton();   // 👈 เพิ่มตรงนี้
   await loadInspectors();   // 👈 เพิ่ม
 
   $("btnAddTemplate").addEventListener("click", btnAddTemplate);
