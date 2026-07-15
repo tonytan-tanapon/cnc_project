@@ -993,7 +993,7 @@ async function loadOperation() {
         <th>Date</th>
         <th>PO</th>
         <th>Length</th>
-         <th>Good Qty</th>
+         <th>QTY</th>
         <th>Operator</th>
         <th>Machine</th>
       </tr>

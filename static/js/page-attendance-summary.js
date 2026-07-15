@@ -27,7 +27,7 @@ const table = new Tabulator("#listBody", {
         {
             title: "Employee",
             field: "name",
-            width: 200,
+            width: 300,
             frozen: true,
 
             formatter(cell) {
