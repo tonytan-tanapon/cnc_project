@@ -267,13 +267,9 @@
         }
 
         .enter {
-
-            grid-column: span 4;
-
+            grid-row: span 2;
+            height: 150px !important;
             background: #2563eb !important;
-
-            color: white;
-
         }
 
         .show-keyboard {
@@ -305,12 +301,53 @@
         td:nth-child(4) {
             width: 70px;
         }
+
+        .double {
+            grid-column: span 2;
+        }
+
+        .keyboard button {
+            height: 60px;
+            /* จาก 70 -> 60 */
+            font-size: 22px;
+            /* จาก 26 -> 22 */
+            font-weight: bold;
+            border: none;
+            border-radius: 8px;
+            /* จาก 10 -> 8 */
+            background: #f1f5f9;
+            cursor: pointer;
+        }
+
+        .enter {
+            grid-row: span 2;
+            height: 130px !important;
+            /* 60 + 60 + gap 10 */
+            background: #2563eb !important;
+        }
+
+        .tqw-cell{
+    display:flex;
+    align-items:center;
+    gap:6px;
+}
+
+.tqw{
+    flex:1;
+}
+
+.tqw-hint{
+    min-width:60px;
+    color:#999;
+    font-size:12px;
+    font-style:italic;
+}
     </style>
 
 </head>
 
 <body>
-
+    <datalist id="tqwHistory"></datalist>
     <div class="page">
 
         <!---------------- LEFT ---------------->
@@ -410,40 +447,48 @@
 
             <div id="keyboard" class="keyboard disabled">
 
+                
+                <button class="key" data-key="~">~</button>
+
+                <button class="key" data-key="√">√</button>
+                <button class="key" data-key="±">±</button>
+                <button class="key" data-key="Ø">Ø</button>
+
+
+                <button class="key" data-key="'">'</button>
+                <button class="key" data-key="°">°</button>
+                <button class="key" data-key="x">x</button>
+                <button class="key" data-key="/">/</button>
+
+
+
+
                 <button class="key" data-key="7">7</button>
                 <button class="key" data-key="8">8</button>
                 <button class="key" data-key="9">9</button>
-                <button class="key backspace">⌫</button>
+                <button class="key" data-key="-">-</button>
+
 
                 <button class="key" data-key="4">4</button>
                 <button class="key" data-key="5">5</button>
                 <button class="key" data-key="6">6</button>
-                <button class="key" data-key="±">±</button>
+                <button class="key" data-key="+">+</button>
 
                 <button class="key" data-key="1">1</button>
                 <button class="key" data-key="2">2</button>
                 <button class="key" data-key="3">3</button>
-                <button class="key" data-key="Ø">Ø</button>
+                <button class="key enter">Enter</button>
 
-                <button class="key" data-key="0">0</button>
+                <!-- <button class="key" double data-key="0">0</button> -->
+                <button class="key double space" data-key="0">0</button>
                 <button class="key" data-key=".">.</button>
-                <button class="key" data-key="-">-</button>
-                <button class="key" data-key="°">°</button>
 
-                <button class="key" data-key="/">/</button>
-                <button class="key" data-key="~">~</button>
-                <button class="key" data-key="'">'</button>
-                <button class="key" data-key="√">√</button>
 
-                
+                <button class="key double space" data-key=" ">Space</button>
+                <button class="key double backspace">⌫</button>
 
-                <!-- <button class="key clear">
-                    CLEAR
-                </button> -->
 
-                <button class="key enter">
-                    ENTER
-                </button>
+
 
                 <button class="key show-keyboard">
                     Show Keyboard
@@ -461,7 +506,7 @@
 
                 </button>
 
-                
+
 
             </div>
 

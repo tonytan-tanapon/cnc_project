@@ -377,6 +377,7 @@ async function loadInspection() {
     // --------------------------
 
     renderTable();
+    loadTqwHistory();
 
 }
 
@@ -426,13 +427,17 @@ function renderTable() {
 
     <td>${item.dimension ?? ""}</td>
 
-    <td>
-        <input
-            class="tqw"
-            readonly
-            inputmode="none"
-            value="${item.tqw ?? ""}">
-    </td>
+    <td class="tqw-cell">
+
+    <input
+        class="tqw"
+        readonly
+        inputmode="none"
+        value="${item.tqw ?? ""}">
+
+    <span class="tqw-hint">${item.tqw ?? ""}</span>
+
+</td>
 
     <td>
         <input
@@ -458,7 +463,30 @@ function renderTable() {
 
 }
 
+function loadTqwHistory() {
 
+    const list = document.getElementById("tqwHistory");
+
+    list.innerHTML = "";
+
+    const values = [
+        ...new Set(
+            inspectionItems
+                .map(x => (x.tqw ?? "").trim())
+                .filter(v => v)
+        )
+    ];
+
+    values.forEach(v => {
+
+        list.insertAdjacentHTML(
+            "beforeend",
+            `<option value="${v}"></option>`
+        );
+
+    });
+
+}
 async function saveItem(item) {
 
     console.log("Saving...", item);
