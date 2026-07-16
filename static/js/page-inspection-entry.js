@@ -1,5 +1,7 @@
 import { jfetch, toast } from "./api.js";
 
+let tqwHistory = [];
+let selectedHintIndex = 0;
 const qs = new URLSearchParams(location.search);
 
 const lotId = qs.get("lot_id");
@@ -47,13 +49,17 @@ document.addEventListener("click", (e) => {
     if (
         e.target.classList.contains("actual") ||
         e.target.classList.contains("tqw") ||
-        e.target.closest("#keyboard")
+        e.target.closest("#keyboard") ||
+        e.target.closest(".tqw-dropdown")
     ) {
         return;
     }
-
     activeInput = null;
     activeRow = null;
+
+    document
+        .querySelectorAll(".tqw-dropdown")
+        .forEach(x => x.classList.remove("show"));
 
     disableKeyboard();
 
@@ -171,6 +177,32 @@ function initKeyboard() {
 
                 if (btn.classList.contains("enter")) {
 
+
+                    const dropdown =
+                        activeInput?.parentElement?.querySelector(".tqw-dropdown");
+
+                    if (
+                        dropdown &&
+                        dropdown.classList.contains("show")
+                    ) {
+
+                        const selected =
+                            dropdown.querySelector(".tqw-item.selected");
+
+                        if (selected) {
+
+                            selectHint(
+                                activeInput,
+                                selected.textContent,
+                                dropdown
+                            );
+
+                            return;
+
+                        }
+
+                    }
+
                     if (!activeRow) return;
 
                     const nextRow = activeRow.nextElementSibling;
@@ -189,6 +221,9 @@ function initKeyboard() {
 
                     }
 
+                    document
+                        .querySelectorAll(".tqw-dropdown")
+                        .forEach(x => x.classList.remove("show"));
                     selectInput(nextInput);
 
                     activeRow.scrollIntoView({
@@ -204,6 +239,8 @@ function initKeyboard() {
                     activeInput.value =
                         activeInput.value.slice(0, -1);
 
+                    updateHint(activeInput);
+
                     const id = Number(activeRow.dataset.id);
 
                     const item = inspectionItems.find(x => x.id === id);
@@ -217,13 +254,12 @@ function initKeyboard() {
                         }
 
                         if (activeInput.classList.contains("tqw")) {
-
                             item.tqw = activeInput.value;
 
+                            loadTqwHistory();
                         }
 
-                        saveItem(item)
-                            .catch(console.error);
+                        saveItem(item).catch(console.error);
 
                     }
 
@@ -232,6 +268,7 @@ function initKeyboard() {
                 }
 
                 activeInput.value += btn.dataset.key;
+                updateHint(activeInput);
 
                 if (activeInput.classList.contains("actual")) {
                     activeInput.value = normalizeValue(activeInput.value);
@@ -249,6 +286,7 @@ function initKeyboard() {
 
                     if (activeInput.classList.contains("tqw")) {
                         item.tqw = activeInput.value;
+                        loadTqwHistory();
                     }
 
                     saveItem(item).catch(console.error);
@@ -258,6 +296,26 @@ function initKeyboard() {
 
         });
 
+}
+
+function selectHint(input, value, dropdown) {
+
+    input.value = value;
+
+    const id = Number(activeRow.dataset.id);
+    const item = inspectionItems.find(x => x.id === id);
+
+    if (item) {
+        item.tqw = value;
+
+        loadTqwHistory();
+
+        saveItem(item).catch(console.error);
+    }
+
+    dropdown.classList.remove("show");
+
+    selectInput(input);
 }
 
 function normalizeValue(value) {
@@ -379,6 +437,8 @@ async function loadInspection() {
     renderTable();
     loadTqwHistory();
 
+    console.log(tqwHistory);
+
 }
 
 function formatDate(dateString) {
@@ -429,13 +489,17 @@ function renderTable() {
 
     <td class="tqw-cell">
 
-    <input
-        class="tqw"
-        readonly
-        inputmode="none"
-        value="${item.tqw ?? ""}">
+    <div class="tqw-wrapper">
 
-    <span class="tqw-hint">${item.tqw ?? ""}</span>
+        <input
+            class="tqw"
+            readonly
+            inputmode="none"
+            value="${item.tqw ?? ""}">
+
+        <div class="tqw-dropdown"></div>
+
+    </div>
 
 </td>
 
@@ -463,33 +527,82 @@ function renderTable() {
 
 }
 
-function loadTqwHistory() {
+function updateHint(input) {
 
-    const list = document.getElementById("tqwHistory");
+    if (!input.classList.contains("tqw"))
+        return;
 
-    list.innerHTML = "";
+    const dropdown =
+        input.parentElement.querySelector(".tqw-dropdown");
 
-    const values = [
-        ...new Set(
-            inspectionItems
-                .map(x => (x.tqw ?? "").trim())
-                .filter(v => v)
-        )
-    ];
+    const text = input.value.trim();
 
-    values.forEach(v => {
+    dropdown.innerHTML = "";
+    selectedHintIndex = 0;
 
-        list.insertAdjacentHTML(
-            "beforeend",
-            `<option value="${v}"></option>`
-        );
+    if (!text) {
+
+        dropdown.classList.remove("show");
+        return;
+
+    }
+
+    const found = tqwHistory.filter(x =>
+        x.startsWith(text) &&
+        x !== text
+    );
+
+    if (found.length === 0) {
+
+        dropdown.classList.remove("show");
+        return;
+
+    }
+
+    found.forEach((v, index) => {
+
+        const div = document.createElement("div");
+
+        div.className = "tqw-item";
+
+        if (index === 0) {
+            div.classList.add("selected");
+        }
+
+        div.textContent = v;
+
+        div.onclick = (e) => {
+
+            e.preventDefault();
+            e.stopPropagation();
+
+            selectHint(input, v, dropdown);
+
+        };
+
+        dropdown.appendChild(div);
 
     });
 
+    dropdown.classList.add("show");
+
 }
+function loadTqwHistory() {
+
+    tqwHistory = [
+        ...new Set(
+            inspectionItems
+                .map(x => (x.tqw ?? "").trim())
+                .filter(Boolean)
+        )
+    ];
+
+}
+
+
 async function saveItem(item) {
 
-    console.log("Saving...", item);
+    // console.log("Saving...", item);
 
     const updated = await jfetch(
         `/qa-inspections/qa-items/${item.id}`,
@@ -506,7 +619,7 @@ async function saveItem(item) {
         }
     );
 
-    console.log("Saved", updated);
+    // console.log("Saved", updated);
 
 }
 
