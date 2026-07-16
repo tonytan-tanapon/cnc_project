@@ -1,0 +1,136 @@
+/* ==========================================================
+   CRUD PAGE
+   Shared layout for all CRUD pages
+   ========================================================== */
+
+/* ---------- Main Layout ---------- */
+
+.main--edge {
+    padding: 0;
+    height: 100vh;
+    overflow: hidden;
+}
+
+.panel--edge {
+    margin: 0;
+    border-radius: 0;
+    border-left-width: 0;
+    border-right-width: 0;
+}
+
+#listPanel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+}
+
+/* ---------- Page Title ---------- */
+
+.page-title {
+    display: flex;
+    align-items: center;
+
+    height: 28px;
+
+    padding: 0 8px;
+
+    font-size: 14px;
+    font-weight: 600;
+
+    border-bottom: 1px solid #e5e7eb;
+
+    background: #fff;
+}
+
+/* ---------- Toolbar ---------- */
+
+.list-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
+
+    height: 44px;
+    padding: 0 8px;
+
+    border-bottom: 1px solid #e5e7eb;
+    background: #fff;
+
+    flex-wrap: wrap;
+}
+
+/* ---------- Search ---------- */
+
+.list-topbar .search-lg {
+    flex: 0 0 260px;
+    min-width: 200px;
+
+    height: 36px;
+    padding: 0 12px;
+
+    border-radius: 0;
+}
+
+/* ---------- Buttons ---------- */
+
+.list-topbar .btn {
+    height: 36px;
+    border-radius: 0;
+}
+
+/* ถ้าต้องการปุ่มชิดขวา */
+
+.ml-auto {
+    margin-left: auto;
+}
+
+/* ---------- Table ---------- */
+
+#listBody {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+}
+
+#listBody .tabulator {
+    height: 100% !important;
+    border: 0;
+}
+
+/* hover */
+
+#listBody .tabulator-row:hover {
+    background: #fafafa;
+}
+
+/* ---------- Action Column ---------- */
+
+#listBody .tabulator-cell.actions-cell {
+    overflow: visible;
+}
+
+#listBody .tabulator-cell.actions-cell .row-actions {
+    padding-right: 4px;
+}
+
+/* ---------- Wrap Column ---------- */
+
+#listBody .tabulator-cell.wrap {
+    white-space: normal;
+    word-break: break-word;
+}
+
+/* ---------- Optional ---------- */
+
+.text-right {
+    text-align: right;
+}
+
+.text-center {
+    text-align: center;
+}
+
+.hidden {
+    display: none !important;
+}
