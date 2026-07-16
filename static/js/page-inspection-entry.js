@@ -348,7 +348,7 @@ async function loadInspection() {
     const lot = await jfetch(
         `/lots/${inspection.lot_id}`
     );
-
+    console.log("Lot", lot);
     // document.getElementById("inspectionNo").textContent =
     //     inspection.id ?? "";
 
@@ -358,8 +358,17 @@ async function loadInspection() {
     document.getElementById("partNo").textContent =
         lot.part?.part_no ?? "";
 
+    // document.getElementById("partName").textContent =
+    //     lot.part?.part_name ?? "";
+
     document.getElementById("revision").textContent =
         lot.part_revision?.rev ?? "";
+
+    document.getElementById("customer").textContent =
+        lot.customer?.code ?? "";
+
+    document.getElementById("poNo").textContent =
+        lot.po?.po_number ?? "";
 
     //------------------------------------
     // Inspector
@@ -636,3 +645,12 @@ document.addEventListener("DOMContentLoaded", async () => {
 
 });
 
+
+
+document
+    .getElementById("btnBack")
+    .addEventListener("click", () => {
+
+        history.back();
+
+    });
