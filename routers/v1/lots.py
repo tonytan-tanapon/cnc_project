@@ -147,24 +147,44 @@ def list_in_process_lots(
 
         pat = f"%{q.strip()}%"
 
-        qry = qry.filter(
-            or_(
-                ProductionLot.lot_no.ilike(pat),
-                Part.part_no.ilike(pat)
+        # ---------- ค้นหาเฉพาะ in_process ก่อน ----------
+        rows = (
+            qry.filter(
+                ProductionLot.status == "in_process"
             )
+            .filter(
+                or_(
+                    ProductionLot.lot_no.ilike(pat),
+                    Part.part_no.ilike(pat)
+                )
+            )
+            .order_by(ProductionLot.id.desc())
+            .all()
         )
+
+        # ---------- ถ้าไม่เจอ ค่อยค้นหาทุก status ----------
+        if not rows:
+
+            rows = (
+                qry.filter(
+                    or_(
+                        ProductionLot.lot_no.ilike(pat),
+                        Part.part_no.ilike(pat)
+                    )
+                )
+                .order_by(ProductionLot.id.desc())
+                .all()
+            )
 
     else:
 
-        qry = qry.filter(
-            ProductionLot.status == "in_process"
+        rows = (
+            qry.filter(
+                ProductionLot.status == "in_process"
+            )
+            .order_by(ProductionLot.id.desc())
+            .all()
         )
-
-    rows = (
-        qry
-        .order_by(ProductionLot.id.desc())
-        .all()
-    )
 
     result = []
 
