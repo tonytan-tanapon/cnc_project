@@ -126,23 +126,42 @@ def create_lot(payload: ProductionLotCreate, db: Session = Depends(get_db)):
 
 @router.get("/in-process")
 def list_in_process_lots(
+    q: str | None = Query(None),
     db: Session = Depends(get_db)
 ):
 
-    rows = (
+    qry = (
         db.query(ProductionLot)
+        .join(Part, ProductionLot.part_id == Part.id)
         .options(
             joinedload(ProductionLot.part),
             joinedload(ProductionLot.part_revision),
-
             joinedload(ProductionLot.travelers)
             .joinedload(ShopTraveler.steps)
             .joinedload(ShopTravelerStep.logs)
             .joinedload(ShopTravelerStepLog.machine)
         )
-        .filter(
+    )
+
+    if q and q.strip():
+
+        pat = f"%{q.strip()}%"
+
+        qry = qry.filter(
+            or_(
+                ProductionLot.lot_no.ilike(pat),
+                Part.part_no.ilike(pat)
+            )
+        )
+
+    else:
+
+        qry = qry.filter(
             ProductionLot.status == "in_process"
         )
+
+    rows = (
+        qry
         .order_by(ProductionLot.id.desc())
         .all()
     )

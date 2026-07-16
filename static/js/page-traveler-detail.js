@@ -267,6 +267,8 @@ async function saveLot() {
         $("lot_planned_qty")?.value
       ),
 
+      lot_po_qty: numOrNull($("lot_prod_qty")?.value),   // ✅ เพิ่ม
+
       status: strOrNull(
         $("status")?.value
       ),
@@ -326,6 +328,7 @@ function wireHeaderDirtyOnly() {
     "risk",
     "lot_planned_qty",
     "lot_shipped_qty",
+    "lot_prod_qty",      // ✅ เพิ่มอันนี้
     "material",
     "started_at",             // 🔥 add
     "lot_po_duedate",         // 🔥 add
@@ -3182,10 +3185,13 @@ async function loadLotDetail() {
       console.log("Default risk=green saved");
     }
     $("lot_shipped_qty").value =
-      originalLot.lot_shipped_qty || "";
+      originalLot.lot_shipped_qty ?? "";
 
     $("lot_planned_qty").value =
-      originalLot.all?.planned_qty || "";
+      originalLot.all?.planned_qty ?? "";
+     
+    $("lot_prod_qty").value =
+      originalLot.all?.lot_po_qty ?? "";
 
     $("notes").value =
       originalLot.all?.note || "";

@@ -325,6 +325,28 @@
 
       font-size: 16px;
     }
+
+    .header {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    gap: 6px;
+}
+
+.col-2 {
+    grid-column: span 2;
+}
+
+.header .field label {
+    min-width: 60px;
+    font-size: 12px;
+}
+
+.header input,
+.header select,
+.header textarea {
+    height: 40px;
+    font-size: 12px;
+}
   </style>
 </head>
 
@@ -366,43 +388,41 @@
         <div class="header">
 
           <!--  -->
-          <div class="field col-3">
+          <div class="field col-2">
             <label>Part No</label>
             <input id="part_no" readonly />
           </div>
-          <div class="field col-3">
+          <div class="field col-2">
             <label>Rev</label>
             <input id="rev" readonly />
           </div>
-          <div class="field col-3">
+          <div class="field col-2">
             <label>PO No</label>
             <input id="po_no" readonly />
           </div>
-          <div class="field col-3">
+          <div class="field col-2">
             <label>Customer</label>
             <input id="customer_code" readonly />
           </div>
           
-
-
           <!-- ---------------------------------------------------- -->
-          <div class="field col-3">
+          <div class="field col-2">
             <label>Lot No</label>
             <input id="lot_no" />
           </div>
 
-           <div class="field col-3">
+           <div class="field col-2">
             <label>Material</label>
             <input id="material" rows="1" placeholder="Material spec..."></input>
           </div>
           
 
 
-          <div class="field col-3">
+          <div class="field col-2">
             <label>Release Date</label>
             <input id="created_at" type="date" />
           </div>
-          <div class="field col-3">
+          <div class="field col-2">
             <label>Due_date</label>
             <input id="lot_due_date" type="date" />
           </div>
@@ -410,15 +430,19 @@
           
 
 
-          <div class="field col-3">
+          <div class="field col-2">
             <label >Order QTY</label>
             <input id="lot_planned_qty" type="number" placeholder="Quantity" />
           </div>
-          <div class="field col-3">
+          <div class="field col-2">
+            <label >Prod QTY</label>
+            <input id="lot_prod_qty" type="number" placeholder="Quantity" />
+          </div>
+          <div class="field col-2">
             <label>Start QTY</label>
             <input id="start_qty" type="number" placeholder="Quantity" readonly />
           </div>
-          <div class="field col-3">
+          <div class="field col-2">
             <label>Final QTY</label>
             <input id="final_qty" type="number" placeholder="Quantity" readonly />
           </div>
@@ -426,7 +450,7 @@
           <!-- ------------------------------- -->
 
          
-          <div class="field col-3">
+          <div class="field col-2">
             <label>Lot Status</label>
 
             <select id="status">
@@ -450,22 +474,22 @@
             </select>
           </div>
           <!-- ------------------------------------ -->
-          <div class="field col-3">
+          <div class="field col-2">
             <label>lot Shipped QTY</label>
             <input id="lot_shipped_qty" type="number" placeholder="0" readonly />
           </div>
-          <div class="field col-3">
+          <div class="field col-2">
             <label>Stock QTY</label>
             <input id="stock_qty" type="number" placeholder="0" readonly />
           </div>
-          <div class="field col-3">
+          <div class="field col-2">
             <label>Notes</label>
             <textarea id="notes" rows="2" placeholder="Notes…"></textarea>
           </div>
 
 
           <!--  rtrr-->
-          <div class="field col-3">
+          <div class="field col-2">
             <label>Risk</label>
 
             <select id="risk">
@@ -580,7 +604,7 @@
   <!-- QRCode library (global variable) -->
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
   <!-- Page script -->
-  <script type="module" src="/static/js/page-traveler-detail.js?v=3.2"></script>
+  <script type="module" src="/static/js/page-traveler-detail.js?v=3.3"></script>
 
   <!-- ===== QR Code Modal ===== -->
   <style>

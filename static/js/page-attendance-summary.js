@@ -1,4 +1,10 @@
 // page-attendance-summary.js
+ const token =
+      localStorage.getItem("token");
+
+    if (!token) {
+      location.href = "/static/login-attendance.html";
+    }
 
 
 
@@ -23,7 +29,6 @@ const table = new Tabulator("#listBody", {
     placeholder: "No attendance data",
 
     columns: [
-
         {
             title: "Employee",
             field: "name",
@@ -35,12 +40,12 @@ const table = new Tabulator("#listBody", {
                 const row = cell.getRow().getData();
 
                 return `
-            <a
-                href="/static/attendance-detail.html?employee_id=${row.employee_id}"
-                style="color:#1976d2;text-decoration:underline;">
-                ${cell.getValue()}
-            </a>
-        `;
+                    <a
+                        href="/static/attendance-detail.html?employee_id=${row.employee_id}"
+                        style="color:#1976d2;text-decoration:underline;">
+                        ${cell.getValue()}
+                    </a>
+                `;
             }
         },
         {

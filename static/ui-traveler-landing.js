@@ -420,20 +420,18 @@ async function openMachineSelect(code, pin) {
   document.getElementById("machineOverlay").style.display = "flex";
 }
 
-lotSearch.addEventListener("input", () => {
+lotSearch.addEventListener("input", async () => {
 
-    console.log("SEARCH =", lotSearch.value);
+    const q = lotSearch.value.trim();
 
-    const q = lotSearch.value.trim().toLowerCase();
+    const url = q
+        ? `/api/v1/lots/in-process?q=${encodeURIComponent(q)}`
+        : `/api/v1/lots/in-process`;
 
-    const filtered = cachedRows.filter(r =>
-        (r.lot_no || "").toLowerCase().includes(q) ||
-        (r.part_no || "").toLowerCase().includes(q)
-    );
+    const rows = await jfetch(api(url));
 
-    console.log(filtered);
+    renderLots(rows);
 
-    renderLots(filtered);
 });
 // Default focus = scanner
 window.addEventListener("DOMContentLoaded", async () => {
