@@ -238,7 +238,15 @@ from dateutil.relativedelta import relativedelta
 def upsert_lot(db, row):
     lot_no = str(row["Lot#"]).strip()
     part_no = str(row["Part No."]).strip()
-    po_number = str(row["PO"]).strip()
+    # po_number = str(row["PO"]).strip()
+
+    po_value = row["PO"]
+
+    if pd.isna(po_value):
+        po_number = ""
+    else:
+        po_number = str(po_value).removesuffix(".0").strip()
+        
     customer_code = str(row["Name"]).strip()
     description = str(row["Description"])
     rev = str(row["Rev."])
