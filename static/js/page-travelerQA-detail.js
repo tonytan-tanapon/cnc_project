@@ -1,3 +1,16 @@
+window.addEventListener("pageshow", async () => {
+
+    if (!sessionStorage.getItem("reloadInspection"))
+        return;
+
+    sessionStorage.removeItem("reloadInspection");
+
+    await loadInspection();
+    await loadLotInfo();
+    await loadInspectionItems();
+
+});
+
 // /static/js/page-travelerQA-detail.js
 import { $, jfetch, toast, initTopbar } from "./api.js";
 import { attachAutocomplete } from "./autocomplete.js";

@@ -646,11 +646,13 @@ document.addEventListener("DOMContentLoaded", async () => {
 });
 
 
-
 document
     .getElementById("btnBack")
     .addEventListener("click", () => {
 
-        history.back();
+        sessionStorage.setItem("reloadInspection", "1");
+
+        location.href =
+    `/static/travelerQA-detail.html?lot_id=${lotId}`;
 
     });
