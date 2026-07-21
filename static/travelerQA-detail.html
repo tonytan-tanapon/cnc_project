@@ -145,6 +145,21 @@
     .btn-danger:hover {
       background: #b91c1c;
     }
+
+    #btnDeleteAll {
+    margin-left: auto;
+    }
+
+    .title-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 0 6px;
+}
+
+.title-bar .btn-danger {
+    margin-left: auto;
+}
   </style>
 </head>
 
@@ -172,19 +187,15 @@
       <section class="panel panel--edge" id="qaPanel">
 
         <!-- Title -->
-        <div style="
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          padding: 8px 0 6px 0;
-        ">
+        <div class="title-bar">
+    <h2 id="inspectionTitle">(loading…)</h2>
+    <span id="latestBadge">LATEST</span>
+    <button id="btnDeleteAll" class="btn-mini btn-danger">
+        🗑 Delete All
+    </button>
+</div>
 
-          <h2 id="inspectionTitle">(loading…)</h2>
-
-
-          <!-- 🔥 Badge -->
-          <span id="latestBadge">LATEST</span>
-        </div>
+        
 
         <!-- Header -->
         <div class="lot-info-box">
@@ -271,9 +282,7 @@
           </span>
           <span style="margin-left:auto"></span>
 
-          <button id="btnDeleteAll" class="btn-mini btn-danger">
-            🗑 Delete All
-          </button>
+          
 
 
         </div>
