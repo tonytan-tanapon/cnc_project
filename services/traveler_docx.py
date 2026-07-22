@@ -221,15 +221,10 @@ def replace_color(
     # =========================
 
     for table in doc.tables:
-
         for row in table.rows:
-
             for cell in row.cells:
-
                 for p in cell.paragraphs:
-
                     for run in p.runs:
-
                         if placeholder in run.text:
 
                             # remove only placeholder
@@ -663,8 +658,8 @@ def generate_traveler_from_db_blank(template_path, data: dict, output_path):
 
         "{{risk}}":  data["header"]["risk"],
         
-        "{{ship}}":  data["header"]["lot_shipped_qty"],
-        "{{stock}}":  data["header"]["stock_qty"],
+        "{{ship}}":  "                    ",
+        "{{stock}}":  "                ",
     }
 
     replace_header(doc, header_map)

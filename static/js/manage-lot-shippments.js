@@ -484,6 +484,51 @@ async function downloadReport(row) {
 //   URL.revokeObjectURL(a.href);
 // }
 
+
+function showPictureReminder() {
+  const modal = document.createElement("div");
+
+  modal.innerHTML = `
+    <div style="
+      position:fixed;
+      inset:0;
+      background:rgba(0,0,0,.5);
+      display:flex;
+      justify-content:center;
+      align-items:center;
+      z-index:99999;
+    ">
+      <div style="
+        background:white;
+        padding:40px;
+        border-radius:12px;
+        text-align:center;
+        min-width:500px;
+      ">
+        <div style="font-size:48px;">📷</div>
+        <div style="font-size:32px; font-weight:bold; margin:20px 0;">
+          Don't forget to take a picture!!!
+        </div>
+
+        <button id="closeReminder"
+          style="
+            font-size:22px;
+            padding:10px 30px;
+            cursor:pointer;
+          ">
+          OK
+        </button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+
+  modal.querySelector("#closeReminder").onclick = () => {
+    modal.remove();
+  };
+}
+
 /* ========= SHIPMENT TABLE (INLINE EDIT ENABLED) ========= */
 function initShipmentTable() {
   tableShipment = new Tabulator("#shipmentTable", {
@@ -785,6 +830,7 @@ function initShipmentTable() {
           }
         },
       },
+      
       {
         title: "Label",
         width: 150,
@@ -824,6 +870,8 @@ function initShipmentTable() {
             }
           }
 
+
+
           const btn = e.target.closest("button");
           if (!btn) return;
 
@@ -834,12 +882,22 @@ function initShipmentTable() {
           let size = btn.dataset.size;
           let type = btn.dataset.type;
 
+
+
           if (size === undefined) {
             size = 30;
           }
 
           if (type === undefined) {
             type = "label";
+          }
+
+          console.log("type", type )
+
+          // ✅ Show reminder for AF6182 when Fair label is clicked
+          if (customerCode === "AF6182" && type === "fair") {
+            // alert("📷 Don't forget to take a picture.");
+            showPictureReminder();
           }
 
           await markLotAsShipped(row);

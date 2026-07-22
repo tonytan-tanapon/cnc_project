@@ -65,8 +65,9 @@ document.addEventListener("click", (e) => {
 
 });
 
-function selectInput(input, replace = true) {
+function selectInput(input) {
 
+    // กลับไปใช้ Custom Keyboard
     document.querySelectorAll(".actual,.tqw").forEach(i => {
         i.setAttribute("readonly", "");
         i.setAttribute("inputmode", "none");
@@ -86,26 +87,10 @@ function selectInput(input, replace = true) {
 
     input.focus();
 
-    if (replace) {
-
-        replaceMode = true;
-
-        input.setSelectionRange(0, input.value.length);
-
-    } else {
-
-        replaceMode = false;
-
-        const p = input.value.length;
-        input.setSelectionRange(p, p);
-
-    }
-
     input.scrollIntoView({
         behavior: "smooth",
         block: "center"
     });
-
 }
 
 document.addEventListener("input", (e) => {
@@ -669,6 +654,4 @@ document
 
         location.href = `/static/travelerQA-detail.html?lot_id=${lotId}`;
 
-    }); 
-  
-
+    });
