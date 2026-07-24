@@ -836,6 +836,9 @@ async function loadOperation() {
     // ⭐ SHOW LOT + PART (CORRECT PLACE)
     document.querySelector("#lot_no").textContent =
       `Lot: ${data.lot?.lot_no || "-"}`;
+    // console.log("LOT QTY:",data.lot?.planned_qty)
+    document.querySelector("#lot_qty").textContent =
+      `PO QTY: ${data.lot?.planned_qty || "-"}`;
 
     // document.querySelector("#part_no").textContent =
     //   `Part: ${data.lot?.part?.part_no || "-"}`;
@@ -844,51 +847,35 @@ async function loadOperation() {
     const part = data.lot?.part || {};
 
     document.querySelector("#part_no").innerHTML = `
-<div>
+        <div>
 
-  <b>Part:</b> ${part.part_no || "-"}
+          <b>Part:</b> ${part.part_no || "-"}
 
-  ${part.ecar === "Y"
-        ? `
-    <span
-      onclick="showRemark(
-'ECAR',
-'${(part.ecar_remark || 'Open ECAR').replace(/'/g, "\\'")}'
-)"
-      style="
-        color:#dc2626;
-        font-weight:bold;
-        margin-left:10px;
-        cursor:pointer;
-      "
-    >
-      🚨CAR
-    </span>
-    `
-        : ""
+          ${part.ecar === "Y" ? `
+              <span
+              onclick="showRemark( 'ECAR', '${(part.ecar_remark || 'Open ECAR').replace(/'/g, "\\'")}' )"
+              style="color:#dc2626;font-weight:bold;margin-left:10px;cursor:pointer;"    >
+              🚨CAR
+              </span>
+              ` : ""
       }
-  ${part.icar === "Y"
-        ? `
-    <span
-      onclick="showRemark(
-'ICAR',
-'${(part.icar_remark || 'Open ICAR').replace(/'/g, "\\'")}'
-)"
-      style="
-        color:#d97706;
-        font-weight:bold;
-        margin-left:10px;
-        cursor:pointer;
-      "
-    >
-      ⚠️ICAR
-    </span>
-    `
-        : ""
+          ${part.icar === "Y" ? `
+              <span
+                onclick="showRemark('ICAR', '${(part.icar_remark || 'Open ICAR').replace(/'/g, "\\'")}' )"
+                style="
+                  color:#d97706;
+                  font-weight:bold;
+                  margin-left:10px;
+                  cursor:pointer;
+                "
+              >
+                ⚠️ICAR
+              </span>
+              `: ""
       }
 
-</div>
-`;
+          </div>
+          `;
 
     //     const part = data.lot?.part || {};
 
@@ -1601,50 +1588,50 @@ if (remarkInput) {
 }
 async function loadInspection() {
 
-    // เปิด Popup
-    document.getElementById("inspectionModal").style.display = "flex";
+  // เปิด Popup
+  document.getElementById("inspectionModal").style.display = "flex";
 
-    // หา Inspection ของ Lot
-    const qa = await jfetch(
-        `/api/v1/qa-inspections/by-lot/${currentLotId}`
-    );
+  // หา Inspection ของ Lot
+  const qa = await jfetch(
+    `/api/v1/qa-inspections/by-lot/${currentLotId}`
+  );
 
-    if (!qa) {
+  if (!qa) {
 
-        document.querySelector("#inspectionTable").innerHTML = `
+    document.querySelector("#inspectionTable").innerHTML = `
             <tr>
                 <td>No inspection found</td>
             </tr>
         `;
 
-        return;
-    }
+    return;
+  }
 
-    // โหลดรายการ Inspection
-    const items = await jfetch(
-        `/api/v1/qa-inspections/${qa.id}/items`
-    );
+  // โหลดรายการ Inspection
+  const items = await jfetch(
+    `/api/v1/qa-inspections/${qa.id}/items`
+  );
 
-    console.log(items);
+  console.log(items);
 
-    renderInspection(items);
+  renderInspection(items);
 }
-document.addEventListener("click",(e)=>{
+document.addEventListener("click", (e) => {
 
-    if(
-        e.target.id==="closeInspection" ||
-        e.target.id==="inspectionModal"
-    ){
+  if (
+    e.target.id === "closeInspection" ||
+    e.target.id === "inspectionModal"
+  ) {
 
-        document.querySelector("#inspectionModal").style.display="none";
+    document.querySelector("#inspectionModal").style.display = "none";
 
-    }
+  }
 
 });
 
-function renderInspection(items){
+function renderInspection(items) {
 
-    document.querySelector("#inspectionTable").innerHTML = `
+  document.querySelector("#inspectionTable").innerHTML = `
         <thead>
             <tr>
                 <th>OP</th>
@@ -1656,8 +1643,7 @@ function renderInspection(items){
         </thead>
 
         <tbody>
-            ${
-                items.map(i=>`
+            ${items.map(i => `
                 <tr>
                     <td>${i.op_no}</td>
                     <td>${i.bb_no}</td>
@@ -1666,12 +1652,12 @@ function renderInspection(items){
                     <td>${i.result ?? ""}</td>
                 </tr>
                 `).join("")
-            }
+    }
         </tbody>
     `;
 }
 document.getElementById("inspection").addEventListener("click", async () => {
 
-    await loadInspection();
+  await loadInspection();
 
 });

@@ -216,10 +216,7 @@ def replace_color(
         size=600
     )
 
-    # =========================
-    # TABLES
-    # =========================
-
+    # ========================= 
     for table in doc.tables:
         for row in table.rows:
             for cell in row.cells:
@@ -237,7 +234,7 @@ def replace_color(
                             img_run = p.add_run()
 
                             img_run.add_picture(
-                                circle_path,
+                                circle_path, 
                                 width=Inches(0.7)
                             )
 

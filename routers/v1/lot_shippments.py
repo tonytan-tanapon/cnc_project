@@ -936,6 +936,8 @@ def download_label(
     # ===============================
     if type == "fair":
         total_qty = 1
+    if type == "box":
+        total_qty = box_qty
     elif type in ["cmm", "number", "box"]:
         total_qty = int(item.qty or 0)
         

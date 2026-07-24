@@ -1398,6 +1398,11 @@ def get_traveler_by_no(
 
         "lot": {
             "lot_no": traveler.lot.lot_no if traveler.lot else None,
+            "planned_qty": (
+                traveler.lot.planned_qty
+                if traveler.lot
+                else None
+            ),
             "part": {
                 "part_no":
                     traveler.lot.part.part_no

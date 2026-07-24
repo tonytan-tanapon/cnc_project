@@ -660,6 +660,7 @@
     /* ===== HEADER INFO BIGGER ===== */
 
     #lot_no,
+    #lot_qty,
     #part_no,
     #part_rev,
     #op_status,
@@ -920,6 +921,7 @@
           <div class="op_status" id="op_status"></div>
           <div class="loginOP" id="loginOP"></div>
           <div class="lot_no" id="lot_no"></div>
+          <div class="lot_qty" id = "lot_qty">xx pcs</div>
           <div class="part_no" id="part_no"></div>
           <div class="part_rev" id="part_rev"></div>
 
@@ -1102,7 +1104,7 @@
     </div>
   </div>
 
-  <script type="module" src="/static/ui-traveler.js?ver=3.6"></script>
+  <script type="module" src="/static/ui-traveler.js?ver=3.7"></script>
   </script>
 
 
@@ -1191,39 +1193,32 @@ font-weight:800;
     </h3>
 
     <div id="machineList" style="
-flex:1;
-
-display:grid;
-
-grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));
-
-gap:12px;
-
-margin-top:16px;
-
-overflow-y:auto;
-
-align-content:start;
+          flex:1;
+          display:grid;
+          grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));
+          gap:12px;
+          margin-top:16px;
+          overflow-y:auto;
+          align-content:start;
 "></div>
 
     <button onclick="document.getElementById('machineOverlay').style.display='none'" style="
-position:absolute;
-
-top:16px;
-right:16px;
-width:48px;
-height:48px;
-border:none;
-border-radius:50%;
-background:#ef4444;
-color:white;
-font-size:28px;
-font-weight:800;
-cursor:pointer;
-display:flex;
-align-items:center;
-justify-content:center;
-">
+          position:absolute;
+          top:16px;
+          right:16px;
+          width:48px;
+          height:48px;
+          border:none;
+          border-radius:50%;
+          background:#ef4444;
+          color:white;
+          font-size:28px;
+          font-weight:800;
+          cursor:pointer;
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          ">
       ✕
     </button>
   </div>

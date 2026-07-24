@@ -6,6 +6,7 @@ export function renderKV(holder, data, fields, editing) {
     holder.innerHTML = `<div class="muted">Select a record on the left</div>`;
     return;
   }
+  
   holder.innerHTML = fields
     .map(({ key, label, type }) => {
       const raw = data?.[key] ?? "";

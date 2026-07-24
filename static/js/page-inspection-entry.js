@@ -1,11 +1,13 @@
 import { jfetch, toast } from "./api.js";
-
+let replaceMode = false;
 let tqwHistory = [];
 let selectedHintIndex = 0;
 const qs = new URLSearchParams(location.search);
-
+let lastInput = null;
+let appendMode = false;
 const lotId = qs.get("lot_id");
 const inspectionId = qs.get("inspection_id");
+let clickCount = 0;
 
 let inspection = null;
 let inspectionItems = [];
@@ -30,40 +32,38 @@ function disableKeyboard() {
 
 }
 
-
 document.addEventListener("click", (e) => {
 
     if (
         !e.target.classList.contains("actual") &&
         !e.target.classList.contains("tqw")
-    ) {
-        return;
-    }
+    ) return;
 
-    selectInput(e.target);
+    if (lastInput !== e.target) {
+
+        lastInput = e.target;
+        clickCount = 1;
+
+        selectInput(e.target, true);
+
+    } else {
+
+        clickCount++;
+
+        if (clickCount === 1) {
+
+            selectInput(e.target, true);
+
+        } else {
+
+            selectInput(e.target, false);
+
+        }
+
+    }
 
 });
 
-document.addEventListener("click", (e) => {
-
-    if (
-        e.target.classList.contains("actual") ||
-        e.target.classList.contains("tqw") ||
-        e.target.closest("#keyboard") ||
-        e.target.closest(".tqw-dropdown")
-    ) {
-        return;
-    }
-    activeInput = null;
-    activeRow = null;
-
-    document
-        .querySelectorAll(".tqw-dropdown")
-        .forEach(x => x.classList.remove("show"));
-
-    disableKeyboard();
-
-});
 
 function selectInput(input, replace = true) {
 
@@ -100,11 +100,6 @@ function selectInput(input, replace = true) {
         input.setSelectionRange(p, p);
 
     }
-
-    input.scrollIntoView({
-        behavior: "smooth",
-        block: "center"
-    });
 
 }
 
@@ -239,7 +234,9 @@ function initKeyboard() {
                     document
                         .querySelectorAll(".tqw-dropdown")
                         .forEach(x => x.classList.remove("show"));
-                    selectInput(nextInput);
+                    lastInput = nextInput;
+                    clickCount = 1;
+                    selectInput(nextInput, true);
 
                     activeRow.scrollIntoView({
                         behavior: "smooth",
@@ -282,7 +279,16 @@ function initKeyboard() {
 
                 }
 
-                activeInput.value += btn.dataset.key;
+                if (replaceMode) {
+
+                    activeInput.value = btn.dataset.key;
+                    replaceMode = false;
+
+                } else {
+
+                    activeInput.value += btn.dataset.key;
+
+                }
                 updateHint(activeInput);
 
                 if (activeInput.classList.contains("actual")) {
@@ -669,6 +675,6 @@ document
 
         location.href = `/static/travelerQA-detail.html?lot_id=${lotId}`;
 
-    }); 
-  
+    });
+
 

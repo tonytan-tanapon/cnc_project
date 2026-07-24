@@ -19,6 +19,7 @@ from sqlalchemy import (
     func,
     event,
 )
+
 from sqlalchemy.orm import (
     relationship,
     validates,
@@ -26,6 +27,7 @@ from sqlalchemy.orm import (
     column_property,
     aliased,
 )
+
 from sqlalchemy.ext.hybrid import hybrid_property
 
 from database import Base
