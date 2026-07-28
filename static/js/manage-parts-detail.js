@@ -392,7 +392,7 @@ async function preloadSelectionsIntoUI() {
   // console.log("Preloading selections for part_id", part_id);
   try {
     const data = await jfetch(`/part-selections/${part_id}`); // { process_ids:[], finish_ids:[], others:[] }
-    // console.log("Preloaded selections:", data);
+    console.log("Preloaded selections:", data);
     // basics
     if (idCutting && data.process_ids?.includes(idCutting)) {
       const cb = document.getElementById("g_cutting");
