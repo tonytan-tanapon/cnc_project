@@ -755,13 +755,13 @@ def generate_docx_from_template(
         else datetime.now().strftime("%m/%d/%Y")
     )
 
-    print("Shipment:", shipment.id)
-    print("Shipment.po_id:", shipment.po_id)
-    print("Shipment PO:", shipment.po.po_number if shipment.po else None)
+    # print("Shipment:", shipment.id)
+    # print("Shipment.po_id:", shipment.po_id)
+    # print("Shipment PO:", shipment.po.po_number if shipment.po else None)
 
-    print("Lot:", lot.lot_no)
-    print("Lot.po_id:", lot.po_id)
-    print("Lot PO:", lot.po.po_number if lot.po else None)
+    # print("Lot:", lot.lot_no)
+    # print("Lot.po_id:", lot.po_id)
+    # print("Lot PO:", lot.po.po_number if lot.po else None)
 
     replace_map = replace_map_builder(
         lot_no, part_no, rev, qty, desc,
