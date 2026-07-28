@@ -736,26 +736,24 @@ function makeColumns() {
         if (!lotId) return shipped;
 
         return `
-      <div style="
-        display:flex;
-        align-items:center;
-        justify-content:center;
-        gap:6px;
-        white-space:nowrap;
-      ">
-      <!--
-        <span style="font-weight:600;">
-          ${shipped}
-        </span>
-        -->
-
-        <a href="/static/traveler-detail.html?lot_id=${encodeURIComponent(lotId)}"
-           target="_blank">🧾ST</a>
-|
-        <a href="/static/manage-lot-shippments.html?lot_id=${encodeURIComponent(lotId)}"
-           target="_blank">📦Ship</a>
-      </div>
-    `;
+          <div style="text-align:center; line-height:1.6;">
+              <div>
+                  <a href="${location.origin}/api/v1/lot_stamp/${lotId}"
+   target="_blank">
+    🚀Stamp
+</a>
+                    
+              </div>
+              
+              <div>
+                  <a href="/static/traveler-detail.html?lot_id=${encodeURIComponent(lotId)}"
+                    target="_blank">🧾ST</a>
+                  |
+                  <a href="/static/manage-lot-shippments.html?lot_id=${encodeURIComponent(lotId)}"
+                    target="_blank">📦Ship</a>
+              </div>
+          </div>
+          `;
       },
     },
     // {
@@ -1054,19 +1052,19 @@ function makeColumns() {
     },
 
     {
-  title: "Shipped Date",
-  field: "lot_last_ship_date",
-  width: 160,
+      title: "Shipped Date",
+      field: "lot_last_ship_date",
+      width: 160,
 
-  sorter: (a, b) => {
-    return new Date(a || 0) - new Date(b || 0);
-  },
+      sorter: (a, b) => {
+        return new Date(a || 0) - new Date(b || 0);
+      },
 
-  formatter: (cell) => {
-    const v = cell.getValue();
-    return v ? new Date(v).toLocaleDateString() : "";
-  }
-}
+      formatter: (cell) => {
+        const v = cell.getValue();
+        return v ? new Date(v).toLocaleDateString() : "";
+      }
+    }
 
 
 
