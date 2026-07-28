@@ -267,7 +267,11 @@ function downloadPacking(row) {
 }
 function downloadPackingFA(row) {
   const url = `/api/v1/lot-shippments/${row.id}/download/packingFA`;
-  return downloadDoc(url, "packing.docx", "Failed to download Packing List");
+  return downloadDoc(url, "packingFA.docx", "Failed to download Packing List");
+}
+function downloadPackingFromLot(row) {
+  const url = `/api/v1/lot-shippments/${row.id}/download/packingFA`;
+  return downloadDoc(url, "packingFromLot.docx", "Failed to download Packing List");
 }
 
 async function downloadDoc(url, fallbackName, errorMsg = "Download failed") {
@@ -807,20 +811,14 @@ function initShipmentTable() {
             }
 
             if (action === "packing") {
-
               await markLotAsShipped(rowData);
-
               await downloadPacking(rowData);
-
               toast("✅ Lot marked as shipped");
             }
 
             if (action === "packingfa") {
-
               await markLotAsShipped(rowData);
-
               await downloadPackingFA(rowData);
-
               toast("✅ Lot marked as shipped");
             }
 
@@ -828,6 +826,7 @@ function initShipmentTable() {
             console.error(err);
             toast("❌ Action failed", false);
           }
+
         },
       },
       

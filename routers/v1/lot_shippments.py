@@ -737,15 +737,35 @@ def generate_docx_from_template(
     part_no = part.part_no if part else ""
     desc = part.name if part else ""
 
-    customer_name = shipment.po.customer.name if shipment.po and shipment.po.customer else ""
-    customer_address = shipment.po.customer.address if shipment.po and shipment.po.customer else ""
-    po_no = shipment.po.po_number if shipment.po else ""
+    # customer_name = shipment.po.customer.name if shipment.po and shipment.po.customer else ""
+    # customer_address = shipment.po.customer.address if shipment.po and shipment.po.customer else ""
+    # po_no = shipment.po.po_number if shipment.po else ""
+
+    po = lot.po if lot else None
+
+    customer_name = po.customer.name if po and po.customer else ""
+    customer_address = po.customer.address if po and po.customer else ""
+    po_no = po.po_number if po else ""
 
     fair = lot.fair_note if lot else ""
 
+    date_ship = (
+        shipment.shipped_at.strftime("%m/%d/%Y")
+        if shipment.shipped_at
+        else datetime.now().strftime("%m/%d/%Y")
+    )
+
+    print("Shipment:", shipment.id)
+    print("Shipment.po_id:", shipment.po_id)
+    print("Shipment PO:", shipment.po.po_number if shipment.po else None)
+
+    print("Lot:", lot.lot_no)
+    print("Lot.po_id:", lot.po_id)
+    print("Lot PO:", lot.po.po_number if lot.po else None)
+
     replace_map = replace_map_builder(
         lot_no, part_no, rev, qty, desc,
-        customer_name, customer_address, po_no, shipment.id, fair
+        customer_name, customer_address, po_no, shipment.id, fair, date_ship
     )
 
     if not os.path.exists(template_path):
@@ -783,7 +803,7 @@ def generate_docx_from_template(
 def download_cofc(shipment_id: int, db: Session = Depends(get_db)):
     print(f"Generating CofC for shipment {shipment_id}")
 
-    def build_map(lot_no, part_no, rev, qty, desc, cust, addr, po, sid,fair):
+    def build_map(lot_no, part_no, rev, qty, desc, cust, addr, po, sid,fair,data_ship = None):
         from datetime import datetime
         return {
             "{CUSTOMER}": cust,
@@ -811,7 +831,7 @@ def download_cofc(shipment_id: int, db: Session = Depends(get_db)):
 @router.get("/{shipment_id}/download/packing")
 def download_packing(shipment_id: int, db: Session = Depends(get_db)):
 
-    def build_map(lot_no, part_no, rev, qty, desc, cust, addr, po, sid, fair):
+    def build_map(lot_no, part_no, rev, qty, desc, cust, addr, po, sid, fair,date_ship=None,  ):
         return {
             "{CUSTOMER}": cust,
             "{CUSTOMER_ADDRESS}": addr,
@@ -822,6 +842,7 @@ def download_packing(shipment_id: int, db: Session = Depends(get_db)):
             "{LOT_NO}": lot_no,
             "{LOT}": lot_no,
             "{DESCRIPTION}": desc,
+            "{DATE}": date_ship,
         }
 
     return generate_docx_from_template(
@@ -836,7 +857,7 @@ def download_packing(shipment_id: int, db: Session = Depends(get_db)):
 @router.get("/{shipment_id}/download/packingFA")
 def download_packing(shipment_id: int, db: Session = Depends(get_db)):
 
-    def build_map(lot_no, part_no, rev, qty, desc, cust, addr, po, sid,fair):
+    def build_map(lot_no, part_no, rev, qty, desc, cust, addr, po, sid,fair,date_ship=None,  ):
         return {
             "{CUSTOMER}": cust,
             "{CUSTOMER_ADDRESS}": addr,
@@ -847,13 +868,14 @@ def download_packing(shipment_id: int, db: Session = Depends(get_db)):
             "{LOT_NO}": lot_no,
             "{LOT}": lot_no,
             "{DESCRIPTION}": desc,
-            "{FAIR}" : fair
+            "{FAIR}" : fair,
+            "{DATE}": date_ship,
         }
 
     return generate_docx_from_template(
         db=db,
         shipment_id=shipment_id,
-        template_path="templates/packing.docx",
+        template_path="templates/packingFA.docx",
         filename_prefix="packing",
         replace_map_builder=build_map,
     )
