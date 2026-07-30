@@ -10,6 +10,9 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models import ProductionLot
 
+from sqlalchemy import text
+
+
 router = APIRouter(
     prefix="/lot_stamp",
     tags=["Lot Stamp"],
@@ -93,6 +96,17 @@ def generate_stamp(
     if not lot:
         raise HTTPException(404, "Lot not found")
 
+    row = db.execute(
+        text("""
+            SELECT lot_shipped_qty
+            FROM v_lot_shipment_status
+            WHERE lot_id = :lot_id
+        """),
+        {"lot_id": lot_id}
+    ).mappings().first()
+
+    lot_shipped_qty = int(row["lot_shipped_qty"] or 0)
+
     # -----------------------------
     # Validate relationships
     # -----------------------------
@@ -166,7 +180,7 @@ def generate_stamp(
         f"""
         <div style="font-size:12pt">
            
-            <b>LOT:</b> {lot.lot_no}, <b>QTY:</b> {lot.planned_qty},<b>DUE:</b> {due}
+            <b>LOT:</b> {lot.lot_no}, <b>QTY:</b> {lot_shipped_qty} pcs,<b>DUE:</b> {due}
         </div>
         """
         # f"""
