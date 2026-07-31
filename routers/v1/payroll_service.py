@@ -495,6 +495,25 @@ def export_excel(
     # Total
     # ==========================
 
+    leave_pay = 0
+
+    pay_start = payroll["pay_period"]["start_at"].date()
+    pay_end = payroll["pay_period"]["end_at"].date()
+    
+
+    for leave in payroll["leave_rows"]:
+
+        leave_date = leave.start_at.date()
+
+        if (
+            leave.leave_type in ("sick", "vacation")
+            and pay_start <= leave_date <= pay_end
+        ):
+            print("pay_start:", pay_start, "pay_end:",pay_end, "leave_pay:",leave_date)
+            leave_pay += 8 * rate
+       
+    print("leave_pay:", leave_pay)
+
     ws.cell(row_no, 7, "Total")
 
     ws.cell(
@@ -538,6 +557,16 @@ def export_excel(
             row_no,
             col
         ).number_format = '$#,##0.00'
+
+    if leave_pay > 0 :
+        row_no +=2 
+        ws.cell(row_no,11,"Leave_pay")  
+        ws.cell(row_no,12,leave_pay)  
+        ws.cell(row_no,12).number_format = '$#,##0.00'
+        ws.cell(row_no,13,"Total")     
+        ws.cell(row_no,14,leave_pay+payroll["total_pay"])
+        ws.cell(row_no,14).number_format = '$#,##0.00'
+    
 
 
     ### Time leave 
@@ -640,8 +669,7 @@ def export_payee(
     ws = wb.active
     ws.title = ( f"{payroll['employee']['name']}"   
 )
-
-
+   
     # ==========================
     # Detail Header
     # ==========================
@@ -693,10 +721,31 @@ def export_payee(
         row_no += 1
 
     row_no += 1
+
+
     
     # ==========================
     # Total
     # ==========================
+
+    leave_pay = 0
+
+    pay_start = payroll["pay_period"]["start_at"].date()
+    pay_end = payroll["pay_period"]["end_at"].date()
+    
+
+    for leave in payroll["leave_rows"]:
+
+        leave_date = leave.start_at.date()
+
+        if (
+            leave.leave_type in ("sick", "vacation")
+            and pay_start <= leave_date <= pay_end
+        ):
+            print("pay_start:", pay_start, "pay_end:",pay_end, "leave_pay:",leave_date)
+            leave_pay += 8 * rate
+       
+    print("leave_pay:", leave_pay)
 
     ws.cell(row_no, 7, "Total")
 
@@ -959,6 +1008,15 @@ def export_payee(
     ws.cell(row_no, 14, round(grand_total, 2))
     ws.cell(row_no, 14).number_format = '$#,##0.00'
 
+    if leave_pay > 0 :
+            row_no +=2 
+            ws.cell(row_no,11,"Leave_pay")  
+            ws.cell(row_no,12,leave_pay)  
+            ws.cell(row_no,12).number_format = '$#,##0.00'
+            ws.cell(row_no,13,"Total")     
+            ws.cell(row_no,14,leave_pay+payroll["total_pay"])
+            ws.cell(row_no,14).number_format = '$#,##0.00'
+
     # ==========================
     # Time Leave
     # ==========================
@@ -967,7 +1025,6 @@ def export_payee(
 
     ws.cell(row_no, 1, "No")
     ws.cell(row_no, 2, "Start Date")
-   
     ws.cell(row_no, 3, "Type")
   
 

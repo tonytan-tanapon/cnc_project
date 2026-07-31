@@ -18,8 +18,8 @@ def me(user: User = Depends(get_current_user)):
         "username": user.username,
         "is_superuser": user.is_superuser,
     }
-
-
+ 
+ 
 
 from pydantic import BaseModel
 from passlib.context import CryptContext
