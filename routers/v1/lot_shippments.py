@@ -1028,9 +1028,9 @@ def download_label(
             if p.runs:
                 p.runs[0].text = full_text
 
-    def clear_runs(p):
-        for run in p.runs:
-            run.text = ""
+    # def clear_runs(p):
+    #     for run in p.runs:
+    #         run.text = ""
 
     # ===============================
     # 6️⃣ NORMAL PARAGRAPHS
@@ -1135,7 +1135,7 @@ def download_label(
             else:
 
                 # ล้างทั้ง cell
-                cell.text = ""
+                cell.text = "33"
 
      
     # ===============================

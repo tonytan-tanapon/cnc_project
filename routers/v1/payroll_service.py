@@ -134,10 +134,7 @@ def calculate_payroll_data(
 
         if te.clock_in_at and te.clock_out_at:
 
-            total_hours = (
-                te.clock_out_at -
-                te.clock_in_at
-            ).total_seconds() / 3600
+            total_hours = (te.clock_out_at - te.clock_in_at).total_seconds() / 3600
 
             total_hours -= break_hours
 
