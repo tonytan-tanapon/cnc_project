@@ -1,274 +1,334 @@
-import { $, jfetch, toast } from "./api.js";
+import { $, jfetch, toast, withBase } from "./api.js";
 
 const ENDPOINTS = {
-  list: (qs) => `/part_inventory?${qs}`,
+  list: "/inventory",
+  rebuild: "/inventory/rebuild",
+  adjust: "/inventory/adjust",
 };
 
-
-
-const UI = {
-  q: "_q",
-  add: "_add",
-  table: "listBody",
-};
-
-let table = null;
-let els = {};
-
-function bindAdd() {
-
-  els._add.addEventListener("click", () => {
-
-    table.addRow({
-
-      id: null,
-
-      part_no: "",
-      rev: "",
-      lot_no: "",
-
-      prod_qty: 0,
-      ship_qty: 0,
-      stock_qty: 0,
-
-      isNew: true
-
-    }, true);
-
-  });
-
-}
+let table;
 
 function makeColumns() {
+
   return [
+
+    {
+      title: "Lot",
+      field: "lot_no",
+      width: 150,
+    },
 
     {
       title: "Part",
       field: "part_no",
       width: 180,
-      editor: "input"
     },
 
     {
       title: "Rev",
       field: "rev",
       width: 80,
-      editor: "input"
-    },
-
-    {
-      title: "Lot",
-      field: "lot_no",
-      width: 180,
-      editor: "input"
-    },
-
-    {
-      title: "Produced",
-      field: "prod_qty",
-      editor: "input",
-      width: 120,
-      hozAlign: "right",
-    },
-
-    {
-      title: "Shipped",
-      field: "ship_qty",
-      editor: "input",
-      width: 120,
-      hozAlign: "right",
     },
 
     {
       title: "Stock",
-      field: "stock_qty",
-      editor: "input",
-      width: 120,
+      field: "qty_on_hand",
       hozAlign: "right",
+      width: 100,
     },
 
     {
-      title: "Part Total",
-      field: "part_rev_total_qty",
-      width: 140,
+      title: "Adjust",
+      field: "qty_adjust",
       hozAlign: "right",
-    },
+      width: 100,
 
-    {
-      title: "",
-      width: 120,
-      hozAlign: "center",
 
-      formatter() {
-        return `
-          <button class="btn btn-sm btn-primary">
-            Transfer
-          </button>
-        `;
+      editor: "number",
+      formatter(cell) {
+        cell.getElement().style.backgroundColor = "#fff3b0";
+        return cell.getValue();
       },
+      cellEdited: async function (cell) {
 
-      cellClick(e, cell) {
         const row = cell.getRow().getData();
 
-        console.log("Transfer", row);
+        const value = Number(cell.getValue());
 
-        toast(`Transfer ${row.lot_no}`);
+        const oldValue = Number(cell.getOldValue());
+
+        try {
+
+          const updated = await jfetch(
+            ENDPOINTS.adjust,
+            {
+              method: "POST",
+              body: JSON.stringify({
+                lot_id: row.lot_id,
+                qty: value,
+                note: "Manual"
+              })
+            }
+          );
+
+          cell.getRow().update({
+
+            qty_adjust: updated.qty_adjust,
+            qty_on_hand: updated.qty_on_hand,
+            status: updated.status
+
+          });
+
+          toast("Saved");
+
+        } catch (err) {
+
+          cell.setValue(oldValue, true);
+
+          toast("Save failed");
+        }
+
       }
-    }
+    },
+
+
+
+    {
+      title: "Produced",
+      field: "qty_produced",
+      hozAlign: "right",
+      width: 100,
+    },
+
+    {
+      title: "Shipped",
+      field: "qty_shipped",
+      hozAlign: "right",
+      width: 100,
+    },
+
+    // {
+    //   title: "Scrap",
+    //   field: "qty_scrap",
+    //   hozAlign: "right",
+    // },
+
+
+    {
+      title: "Status",
+      field: "status",
+      width: 140,
+      editor: "list",
+      editorParams: {
+        values: [
+          "normal",
+          "checked",
+          "not_checked"
+        ]
+      },
+
+      cellEdited: async function (cell) {
+
+        const row = cell.getRow().getData();
+
+        const updated = await jfetch(
+          ENDPOINTS.adjust,
+          {
+            method: "POST",
+            body: JSON.stringify({
+              lot_id: row.lot_id,
+              qty: row.qty_adjust,
+              note: row.note,
+              status: cell.getValue()
+            })
+          }
+        );
+
+        cell.getRow().update(updated);
+
+        toast("Saved");
+      }
+    },
+
+
+    {
+      title: "Note",
+      field: "note",
+      width: 250,
+      editor: "input",
+
+      cellEdited: async function (cell) {
+
+        const row = cell.getRow().getData();
+
+        try {
+
+          const updated = await jfetch(
+            ENDPOINTS.adjust,
+            {
+              method: "POST",
+              body: JSON.stringify({
+                lot_id: row.lot_id,
+                qty: row.qty_adjust,
+                note: cell.getValue()
+              })
+            }
+          );
+
+          cell.getRow().update(updated);
+
+          toast("Saved");
+
+        } catch (err) {
+
+          toast("Save failed");
+
+        }
+
+      }
+    },
+    // {
+
+    //   title: "",
+    //   width: 100,
+
+    //   formatter() {
+
+    //     return `
+    //                 <button class="btn btn-sm btn-primary">
+    //                     Adjust
+    //                 </button>
+    //             `;
+
+    //   },
+
+    //   async cellClick(e, cell) {
+
+    //     const row = cell.getRow().getData();
+
+    //     const qty = prompt(
+    //       `Adjust Qty (${row.lot_no})`,
+    //       row.qty_adjust
+    //     );
+
+    //     if (qty === null) return;
+
+    //     const updated = await jfetch(
+    //       ENDPOINTS.adjust,
+    //       {
+    //         method: "POST",
+    //         body: JSON.stringify({
+    //           lot_id: row.lot_id,
+    //           qty: Number(qty),
+    //           note: "Manual"
+    //         })
+    //       }
+    //     );
+
+    //     cell.getRow().update({
+
+    //       qty_adjust: updated.qty_adjust,
+    //       qty_on_hand: updated.qty_on_hand,
+    //       status: updated.status
+
+    //     });
+
+    //     toast("Adjusted");
+    //   }
+
+    // }
+
   ];
+
 }
 
 function initTable() {
 
   table = new Tabulator("#listBody", {
+
     layout: "fitColumns",
+
     height: "100%",
+
     data: [],
-    columns: makeColumns(),
 
-    editable: true,
-    reactiveData: true,
-  });
-
-
-  table.on("cellEdited", async (cell) => {
-
-    const row = cell.getRow().getData();
-
-    try {
-
-      let url;
-      let method;
-
-      if (row.id) {
-
-        url = `/api/v1/part_inventory/${row.id}`;
-        method = "PUT";
-
-      } else {
-
-        url = "/api/v1/part_inventory";
-        method = "POST";
-
-      }
-
-      const res = await fetch(url, {
-        method,
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-
-          part_no: row.part_no,
-          rev: row.rev,
-          lot_no: row.lot_no,
-
-          prod_qty: Number(row.prod_qty || 0),
-          ship_qty: Number(row.ship_qty || 0),
-          stock_qty: Number(row.stock_qty || 0)
-
-        })
-      });
-
-      if (!res.ok) {
-        throw new Error(await res.text());
-      }
-
-      toast("Saved");
-
-      await loadData();
-
-    } catch (err) {
-
-      toast(err.message, false);
-
-    }
+    columns: makeColumns()
 
   });
+
 }
 
-async function loadData(
-  keyword = ""
-) {
-  try {
+async function loadData() {
 
-    const qs =
-      new URLSearchParams({
-        q: keyword,
-      });
+  const rows = await jfetch(
+    ENDPOINTS.list
+  );
 
-    const rows =
-      await jfetch(
-        ENDPOINTS.list(
-          qs.toString()
-        )
-      );
+  table.setData(rows);
 
-    table.setData(rows);
-
-  } catch (e) {
-
-    console.error(e);
-
-    toast(
-      e.message ||
-      "Load failed",
-      false
-    );
-  }
 }
 
 function bindSearch() {
 
-  const box =
-    els[UI.q];
+  const box = $("_q");
 
-  let timer;
+  if (!box) return;
 
-  box.addEventListener(
-    "input",
-    () => {
+  box.addEventListener("input", () => {
 
-      clearTimeout(
-        timer
-      );
+    const value = box.value.trim();
 
-      timer =
-        setTimeout(
-          () => {
+    table.setFilter([
+      [
+        {
+          field: "lot_no",
+          type: "like",
+          value: value
+        },
+        {
+          field: "part_no",
+          type: "like",
+          value: value
+        }
+      ]
+    ]);
 
-            loadData(
-              box.value.trim()
-            );
+  });
 
-          },
-          300
-        );
-    }
-  );
+}
+
+function bindButtons() {
+
+  $("_add").innerHTML = "Rebuild All";
+
+  $("_add").onclick = async () => {
+
+    await jfetch(
+      ENDPOINTS.rebuild,
+      {
+        method: "POST"
+      }
+    );
+
+    toast("Inventory Rebuilt");
+
+    loadData();
+
+  };
+
 }
 
 document.addEventListener(
   "DOMContentLoaded",
   async () => {
 
-    console.log(
-      "Tabulator Version:",
-      Tabulator.prototype.version
-    );
-
-    Object.values(UI)
-      .forEach(
-        id => {
-          els[id] = $(id);
-        }
-      );
-
     initTable();
 
     bindSearch();
-    bindAdd();
+
+    bindButtons();
 
     await loadData();
+
   }
 );

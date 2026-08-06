@@ -1,5 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Body
 from sqlalchemy.orm import Session, joinedload
+from services.lot_service import update_completed_qty
+from services.inventory_service import rebuild_inventory
 
 from sqlalchemy import func
 from datetime import datetime
@@ -803,6 +805,13 @@ def generate_docx_from_template(
 def download_cofc(shipment_id: int, db: Session = Depends(get_db)):
     print(f"Generating CofC for shipment {shipment_id}")
 
+    shipment = db.get(CustomerShipment, shipment_id)
+
+    if shipment and shipment.lot_id:
+        # 🔥 ชั่วคราว
+        update_completed_qty(db, shipment.lot_id)
+        rebuild_inventory(db, shipment.lot_id)
+
     def build_map(lot_no, part_no, rev, qty, desc, cust, addr, po, sid,fair,data_ship = None):
         from datetime import datetime
         return {
@@ -1271,5 +1280,10 @@ def update_shipment_from_ui(payload: dict, db: Session = Depends(get_db)):
 
     db.commit()
 
-    return {"status": "ok"}
+    # อัปเดต completed qty ของ Lot
+    # update_completed_qty(db, lot.id)
 
+    # อัปเดต Inventory
+    rebuild_inventory(db, lot.id)
+
+    return {"status": "ok"}

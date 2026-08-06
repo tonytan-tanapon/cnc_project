@@ -129,31 +129,33 @@ def to_row_out(t: ShopTraveler, db: Session) -> ShopTravelerRowOut:
     # FINAL QTY = GOOD OF LAST STEP
     # =========================
 
-    final_qty = 0
+    # final_qty = 0
 
-    steps_sorted = sorted(
-        t.steps or [],
-        key=lambda s: (
-            int(''.join(filter(str.isdigit, str(s.step_code or "0"))))
-            if any(ch.isdigit() for ch in str(s.step_code or ""))
-            else 999999
-        )
-    )
+    # steps_sorted = sorted(
+    #     t.steps or [],
+    #     key=lambda s: (
+    #         int(''.join(filter(str.isdigit, str(s.step_code or "0"))))
+    #         if any(ch.isdigit() for ch in str(s.step_code or ""))
+    #         else 999999
+    #     )
+    # )
 
-    final_step = (
-        steps_sorted[-1]
-        if steps_sorted
-        else None
-    )
+    # final_step = (
+    #     steps_sorted[-1]
+    #     if steps_sorted
+    #     else None
+    # )
 
-    if final_step:
+    # if final_step:
 
-        for log in final_step.logs or []:
+    #     for log in final_step.logs or []:
 
-            final_qty += (
-                log.qty_accept or 0
-            )
+    #         final_qty += (
+    #             log.qty_accept or 0
+    #         )
+    from services.lot_service import calculate_final_qty
 
+    final_qty = calculate_final_qty(t)
 
     # =========================
     # STOCK QTY

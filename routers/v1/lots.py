@@ -27,6 +27,7 @@ from models import (
     ProductionLot, Part, PartRevision, PO,
     LotMaterialUse, RawBatch, RawMaterial, Supplier, MaterialPO
 )
+from routers.v1.inventory import rebuild_inventory
 from schemas import ProductionLotCreate, ProductionLotUpdate, ProductionLotOut
 from utils.code_generator import next_code_yearly
 
@@ -115,6 +116,8 @@ def create_lot(payload: ProductionLotCreate, db: Session = Depends(get_db)):
             db.add(lot)
             db.commit()
             db.refresh(lot)
+
+            rebuild_inventory(db, lot.id)
             return _with_joined(db, lot.id)
         except IntegrityError:
             db.rollback()
@@ -560,6 +563,7 @@ def update_lot_put(lot_id: int, payload: ProductionLotUpdate, db: Session = Depe
 
     db.commit()
     db.refresh(lot)
+    rebuild_inventory(db, lot.id)
     return _with_joined(db, lot.id)
 
 # @router.patch("/{lot_id}", response_model=ProductionLotOut)

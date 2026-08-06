@@ -11,6 +11,8 @@ from pydantic import BaseModel
 from datetime import date
 from utils.step_utils import calculate_step_status
 from decimal import Decimal
+from services.lot_service import update_completed_qty
+from services.inventory_service import rebuild_inventory
 
 router = APIRouter(prefix="/step-logs", tags=["step-logs"])
 
@@ -580,6 +582,10 @@ def create_step_log(
                 db,
                 step_id
             )
+            lot_id = step.traveler.lot_id
+
+            update_completed_qty(db, lot_id)
+            rebuild_inventory(db, lot_id)
 
             # 🔥 IMPORTANT
             existing.operator_name = (
@@ -677,7 +683,10 @@ def create_step_log(
             db,
             step_id
         )
+        lot_id = log.step.traveler.lot_id
 
+        update_completed_qty(db, lot_id)
+        rebuild_inventory(db, lot_id)
         # 🔥 IMPORTANT
         log.operator_name = (
             log.operator.name
@@ -714,6 +723,7 @@ def create_step_log(
             500,
             str(e)
         )
+    
 # =======================
 # UPDATE (PARTIAL ONLY)
 # =======================
@@ -1025,6 +1035,11 @@ def update_log(
             db,
             log.step_id
         )
+
+        lot_id = log.step.traveler.lot_id
+
+        # update_completed_qty(db, lot_id)
+        rebuild_inventory(db, lot_id)
 
         return {
             "success": True,

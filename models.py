@@ -591,6 +591,8 @@ class ProductionLot(Base):
     from_lot  =  Column(String, nullable=True) # lot_no ที่ copy มาจาก lot อื่น (ถ้ามี)
     last_activity = Column(DateTime(timezone=True), nullable=True)
 
+    completed_qty = Column(Integer, nullable=True, default=0) 
+
 
     __table_args__ = (
         Index("ix_lots_no", "lot_no"),
@@ -2580,31 +2582,101 @@ class GageCalibration(Base):
         back_populates="calibrations"
     )
 
+from decimal import Decimal
+from sqlalchemy import (
+    Column,
+    Integer,
+    Numeric,
+    DateTime,
+    ForeignKey,
+    func,
+    text,
+)
+from sqlalchemy.orm import relationship
+
 
 class Inventory(Base):
     __tablename__ = "inventory"
+
     id = Column(Integer, primary_key=True)
 
     lot_id = Column(
         Integer,
-        ForeignKey("production_lots.id"),
+        ForeignKey("production_lots.id", ondelete="CASCADE"),
+        unique=True,
         nullable=False,
-        unique=True
+        index=True,
     )
 
+    # Production
+    qty_produced = Column(
+        Numeric(18, 3),
+        nullable=False,
+        default=Decimal("0"),
+        server_default=text("0"),
+    )
 
-    prod_qty = Column(Integer, default=0)
-    ship_qty = Column(Integer, default=0)
-    stock_qty = Column(Integer, default=0)
+    # Shipment
+    qty_shipped = Column(
+        Numeric(18, 3),
+        nullable=False,
+        default=Decimal("0"),
+        server_default=text("0"),
+    )
 
-    note = Column(String)
+    # Scrap
+    qty_scrap = Column(
+        Numeric(18, 3),
+        nullable=False,
+        default=Decimal("0"),
+        server_default=text("0"),
+    )
+
+    # Manual Adjustment
+    qty_adjust = Column(
+        Numeric(18, 3),
+        nullable=False,
+        default=Decimal("0"),
+        server_default=text("0"),
+    )
+
+    # Current Stock
+    qty_on_hand = Column(
+        Numeric(18, 3),
+        nullable=False,
+        default=Decimal("0"),
+        server_default=text("0"),
+    )
+
+    # Last physical count
+    counted_qty = Column(Numeric(18, 3), nullable=True)
+    counted_at = Column(DateTime(timezone=True), nullable=True)
+
     created_at = Column(
         DateTime(timezone=True),
         server_default=func.now(),
-        nullable=False
+        nullable=False,
     )
 
-    lot = relationship("ProductionLot")
+    updated_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    inventory_status = Column(
+        String,
+        nullable=False,
+        default="normal",
+        server_default=text("'normal'")
+    )
+    note = Column(Text, nullable=True)
+    lot = relationship(
+        "ProductionLot",
+        backref="inventory",
+        uselist=False,
+    )
 
 class LotTransfer(Base):
     __tablename__ = "lot_transfers"

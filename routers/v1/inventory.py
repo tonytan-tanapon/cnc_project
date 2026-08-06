@@ -4,21 +4,137 @@ from fastapi import APIRouter, Depends,HTTPException
 from sqlalchemy.orm import Session
 from database import get_db  # or your session dependency
 from models import Part, RawMaterial, RawBatch, LotMaterialUse,Inventory
+
+from models import (
+    Inventory,
+    ProductionLot,
+    CustomerShipmentItem,
+)
+
 from sqlalchemy import func, select
+from decimal import Decimal
 
 router = APIRouter(prefix="/inventory", tags=["inventory"])
 
 from pydantic import BaseModel
 
-class InventoryCreate(BaseModel):
 
-    part_no: str
-    rev: str
-    lot_no: str
 
-    prod_qty: float = 0
-    ship_qty: float = 0
-    stock_qty: float = 0
+class InventoryAdjust(BaseModel):
+
+    lot_id: int
+
+    qty: float
+
+    note: str = ""
+
+
+def inventory_to_dict(inv):
+
+    return {
+
+        "lot_id": inv.lot.id,
+
+        "lot_no": inv.lot.lot_no,
+
+        "part_no": inv.lot.part.part_no,
+
+        "rev": (
+            inv.lot.part_revision.rev
+            if inv.lot.part_revision
+            else ""
+        ),
+
+        "qty_produced": float(inv.qty_produced or 0),
+
+        "qty_shipped": float(inv.qty_shipped or 0),
+
+        "qty_scrap": float(inv.qty_scrap or 0),
+
+        "qty_adjust": float(inv.qty_adjust or 0),
+
+        "qty_on_hand": float(inv.qty_on_hand or 0),
+
+        "status":  inv.status,
+
+        "note": inv.note or "",
+
+    }
+
+def recalc_inventory(inv):
+    produced = inv.qty_produced or Decimal("0")
+    shipped = inv.qty_shipped or Decimal("0")
+    scrap = inv.qty_scrap or Decimal("0")
+    adjust = inv.qty_adjust or Decimal("0")
+
+    inv.qty_on_hand = (
+        produced
+        - shipped
+        - scrap
+        + adjust
+    )
+    
+@router.get("")
+def get_inventory(
+    db: Session = Depends(get_db),
+):
+
+    from sqlalchemy.orm import joinedload
+
+    rows = (
+        db.query(Inventory)
+        .options(
+            joinedload(Inventory.lot)
+                .joinedload(ProductionLot.part),
+
+            joinedload(Inventory.lot)
+                .joinedload(ProductionLot.part_revision),
+        )
+        .all()
+    )
+
+   
+
+    return [
+        inventory_to_dict(inv)
+        for inv in rows
+    ]
+
+
+from sqlalchemy.orm import joinedload
+@router.post("/adjust")
+def adjust_inventory(
+    data: InventoryAdjust,
+    db: Session = Depends(get_db),
+):
+
+    inv = (
+        db.query(Inventory)
+        .options(
+            joinedload(Inventory.lot).joinedload(ProductionLot.part),
+            joinedload(Inventory.lot).joinedload(ProductionLot.part_revision),
+        )
+        .filter(Inventory.lot_id == data.lot_id)
+        .first()
+    )
+
+    if not inv:
+        raise HTTPException(404, "Inventory not found")
+
+    # Replace ค่า Adjust
+    inv.qty_adjust = Decimal(str(data.qty))
+    inv.note = data.note
+    inv.status = data.status
+
+    recalc_inventory(inv)
+
+    # เปลี่ยนสถานะ
+    inv.status = "checked"
+
+    db.commit()
+    db.refresh(inv)
+
+    return inventory_to_dict(inv)
 
 
 @router.get("/parts")
@@ -75,41 +191,133 @@ def get_materials(db: Session = Depends(get_db)):
     ]
 
 
-@router.post("/part_inventory")
-def create_inventory(
-    data: InventoryCreate,
-    db: Session = Depends(get_db)
+# @router.post("/part_inventory")
+# def create_inventory(
+#     data: InventoryCreate,
+#     db: Session = Depends(get_db)
+# ):
+
+#     part = (
+#         db.query(Part)
+#         .filter(
+#             Part.part_no == data.part_no,
+#             Part.rev == data.rev
+#         )
+#         .first()
+#     )
+
+#     if not part:
+#         raise HTTPException(
+#             400,
+#             "Part not found"
+#         )
+
+#     inv = Inventory(
+
+#         part_id=part.id,
+
+#         lot_no=data.lot_no,
+
+#         prod_qty=data.prod_qty,
+#         ship_qty=data.ship_qty,
+#         stock_qty=data.stock_qty
+
+#     )
+
+#     db.add(inv)
+#     db.commit()
+#     db.refresh(inv)
+
+#     return inv
+@router.post("/rebuild")
+def rebuild_all_inventory(
+    db: Session = Depends(get_db),
 ):
 
-    part = (
-        db.query(Part)
-        .filter(
-            Part.part_no == data.part_no,
-            Part.rev == data.rev
+    lots = db.query(ProductionLot).all()
+
+    total = 0
+
+    inventories = {
+        i.lot_id: i
+        for i in db.query(Inventory).all()
+    }
+
+    ship_map = dict(
+        db.query(
+            CustomerShipmentItem.lot_id,
+            func.sum(CustomerShipmentItem.qty)
         )
+        .group_by(CustomerShipmentItem.lot_id)
+        .all()
+    )
+
+    for lot in lots:
+
+        inv = inventories.get(lot.id)
+
+        if inv is None:
+            inv = Inventory(lot_id=lot.id)
+            db.add(inv)
+
+        # Produced
+        inv.qty_produced = Decimal(str(lot.planned_qty or 0))
+
+        # Shipment
+        shipped = ship_map.get(lot.id, 0)
+
+        inv.qty_shipped = Decimal(str(shipped or 0))
+
+        recalc_inventory(inv)
+
+        total += 1
+
+    db.commit()
+
+    return {
+        "success": True,
+        "total_lots": total
+    }
+
+
+
+@router.post("/rebuild/{lot_id}")
+def rebuild_inventory(
+    lot_id: int,
+    db: Session = Depends(get_db),
+):
+
+    lot = db.get(ProductionLot, lot_id)
+
+    if not lot:
+        raise HTTPException(404, "Lot not found")
+
+    inv = (
+        db.query(Inventory)
+        .filter(Inventory.lot_id == lot_id)
         .first()
     )
 
-    if not part:
-        raise HTTPException(
-            400,
-            "Part not found"
+    if inv is None:
+        inv = Inventory(lot_id=lot_id)
+        db.add(inv)
+
+    # ผลิตได้
+    inv.qty_produced = Decimal(str(lot.planned_qty or 0))
+
+    # ส่งออก
+    shipped = (
+        db.query(
+            func.coalesce(func.sum(CustomerShipmentItem.qty), 0)
         )
-
-    inv = Inventory(
-
-        part_id=part.id,
-
-        lot_no=data.lot_no,
-
-        prod_qty=data.prod_qty,
-        ship_qty=data.ship_qty,
-        stock_qty=data.stock_qty
-
+        .filter(CustomerShipmentItem.lot_id == lot_id)
+        .scalar()
     )
 
-    db.add(inv)
+    recalc_inventory(inv)
+
     db.commit()
     db.refresh(inv)
 
-    return inv
+    return inventory_to_dict(inv)
+

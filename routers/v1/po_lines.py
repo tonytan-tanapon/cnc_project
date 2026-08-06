@@ -7,7 +7,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from models import ShopTravelerStep
 from database import get_db
-from models import POLine, ProductionLot, ShopTraveler,PartRevision,ShopTravelerStepLog  
+from models import POLine, ProductionLot, ShopTraveler,PartRevision,ShopTravelerStepLog
+from services.inventory_service import rebuild_inventory  
 
 # พยายามใช้ atomic generator (แนะนำให้มี utils/sequencer.py + ตาราง doc_counters)
 try:
@@ -180,6 +181,7 @@ def create_lot_and_traveler(
         # COMMIT
         # =========================
         db.commit()
+        rebuild_inventory(db, lot.id)  # 🔥 rebuild inventory after creating lot
 
         # refresh
         db.refresh(lot)

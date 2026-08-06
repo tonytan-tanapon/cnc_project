@@ -46,7 +46,7 @@ def find_template_pdf(cus_code: str, part_no: str, rev: str):
         Path(fr"Z:\Topnotch Group\Public\Blue Print\{folder_name}\Ballooned Drawing"),
     ]
 
-    pattern = f"{part_no} {rev}*.pdf" if rev else f"{part_no}*.pdf"
+    pattern = f"{part_no}*{rev}*.pdf" if rev else f"{part_no}*.pdf"
 
     for folder in search_paths:
 

@@ -498,7 +498,7 @@ def update_shipment_fields(
         # print(f"✅ Updated tracking number to {shipment.tracking_no} and set shipped_at to {shipment.shipped_at}")
         updated_fields.append("tracking_number")
         # updated_fields.append("shipped_date")
-        
+ 
 
     if "shipped_date" in payload:
         try:
@@ -522,3 +522,6 @@ def update_shipment_fields(
         "shipped_at": shipment.shipped_at,
         "status": shipment.status,
     }
+
+
+

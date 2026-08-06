@@ -17,6 +17,7 @@ from models import (
     ProductionLot,
     Customer,
 )
+from services.inventory_service import rebuild_inventory
 
 shipment_router = APIRouter(prefix="/customer_shipments", tags=["customer_shipments"])
 
@@ -258,27 +259,54 @@ def create_item(shipment_id: int, payload: ShipmentItemCreate, db: Session = Dep
     db.add(item)
     db.commit()
     db.refresh(item)
+
+    rebuild_inventory(db, item.lot_id)
     return ShipmentItemOut.model_validate(item)
 
-
 @shipment_router.patch("/items/{item_id}", response_model=ShipmentItemOut)
-def update_item(item_id: int, payload: ShipmentItemUpdate, db: Session = Depends(get_db)):
+def update_item(
+    item_id: int,
+    payload: ShipmentItemUpdate,
+    db: Session = Depends(get_db),
+):
     obj = db.query(CustomerShipmentItem).get(item_id)
+
     if not obj:
         raise HTTPException(404, "Shipment item not found")
 
+    # ✅ จำ lot เดิมไว้ก่อน
+    old_lot_id = obj.lot_id
+
+    # update fields
     for k, v in payload.model_dump(exclude_unset=True).items():
         setattr(obj, k, v)
+
     db.commit()
     db.refresh(obj)
+
+    # ✅ rebuild lot เดิม
+    rebuild_inventory(db, old_lot_id)
+
+    # ✅ ถ้าเปลี่ยน lot ก็ rebuild lot ใหม่ด้วย
+    if obj.lot_id != old_lot_id:
+        rebuild_inventory(db, obj.lot_id)
+
     return ShipmentItemOut.model_validate(obj)
 
 
 @shipment_router.delete("/items/{item_id}", status_code=204)
 def delete_item(item_id: int, db: Session = Depends(get_db)):
     obj = db.query(CustomerShipmentItem).get(item_id)
+
     if not obj:
         raise HTTPException(404, "Shipment item not found")
+
+    # จำ lot ไว้ก่อนลบ
+    lot_id = obj.lot_id
+
     db.delete(obj)
     db.commit()
+
+    rebuild_inventory(db, lot_id)
+
     return None
