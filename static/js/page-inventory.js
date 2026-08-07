@@ -52,9 +52,7 @@ function makeColumns() {
       cellEdited: async function (cell) {
 
         const row = cell.getRow().getData();
-
         const value = Number(cell.getValue());
-
         const oldValue = Number(cell.getOldValue());
 
         try {
@@ -65,29 +63,21 @@ function makeColumns() {
               method: "POST",
               body: JSON.stringify({
                 lot_id: row.lot_id,
-                qty: value,
-                note: "Manual"
+                qty: value
               })
             }
           );
 
-          cell.getRow().update({
-
-            qty_adjust: updated.qty_adjust,
-            qty_on_hand: updated.qty_on_hand,
-            status: updated.status
-
-          });
+          cell.getRow().update(updated);
 
           toast("Saved");
 
         } catch (err) {
 
           cell.setValue(oldValue, true);
-
           toast("Save failed");
-        }
 
+        }
       }
     },
 

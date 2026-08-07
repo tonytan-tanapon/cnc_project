@@ -127,7 +127,7 @@ def generate_stamp(
         rev = lot.part_revision.rev or ""
 
     cus_code = lot.po.customer.code
-
+    print("PO     :", lot.po.po_number)
     print("Customer :", cus_code)
     print("Part     :", part_no)
     print("Revision :", rev)
@@ -180,7 +180,7 @@ def generate_stamp(
         f"""
         <div style="font-size:12pt">
            
-            <b>LOT:</b> {lot.lot_no}, <b>QTY:</b> {lot_shipped_qty} pcs,<b>DUE:</b> {due}
+            <b>LOT:</b> {lot.lot_no}, <b>PO:</b> {lot.po.po_number}, <b>QTY:</b> {lot_shipped_qty} pcs, <b>DUE:</b> {due}
         </div>
         """
         # f"""

@@ -19,14 +19,13 @@ router = APIRouter(prefix="/inventory", tags=["inventory"])
 from pydantic import BaseModel
 
 
-
+from typing import Optional
 class InventoryAdjust(BaseModel):
-
     lot_id: int
-
-    qty: float
-
-    note: str = ""
+    qty: Optional[float] = None
+    note: Optional[str] = None
+    status: Optional[str] = None
+    
 
 
 def inventory_to_dict(inv):
@@ -55,7 +54,7 @@ def inventory_to_dict(inv):
 
         "qty_on_hand": float(inv.qty_on_hand or 0),
 
-        "status":  inv.status,
+        "status": inv.inventory_status,
 
         "note": inv.note or "",
 
@@ -124,13 +123,20 @@ def adjust_inventory(
     # Replace ค่า Adjust
     inv.qty_adjust = Decimal(str(data.qty))
     inv.note = data.note
-    inv.status = data.status
+
+    if data.qty is not None:
+        inv.qty_adjust = Decimal(str(data.qty))
+
+    if data.note is not None:
+        inv.note = data.note
+
+    if data.status is not None:
+        inv.inventory_status = data.status
 
     recalc_inventory(inv)
 
     # เปลี่ยนสถานะ
-    inv.status = "checked"
-
+    
     db.commit()
     db.refresh(inv)
 
@@ -313,6 +319,8 @@ def rebuild_inventory(
         .filter(CustomerShipmentItem.lot_id == lot_id)
         .scalar()
     )
+
+    inv.qty_shipped = Decimal(str(shipped or 0))
 
     recalc_inventory(inv)
 

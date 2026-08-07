@@ -2,6 +2,7 @@ import pandas as pd
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 import sys, os
+from decimal import Decimal
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -37,11 +38,12 @@ def upsert_inventory(db, row):
 
     inventory = Inventory(
         lot_id=lot.id,
-        prod_qty=int(row["Pro QTY"] or 0),
-        ship_qty=int(row["Shipused"] or 0),
-        stock_qty=int(row["remain"] or 0),
+        qty_produced=Decimal(str(row["Pro QTY"] or 0)),
+        qty_shipped=Decimal(str(row["Shipused"] or 0)),
+        qty_on_hand=Decimal(str(row["remain"] or 0)),
+        qty_scrap=Decimal("0"),
+        qty_adjust=Decimal("0"),
     )
-
     db.add(inventory)
 
 

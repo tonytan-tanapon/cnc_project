@@ -3,6 +3,9 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 import sys, os
 
+sys.path.append(os.path.dirname(__file__))
+from import_excel_to_database import upsert_lot
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from models import (
@@ -30,6 +33,7 @@ def upsert_inventory(db, row):
         .filter(ProductionLot.lot_no == lot_no)
         .first()
     )
+    # print(f"Lot found: {lot_no}: {lot}")
 
     # =====================================
     # Create Lot + Traveler + Shipment
@@ -46,7 +50,8 @@ def upsert_inventory(db, row):
             "Description": "",
             "Due Date": None,
         }
-
+        
+        print(f"Lot not found: {lot_no}, creating new lot and traveler...")
         upsert_lot(db, lot_row)
 
         lot = (
@@ -58,14 +63,27 @@ def upsert_inventory(db, row):
     # =====================================
     # Inventory
     # =====================================
-    inventory = Inventory(
-        lot_id=lot.id,
-        prod_qty=int(row["Pro QTY"] or 0),
-        ship_qty=int(row["Shipused"] or 0),
-        stock_qty=int(row["remain"] or 0),
+    from decimal import Decimal
+
+    inventory = (
+        db.query(Inventory)
+        .filter(Inventory.lot_id == lot.id)
+        .first()
     )
 
+    if inventory is None:
+        inventory = Inventory(lot_id=lot.id)
+        db.add(inventory)
+
+    inventory.qty_produced = Decimal(str(row["Pro QTY"] or 0))
+    inventory.qty_shipped = Decimal(str(row["Shipused"] or 0))
+    inventory.qty_scrap = Decimal("0")
+    inventory.qty_adjust = Decimal("0")
+    inventory.qty_on_hand = Decimal(str(row["remain"] or 0))
+
     db.add(inventory)
+
+
 
 # -------------------------
 # excel loader
@@ -98,8 +116,8 @@ def import_excel(file_path):
     print("Rows after grouping:", len(df))
 
     db = SessionLocal()
-    db.query(Inventory).delete()
-    db.commit()
+    # db.query(Inventory).delete()
+    # db.commit()
 
     try:
         for _, row in df.iterrows():
