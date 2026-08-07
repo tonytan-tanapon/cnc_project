@@ -1,8 +1,11 @@
+import os
+import sys
+
 import pandas as pd
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from models import (
     PO,
     POLine,
@@ -28,11 +31,12 @@ def repair_from_excel(filename):
         for _, row in df.iterrows():
 
             lot_no = str(row["Lot #"]).strip()
-            po_number = str(row["PO"]).strip()
-            part_no = str(row["Part No."]).strip()
+            po_number = str(row["PO Number"]).strip()
+            part_no = str(row["Part No"]).strip()
             rev = str(row["Rev"]).strip()
 
-            qty = int(row["Qty"])
+           
+            qty = 0 if pd.isna(row["Qty PO"]) else int(row["Qty PO"])
 
             lot = (
                 db.query(ProductionLot)

@@ -111,9 +111,13 @@ function makeColumns() {
       editor: "list",
       editorParams: {
         values: [
-          "normal",
+          "normal", 
+          "good",
           "checked",
-          "not_checked"
+          "not_checked",
+          "used",
+          "scrap",
+          "rework",
         ]
       },
 
