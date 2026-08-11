@@ -2,6 +2,8 @@ import pandas as pd
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 import sys, os
+from datetime import datetime, UTC
+
 
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -153,7 +155,8 @@ def ensure_traveler_with_initial_step(db, lot_id: int, qty: float):
         qty_receive=qty,
         qty_accept=qty,
         qty_reject=0,
-        work_date=datetime.utcnow().date()
+        
+        work_date=datetime.now(UTC).date()
     )
 
     db.add(log)
@@ -252,22 +255,34 @@ def upsert_lot(db, row):
     description = str(row["Description"])
     rev = str(row["Rev."])
     qty = int(row["Qty PO"])
-    due_date = row["Due Date"]
+    due_date = pd.to_datetime(
+        row["Due Date"],
+        errors="coerce"
+    )
 
-    print("DUE DATE:", due_date)
-    if due_date:
+    if pd.notna(due_date):
+
+        # convert pandas Timestamp -> Python date
+        due_date = due_date.date()
+
         # subtract 1 month
         new_due_date = due_date - relativedelta(months=1)
 
-        # Monday = 0 ... Sunday = 6
-        if new_due_date.weekday() == 5:   # Saturday
+        # Saturday -> Friday
+        if new_due_date.weekday() == 5:
             new_due_date -= timedelta(days=1)
 
-        elif new_due_date.weekday() == 6: # Sunday
+        # Sunday -> Friday
+        elif new_due_date.weekday() == 6:
             new_due_date -= timedelta(days=2)
 
     else:
-        new_due_date = due_date
+        due_date = None
+        new_due_date = None
+
+    print(
+        f"DUE DATE: {due_date} -> LOT DUE DATE: {new_due_date}"
+    )
 
     
     print(f"Processing Lot {lot_no}")
@@ -324,16 +339,23 @@ def upsert_lot(db, row):
         )
 
     else:
-        
+
         lot.planned_qty = qty
-        
-        lot.lot_due_date = due_date
-        print(f"UPDATE LOT {lot_no} - due date: {new_due_date}")
+
+        # ใช้ Due Date - 1 เดือน เหมือนตอน CREATE
+        lot.lot_due_date = new_due_date
         lot.lot_po_duedate = new_due_date
+
         lot.po_line_id = po_line.id
-        
+
+        print(
+            f"UPDATE LOT {lot_no} "
+            f"Excel Due Date: {due_date} "
+            f"-> Lot Due Date: {new_due_date}"
+        )
+
         db.add(lot)
-        db.flush()  # 🔥 i
+        db.flush()
       
 
         ensure_traveler_with_initial_step(db, lot.id, qty)
