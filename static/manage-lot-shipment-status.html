@@ -96,7 +96,12 @@
             </label>
 
             <label class="radio-pill">
-              <input type="radio" name="lot_status" value="not_start" checked />
+              <input type="radio" name="lot_status" value="open_po" checked />
+              <span>Open PO</span>
+            </label>
+
+            <label class="radio-pill">
+              <input type="radio" name="lot_status" value="not_start"  />
               <span>No Ship</span>
             </label>
 
@@ -138,19 +143,6 @@
     import "/static/js/manage-lot-shipment-status.js?v=2.2";
 
 
-
-    // ✅ reload button (optional)
-    document.getElementById("_reload").addEventListener("click", () => {
-      const status = document.querySelector('input[name="lot_status"]:checked')?.value || "";
-
-      if (window.table) {
-        if (!status) {
-          table.clearFilter();
-        } else {
-          table.setFilter("lot_status", "=", status);
-        }
-      }
-    });
   </script>
 
   <!-- ✅ STYLE (สำคัญ ทำให้สวยเหมือน button) -->

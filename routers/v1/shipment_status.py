@@ -36,8 +36,13 @@ def get_shipment_status(
         params["customer"] = f"%{customer}%"
 
     if status:
-        conditions.append("lot_shipment_status = :status")
-        params["status"] = status
+        if status == "open_po":
+            conditions.append(
+                "lot_status IN ('not_start', 'in_process')"
+            )
+        else:
+            conditions.append("lot_status = :status")
+            params["status"] = status
 
     sql = "SELECT * FROM v_lot_shipment_status"
     if conditions:

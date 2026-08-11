@@ -1112,8 +1112,20 @@ function applyFilter() {
     });
   }
 
-  if (lotStatus) {
+  if (lotStatus === "open_po") {
+
+    // Open PO = No Ship + In Process
+    table.addFilter((d) => {
+      return (
+        d.lot_status === "not_start" ||
+        d.lot_status === "in_process"
+      );
+    });
+
+  } else if (lotStatus) {
+
     table.addFilter("lot_status", "=", lotStatus);
+
   }
 
   // if (duedaysVal) {
