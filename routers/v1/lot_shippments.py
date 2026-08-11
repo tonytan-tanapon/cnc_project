@@ -1144,7 +1144,9 @@ def download_label(
             else:
 
                 # ล้างทั้ง cell
-                cell.text = "33"
+                for p in cell.paragraphs:
+                    for run in p.runs:
+                        run.text = ""
 
      
     # ===============================
