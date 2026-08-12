@@ -1,9 +1,9 @@
- const token =
-      localStorage.getItem("token");
+const token =
+    localStorage.getItem("token");
 
-    if (!token) {
-      location.href = "/static/login.html";
-    }
+if (!token) {
+    location.href = "/static/login.html";
+}
 
 
 
@@ -592,7 +592,7 @@ function editRow(tr, row) {
             const clockOut =
                 inputs[4].value;
 
-             const note =
+            const note =
                 document.getElementById("editNote").value;
 
             console.log({
@@ -796,9 +796,14 @@ function addNewRow() {
       <input type="time" value="16:00">
     </td>
 
-    <td colspan="9">
-      New Entry
-    </td>
+   <td colspan="9">
+    <textarea
+        class="newNote"
+        rows="2"
+        style="width:100%;box-sizing:border-box;"
+        placeholder="Note"
+    ></textarea>
+</td> 
   `;
 
     document
@@ -820,26 +825,18 @@ function addNewRow() {
             const breakEnd = inputs[3].value;
             const clockOut = inputs[4].value;
 
-            const note =
-                document.getElementById("editNote").value;
+            const note = tr.querySelector(".newNote").value;
 
-            const employee_id =
-                Number(getQS("employee_id"));
-
-            // =====================
-            // Save Time Entry
-            // =====================
+            const employee_id = Number(getQS("employee_id"));
 
             const te = await jfetch(
                 "/time-entries/manual",
                 {
                     method: "POST",
                     headers: {
-                        "Content-Type":
-                            "application/json"
+                        "Content-Type": "application/json"
                     },
                     body: JSON.stringify({
-
                         employee_id,
 
                         clock_in_at:
@@ -855,9 +852,9 @@ function addNewRow() {
                                 : null,
 
                         status:
-                            clockOut
-                                ? "closed"
-                                : "open"
+                            clockOut ? "closed" : "open",
+
+                        notes: note
                     })
                 }
             );
