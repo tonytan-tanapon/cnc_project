@@ -15,7 +15,7 @@ from models import (
     ShopTravelerStep,
     ShopTravelerStepLog,
 )
-
+from models import POLine
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import or_, func
@@ -117,7 +117,7 @@ def create_lot(payload: ProductionLotCreate, db: Session = Depends(get_db)):
             db.commit()
             db.refresh(lot)
 
-            rebuild_inventory(db, lot.id)
+            rebuild_inventory(lot.id, db)
             return _with_joined(db, lot.id)
         except IntegrityError:
             db.rollback()
@@ -505,8 +505,9 @@ def get_lot(lot_id: int, db: Session = Depends(get_db)):
         } if lot.po and lot.po.customer else None,
 
         "po": {
-            "po_number": lot.po.po_number
-        } if lot.po else None,
+    "id": lot.po.id,
+    "po_number": lot.po.po_number
+} if lot.po else None,
 
         "part": {
             "part_no": lot.part.part_no,
@@ -563,13 +564,18 @@ def update_lot_put(lot_id: int, payload: ProductionLotUpdate, db: Session = Depe
 
     db.commit()
     db.refresh(lot)
-    rebuild_inventory(db, lot.id)
+    rebuild_inventory(
+    lot_id=lot.id,
+    db=db
+)
     return _with_joined(db, lot.id)
 
 # @router.patch("/{lot_id}", response_model=ProductionLotOut)
 # def update_lot_patch(lot_id: int, payload: ProductionLotUpdate, db: Session = Depends(get_db)):
 #     # ใช้ logic เดียวกับ PUT
 #     return update_lot_put(lot_id, payload, db)
+
+
 
 
 @router.get("/test/")
@@ -582,6 +588,106 @@ def update_lot_patch(lot_id: int, payload: ProductionLotUpdate, db: Session = De
     print(ProductionLotUpdate)
     print("Received PATCH payload =>", payload.dict(exclude_unset=False))
     return update_lot_put(lot_id, payload, db)
+
+
+from models import POLine
+
+class LotChangePO(BaseModel):
+    po_id: int
+
+
+@router.put("/{lot_id}/change-po")
+def change_lot_po(
+    lot_id: int,
+    payload: LotChangePO,
+    db: Session = Depends(get_db),
+):
+    # =========================
+    # GET LOT
+    # =========================
+    lot = db.get(ProductionLot, lot_id)
+
+    if not lot:
+        raise HTTPException(404, "Lot not found")
+
+    # =========================
+    # GET NEW PO
+    # =========================
+    new_po = db.get(PO, payload.po_id)
+
+    if not new_po:
+        raise HTTPException(404, "PO not found")
+
+    old_po_id = lot.po_id
+    old_po_line_id = lot.po_line_id
+
+    # =========================
+    # FIND EXACT PO LINE
+    # PO + PART + REVISION
+    # =========================
+    po_line = (
+        db.query(POLine)
+        .filter(
+            POLine.po_id == new_po.id,
+            POLine.part_id == lot.part_id,
+            POLine.revision_id == lot.part_revision_id,
+        )
+        .first()
+    )
+
+    if not po_line:
+        part_no = lot.part.part_no if lot.part else str(lot.part_id)
+        rev = (
+            lot.part_revision.rev
+            if lot.part_revision
+            else "None"
+        )
+
+        raise HTTPException(
+            400,
+            detail=(
+                f"PO {new_po.po_number} does not have "
+                f"Part {part_no}, Rev {rev}"
+            )
+        )
+
+    # =========================
+    # CHANGE PO LINE
+    # =========================
+    lot.po_line_id = po_line.id
+
+    # จริง ๆ validator ของ ProductionLot จะ sync
+    # po_id / part_id / part_revision_id ให้อัตโนมัติ
+    # แต่ set ตรง ๆ เพิ่มเพื่อให้อ่านง่าย
+    lot.po_id = new_po.id
+    lot.part_id = po_line.part_id
+    lot.part_revision_id = po_line.revision_id
+
+    db.commit()
+    db.refresh(lot)
+
+    rebuild_inventory(
+    lot_id=lot.id,
+    db=db
+)
+
+    return {
+        "success": True,
+
+        "lot_id": lot.id,
+        "lot_no": lot.lot_no,
+
+        "old_po_id": old_po_id,
+        "old_po_line_id": old_po_line_id,
+
+        "po_id": lot.po_id,
+        "po_number": new_po.po_number,
+
+        "po_line_id": lot.po_line_id,
+
+        "part_id": lot.part_id,
+        "part_revision_id": lot.part_revision_id,
+    }
 
 
 @router.delete("/{lot_id}")

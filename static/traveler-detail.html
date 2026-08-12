@@ -88,7 +88,7 @@
       height: auto;
       overflow-y: hidden;
       resize: none;
-       background: #fff9c4;
+      background: #fff9c4;
     }
 
     .header textarea {
@@ -120,7 +120,7 @@
       height: 36px;
       border-radius: 0;
     }
-    
+
 
     #steps_wrap {
       flex: 1 1 auto;
@@ -327,26 +327,26 @@
     }
 
     .header {
-    display: grid;
-    grid-template-columns: repeat(12, 1fr);
-    gap: 6px;
-}
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 6px;
+    }
 
-.col-2 {
-    grid-column: span 2;
-}
+    .col-2 {
+      grid-column: span 2;
+    }
 
-.header .field label {
-    min-width: 60px;
-    font-size: 12px;
-}
+    .header .field label {
+      min-width: 60px;
+      font-size: 12px;
+    }
 
-.header input,
-.header select,
-.header textarea {
-    height: 40px;
-    font-size: 12px;
-}
+    .header input,
+    .header select,
+    .header textarea {
+      height: 40px;
+      font-size: 12px;
+    }
   </style>
 </head>
 
@@ -398,24 +398,24 @@
           </div>
           <div class="field col-2">
             <label>PO No</label>
-            <input id="po_no" readonly />
+            <input id="po_no" autocomplete="off" />
           </div>
           <div class="field col-2">
             <label>Customer</label>
             <input id="customer_code" readonly />
           </div>
-          
+
           <!-- ---------------------------------------------------- -->
           <div class="field col-2">
             <label>Lot No</label>
             <input id="lot_no" />
           </div>
 
-           <div class="field col-2">
+          <div class="field col-2">
             <label>Material</label>
             <input id="material" rows="1" placeholder="Material spec..."></input>
           </div>
-          
+
 
 
           <div class="field col-2">
@@ -427,15 +427,15 @@
             <input id="lot_due_date" type="date" />
           </div>
 
-          
+
 
 
           <div class="field col-2">
-            <label >Order QTY</label>
+            <label>Order QTY</label>
             <input id="lot_planned_qty" type="number" placeholder="Quantity" />
           </div>
           <div class="field col-2">
-            <label >Prod QTY</label>
+            <label>Prod QTY</label>
             <input id="lot_prod_qty" type="number" placeholder="Quantity" />
           </div>
           <div class="field col-2">
@@ -449,7 +449,7 @@
 
           <!-- ------------------------------- -->
 
-         
+
           <div class="field col-2">
             <label>Lot Status</label>
 
@@ -513,10 +513,10 @@
             </select>
           </div>
 
-           
+
           <div class="field col-3" hidden>
             <!-- <label hidden >started_at</label> -->
-            <input id="started_at" type="date" readonly  hidden/>
+            <input id="started_at" type="date" readonly hidden />
           </div>
           <div class="field col-3" hidden>
             <!-- <label hidden>Lot PO Duedate</label> -->
@@ -558,11 +558,11 @@
           </button>
 
           <button id="btnUpdateTravelerTemplate" class="btn-mini">💾 Update Template</button>
-          <input  type="text"  id="fileInputDir"  readonly  style=" width:300px;    flex:none;"></input>
-          
+          <input type="text" id="fileInputDir" readonly style=" width:300px;    flex:none;"></input>
+
           <button id="btnSTdetail" class="btn-mini">📝 Details</button>
 
-         
+
 
         </div>
 
@@ -570,12 +570,10 @@
           <button id="btnExportTraveler" class="btn-mini">📝 Export Traveler</button>
           <button id="btnExportTravelerBlank" class="btn-mini">📝 Export Blank</button>
           <button id="btnUpdateTravelerStep" class="btn-mini">💾 Save Traveler</button>
-           <b>Bold</b> -> **Text** or CTRL+B, Alt + 0216(Ø), 0177(±), 0176(°)
-          <button id="btnDeleteAllSteps"
-        class="btn-mini btn-danger"
-        style="margin-left:auto">
-  🗑 Delete All Steps
-</button>
+          <b>Bold</b> -> **Text** or CTRL+B, Alt + 0216(Ø), 0177(±), 0176(°)
+          <button id="btnDeleteAllSteps" class="btn-mini btn-danger" style="margin-left:auto">
+            🗑 Delete All Steps
+          </button>
 
         </div>
 

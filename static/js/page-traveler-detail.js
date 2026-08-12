@@ -87,9 +87,11 @@ async function loadMasterData() {
 }
 
 /* ---- Header autocomplete state ---- */
-let selectedLot = null; // { id, label }
-let selectedCreator = null; // { id, label }
+/* ---- Header autocomplete state ---- */
+let selectedPO = null;
 
+let poDirty = false;
+let lotDirty = false;
 /* ---------- Helpers ---------- */
 const escapeHtml = (s) =>
   String(s ?? "")
@@ -120,6 +122,29 @@ function setError(msg) {
   e.textContent = msg || "";
 }
 
+async function searchPOs(term) {
+  const q = (term || "").trim();
+
+  try {
+    const url =
+      `/pos/keyset?limit=10${q ? `&q=${encodeURIComponent(q)}` : ""}`;
+
+    const res = await jfetch(url);
+
+    const items = Array.isArray(res)
+      ? res
+      : res.items || [];
+
+    return items.map((po) => ({
+      id: po.id,
+      label: po.po_number || "",
+    }));
+
+  } catch (err) {
+    console.error("Search PO failed", err);
+    return [];
+  }
+}
 /* ---------- Data fetchers for header autocomplete ---------- */
 async function searchLots(term) {
   const q = (term || "").trim();
@@ -186,12 +211,46 @@ function ensureHeaderButtons() {
   btnHdrSave.textContent = "💾 Save";
   btnHdrSave.style.display = "none";
   btnHdrSave.onclick = async () => {
-    await savePartRevisionMaterial();
-    await saveLot();        // 🔥 save lot fields
-    // await saveTraveler();   // existing logic
+
+  try {
+
+    setBusyT(true);
+
+    // PO เปลี่ยน → เปลี่ยนเฉพาะ PO
+    if (poDirty) {
+      await changePO();
+    }
+
+    // field อื่นเปลี่ยน → ค่อย update Lot
+    if (lotDirty) {
+      await savePartRevisionMaterial();
+      await saveLot();
+    }
+
+    // reload ข้อมูลล่าสุด
+    await loadLotDetail();
+
+    poDirty = false;
+    lotDirty = false;
 
     markHeaderDirty(false);
-  };
+
+    toast("Updated");
+
+  } catch (err) {
+
+    console.error(err);
+
+    toast(
+      err?.message || "Save failed",
+      false
+    );
+
+  } finally {
+
+    setBusyT(false);
+  }
+};
 
   btnHdrCancel = document.createElement("button");
   btnHdrCancel.className = "btn-mini";
@@ -233,21 +292,73 @@ async function savePartRevisionMaterial() {
 
 }
 
+async function changePO() {
+
+  const poEl = $("po_no");
+
+  const newPoId =
+    selectedPO?.id ??
+    (poEl?.dataset?.id
+      ? Number(poEl.dataset.id)
+      : null);
+
+  const oldPoId =
+    originalLot?.po?.id ?? null;
+
+  console.log("OLD PO =", oldPoId);
+  console.log("NEW PO =", newPoId);
+
+  // ไม่ได้เลือก PO
+  if (!newPoId) {
+    return false;
+  }
+
+  // PO ไม่ได้เปลี่ยน
+  if (Number(newPoId) === Number(oldPoId)) {
+    return false;
+  }
+
+  await jfetch(
+    `/lots/${lotId}/change-po`,
+    {
+      method: "PUT",
+      body: JSON.stringify({
+        po_id: Number(newPoId)
+      }),
+    }
+  );
+
+  console.log(
+    `PO changed: ${oldPoId} -> ${newPoId}`
+  );
+
+  return true;
+}
 async function saveLot() {
 
   const currentLotId = lotId;
 
   if (!currentLotId) {
-
     toast("Missing lot_id", false);
-
     return;
   }
 
   try {
 
     setBusyT(true);
-    // 1111
+
+    // ==========================================
+    // 1. GET SELECTED PO
+    // ==========================================
+
+
+    console.log("OLD PO ID =", oldPoId);
+    console.log("NEW PO ID =", newPoId);
+
+
+    // ==========================================
+    // 2. SAVE NORMAL LOT DATA
+    // ==========================================
     const payload = {
 
       lot_no: strOrNull(
@@ -262,32 +373,41 @@ async function saveLot() {
         $("risk")?.value
       ),
 
-
       planned_qty: numOrNull(
         $("lot_planned_qty")?.value
       ),
 
-      lot_po_qty: numOrNull($("lot_prod_qty")?.value),   // ✅ เพิ่ม
-
-      status: strOrNull(
-        $("status")?.value
+      lot_po_qty: numOrNull(
+        $("lot_prod_qty")?.value
       ),
-      lot_shipped_qty: numOrNull($("lot_shipped_qty")?.value),
+
+      status: $("status")?.value || originalLot?.all?.status || "not_start",
+
+      lot_shipped_qty: numOrNull(
+        $("lot_shipped_qty")?.value
+      ),
 
       started_at: strOrNull(
         $("started_at")?.value
       ),
 
-      lot_po_duedate: strOrNull($("lot_po_duedate")?.value),
+      lot_po_duedate: strOrNull(
+        $("lot_po_duedate")?.value
+      ),
 
-      created_at: strOrNull($("created_at")?.value),
-      lot_due_date: strOrNull($("lot_due_date")?.value),
+      created_at: strOrNull(
+        $("created_at")?.value
+      ),
 
-      risk: strOrNull(
-        $("risk")?.value
+      lot_due_date: strOrNull(
+        $("lot_due_date")?.value
       ),
     };
 
+
+    // ==========================================
+    // 3. UPDATE LOT
+    // ==========================================
     await jfetch(
       `/lots/${currentLotId}`,
       {
@@ -296,19 +416,34 @@ async function saveLot() {
       }
     );
 
+
+    // ==========================================
+    // 4. CHANGE PO
+    // ทำเฉพาะเมื่อ PO เปลี่ยน
+    // ==========================================
+
+
+
+    // ==========================================
+    // 5. RELOAD
+    // ==========================================
     await loadLotDetail();
+
     markHeaderDirty(false);
+
     toast("Lot updated");
 
   } catch (e) {
 
     console.error(e);
+
     toast(
       e?.message || "Update lot failed",
       false
     );
 
   } finally {
+
     setBusyT(false);
   }
 }
@@ -324,22 +459,29 @@ function wireHeaderDirtyOnly() {
     "lot_no",
     "status",
     "notes",
-    "status",
     "risk",
     "lot_planned_qty",
     "lot_shipped_qty",
-    "lot_prod_qty",      // ✅ เพิ่มอันนี้
+    "lot_prod_qty",
     "material",
-    "started_at",             // 🔥 add
-    "lot_po_duedate",         // 🔥 add
+    "started_at",
+    "lot_po_duedate",
     "lot_due_date",
     "created_at"
-
   ].forEach((id) => {
+
     const el = $(id);
     if (!el) return;
-    el.addEventListener("input", () => markHeaderDirty(true));
-    el.addEventListener("change", () => markHeaderDirty(true));
+
+    el.addEventListener("input", () => {
+      lotDirty = true;
+      markHeaderDirty(true);
+    });
+
+    el.addEventListener("change", () => {
+      lotDirty = true;
+      markHeaderDirty(true);
+    });
   });
 }
 
@@ -373,6 +515,44 @@ function initHeaderAutocomplete() {
   }
 
 
+
+  const poEl = $("po_no");
+
+  if (poEl) {
+    attachAutocomplete(poEl, {
+
+      fetchItems: searchPOs,
+
+      getDisplayValue: (it) =>
+        it ? it.label : "",
+
+      renderItem: (it) =>
+        `<div class="ac-row">${escapeHtml(it.label)}</div>`,
+
+      openOnFocus: true,
+      minChars: 0,
+      debounceMs: 200,
+      maxHeight: 260,
+
+      onPick: (it) => {
+  selectedPO = it;
+
+  poEl.value = it.label;
+  poEl.dataset.id = String(it.id);
+
+  poDirty = true;
+
+  markHeaderDirty(true);
+},
+    });
+
+    poEl.addEventListener("input", () => {
+      selectedPO = null;
+      delete poEl.dataset.id;
+
+      markHeaderDirty(true);
+    });
+  }
 }
 
 /* ---------- Traveler IO ---------- */
@@ -3161,7 +3341,17 @@ async function loadLotDetail() {
     if (partEl) partEl.value = originalLot.part?.part_no || "";
     if (revEl) revEl.value = originalLot.part_revision?.rev || "";
     if (lotEl) lotEl.value = originalLot.all?.lot_no || "";
-    if (poEl) poEl.value = originalLot.po?.po_number || "";
+    if (poEl) {
+      poEl.value = originalLot?.po?.po_number || "";
+
+      if (originalLot?.po?.id) {
+        poEl.dataset.id = String(originalLot.po.id);
+      } else {
+        delete poEl.dataset.id;
+      }
+
+      selectedPO = null;
+    }
     if (customerEl) customerEl.value = originalLot.customer?.code || "";
 
     $("status").value = originalLot.all.status;
@@ -3189,7 +3379,7 @@ async function loadLotDetail() {
 
     $("lot_planned_qty").value =
       originalLot.all?.planned_qty ?? "";
-     
+
     $("lot_prod_qty").value =
       originalLot.all?.lot_po_qty ?? "";
 
@@ -3543,50 +3733,50 @@ document.addEventListener("DOMContentLoaded", async () => {
   const btnFromBlank =
     document.getElementById("btnFromBlank");
 
-    
+
 
   btnFromBlank?.addEventListener("click", async () => {
-      console.log("from blank")
-       if (
-    !confirm("Create from Blank?")
-  ) {
-    return;
-  }
-      try {
-
-        setBusyT(true);
-
-        await jfetch(
-          `/api/v1/travelers/${travelerId}/copy-from-blank`,
-          {
-            method: "POST",
-
-            body: JSON.stringify({
-              from_lot_no: 111,
-              from_lot_qty: 111
-            })
-          }
-        );
-
-        toast("From Blank completed");
-
-        await reloadSteps();
-
-      } catch (err) {
-
-        console.error(err);
-
-        toast(
-          err?.message ||
-          "Copy failed",
-          false
-        );
-
-      } finally {
-
-        setBusyT(false);
-      }
+    console.log("from blank")
+    if (
+      !confirm("Create from Blank?")
+    ) {
+      return;
     }
+    try {
+
+      setBusyT(true);
+
+      await jfetch(
+        `/api/v1/travelers/${travelerId}/copy-from-blank`,
+        {
+          method: "POST",
+
+          body: JSON.stringify({
+            from_lot_no: 111,
+            from_lot_qty: 111
+          })
+        }
+      );
+
+      toast("From Blank completed");
+
+      await reloadSteps();
+
+    } catch (err) {
+
+      console.error(err);
+
+      toast(
+        err?.message ||
+        "Copy failed",
+        false
+      );
+
+    } finally {
+
+      setBusyT(false);
+    }
+  }
 
   );
 
