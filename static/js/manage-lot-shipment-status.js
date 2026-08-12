@@ -330,17 +330,8 @@ function makeColumns() {
       </a>
     `
             : "";
-
-        const icar =
-          d.icar === "Y"
-            ? `
-      <a
-        href="/static/icars.html?q=${encodeURIComponent(d.part_no || "")}"
-       
-        style="color:#2980b9;font-weight:bold;"
-      >
-        ⚠️ICAR
-      </a>
+        const icar = d.icar === "Y" ? `
+      <a href="/static/icars.html?q=${encodeURIComponent(d.part_no || "")}" style="color:#2980b9;font-weight:bold;" >⚠️ICAR </a>
     `
             : "";
 

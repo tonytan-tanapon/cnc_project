@@ -70,8 +70,8 @@ def start_scheduler():
     scheduler.add_job(
         database_backup,
         "cron",
-        day=28,
-        hour=1,      # ตัวอย่าง รันตี 1
+        day_of_week="sun",
+        hour=1,
         minute=0,
         id="database_export"
     )
