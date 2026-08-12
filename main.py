@@ -70,10 +70,10 @@ def start_scheduler():
     scheduler.add_job(
         database_backup,
         "cron",
-        day_of_week="sun",
         hour=1,
         minute=0,
-        id="database_export"
+        id="database_export",
+        replace_existing=True
     )
     scheduler.start()
     ensure_next_pay_period()
