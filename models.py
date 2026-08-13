@@ -705,6 +705,9 @@ class ShopTraveler(Base):
         nullable=True
     )
 
+    edited_at = Column(DateTime(timezone=True), nullable=True)
+    edited_by_id = Column(Integer, ForeignKey("employees.id"), nullable=True)
+
     template = relationship("TravelerTemplate")
   
 
@@ -962,6 +965,9 @@ class TravelerTemplate(Base):
 
     file_dir = Column(String, nullable=True) # QR code url or label url
 
+    edited_at = Column(DateTime(timezone=True), nullable=True)
+    edited_by_id = Column(Integer, ForeignKey("employees.id"), nullable=True)
+
     # relationships
     steps = relationship(
         "TravelerTemplateStep",
@@ -971,7 +977,7 @@ class TravelerTemplate(Base):
     )
 
     created_by = relationship("Employee", foreign_keys=[created_by_id])
-
+    edited_by = relationship("Employee", foreign_keys=[edited_by_id])
     __table_args__ = (
         UniqueConstraint(
             "part_id", "part_revision_id", "version",
@@ -1048,12 +1054,22 @@ class QAInspection(Base):
 
     file_dir = Column(String, nullable=True) # QR code url or label url
 
+    edited_at = Column(DateTime(timezone=True), nullable=True)
+    edited_by_id = Column(Integer, ForeignKey("employees.id"), nullable=True)
+
+    # relationships
     # relationships
     lot = relationship("ProductionLot")
 
-    
-   
-    inspector = relationship("Employee")
+    inspector = relationship(
+        "Employee",
+        foreign_keys=[inspector_id]
+    )
+
+    edited_by = relationship(
+        "Employee",
+        foreign_keys=[edited_by_id]
+    )
     items = relationship(
         "QAInspectionItem",
         back_populates="inspection",

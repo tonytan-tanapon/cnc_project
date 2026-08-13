@@ -1,6 +1,28 @@
 // /static/js/api.js
 export const $ = (id) => document.getElementById(id);
 
+// ===============================
+// AUTH
+// ===============================
+
+const LOGIN_URL = "/static/login.html";
+
+export function getToken() {
+  return localStorage.getItem("token");
+}
+
+export function logout() {
+  localStorage.removeItem("token");
+  location.href = LOGIN_URL;
+}
+
+function redirectToLogin() {
+  // ป้องกัน redirect loop ถ้าอยู่หน้า login อยู่แล้ว
+  if (!location.pathname.endsWith("/login.html")) {
+    location.replace(LOGIN_URL);
+  }
+}
+
 const KEY_API_BASE = "apiBase";
 export function getAPIBase() {
   // sanitize: อนุญาต "" หรือ "/api/v<number>"
@@ -39,31 +61,8 @@ function isJSON(res) {
   return ct.includes("application/json");
 }
 
-// /** jfetch: ใช้กับทุก API เพื่อให้ base ตรงกันหมด */
-// export async function jfetch(path, init = {}) {
-//   const url = withBase(path);
-//   const res = await fetch(url, {
-//     headers: { "content-type": "application/json", ...(init.headers || {}) },
-//     ...init,
-//   });
-
-//   if (!res.ok) {
-//     let msg = `${res.status}: `;
-//     try {
-//       if (isJSON(res)) {
-//         const data = await res.json();
-//         msg += data?.detail || data?.message || JSON.stringify(data);
-//       } else {
-//         msg += await res.text();
-//       }
-//     } catch {
-//       msg += res.statusText || "Request failed";
-//     }
-//     throw new Error(msg);
-//   }
-//   return isJSON(res) ? res.json() : res.text();
-// }
 /** jfetch: ใช้กับทุก API เพื่อให้ base ตรงกันหมด */
+
 function _hasBody(res) {
   // no-body statuses per spec
   if (res.status === 204 || res.status === 205 || res.status === 304)
@@ -74,44 +73,74 @@ function _isJSON(res) {
   const ct = res.headers.get("content-type") || "";
   return /\bapplication\/json\b/i.test(ct);
 }
-
 export async function jfetch(path, init = {}) {
-  const url = withBase(path);
 
-  // ✅ แนบ token อัตโนมัติถ้ามีใน localStorage
-  const headers = {
-    "content-type": "application/json",
-    ...(init.headers || {}),
-  };
-  const token = localStorage.getItem("token");
-  if (token) headers["Authorization"] = `Bearer ${token}`;
+  const token = getToken();
+
+  // ไม่มี token → กลับ Login
+  if (!token) {
+    redirectToLogin();
+    throw new Error("Not authenticated");
+  }
+
+  const url = withBase(path);
 
   const res = await fetch(url, {
     ...init,
-    headers,
+
+    headers: {
+      "content-type": "application/json",
+
+      // ส่ง token ไป backend
+      Authorization: `Bearer ${token}`,
+
+      ...(init.headers || {})
+    },
   });
+
+  // token หมดอายุ / token ไม่ถูกต้อง
+  if (res.status === 401) {
+
+    localStorage.removeItem("token");
+
+    redirectToLogin();
+
+    throw new Error("Session expired");
+  }
 
   if (!res.ok) {
     let msg = `${res.status}: `;
+
     try {
       if (_hasBody(res) && _isJSON(res)) {
         const data = await res.json();
-        msg += data?.detail || data?.message || JSON.stringify(data);
+
+        msg +=
+          data?.detail ||
+          data?.message ||
+          JSON.stringify(data);
+
       } else if (_hasBody(res)) {
+
         msg += await res.text();
+
       } else {
+
         msg += res.statusText || "Request failed";
       }
+
     } catch {
       msg += res.statusText || "Request failed";
     }
+
     throw new Error(msg);
   }
 
-  // ✅ success: tolerate empty/no-content responses (e.g., DELETE 204)
   if (!_hasBody(res)) return null;
 
-  return _isJSON(res) ? res.json() : res.text();
+  return _isJSON(res)
+    ? res.json()
+    : res.text();
 }
 
 // /static/js/api.js
@@ -130,7 +159,7 @@ export function showToast(msg, ok = true) {
   const span = t.querySelector("#toastText") || t.firstChild;
   const text =
     msg === undefined || msg === null ? (ok ? "OK" : "Error") : String(msg);
-  span.textContent = text; // ✅ ไม่มี undefined แล้ว
+  span.innerHTML = text; // ✅ ไม่มี undefined แล้ว
   t.style.borderColor = ok ? "#27d17d" : "#ef4444";
   t.classList.add("show");
   setTimeout(() => t.classList.remove("show"), 2000);

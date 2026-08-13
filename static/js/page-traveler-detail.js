@@ -212,45 +212,45 @@ function ensureHeaderButtons() {
   btnHdrSave.style.display = "none";
   btnHdrSave.onclick = async () => {
 
-  try {
+    try {
 
-    setBusyT(true);
+      setBusyT(true);
 
-    // PO เปลี่ยน → เปลี่ยนเฉพาะ PO
-    if (poDirty) {
-      await changePO();
+      // PO เปลี่ยน → เปลี่ยนเฉพาะ PO
+      if (poDirty) {
+        await changePO();
+      }
+
+      // field อื่นเปลี่ยน → ค่อย update Lot
+      if (lotDirty) {
+        await savePartRevisionMaterial();
+        await saveLot();
+      }
+
+      // reload ข้อมูลล่าสุด
+      await loadLotDetail();
+
+      poDirty = false;
+      lotDirty = false;
+
+      markHeaderDirty(false);
+
+      toast("Updated");
+
+    } catch (err) {
+
+      console.error(err);
+
+      toast(
+        err?.message || "Save failed",
+        false
+      );
+
+    } finally {
+
+      setBusyT(false);
     }
-
-    // field อื่นเปลี่ยน → ค่อย update Lot
-    if (lotDirty) {
-      await savePartRevisionMaterial();
-      await saveLot();
-    }
-
-    // reload ข้อมูลล่าสุด
-    await loadLotDetail();
-
-    poDirty = false;
-    lotDirty = false;
-
-    markHeaderDirty(false);
-
-    toast("Updated");
-
-  } catch (err) {
-
-    console.error(err);
-
-    toast(
-      err?.message || "Save failed",
-      false
-    );
-
-  } finally {
-
-    setBusyT(false);
-  }
-};
+  };
 
   btnHdrCancel = document.createElement("button");
   btnHdrCancel.className = "btn-mini";
@@ -334,6 +334,7 @@ async function changePO() {
 
   return true;
 }
+
 async function saveLot() {
 
   const currentLotId = lotId;
@@ -344,34 +345,14 @@ async function saveLot() {
   }
 
   try {
-
     setBusyT(true);
 
-    // ==========================================
-    // 1. GET SELECTED PO
-    // ==========================================
-
-
-    console.log("OLD PO ID =", oldPoId);
-    console.log("NEW PO ID =", newPoId);
-
-
-    // ==========================================
-    // 2. SAVE NORMAL LOT DATA
-    // ==========================================
     const payload = {
+      lot_no: strOrNull($("lot_no")?.value),
 
-      lot_no: strOrNull(
-        $("lot_no")?.value
-      ),
+      note: strOrNull($("notes")?.value),
 
-      note: strOrNull(
-        $("notes")?.value
-      ),
-
-      risk: strOrNull(
-        $("risk")?.value
-      ),
+      risk: strOrNull($("risk")?.value),
 
       planned_qty: numOrNull(
         $("lot_planned_qty")?.value
@@ -381,7 +362,10 @@ async function saveLot() {
         $("lot_prod_qty")?.value
       ),
 
-      status: $("status")?.value || originalLot?.all?.status || "not_start",
+      status:
+        $("status")?.value ||
+        originalLot?.all?.status ||
+        "not_start",
 
       lot_shipped_qty: numOrNull(
         $("lot_shipped_qty")?.value
@@ -404,11 +388,10 @@ async function saveLot() {
       ),
     };
 
+    console.log("UPDATE LOT ID =", currentLotId);
+    console.log("UPDATE LOT PAYLOAD =", payload);
 
-    // ==========================================
-    // 3. UPDATE LOT
-    // ==========================================
-    await jfetch(
+    const result = await jfetch(
       `/lots/${currentLotId}`,
       {
         method: "PUT",
@@ -416,17 +399,8 @@ async function saveLot() {
       }
     );
 
+    console.log("UPDATE LOT RESULT =", result);
 
-    // ==========================================
-    // 4. CHANGE PO
-    // ทำเฉพาะเมื่อ PO เปลี่ยน
-    // ==========================================
-
-
-
-    // ==========================================
-    // 5. RELOAD
-    // ==========================================
     await loadLotDetail();
 
     markHeaderDirty(false);
@@ -435,7 +409,7 @@ async function saveLot() {
 
   } catch (e) {
 
-    console.error(e);
+    console.error("UPDATE LOT ERROR =", e);
 
     toast(
       e?.message || "Update lot failed",
@@ -443,7 +417,6 @@ async function saveLot() {
     );
 
   } finally {
-
     setBusyT(false);
   }
 }
@@ -535,21 +508,22 @@ function initHeaderAutocomplete() {
       maxHeight: 260,
 
       onPick: (it) => {
-  selectedPO = it;
+        selectedPO = it;
 
-  poEl.value = it.label;
-  poEl.dataset.id = String(it.id);
+        poEl.value = it.label;
+        poEl.dataset.id = String(it.id);
 
-  poDirty = true;
+        poDirty = true;
 
-  markHeaderDirty(true);
-},
+        markHeaderDirty(true);
+      },
     });
 
     poEl.addEventListener("input", () => {
       selectedPO = null;
       delete poEl.dataset.id;
 
+      poDirty = true;
       markHeaderDirty(true);
     });
   }
