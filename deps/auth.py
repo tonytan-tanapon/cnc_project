@@ -38,24 +38,39 @@ def authenticate_user(db: Session, username: str, password: str) -> Optional[Use
         return None
     return user
 
-def get_current_user(db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)) -> User:
+def get_current_user(
+    db: Session = Depends(get_db),
+    token: str = Depends(oauth2_scheme)
+) -> User:
+
     cred_exc = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(
+            token,
+            SECRET_KEY,
+            algorithms=[ALGORITHM]
+        )
+
         sub = payload.get("sub")
+
         if sub is None:
             raise cred_exc
+
         user_id = int(sub)
+
     except (JWTError, ValueError):
         raise cred_exc
 
-    user = db.query(User).get(user_id)
+    user = db.get(User, user_id)
+
     if not user or not user.is_active:
         raise cred_exc
+
     return user
 
 # endpoint เปลี่ยน username/password → token (ไปใช้ใน main.py)
@@ -75,3 +90,50 @@ def login_for_access_token(
         )
     token = create_access_token({"sub": str(user.id)})
     return {"access_token": token, "token_type": "bearer"}
+
+
+# =========================================================
+# ACCESS CONTROL
+# =========================================================
+
+def require_superadmin(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    """
+    Allow only Super Admin.
+    """
+    if not current_user.is_superuser:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Super admin access required",
+        )
+
+    return current_user
+
+
+def require_admin(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    """
+    Allow:
+      - Super Admin
+      - User with ADMIN role
+    """
+
+    # Super Admin bypasses role checks
+    if current_user.is_superuser:
+        return current_user
+
+    has_admin_role = any(
+        user_role.role
+        and user_role.role.code.upper() == "ADMIN"
+        for user_role in current_user.user_roles
+    )
+
+    if not has_admin_role:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required",
+        )
+
+    return current_user

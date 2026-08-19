@@ -882,9 +882,11 @@ class UserBase(APIBase):
     is_superuser: Optional[bool] = None
     employee_id: Optional[int] = None
 
-class UserCreate(UserBase):
+class UserCreate(BaseModel):
     username: str
     password: str
+    email: str | None = None
+    employee_id: int | None = None
 
 class UserUpdate(UserBase):
     pass

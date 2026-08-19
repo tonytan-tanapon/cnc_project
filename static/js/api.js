@@ -5,11 +5,14 @@ const KEY_API_BASE = "apiBase";
 export function getAPIBase() {
   // sanitize: อนุญาต "" หรือ "/api/v<number>"
   let v = (localStorage.getItem(KEY_API_BASE) || "").trim();
+  // console.log("getAPIBase:", KEY_API_BASE,v);
   if (v && !/^\/api\/v\d+$/i.test(v)) {
     // ถ้ามีค่าประหลาด (เผลอตั้งเป็น path อื่น) ให้รีเซ็ตเป็น /api/v1
     v = "/api/v1";
     localStorage.setItem(KEY_API_BASE, v);
+    // console.warn("Invalid API base in localStorage, reset to /api/v1");
   }
+  // console.log("getAPIBase after:", v || "/api/v1");
   return v || "/api/v1";
 }
 export function setAPIBase(v) {

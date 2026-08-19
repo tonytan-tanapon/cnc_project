@@ -5,25 +5,30 @@ from sqlalchemy import and_
 from typing import List
 
 from database import get_db
-from models import User, Role, UserRole
+from models import User, Employee, Role, Permission, UserRole, RolePermission
 from schemas import (
-    UserCreate,
-    UserUpdate,
-    UserOut,
-    SetPasswordIn,
-    AssignRoleIn,
-    RoleOut,
+    UserCreate, UserUpdate, UserOut,
+    SetPasswordIn, AssignRoleIn, RoleOut, PermissionOut
 )
 
-from deps.auth import (
-    get_password_hash,
-    require_superadmin,
-)
-router = APIRouter(
-    prefix="/users",
-    tags=["users"],
-    dependencies=[Depends(require_superadmin)]
-)
+# ---------- Robust password hasher (with fallback) ----------
+# พยายามใช้ utils.security.hash_password ถ้ามี
+try:
+    from importlib import import_module
+    _sec = import_module("utils.security")
+    if hasattr(_sec, "hash_password"):
+        hash_password = _sec.hash_password  # type: ignore[attr-defined]
+    else:
+        raise ImportError("utils.security.hash_password not found")
+except Exception:
+    # Fallback แบบง่าย: SHA-256 (แนะนำให้เปลี่ยนเป็น passlib/bcrypt ใน production)
+    import hashlib, os
+    def hash_password(raw: str) -> str:
+        salt = os.getenv("APP_PW_SALT", "")
+        return hashlib.sha256((salt + raw).encode("utf-8")).hexdigest()
+# ------------------------------------------------------------
+
+router = APIRouter(prefix="/users", tags=["users"])
 
 
 # ---------------------------
@@ -41,6 +46,7 @@ def _get_role_or_404(db: Session, role_code: str) -> Role:
         raise HTTPException(404, "Role not found")
     return r
 
+
 # ---------------------------
 # CRUD Users
 # ---------------------------
@@ -55,11 +61,10 @@ def create_user(payload: UserCreate, db: Session = Depends(get_db)):
     u = User(
     username=payload.username.strip(),
     email=payload.email,
-    password_hash=get_password_hash(payload.password),
-    is_active=True,
-    is_superuser=False,
+    password_hash=hash_password(payload.password),  # ใช้ตัวนี้
+    is_active=payload.is_active if payload.is_active is not None else True,
+    is_superuser=payload.is_superuser if payload.is_superuser is not None else False,
     employee_id=payload.employee_id,
-
 )
 
     db.add(u)
@@ -107,7 +112,7 @@ def set_password(user_id: int, payload: SetPasswordIn, db: Session = Depends(get
     u = _get_user_or_404(db, user_id)
     if not payload.new_password or len(payload.new_password) < 6:
         raise HTTPException(422, "Password must be at least 6 characters")
-    u.password_hash = get_password_hash(payload.new_password)
+    u.password_hash = hash_password(payload.new_password)  # ใช้ตัวนี้
     db.commit()
     return {"message": "Password updated"}
 
