@@ -3,6 +3,7 @@ from sqlalchemy import create_engine, inspect
 from datetime import datetime
 from pathlib import Path
 def database_backup():
+    print("Starting database backup...")
     # ---------------- CONFIG ----------------
     DATABASE_URL = "postgresql+psycopg2://postgres:1234@100.88.56.126:5432/mydb"
     SCHEMA = "public"

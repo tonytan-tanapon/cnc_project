@@ -34,6 +34,7 @@ scheduler = BackgroundScheduler()
 
 @app.on_event("startup")
 def start_scheduler():
+    print('os.getenv("ENABLE_SCHEDULER"):', os.getenv("ENABLE_SCHEDULER"))
 
     # เปิด Scheduler เฉพาะตอนที่ตั้ง Environment Variable
     # print("os.getenv(ABLE_SCHEDULER)",os.getenv("ENABLE_SCHEDULER"))
@@ -70,6 +71,7 @@ def start_scheduler():
     scheduler.add_job(
         database_backup,
         "cron",
+        day_of_week="mon-fri",
         hour=1,
         minute=0,
         id="database_export",
