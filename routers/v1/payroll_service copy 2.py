@@ -276,7 +276,7 @@ def calculate_payroll_data(
         sum_pay_ot += pay_ot
 
     # Time leave 
-    
+    print("employee_ids:", employee_ids)
     leave_rows = (
         db.query(TimeLeave)
         .filter(
@@ -288,6 +288,7 @@ def calculate_payroll_data(
         .order_by(TimeLeave.start_at)
         .all()
     )
+    # print("leavฝe_rows", leave_rows)
     leave_total = (
         db.query(func.count(TimeLeave.id))
         .filter(
@@ -505,10 +506,10 @@ def export_excel(
             leave.leave_type in ("sick", "vacation")
             and pay_start <= leave_date <= pay_end
         ):
-            
+            print("pay_start:", pay_start, "pay_end:",pay_end, "leave_pay:",leave_date)
             leave_pay += 8 * rate
        
-    
+    print("leave_pay:", leave_pay)
 
     ws.cell(row_no, 7, "Total")
 
@@ -731,17 +732,17 @@ def export_payee(
     
 
     for leave in payroll["leave_rows"]:
-        
+
         leave_date = leave.start_at.date()
 
         if (
             leave.leave_type in ("sick", "vacation")
             and pay_start <= leave_date <= pay_end
         ):
-           
+            print("pay_start:", pay_start, "pay_end:",pay_end, "leave_pay:",leave_date)
             leave_pay += 8 * rate
        
-  
+    print("leave_pay:", leave_pay)
 
     ws.cell(row_no, 7, "Total")
 
@@ -872,7 +873,7 @@ def export_payee(
             "ot_hours": dep_payroll["total_ot_hours"]
 
         })
-   
+        # print("employee_sum + dep_payroll[total_pay]: " , employee_sum, dep_payroll["total_p/ay"])
         employee_sum += dep_payroll["total_pay"]
 
     ws.cell(row_no, 12, "Dependent Pay")
@@ -900,7 +901,7 @@ def export_payee(
     # ==========================
     # Extra
     # ==========================
-
+    # print("payee_total - employee_sum:",payee_total,employee_sum)
     extra_amount = payee_total - employee_sum
 
     row_no += 1
