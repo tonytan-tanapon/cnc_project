@@ -105,8 +105,8 @@ def delete_user(user_id: int, db: Session = Depends(get_db)):
 @router.post("/{user_id}/set-password")
 def set_password(user_id: int, payload: SetPasswordIn, db: Session = Depends(get_db)):
     u = _get_user_or_404(db, user_id)
-    if not payload.new_password or len(payload.new_password) < 6:
-        raise HTTPException(422, "Password must be at least 6 characters")
+    # if not payload.new_password or len(payload.new_password) < 6:
+    #     raise HTTPException(422, "Password must be at least 6 characters")
     u.password_hash = get_password_hash(payload.new_password)
     db.commit()
     return {"message": "Password updated"}
