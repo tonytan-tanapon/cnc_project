@@ -680,12 +680,12 @@ function initShipmentTable() {
         width: 80,
 
         formatter: (cell) => {
-          const v = cell.getValue() ?? 0;
-          return `<div style="
-        background: yellow;
-        padding: 4px 8px;
-        border-radius: 6px;
-      ">${v}</div>`;
+            const v = cell.getValue() ?? 0;
+            return `<div style="
+          background: yellow;
+          padding: 4px 8px;
+          border-radius: 6px;
+        ">${v}</div>`;
         },
 
         cellEdited: async (cell) => {
@@ -715,6 +715,7 @@ function initShipmentTable() {
           }
         },
       },
+
       // {
       //   title: "Status",
       //   field: "status",
@@ -770,17 +771,18 @@ function initShipmentTable() {
       //         }
       //       },
       //     },
+
       {
         title: "Docs",
         width: 140,
         hozAlign: "center",
         formatter: () => `
-    <div style="display:flex; flex-direction:column; gap:6px; align-items:center;">
-      <button class="btn-mini btn-blue" data-action="cofc">CofC</button>
-      <button class="btn-mini btn-green" data-action="packing">Packing</button>
-      <button class="btn-mini btn-green" data-action="packingfa">PackingFA</button>
-    </div>
-  `,
+          <div style="display:flex; flex-direction:column; gap:6px; align-items:center;">
+            <button class="btn-mini btn-blue" data-action="cofc">CofC</button>
+            <button class="btn-mini btn-green" data-action="packing">Packing</button>
+            <button class="btn-mini btn-green" data-action="packingfa">PackingFA</button>
+          </div>
+        `,
         cellClick: async (e, cell) => {
           const btn = e.target.closest("button");
           if (!btn) return;
@@ -829,7 +831,7 @@ function initShipmentTable() {
 
         },
       },
-      
+
       {
         title: "Label",
         width: 150,
@@ -869,8 +871,6 @@ function initShipmentTable() {
             }
           }
 
-
-
           const btn = e.target.closest("button");
           if (!btn) return;
 
@@ -891,7 +891,7 @@ function initShipmentTable() {
             type = "label";
           }
 
-          console.log("type", type )
+          console.log("type", type)
 
           // ✅ Show reminder for AF6182 when Fair label is clicked
           if (customerCode === "AF6182" && type === "fair") {
@@ -911,10 +911,12 @@ function initShipmentTable() {
 
       {
         title: "Note",
-        field: "note",
+        field: "notes",
         editor: "input",
         width: 300,
+        cellEdited: updateField("notes"),
       },
+
       // {
       //   title: "Report",
       //   width: 100,
@@ -928,6 +930,7 @@ function initShipmentTable() {
       //     }
       //   },
       // },
+
       {
         title: "Delete",
         width: 90,
@@ -1065,12 +1068,8 @@ function makeLotLinks(lotId) {
 document.addEventListener("DOMContentLoaded", async () => {
   await loadLotHeader();
   await loadShipmentsList();
-
-
-
   initPartTable();
   initShipmentTable();
   initToolbar();
-
   makeLotLinks(lotId);
 });
