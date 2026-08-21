@@ -71,7 +71,6 @@ def calculate_payroll_data(
     employee_ids = [employee.id]
 
     if show_payee and employee.payroll_emp_id:
-
         payee = (
             db.query(Employee)
             .filter(
@@ -82,14 +81,10 @@ def calculate_payroll_data(
         )
 
         if payee:
-
             employee_ids = [payee.id]
-
             for dep in payee.payroll_dependents:
                 employee_ids.append(dep.id)
-
             employee = payee
-
     entries = (
         db.query(TimeEntry)
         .filter(
