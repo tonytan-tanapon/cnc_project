@@ -17,6 +17,8 @@ class RevMini(BaseModel):
     id: int
     rev: str
     is_current: bool
+
+
 @parts_router.get("/next-code")
 def get_next_part_code(prefix: str = "P", width: int = 5, db: Session = Depends(get_db)):
     return {"next_code": next_code(db, Part, "part_no", prefix=prefix, width=width)}
@@ -193,7 +195,7 @@ def list_parts_keyset(
         "has_more": has_more,
     }
 
-@parts_router.get("/", response_model=dict)
+@parts_router.get("", response_model=dict)  #edit to remove 307 temporary redirect
 def list_parts(
     db: Session = Depends(get_db),
     q: str | None = Query(None, description="search in part_no or name"),
@@ -225,6 +227,7 @@ def list_parts(
         }
 
     return {"items": [to_dict(p) for p in items]}
+
 # @parts_router.get("/", response_model=dict)
 # def list_parts(
 #     q: Optional[str] = Query(default=None, description="search part_no/name"),

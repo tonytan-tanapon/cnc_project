@@ -142,41 +142,18 @@ def calculate_payroll_data(
 
         rows.append({
             "id": te.id,
-
             "break_id": break_id,
-
-            "date":
-                te.clock_in_at.date(),
-
-            "clock_in":
-                te.clock_in_at,
-
-            "clock_out":
-                te.clock_out_at,
-
-            "start_break":
-                start_break,
-
-            "stop_break":
-                stop_break,
-
-            "break_hours":
-                round(break_hours, 2),
-
-            "total_hours":
-                round(total_hours, 2),
-
-            "reg_hours":
-                round(reg_hours, 2),
-
-            "ot_hours":
-                round(ot_hours, 2),
-
-            "note":
-                te.notes or "",
-
-            "six_day_ot":
-                False,
+            "date": te.clock_in_at.date(),
+            "clock_in": te.clock_in_at,
+            "clock_out": te.clock_out_at,
+            "start_break": start_break,
+            "stop_break": stop_break,
+            "break_hours": round(break_hours, 2),
+            "total_hours": round(total_hours, 2),
+            "reg_hours": round(reg_hours, 2),
+            "ot_hours": round(ot_hours, 2),
+            "note": te.notes or "",
+            "six_day_ot": False,
             "employee_name": te.employee.name if te.employee else "",
         })
 
