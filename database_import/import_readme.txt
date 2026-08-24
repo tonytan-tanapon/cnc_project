@@ -1,0 +1,2 @@
+python database_import/import_part_detail_extra.py
+python database_import/import_part_detail.py

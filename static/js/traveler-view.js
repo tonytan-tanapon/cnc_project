@@ -86,7 +86,7 @@ const HEADER_MAP = {
   `,
 
   heat_lot: `
-    <th class="col-heat-lot">Heat Lot</th>
+    <th class="col-heat-lot">Heat Lot/Cert</th>
   `,
 
   mat_type: `
