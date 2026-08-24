@@ -162,7 +162,7 @@ function makeColumns() {
     {
       title: "Copy",
       download: false,
-      width: 100,
+      width: 90,
       hozAlign: "center",
       formatter: () => `
         <button style="
@@ -190,7 +190,7 @@ function makeColumns() {
     {
       title: "Lot",
       field: "lot_no",
-      width: 100,
+      width: 95,
       sorter: (a, b) => {
         const na = Number((a || "").match(/\d+/)?.[0] || 0);
         const nb = Number((b || "").match(/\d+/)?.[0] || 0);
@@ -303,143 +303,475 @@ function makeColumns() {
     ,
     { title: "Cust", field: "customer_code", width: 80 },
 
-    /* ===== PART ===== */
+    /* ===== PART + PART NAME ===== */
     {
       title: "Part",
       field: "part_no",
-      width: 200,
+      width: 250,
+
       formatter: (cell) => {
         const d = cell.getData();
 
-        const rev =
-          d.revision
-            ? ` (${d.revision})`
-            : "";
+        const rev = d.revision
+          ? ` (${d.revision})`
+          : "";
 
         const label =
           `${d.part_no ?? ""}${rev}`;
 
+        const partName =
+          d.part_name ?? "";
+
         const ecar =
           d.ecar === "Y"
             ? `
-      <a
-        href="/static/ecars.html?q=${encodeURIComponent(d.part_no || "")}"
-        style="color:#c0392b;font-weight:bold;"
-      >
-        ⛔CAR
-      </a>
-    `
-            : "";
-        const icar = d.icar === "Y" ? `
-      <a href="/static/icars.html?q=${encodeURIComponent(d.part_no || "")}" style="color:#2980b9;font-weight:bold;" >⚠️ICAR </a>
-    `
+          <a
+            href="/static/ecars.html?q=${encodeURIComponent(d.part_no || "")}"
+            style="color:#c0392b;font-weight:bold;"
+          >
+            ⛔CAR
+          </a>
+        `
             : "";
 
-        const tags =
-          [ecar, icar]
-            .filter(Boolean)
-            .join(" | ");
+        const icar =
+          d.icar === "Y"
+            ? `
+          <a
+            href="/static/icars.html?q=${encodeURIComponent(d.part_no || "")}"
+            style="color:#2980b9;font-weight:bold;"
+          >
+            ⚠️ICAR
+          </a>
+        `
+            : "";
+
+        const tags = [ecar, icar]
+          .filter(Boolean)
+          .join(" | ");
 
         return `
-    <div>
-    
-      <div style="display:flex;gap:6px;align-items:center;">
-      
-        <span
-          class="drawing"
-          style="cursor:pointer;"
-          title="CNC drawing"
-        >
-          📐
-        </span>
+      <div>
 
-        ${d.part_id
+        <!-- PART NUMBER -->
+        <div style="
+          display:flex;
+          gap:6px;
+          align-items:center;
+        ">
+
+          <span
+            class="drawing"
+            style="cursor:pointer;"
+            title="CNC drawing"
+          >
+            📐
+          </span>
+
+          ${d.part_id
             ? `
-              <a class="link"
-                 href="/static/manage-part-detail.html?part_id=${d.part_id}
-                 &part_revision_id=${d.part_revision_id ?? ""}
-                 &customer_id=${d.customer_id ?? ""}">
-                 ${label}
-              </a>
-            `
+                <a
+                  class="link"
+                  href="/static/manage-part-detail.html?part_id=${d.part_id}&part_revision_id=${d.part_revision_id ?? ""}&customer_id=${d.customer_id ?? ""}"
+                >
+                  ${label}
+                </a>
+              `
             : `<span>${label}</span>`
           }
 
-        <span
-          class="copy-part"
-          style="cursor:pointer;"
-        >
-          📋
-        </span>
+          <span
+            class="copy-part"
+            style="cursor:pointer;"
+            title="Copy Part Number"
+          >
+            📋
+          </span>
 
-      </div>
+        </div>
 
-      ${tags
+
+        <!-- PART NAME -->
+        ${partName
             ? `
-            <div
-              style="
+              <div style="
                 margin-left:22px;
-                font-size:11px;
-                color:#c0392b;
-                font-weight:bold;
-              "
-            >
-              ${tags}
-            </div>
-          `
+                margin-top:3px;
+                font-size:12px;
+                display:flex;
+                gap:5px;
+                align-items:center;
+              ">
+
+                <span>${partName}</span>
+
+                <span
+                  class="copy-pname"
+                  style="cursor:pointer;"
+                  title="Copy Part Name"
+                >
+                  📋
+                </span>
+
+              </div>
+            `
             : ""
           }
 
-    </div>
-  `;
+
+        <!-- ECAR / ICAR -->
+        ${tags
+            ? `
+              <div style="
+                margin-left:22px;
+                margin-top:3px;
+                font-size:11px;
+                font-weight:bold;
+              ">
+                ${tags}
+              </div>
+            `
+            : ""
+          }
+
+      </div>
+    `;
       },
+
+
       cellClick: async (e, cell) => {
+
         const d = cell.getRow().getData();
 
-        if (e.target.classList.contains("copy-part")) {
+
+        // =========================
+        // COPY PART NUMBER
+        // =========================
+
+        if (
+          e.target.classList.contains("copy-part")
+        ) {
+
           e.preventDefault();
           e.stopPropagation();
-          copyWithFeedback(e.target, `${d.part_no ?? ""}`, "Copied Part");
+
+          copyWithFeedback(
+            e.target,
+            `${d.part_no ?? ""}`,
+            "Copied Part"
+          );
+
           return;
         }
 
-        if (e.target.classList.contains("drawing")) {
+
+        // =========================
+        // COPY PART NAME
+        // =========================
+
+        if (
+          e.target.classList.contains("copy-pname")
+        ) {
+
           e.preventDefault();
           e.stopPropagation();
 
-          const d = cell.getRow().getData();
+          copyWithFeedback(
+            e.target,
+            `${d.part_name ?? ""}`,
+            "Copied Part Name"
+          );
 
-          lotId = d.lot_id;   // ✅ set before calling
-          travelerId = null;  // optional reset
+          return;
+        }
+
+
+        // =========================
+        // DRAWING
+        // =========================
+
+        if (
+          e.target.classList.contains("drawing")
+        ) {
+
+          e.preventDefault();
+          e.stopPropagation();
+
+          lotId = d.lot_id;
+          travelerId = null;
 
           await loadTraveler();
 
-          console.log("load drawing", travelerId, lotId);
+          console.log(
+            "load drawing",
+            travelerId,
+            lotId
+          );
 
           await downloadDrawingBatch();
         }
+
       },
 
     },
 
-    /* ===== PART NAME ===== */
+    //   /* ===== PART ===== */
+    //   {
+    //     title: "Part",
+    //     field: "part_no",
+    //     width: 200,
+    //     formatter: (cell) => {
+    //       const d = cell.getData();
+
+    //       const rev =
+    //         d.revision
+    //           ? ` (${d.revision})`
+    //           : "";
+
+    //       const label =
+    //         `${d.part_no ?? ""}${rev}`;
+
+    //       const ecar =
+    //         d.ecar === "Y"
+    //           ? `
+    //     <a
+    //       href="/static/ecars.html?q=${encodeURIComponent(d.part_no || "")}"
+    //       style="color:#c0392b;font-weight:bold;"
+    //     >
+    //       ⛔CAR
+    //     </a>
+    //   `
+    //           : "";
+    //       const icar = d.icar === "Y" ? `
+    //     <a href="/static/icars.html?q=${encodeURIComponent(d.part_no || "")}" style="color:#2980b9;font-weight:bold;" >⚠️ICAR </a>
+    //   `
+    //         : "";
+
+    //       const tags =
+    //         [ecar, icar]
+    //           .filter(Boolean)
+    //           .join(" | ");
+
+    //       return `
+    //   <div>
+
+    //     <div style="display:flex;gap:6px;align-items:center;">
+
+    //       <span
+    //         class="drawing"
+    //         style="cursor:pointer;"
+    //         title="CNC drawing"
+    //       >
+    //         📐
+    //       </span>
+
+    //       ${d.part_id
+    //           ? `
+    //             <a class="link"
+    //                href="/static/manage-part-detail.html?part_id=${d.part_id}
+    //                &part_revision_id=${d.part_revision_id ?? ""}
+    //                &customer_id=${d.customer_id ?? ""}">
+    //                ${label}
+    //             </a>
+    //           `
+    //           : `<span>${label}</span>`
+    //         }
+
+    //       <span
+    //         class="copy-part"
+    //         style="cursor:pointer;"
+    //       >
+    //         📋
+    //       </span>
+
+    //     </div>
+
+    //     ${tags
+    //           ? `
+    //           <div
+    //             style="
+    //               margin-left:22px;
+    //               font-size:11px;
+    //               color:#c0392b;
+    //               font-weight:bold;
+    //             "
+    //           >
+    //             ${tags}
+    //           </div>
+    //         `
+    //           : ""
+    //         }
+
+    //   </div>
+    // `;
+    //     },
+    //     cellClick: async (e, cell) => {
+    //       const d = cell.getRow().getData();
+
+    //       if (e.target.classList.contains("copy-part")) {
+    //         e.preventDefault();
+    //         e.stopPropagation();
+    //         copyWithFeedback(e.target, `${d.part_no ?? ""}`, "Copied Part");
+    //         return;
+    //       }
+
+    //       if (e.target.classList.contains("drawing")) {
+    //         e.preventDefault();
+    //         e.stopPropagation();
+
+    //         const d = cell.getRow().getData();
+
+    //         lotId = d.lot_id;   // ✅ set before calling
+    //         travelerId = null;  // optional reset
+
+    //         await loadTraveler();
+
+    //         console.log("load drawing", travelerId, lotId);
+
+    //         await downloadDrawingBatch();
+    //       }
+    //     },
+
+    //   },
+
+    //   /* ===== PART NAME ===== */
+    //   {
+    //     title: "Part Name",
+    //     field: "part_name",
+    //     width: 160,
+    //     formatter: (cell) => `
+    //       <div style="display:flex;gap:6px;align-items:center;">
+    //         <span>${cell.getValue() ?? ""}</span>
+    //         <span class="copy-pname" style="cursor:pointer;">📋</span>
+    //       </div>
+    //     `,
+    //     cellClick: (e, cell) => {
+    //       if (!e.target.classList.contains("copy-pname")) return;
+    //       e.preventDefault();
+    //       e.stopPropagation();
+    //       copyWithFeedback(e.target, cell.getValue(), "Copied Part Name");
+    //     },
+    //   },
+
     {
-      title: "Part Name",
-      field: "part_name",
-      width: 160,
-      formatter: (cell) => `
-        <div style="display:flex;gap:6px;align-items:center;">
-          <span>${cell.getValue() ?? ""}</span>
-          <span class="copy-pname" style="cursor:pointer;">📋</span>
-        </div>
-      `,
-      cellClick: (e, cell) => {
-        if (!e.target.classList.contains("copy-pname")) return;
-        e.preventDefault();
-        e.stopPropagation();
-        copyWithFeedback(e.target, cell.getValue(), "Copied Part Name");
+      title: "Part Detail",
+      field: "part_detail",
+      width: 180,
+
+      editor: "textarea",
+
+      formatter: (cell) => {
+        const v = cell.getValue();
+
+        return `
+      <div style="
+        white-space: pre-wrap;
+        padding:4px;
+        font-size:12px;
+      ">${v ?? ""}</div>
+    `;
+      },
+
+      cellEdited: async (cell) => {
+        const d = cell.getRow().getData();
+
+        const res = await fetch(
+          `/api/v1/parts/${d.part_id}`,
+          {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              part_detail: cell.getValue()
+            })
+          }
+        );
+
+        if (!res.ok) {
+          alert("Failed to update Part Detail");
+        }
       },
     },
+
+
+    {
+      title: "Part Detail Extra",
+      field: "part_detail_extra",
+      width: 200,
+
+      editor: "textarea",
+
+      formatter: (cell) => {
+        const v = cell.getValue();
+
+        return `
+      <div style="
+        white-space: pre-wrap;
+        padding:4px;
+        font-size:12px;
+      ">${v ?? ""}</div>
+    `;
+      },
+
+      cellEdited: async (cell) => {
+        const d = cell.getRow().getData();
+
+        const res = await fetch(
+          `/api/v1/parts/${d.part_id}`,
+          {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              part_detail_extra: cell.getValue()
+            })
+          }
+        );
+
+        if (!res.ok) {
+          alert("Failed to update Part Detail Extra");
+        }
+      },
+    },
+    // {
+    //   title: "Part Detail",
+    //   field: "part_detail",
+    //   width: 180,
+    //   formatter: (cell) => {
+    //     const v = cell.getValue();
+
+    //     return `
+    //   <div style="
+    //     white-space: normal;
+    //     padding:4px;
+    //     font-size:12px;
+    //   ">
+    //     ${v ?? ""}
+    //   </div>
+    // `;
+    //   },
+    // },
+
+    // {
+    //   title: "Part Detail Extra",
+    //   field: "part_detail_extra",
+    //   width: 200,
+    //   formatter: (cell) => {
+    //     const v = cell.getValue();
+
+    //     return `
+    //   <div style="
+    //     white-space: pre-wrap;
+    //     padding:4px;
+    //     font-size:12px;
+    //   ">
+    //     ${v ?? ""}
+    //   </div>
+    // `;
+    //   },
+    // },
 
 
     // /* ===== DUE DATE ===== */
@@ -458,116 +790,277 @@ function makeColumns() {
     // },
 
 
+    // {
+    //   title: "Due",
+    //   field: "lot_po_duedate",
+    //   width: 90,
+
+    //   formatter: (cell) => {
+    //     const v = cell.getValue();
+    //     if (!v) return "";
+
+    //     const [y, m, d] = v.split("T")[0].split("-");
+    //     return `${m}/${d}/${y.slice(-2)}`;
+    //   },
+
+    //   // ✅ IMPORTANT
+    //   accessorDownload: (value) => {
+    //     if (!value) return "";
+
+    //     const [y, m, d] = value.split("T")[0].split("-");
+    //     return `${m}/${d}/${y.slice(-2)}`;
+    //   }
+    // }
+    // ,
+
+    // /* ===== DAYS LEFT (PO LEVEL) ===== */
+    // {
+    //   title: "Left",
+    //   field: "lot_po_days_left",
+    //   width: 90,
+    //   hozAlign: "center",
+    //   sorter: "number",
+    //   formatter: (cell) => {
+    //     const r = cell.getRow().getData();
+    //     const days = cell.getValue();
+
+    //     // ---- normalize status ----
+    //     const lotStatus = String(r.lot_status ?? "").toLowerCase();
+
+    //     // 1️⃣ PO completed
+    //     // 1️⃣ PO completed (highest priority)
+    //     if (r.po_remaining_qty === 0) {
+    //       return `
+    //     <span title="PO Completed" style="
+    //       display:inline-flex;
+    //       align-items:center;
+    //       justify-content:center;
+    //       background:#10b981;
+    //       color:white;
+    //       width:34px;
+    //       height:24px;
+    //       border-radius:999px;
+    //       font-weight:700;
+    //     ">
+    //       ✔
+    //     </span>
+    //   `;
+    //     }
+
+    //     // 2️⃣ Lot completed
+    //     if (lotStatus === "completed") {
+    //       if (r.po_remaining_qty > 0) {
+    //         return `
+    //     <span title="PO remain" style="
+    //       display:inline-flex;
+    //       align-items:center;
+    //       justify-content:center;
+    //       background:#10b981;
+    //       color:white;
+    //       width:34px;
+    //       height:24px;
+    //       border-radius:999px;
+    //       font-weight:700;
+    //     ">
+    //       X
+    //     </span>
+    //   `;
+    //       }
+    //       return `
+    //     <span title="Lot Completed" style="
+    //       display:inline-flex;
+    //       align-items:center;
+    //       justify-content:center;
+    //       background:#9ca3af;
+    //       color:white;
+    //       width:34px;
+    //       height:24px;
+    //       border-radius:999px;
+    //       font-weight:700;
+    //     ">
+    //       O
+    //     </span>
+    //   `;
+    //     }
+    //     // ✓
+    //     // 3️⃣ Normal due logic
+    //     if (days == null) return "";
+
+    //     const color = days < 0 ? "#ef4444" : days <= 3 ? "#f59e0b" : "#10b981";
+
+    //     const text = days < 0 ? `${Math.abs(days)}d OD` : `${days}d left`;
+
+    //     return `<span style="
+    //   background:${color};
+    //   color:white;
+    //   padding:4px 8px;
+    //   border-radius:8px;
+    //   font-weight:600;
+    // ">
+    //   ${text}
+    // </span>`;
+    //   },
+    // },
+
     {
       title: "Due",
       field: "lot_po_duedate",
       width: 90,
+      hozAlign: "center",
 
       formatter: (cell) => {
-        const v = cell.getValue();
-        if (!v) return "";
+        const r = cell.getRow().getData();
 
-        const [y, m, d] = v.split("T")[0].split("-");
-        return `${m}/${d}/${y.slice(-2)}`;
+        const dueDate = r.lot_po_duedate;
+        const days = r.lot_po_days_left;
+        const lotStatus = String(r.lot_status ?? "").toLowerCase();
+
+        // =========================
+        // FORMAT DUE DATE
+        // =========================
+        let dueText = "";
+
+        if (dueDate) {
+          const [y, m, d] = dueDate.split("T")[0].split("-");
+          dueText = `${m}/${d}/${y.slice(-2)}`;
+        }
+
+        // =========================
+        // LEFT STATUS
+        // =========================
+        let leftHtml = "";
+
+        // 1. PO Completed
+        //   if (r.po_remaining_qty === 0) {
+        //     leftHtml = `
+        //   <span title="PO Completed" style="
+        //     display:inline-flex;
+        //     align-items:center;
+        //     justify-content:center;
+        //     background:#10b981;
+        //     color:white;
+        //     width:34px;
+        //     height:24px;
+        //     border-radius:999px;
+        //     font-weight:700;
+        //   ">
+        //     ✔
+        //   </span>
+        // `;
+        //   }
+
+        //   // 2. Lot Completed but PO still remain
+        //   else if (lotStatus === "completed") {
+        if (lotStatus === "completed") {
+          if (r.po_remaining_qty > 0) {
+            leftHtml = `
+          <span title="PO remain" style="
+            display:inline-flex;
+            align-items:center;
+            justify-content:center;
+            background:#10b981;
+            color:white;
+            width:34px;
+            height:24px;
+            border-radius:999px;
+            font-weight:700;
+          ">
+            X
+          </span>
+        `;
+          } else {
+            leftHtml = `
+          <span title="Lot Completed" style="
+            display:inline-flex;
+            align-items:center;
+            justify-content:center;
+            background:#9ca3af;
+            color:white;
+            width:34px;
+            height:24px;
+            border-radius:999px;
+            font-weight:700;
+          ">
+            O
+          </span>
+        `;
+          }
+        }
+
+        // 3. Normal due logic
+        else if (days != null) {
+          const color =
+            days < 0
+              ? "#ef4444"
+              : days <= 3
+                ? "#f59e0b"
+                : "#10b981";
+
+          const text =
+            days < 0
+              ? `${Math.abs(days)}d OD`
+              : `${days}d left`;
+
+          leftHtml = `
+        <span style="
+          background:${color};
+          color:white;
+          padding:4px 8px;
+          border-radius:8px;
+          font-weight:600;
+        ">
+          ${text}
+        </span>
+      `;
+        }
+
+        // =========================
+        // COMBINE
+        // =========================
+        return `
+      <div style="
+        display:flex;
+        flex-direction:column;
+        align-items:center;
+        justify-content:center;
+        gap:3px;
+      ">
+        <div>${dueText}</div>
+        <div>${leftHtml}</div>
+      </div>
+    `;
       },
 
-      // ✅ IMPORTANT
-      accessorDownload: (value) => {
+      // =========================
+      // EXCEL DOWNLOAD
+      // =========================
+      accessorDownload: (value, data) => {
         if (!value) return "";
 
         const [y, m, d] = value.split("T")[0].split("-");
-        return `${m}/${d}/${y.slice(-2)}`;
+        const dueText = `${m}/${d}/${y.slice(-2)}`;
+
+        const days = data.lot_po_days_left;
+
+        if (data.po_remaining_qty === 0) {
+          return `${dueText} - Completed`;
+        }
+
+        if (String(data.lot_status ?? "").toLowerCase() === "completed") {
+          return `${dueText} - Lot Completed`;
+        }
+
+        if (days == null) {
+          return dueText;
+        }
+
+        const leftText =
+          days < 0
+            ? `${Math.abs(days)}d OD`
+            : `${days}d left`;
+
+        return `${dueText} - ${leftText}`;
       }
-    }
-    ,
-
-    /* ===== DAYS LEFT (PO LEVEL) ===== */
-    {
-      title: "Left",
-      field: "lot_po_days_left",
-      width: 90,
-      hozAlign: "center",
-      sorter: "number",
-      formatter: (cell) => {
-        const r = cell.getRow().getData();
-        const days = cell.getValue();
-
-        // ---- normalize status ----
-        const lotStatus = String(r.lot_status ?? "").toLowerCase();
-
-        // 1️⃣ PO completed
-        // 1️⃣ PO completed (highest priority)
-        if (r.po_remaining_qty === 0) {
-          return `
-        <span title="PO Completed" style="
-          display:inline-flex;
-          align-items:center;
-          justify-content:center;
-          background:#10b981;
-          color:white;
-          width:34px;
-          height:24px;
-          border-radius:999px;
-          font-weight:700;
-        ">
-          ✔
-        </span>
-      `;
-        }
-
-        // 2️⃣ Lot completed
-        if (lotStatus === "completed") {
-          if (r.po_remaining_qty > 0) {
-            return `
-        <span title="PO remain" style="
-          display:inline-flex;
-          align-items:center;
-          justify-content:center;
-          background:#10b981;
-          color:white;
-          width:34px;
-          height:24px;
-          border-radius:999px;
-          font-weight:700;
-        ">
-          X
-        </span>
-      `;
-          }
-          return `
-        <span title="Lot Completed" style="
-          display:inline-flex;
-          align-items:center;
-          justify-content:center;
-          background:#9ca3af;
-          color:white;
-          width:34px;
-          height:24px;
-          border-radius:999px;
-          font-weight:700;
-        ">
-          O
-        </span>
-      `;
-        }
-        // ✓
-        // 3️⃣ Normal due logic
-        if (days == null) return "";
-
-        const color = days < 0 ? "#ef4444" : days <= 3 ? "#f59e0b" : "#10b981";
-
-        const text = days < 0 ? `${Math.abs(days)}d OD` : `${days}d left`;
-
-        return `<span style="
-      background:${color};
-      color:white;
-      padding:4px 8px;
-      border-radius:8px;
-      font-weight:600;
-    ">
-      ${text}
-    </span>`;
-      },
     },
 
     {
@@ -1144,6 +1637,38 @@ async function loadData() {
   els[UI.reload].disabled = false;
 }
 
+// async function loadData() {
+//   console.log("loadData called");
+//   els[UI.reload].disabled = true;
+
+//   try {
+//     console.time("TOTAL");
+
+//     console.time("API");
+//     const res = await jfetch(API_URL);
+//     console.timeEnd("API");
+
+//     console.log("Rows:", res.length);
+
+//     console.time("TABULATOR");
+//     await table.setData(res);
+//     console.timeEnd("TABULATOR");
+
+//     console.time("FILTER");
+//     applyFilter();
+//     console.timeEnd("FILTER");
+
+//     console.timeEnd("TOTAL");
+
+//     toast("Data loaded");
+
+//   } catch (err) {
+//     toast("Load failed: " + err?.message, false);
+//   }
+
+//   els[UI.reload].disabled = false;
+// }
+
 /* ===== Init ===== */
 function initTable() {
 
@@ -1162,7 +1687,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   Object.values(UI).forEach((id) => (els[id] = $(id)));
   initTable();
-  console.log("before load")
   loadData();
 
   els[UI.reload].addEventListener("click", loadData);

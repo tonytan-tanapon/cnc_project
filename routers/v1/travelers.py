@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import or_
 from typing import List, Optional
 from datetime import date
-from models import PartRevision
+from models import PO, PartRevision
 from doc.docx_to_db import (
     create_template_from_parsed_result,
 )
@@ -83,6 +83,8 @@ class ShopTravelerRowOut(BaseModel):
 
     stock_qty: Optional[int] = 0
     file_dir: Optional[str]
+
+    customer_code: Optional[str] = None
 
     
 
@@ -205,6 +207,12 @@ def to_row_out(t: ShopTraveler, db: Session) -> ShopTravelerRowOut:
         part_no=(
             t.lot.part.part_no
             if t.lot and t.lot.part
+            else None
+        ),
+
+        customer_code=(
+            t.lot.po.customer.code
+            if t.lot and t.lot.po and t.lot.po.customer
             else None
         ),
 
@@ -429,6 +437,9 @@ def get_traveler(traveler_id: int, db: Session = Depends(get_db)):
         .options(
                 selectinload(ShopTraveler.lot)
                     .selectinload(ProductionLot.part_revision),
+                selectinload(ShopTraveler.lot)
+                .selectinload(ProductionLot.po)
+                .selectinload(PO.customer),
 
                 selectinload(ShopTraveler.template),
 

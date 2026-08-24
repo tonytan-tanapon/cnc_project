@@ -1,490 +1,548 @@
 <!DOCTYPE html>
 <html lang="th">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Parts · Topnotch MFG</title>
 
-    <!-- App styles -->
-    <link rel="stylesheet" href="/static/css/app.css" />
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Parts · Topnotch MFG</title>
 
-    <!-- Tabulator (theme css + core js) -->
-    <link
-      rel="stylesheet"
-      href="/static/vendor/tabulator/tabulator_modern.min.css"
-    />
-    <script src="/static/vendor/tabulator/tabulator.min.js"></script>
+  <!-- App styles -->
+  <link rel="stylesheet" href="/static/css/app.css" />
 
-    <style>
-      /* Layout hygiene so Tabulator doesn't overflow in flex containers */
-      .main,
-      .card,
-      .toolbar,
-      #p_table {
-        min-width: 0;
-      }
-      #p_table,
-      .tabulator {
-        width: 100%;
-        max-width: 100%;
-      }
-      .tabulator {
-        border: 0;
-      }
-      .tabulator .tabulator-row:hover {
-        background: #fafafa;
-      }
+  <!-- Tabulator (theme css + core js) -->
+  <link rel="stylesheet" href="/static/vendor/tabulator/tabulator_modern.min.css" />
+  <script src="/static/vendor/tabulator/tabulator.min.js"></script>
 
-      /* Small buttons like your other pages */
-      .btn-small {
-        padding: 4px 8px;
-        font-size: 14px;
-        border: 1px solid var(--line, #ccc);
-        border-radius: 6px;
-        background: #111;
-        color: #fff;
-        cursor: pointer;
-        transition: background 0.2s;
-      }
-      .btn-small:hover {
-        background: #333;
-      }
+  <style>
+    /* Layout hygiene so Tabulator doesn't overflow in flex containers */
+    .main,
+    .card,
+    .toolbar,
+    #p_table {
+      min-width: 0;
+    }
 
-      .rev {
-        display: inline-block;
-      }
-      .rev.current {
-        font-weight: 600;
-        text-decoration: underline;
-      }
-      .rev-sep {
-        opacity: 0.6;
-      }
-      .muted {
-        opacity: 0.6;
-      }
+    #p_table,
+    .tabulator {
+      width: 100%;
+      max-width: 100%;
+    }
 
-      /* allow children (like Tabulator) to actually scroll inside flex boxes */
-      .main,
-      .panel,
-      .card,
-      .detail-body,
-      #p_table {
-        min-height: 0; /* key line for flex layouts */
-      }
+    .tabulator {
+      border: 0;
+    }
 
-      /* make sure the tableholder can scroll */
-      .tabulator .tabulator-tableholder {
-        overflow-y: auto !important;
-      }
+    .tabulator .tabulator-row:hover {
+      background: #fafafa;
+    }
 
-      .card {
-        background: #fff;
-        border: 1px solid #e5e7eb;
-        border-radius: 12px;
-        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
-      }
-      .card .hd {
-        padding: 14px 16px;
-        border-bottom: 1px solid #eef2f7;
-        font-weight: 700;
-      }
-      .card .bd {
-        padding: 14px 16px;
-      }
+    /* Small buttons like your other pages */
+    .btn-small {
+      padding: 4px 8px;
+      font-size: 14px;
+      border: 1px solid var(--line, #ccc);
+      border-radius: 6px;
+      background: #111;
+      color: #fff;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
 
-      /* Header fields (labels on top, values below) */
-      .fields {
-        display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 14px;
-      }
-      .f .lab {
-        font-size: 12px;
-        color: #64748b;
-        margin-bottom: 4px;
-      }
-      .f .val {
-        font-size: 16px;
-        font-weight: 600;
-      }
+    .btn-small:hover {
+      background: #333;
+    }
 
-      /* Table card */
-      .table-wrap {
-        margin-top: 14px;
-      }
-      .muted {
-        color: #9aa3b2;
-      }
+    .rev {
+      display: inline-block;
+    }
 
-      .card {
-        background: #fff;
-        border: 1px solid #e5e7eb;
-        border-radius: 12px;
-        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
-        margin-bottom: 12px;
-      }
-      .card .hd {
-        padding: 12px 14px;
-        border-bottom: 1px solid #eef2f7;
-        font-weight: 700;
-      }
-      .card .bd {
-        padding: 12px 14px;
-      }
-      .fields {
-        display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 12px;
-      }
-      .f .lab {
-        font-size: 12px;
-        color: #64748b;
-        margin-bottom: 4px;
-      }
-      .f .val {
-        font-size: 16px;
-        font-weight: 600;
-      }
-      .filters {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: center;
-        gap: 16px;
-      }
-      .fg {
-        border: none;
-        padding: 0;
-        background: transparent;
-      }
-      .ttl-inline {
-        font-weight: 700;
-        margin-right: 8px;
-        font-size: 13px;
-        color: #0f172a;
-      }
-      .chips {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 14px;
-        align-items: center;
-      }
-      .chip {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        padding: 0;
-        margin: 0;
-        background: transparent;
-        border: none;
-        white-space: nowrap;
-      }
-      .chip input {
-        margin-right: 6px;
-      }
-      .fg input[type="text"] {
-        width: 320px;
-        max-width: 40vw;
-        height: 32px;
-        border: 1px solid #e5e7eb;
-        border-radius: 8px;
-        padding: 4px 8px;
-      }
-      .tabulator .tabulator-footer {
-        display: none;
-      }
+    .rev.current {
+      font-weight: 600;
+      text-decoration: underline;
+    }
 
-      /* header grid: left=Part detail, right=Materials */
-      /* header grid: left=Part detail, right=Materials */
-      .header-grid {
-        display: grid;
-        grid-template-columns: 2fr 0.8fr;
-        gap: 12px;
-      }
+    .rev-sep {
+      opacity: 0.6;
+    }
 
-      /* Material card header */
-      .mat-card .hd {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        font-size: 13px; /* 🔹 เล็กลงจาก default */
-      }
+    .muted {
+      opacity: 0.6;
+    }
 
-      /* Material row input */
-      .mat-row {
-        display: flex;
-        gap: 8px;
-        align-items: center;
-        margin-top: 8px;
-        position: relative;
-        overflow: visible;
-        font-size: 13px; /* 🔹 ฟอนต์เล็กลงทั้งแถว */
-      }
-      .mat-row input[type="text"] {
-        flex: 1;
-        height: 28px; /* เดิม 32px → ลดให้ match กับ font ที่เล็กลง */
-        border: 1px solid #e5e7eb;
-        border-radius: 8px;
-        padding: 3px 6px;
-        font-size: 13px;
-      }
+    /* allow children (like Tabulator) to actually scroll inside flex boxes */
+    .main,
+    .panel,
+    .card,
+    .detail-body,
+    #p_table {
+      min-height: 0;
+      /* key line for flex layouts */
+    }
 
-      /* ปุ่ม */
-      .btn {
-        border: 1px solid #e5e7eb;
-        background: #0ea5e9;
-        color: #fff;
-        border-radius: 8px;
-        padding: 5px 9px;
-        font-weight: 600;
-        cursor: pointer;
-        font-size: 13px; /* 🔹 ปรับขนาดปุ่มให้พอดี */
-      }
+    /* make sure the tableholder can scroll */
+    .tabulator .tabulator-tableholder {
+      overflow-y: auto !important;
+    }
 
-      /* Chip แสดงวัสดุ */
-      .chips-wrap {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 6px;
-        margin-top: 6px;
-        font-size: 13px;
-      }
-      .chip--pill {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        padding: 4px 8px;
-        border: 1px solid #e5e7eb;
-        border-radius: 999px;
-        background: #f8fafc;
-        font-size: 13px;
-      }
-      .chip--pill .x {
-        cursor: pointer;
-        font-weight: 700;
-        line-height: 1;
-      }
+    .card {
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
+    }
 
-      /* Prevent AC menu from being clipped */
-      .header-grid,
-      .mat-card,
-      .mat-card .bd {
-        overflow: visible;
-      }
+    .card .hd {
+      padding: 14px 16px;
+      border-bottom: 1px solid #eef2f7;
+      font-weight: 700;
+    }
 
-      /* Common autocomplete class names layered high */
-      .ac-menu,
-      .ac-list,
-      .autocomplete-menu {
-        position: absolute;
-        z-index: 99999;
-      }
+    .card .bd {
+      padding: 14px 16px;
+    }
 
-      #fg_other .chips {
-        width: 100%;
-        align-items: flex-start;
-      }
+    /* Header fields (labels on top, values below) */
+    .fields {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+    }
 
-      #g_other_text {
-        width: 500px; /* ← กว้างขึ้น */
-        max-width: 60vw; /* ← ขยายได้บนจอใหญ่ */
-        height: 90px; /* ← สูงขึ้นถ้าต้องการ */
-      }
+    .f .lab {
+      font-size: 12px;
+      color: #64748b;
+      margin-bottom: 4px;
+    }
 
-      /* ลดช่องว่างภายใน row ของ filters */
-      #filters_panel .chips {
-        gap: 6px !important; /* เดิม 14px */
-      }
+    .f .val {
+      font-size: 16px;
+      font-weight: 600;
+    }
 
-      /* ลดช่องว่างระหว่างกลุ่ม filter แต่ละกลุ่ม */
-      #filters_panel .fg {
-        margin-bottom: 4px !important; /* เดิมไม่มี → ทำให้ดูกว้าง */
-      }
+    /* Table card */
+    .table-wrap {
+      margin-top: 14px;
+    }
 
-      /* ลด padding ของ body ใน header card */
-      #p_header .bd {
-        padding-top: 6px !important;
-        padding-bottom: 6px !important;
-      }
+    .muted {
+      color: #9aa3b2;
+    }
 
-      /* ลดระยะห่างด้านบนของ Other */
-      #g_other_text {
-        margin-top: 4px !important; /* ไม่ให้มันลอยห่างจากหัวข้อ */
-      }
+    .card {
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
+      margin-bottom: 12px;
+    }
 
-      /* ลดช่องว่างของ label ชื่อ section เช่น "Manufacturing Processes" */
-      #filters_panel .ttl-inline {
-        margin-bottom: 0 !important;
-      }
+    .card .hd {
+      padding: 12px 14px;
+      border-bottom: 1px solid #eef2f7;
+      font-weight: 700;
+    }
 
-      /* FIX: make Tabulator stretch fully */
-      #p_table,
-      #p_table .tabulator,
-      #p_table .tabulator-tableholder {
-        width: 100% !important;
-        max-width: none !important;
-        overflow: auto !important;
-      }
+    .card .bd {
+      padding: 12px 14px;
+    }
+
+    .fields {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .f .lab {
+      font-size: 12px;
+      color: #64748b;
+      margin-bottom: 4px;
+    }
+
+    .f .val {
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .filters {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .fg {
+      border: none;
+      padding: 0;
+      background: transparent;
+    }
+
+    .ttl-inline {
+      font-weight: 700;
+      margin-right: 8px;
+      font-size: 13px;
+      color: #0f172a;
+    }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      align-items: center;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 0;
+      margin: 0;
+      background: transparent;
+      border: none;
+      white-space: nowrap;
+    }
+
+    .chip input {
+      margin-right: 6px;
+    }
+
+    .fg input[type="text"] {
+      width: 320px;
+      max-width: 40vw;
+      height: 32px;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 4px 8px;
+    }
+
+    .tabulator .tabulator-footer {
+      display: none;
+    }
+
+    /* header grid: left=Part detail, right=Materials */
+    /* header grid: left=Part detail, right=Materials */
+    .header-grid {
+      display: grid;
+      grid-template-columns: 2fr 0.8fr;
+      gap: 12px;
+    }
+
+    /* Material card header */
+    .mat-card .hd {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+      /* 🔹 เล็กลงจาก default */
+    }
+
+    /* Material row input */
+    .mat-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin-top: 8px;
+      position: relative;
+      overflow: visible;
+      font-size: 13px;
+      /* 🔹 ฟอนต์เล็กลงทั้งแถว */
+    }
+
+    .mat-row input[type="text"] {
+      flex: 1;
+      height: 28px;
+      /* เดิม 32px → ลดให้ match กับ font ที่เล็กลง */
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 3px 6px;
+      font-size: 13px;
+    }
+
+    /* ปุ่ม */
+    .btn {
+      border: 1px solid #e5e7eb;
+      background: #0ea5e9;
+      color: #fff;
+      border-radius: 8px;
+      padding: 5px 9px;
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 13px;
+      /* 🔹 ปรับขนาดปุ่มให้พอดี */
+    }
+
+    /* Chip แสดงวัสดุ */
+    .chips-wrap {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 6px;
+      font-size: 13px;
+    }
+
+    .chip--pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 8px;
+      border: 1px solid #e5e7eb;
+      border-radius: 999px;
+      background: #f8fafc;
+      font-size: 13px;
+    }
+
+    .chip--pill .x {
+      cursor: pointer;
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    /* Prevent AC menu from being clipped */
+    .header-grid,
+    .mat-card,
+    .mat-card .bd {
+      overflow: visible;
+    }
+
+    /* Common autocomplete class names layered high */
+    .ac-menu,
+    .ac-list,
+    .autocomplete-menu {
+      position: absolute;
+      z-index: 99999;
+    }
+
+    #fg_other .chips {
+      width: 100%;
+      align-items: flex-start;
+    }
+
+    #g_other_text {
+      width: 500px;
+      /* ← กว้างขึ้น */
+      max-width: 60vw;
+      /* ← ขยายได้บนจอใหญ่ */
+      height: 90px;
+      /* ← สูงขึ้นถ้าต้องการ */
+    }
+
+    /* ลดช่องว่างภายใน row ของ filters */
+    #filters_panel .chips {
+      gap: 6px !important;
+      /* เดิม 14px */
+    }
+
+    /* ลดช่องว่างระหว่างกลุ่ม filter แต่ละกลุ่ม */
+    #filters_panel .fg {
+      margin-bottom: 4px !important;
+      /* เดิมไม่มี → ทำให้ดูกว้าง */
+    }
+
+    /* ลด padding ของ body ใน header card */
+    #p_header .bd {
+      padding-top: 6px !important;
+      padding-bottom: 6px !important;
+    }
+
+    /* ลดระยะห่างด้านบนของ Other */
+    #g_other_text {
+      margin-top: 4px !important;
+      /* ไม่ให้มันลอยห่างจากหัวข้อ */
+    }
+
+    /* ลดช่องว่างของ label ชื่อ section เช่น "Manufacturing Processes" */
+    #filters_panel .ttl-inline {
+      margin-bottom: 0 !important;
+    }
+
+    /* FIX: make Tabulator stretch fully */
+    #p_table,
+    #p_table .tabulator,
+    #p_table .tabulator-tableholder {
+      width: 100% !important;
+      max-width: none !important;
+      overflow: auto !important;
+    }
 
 
-      /* ทำให้ cell wrap */
-.tabulator .cell-wrap {
-  white-space: normal !important;
-  word-break: break-word;
-  line-height: 1.3;
-}
+    /* ทำให้ cell wrap */
+    .tabulator .cell-wrap {
+      white-space: normal !important;
+      word-break: break-word;
+      line-height: 1.3;
+    }
 
-#po_lines {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: auto;
-  padding-bottom: 40px;   /* 👈 add space here */
-}
-#p_table .tabulator-tableholder {
-  padding-bottom: 200px;
-}
+    #po_lines {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow: auto;
+      padding-bottom: 40px;
+      /* 👈 add space here */
+    }
 
-    </style>
-  </head>
-  <body>
-    <div class="app">
-      <!-- Sidebar -->
-      <aside class="sidebar">
-        <div id="navSlot" data-nav-slot></div>
-      </aside>
+    #p_table .tabulator-tableholder {
+      padding-bottom: 200px;
+    }
 
-      <!-- Main -->
-      <main class="main">
-        <!-- Page -->
-        <section id="page-parts">
-          <!-- =====================
+    .part-detail-text {
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-size: 13px !important;
+      font-weight: 400 !important;
+      line-height: 1.4;
+    }
+
+    .part-detail-edit {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 6px 8px;
+
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+
+      font-size: 13px;
+      line-height: 1.4;
+
+      white-space: pre-wrap;
+      resize: vertical;
+    }
+
+    .part-detail-edit:focus {
+      outline: none;
+      border-color: #2563eb;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div id="navSlot" data-nav-slot></div>
+    </aside>
+
+    <!-- Main -->
+    <main class="main">
+      <!-- Page -->
+      <section id="page-parts">
+        <!-- =====================
             NEW HEADER CARD HERE
             ===================== -->
-          <div id="p_header" class="card">
-            <div class="header-grid">
-              <!-- LEFT SIDE -->
+        <div id="p_header" class="card">
+          <div class="header-grid">
+            <!-- LEFT SIDE -->
+            <div class="bd">
+              <div class="fields">
+                <div class="f">
+                  <div class="lab">Part No</div>
+                  <div id="h_part_no" class="val">—</div>
+                </div>
+                <div class="f">
+                  <div class="lab">Part Name</div>
+                  <div id="h_part_name" class="val">—</div>
+                </div>
+                <div class="f">
+                  <div class="lab">Revision</div>
+                  <div id="h_part_rev" class="val">—</div>
+                </div>
+                <div class="f">
+                  <div class="lab">Customer</div>
+                  <div id="h_customer" class="val">—</div>
+                </div>
+
+                <!-- เพิ่ม -->
+                <div class="f">
+                  <div class="lab">Part Detail</div>
+                  <textarea id="h_part_detail" class="part-detail-edit" rows="3"></textarea>
+                </div>
+
+                <div class="f">
+                  <div class="lab">Part Detail Extra</div>
+                  <textarea id="h_part_detail_extra" class="part-detail-edit" rows="6"></textarea>
+                </div>
+
+              </div>
+
+              <!-- Filters Title -->
+              <!-- <div class="hd" style="margin-top: 16px">Filters</div> -->
+
+              <!-- Filters -->
               <div class="bd">
-                <div class="fields">
-                  <div class="f">
-                    <div class="lab">Part No</div>
-                    <div id="h_part_no" class="val">—</div>
-                  </div>
-                  <div class="f">
-                    <div class="lab">Part Name</div>
-                    <div id="h_part_name" class="val">—</div>
-                  </div>
-                  <div class="f">
-                    <div class="lab">Revision</div>
-                    <div id="h_part_rev" class="val">—</div>
-                  </div>
-                  <div class="f">
-                    <div class="lab">Customer</div>
-                    <div id="h_customer" class="val">—</div>
-                  </div>
-                </div>
-
-                <!-- Filters Title -->
-                <!-- <div class="hd" style="margin-top: 16px">Filters</div> -->
-
-                <!-- Filters -->
-                <div class="bd">
-                  <div id="filters_panel" class="filters">
-                    <!-- Cutting / Heat -->
-                    <div class="fg" id="fg_basic">
-                      <div class="chips">
-                        <label class="chip"
-                          ><input type="checkbox" id="g_cutting" /><span
-                            >Cutting</span
-                          ></label
-                        >
-                        <label class="chip"
-                          ><input type="checkbox" id="g_heat" /><span
-                            >Heat Treating & Stress Relieve</span
-                          ></label
-                        >
-                      </div>
+                <div id="filters_panel" class="filters">
+                  <!-- Cutting / Heat -->
+                  <div class="fg" id="fg_basic">
+                    <div class="chips">
+                      <label class="chip"><input type="checkbox" id="g_cutting" /><span>Cutting</span></label>
+                      <label class="chip"><input type="checkbox" id="g_heat" /><span>Heat Treating & Stress
+                          Relieve</span></label>
                     </div>
+                  </div>
 
-                    <!-- Manufacturing Processes -->
-                    <div class="fg" id="fg_mproc">
-                      <div class="chips">
-                        <span class="ttl-inline">Manufacturing Processes</span>
-                        <span id="g_mproc"></span>
-                      </div>
+                  <!-- Manufacturing Processes -->
+                  <div class="fg" id="fg_mproc">
+                    <div class="chips">
+                      <span class="ttl-inline">Manufacturing Processes</span>
+                      <span id="g_mproc"></span>
                     </div>
+                  </div>
 
-                    <!-- Chemical Finishing -->
-                    <div class="fg" id="fg_chem">
-                      <div class="chips">
-                        <span class="ttl-inline">Chemical Finishing</span>
-                        <span id="g_chem"></span>
-                      </div>
+                  <!-- Chemical Finishing -->
+                  <div class="fg" id="fg_chem">
+                    <div class="chips">
+                      <span class="ttl-inline">Chemical Finishing</span>
+                      <span id="g_chem"></span>
                     </div>
+                  </div>
 
-                    <!-- Other -->
-                    <div class="fg" id="fg_other">
-                      <div class="chips">
-                        <span class="ttl-inline">Other</span>
-                        <textarea
-                          id="g_other_text"
-                          rows="4"
-                          placeholder="Type other process / keyword..."
-                        ></textarea>
-                      </div>
+                  <!-- Other -->
+                  <div class="fg" id="fg_other">
+                    <div class="chips">
+                      <span class="ttl-inline">Other</span>
+                      <textarea id="g_other_text" rows="4" placeholder="Type other process / keyword..."></textarea>
                     </div>
                   </div>
                 </div>
               </div>
+            </div>
 
-              <!-- RIGHT SIDE – MATERIALS -->
-              <div class="card mat-card">
-                <div class="hd"><span>Materials</span></div>
+            <!-- RIGHT SIDE – MATERIALS -->
+            <div class="card mat-card">
+              <div class="hd"><span>Materials</span></div>
 
-                <div class="bd">
-                  <div class="mat-row">
-                    <input
-                      type="text"
-                      id="mat_ac_input"
-                      placeholder="Search material by code or name…"
-                    />
-                    <button class="btn" id="mat_add_btn">Add</button>
-                  </div>
-
-                  <div id="mat_list" class="chips-wrap"></div>
+              <div class="bd">
+                <div class="mat-row">
+                  <input type="text" id="mat_ac_input" placeholder="Search material by code or name…" />
+                  <button class="btn" id="mat_add_btn">Add</button>
                 </div>
+
+                <div id="mat_list" class="chips-wrap"></div>
               </div>
             </div>
           </div>
-          <!-- ===================== END HEADER ===================== -->
-          <!-- Table + Pager -->
-          <div class="card">
-            <div
-              class="toolbar"
-              style="display: flex; gap: 8px; align-items: center"
-            >
-              <input
-                id="p_q"
-                placeholder="search part_no / name / spec"
-                style="flex: 1"
-              />
-            </div>
-
-            <!-- Tabulator mount -->
-            <div id="p_table" style="min-height: 200px"></div>
-            
+        </div>
+        <!-- ===================== END HEADER ===================== -->
+        <!-- Table + Pager -->
+        <div class="card">
+          <div class="toolbar" style="display: flex; gap: 8px; align-items: center">
+            <input id="p_q" placeholder="search part_no / name / spec" style="flex: 1" />
           </div>
-          <div id="area></div>
+
+          <!-- Tabulator mount -->
+          <div id="p_table" style="min-height: 200px"></div>
+
+        </div>
+        <div id="area></div>
         </section>
       </main>
     </div>
 
     <!-- Toast -->
-    <div class="toast" id="toast" role="status" aria-live="polite">
-      <span id="toastText"></span>
-    </div>
+    <div class=" toast" id="toast" role="status" aria-live="polite">
+          <span id="toastText"></span>
+        </div>
 
-    <!-- Scripts -->
-    <script type="module" src="/static/js/nav-loader.js"></script>
-    <script type="module" src="/static/js/manage-parts-detail.js?v=9"></script>
-  </body>
+        <!-- Scripts -->
+        <script type="module" src="/static/js/nav-loader.js"></script>
+        <script type="module" src="/static/js/manage-parts-detail.js?v=1.1"></script>
+</body>
+
 </html>

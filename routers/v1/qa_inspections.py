@@ -1,7 +1,8 @@
 # routers/qa_inspections.py
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-
+from datetime import datetime
+import pytz
 from pydantic import BaseModel
 
 class QAInspectionUpdate(BaseModel):
@@ -90,15 +91,6 @@ def add_item(
     db.commit()
     db.refresh(item)
     return item
-
-from datetime import datetime
-import pytz
-
-from datetime import datetime
-import pytz
-
-from datetime import datetime
-import pytz
 
 
 

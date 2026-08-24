@@ -161,8 +161,15 @@ def data_detail(
 
     if part_id:
         part = db.query(Part).filter(Part.id == part_id).first()
+
         if part:
-            meta.part = {"id": part.id, "part_no": part.part_no, "name": part.name}
+            meta.part = {
+                "id": part.id,
+                "part_no": part.part_no,
+                "name": part.name,
+                "part_detail": part.part_detail,
+                "part_detail_extra": part.part_detail_extra,
+            }
 
     if customer_id:
         cust = db.query(Customer).filter(Customer.id == customer_id).first()

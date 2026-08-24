@@ -1114,21 +1114,75 @@ function initTable() {
 
 // ---- load header meta (no side-effects)
 function fillHeaderMeta(meta) {
-  // console.log("Filling header meta", meta);
   const elPartNo = document.getElementById("h_part_no");
   const elPartName = document.getElementById("h_part_name");
   const elPartRev = document.getElementById("h_part_rev");
   const elCust = document.getElementById("h_customer");
+
+  const elPartDetail =
+    document.getElementById("h_part_detail");
+
+  const elPartDetailExtra =
+    document.getElementById("h_part_detail_extra");
+
   const p = meta?.part || {};
   const r = meta?.revision || {};
   const c = meta?.customer || {};
+
   elPartNo.textContent = p.part_no ?? "—";
   elPartName.textContent = p.name ?? "—";
   elPartRev.textContent = r.rev ?? "—";
   elCust.textContent = c.code || c.name || "—";
+
+  // textarea ใช้ value
+  elPartDetail.value = p.part_detail ?? "";
+  elPartDetailExtra.value = p.part_detail_extra ?? "";
 }
 
+async function savePartDetail() {
+  const { part_id } = qsParams();
 
+  if (!part_id) {
+    toast?.("Missing Part ID", false);
+    return;
+  }
+
+  const partDetail =
+    document.getElementById("h_part_detail")?.value ?? "";
+
+  const partDetailExtra =
+    document.getElementById("h_part_detail_extra")?.value ?? "";
+
+  try {
+    await jfetch(`/parts/${part_id}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        part_detail: partDetail,
+        part_detail_extra: partDetailExtra
+      })
+    });
+
+    toast?.("Part detail updated", true);
+
+  } catch (e) {
+    console.error(e);
+    toast?.("Failed to update Part Detail", false);
+  }
+}
+
+function initPartDetailEditor() {
+  const detail =
+    document.getElementById("h_part_detail");
+
+  const extra =
+    document.getElementById("h_part_detail_extra");
+
+  detail?.addEventListener("blur", savePartDetail);
+  extra?.addEventListener("blur", savePartDetail);
+}
 // // ---- load
 // async function loadData() {
 //   console.log("TESTTTT")
@@ -1172,9 +1226,11 @@ inputSearch?.addEventListener("input", debounce(onSearchChange, 250));
 document.addEventListener("DOMContentLoaded", async () => {
   initTopbar();
   initTable();
-  await loadData(); // โหลดตารางให้เร็วที่สุด
 
-  // ทำ background tasks ทีหลัง
+  initPartDetailEditor(); // เพิ่มตรงนี้
+
+  await loadData();
+
   setTimeout(async () => {
     await fetchLookups();
     renderFilters();

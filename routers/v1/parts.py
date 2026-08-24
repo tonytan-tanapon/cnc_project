@@ -38,6 +38,9 @@ class PartUpdate(BaseModel):
     description: Optional[str] = None
     status: Optional[str] = None
 
+    part_detail: Optional[str] = None
+    part_detail_extra: Optional[str] = None
+
 # ---------------- Schemas (output) ----------------
 class RevOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -58,6 +61,9 @@ class PartOut(BaseModel):
     description: Optional[str] = None
     status: Optional[str] = None
     revisions: Optional[List[RevOut]] = None
+
+    part_detail: Optional[str] = None
+    part_detail_extra: Optional[str] = None
 
 # ---------- Mini / Cursor page models (สำหรับ autocomplete / hydrate) ----------
 class PartMini(BaseModel):
@@ -81,11 +87,20 @@ def to_part_out(p: Part, include_revs: bool = False) -> PartOut:
         uom=p.default_uom,
         description=p.description,
         status=p.status,
+
+        part_detail=p.part_detail,
+        part_detail_extra=p.part_detail_extra,
     )
+
     if include_revs:
-        revs = getattr(p, 'revisions', None) or []
-        obj.revisions = [RevOut.model_validate(r) for r in revs]
+        revs = getattr(p, "revisions", None) or []
+        obj.revisions = [
+            RevOut.model_validate(r)
+            for r in revs
+        ]
+
     return obj
+
 from sqlalchemy import text
 # ===================== list (OFFSET) =====================
 @parts_router.get("/{part_id}/lots")
@@ -312,6 +327,13 @@ def update_part(part_id: int, payload: PartUpdate, db: Session = Depends(get_db)
         p.default_uom = payload.uom
     if payload.status is not None:
         p.status = payload.status
+
+
+    if payload.part_detail is not None:
+        p.part_detail = payload.part_detail
+
+    if payload.part_detail_extra is not None:
+        p.part_detail_extra = payload.part_detail_extra
 
     db.commit()
     db.refresh(p)

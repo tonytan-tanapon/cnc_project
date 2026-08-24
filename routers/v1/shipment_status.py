@@ -4,7 +4,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 from typing import Optional
 from database import get_db
-
+import json
 router = APIRouter(prefix="/reports", tags=["reports"])
 
 @router.get("/shipment-status")
@@ -45,6 +45,62 @@ def get_shipment_status(
             params["status"] = status
 
     sql = "SELECT * FROM v_lot_shipment_status"
+
+    # sql = """
+    #     SELECT
+    #         lot_id,
+    #         lot_no,
+    #         lot_status,
+    #         last_activity,
+
+    #         po_id,
+    #         po_number,
+    #         po_line_id,
+    #         po_qty_total,
+    #         po_line_due_date,
+
+    #         customer_id,
+    #         customer_name,
+    #         customer_code,
+
+    #         part_id,
+    #         part_no,
+    #         part_name,
+    #         part_revision_id,
+    #         revision,
+
+    #         lot_po_date,
+    #         lot_po_duedate,
+    #         planned_qty,
+    #         lot_planned_ship_qty,
+    #         lot_note,
+
+    #         lot_shipped_qty,
+    #         lot_last_ship_date,
+
+    #         progress_percent,
+
+    #         step_id,
+    #         receive_input,
+    #         accept_input,
+    #         reject_input,
+    #         step_status,
+
+    #         po_shipped_total,
+    #         po_remaining_qty,
+    #         lot_shipment_status,
+
+    #         ecar,
+    #         icar,
+
+    #         po_days_left,
+    #         lot_po_days_left,
+
+    #         part_detail,
+    #         part_detail_extra
+
+    #     FROM v_lot_shipment_status
+    #     """
     if conditions:
         sql += " WHERE " + " AND ".join(conditions)
 
@@ -53,10 +109,26 @@ def get_shipment_status(
     rows = db.execute(text(sql), params).mappings().all()
 
     # safe debug
-    if rows:
-        print("Shipment status keys:", rows[0].keys())
+   
 
-    return list(rows)
+    # แปลงเป็น list of dict
+    result = [dict(row) for row in rows]
+    
+
+    # เช็กขนาด JSON
+    # json_bytes = json.dumps(
+    #     result,
+    #     default=str
+    # ).encode("utf-8")
+
+    # print("-----------------------------")
+    # print("ROWS:", len(result))
+    # print(
+    #     f"JSON SIZE: {len(json_bytes) / 1024 / 1024:.2f} MB"
+    # )
+    # print("-----------------------------")
+
+    return result
 
 
 

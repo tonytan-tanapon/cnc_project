@@ -188,11 +188,14 @@ async function load() {
     `/api/v1/travelers/${traveler_id}`
   ).then(r => r.json());
 
+  console.log("TRAVELER DATA:", traveler);
+  console.log("CUSTOMER CODE:", traveler.customer_code);
+
   document.getElementById("title").innerText =
     `Traveler #${traveler.traveler_no || traveler.id}`;
 
   document.getElementById("meta").innerText =
-    `Lot: ${traveler.lot_no || "-"} | Status: ${traveler.status}`;
+    `Lot: ${traveler.lot_no || "-"}  | Part No: ${traveler.part_no || "-"} | Rev: ${traveler.part_rev || "-"} | Customer: ${traveler.customer_code || "-"} | Status: ${traveler.status}`;
 
   // =========================
   // STEPS

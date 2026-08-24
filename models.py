@@ -378,9 +378,6 @@ class RawBatchReference(Base):
         ),
     )
 
-    
-
-
 class RawBatch(Base):
     __tablename__ = "raw_batches"
 
@@ -469,6 +466,9 @@ class Part(Base):
     default_uom = Column(String, default="ea")
     status = Column(String, default="active")
 
+    part_detail = Column(String, nullable=True)  # ex. "6061-T6", "ALUMINUM ROUND BAR"
+    part_detail_extra = Column(String, nullable=True)  # ex. "ALUMINUM ROUND BAR 6061-T6"
+
     revisions = relationship("PartRevision", back_populates="part", cascade="all, delete-orphan")
 
     # inverse side for ProductionLot.part
@@ -514,6 +514,7 @@ class PartRevision(Base):
         unique=True,
         index=True,
     )
+    
     fair_record = relationship("InspectionRecord", foreign_keys=[fair_record_id])
 
     fair_no_cache = Column(String, nullable=True)
