@@ -322,6 +322,7 @@ def upsert_raw_batch(
         weight=weight or Decimal(0),
         qty_received=weight or Decimal(0),
     )
+    
     db.add(rb)
     db.flush()
     return rb
@@ -558,16 +559,12 @@ def main():
                 parse_date(row.get("Date"))
             )
 
-            po_items = parse_po_qty(
-                row.get("PO#, Qty")
-            )
+            po_items = parse_po_qty(row.get("PO#, Qty"))
 
             for it in po_items:
 
                 if not part_no:
-                    print(
-                        "⚠️ SKIP row: missing Part no."
-                    )
+                    print("⚠️ SKIP row: missing Part no.")
                     continue
 
                 part_items = part_no.split()
