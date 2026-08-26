@@ -322,7 +322,7 @@ def upsert_raw_batch(
         weight=weight or Decimal(0),
         qty_received=weight or Decimal(0),
     )
-    
+
     db.add(rb)
     db.flush()
     return rb
@@ -391,6 +391,7 @@ def insert_lot_material_use(db, lot, rb, qty, note=None):
             LotMaterialUse.note == note,
         )
     )
+    
     if existing:
         return existing
 
@@ -402,6 +403,7 @@ def insert_lot_material_use(db, lot, rb, qty, note=None):
         qty_uom="pcs",
         note=note,
     )
+
     db.add(lmu)
     db.flush()
     return lmu
@@ -648,10 +650,7 @@ def main():
 
         db.commit()
 
-        print(
-            f"🎉 DONE: {count} rows imported"
-        )
-
+        print(f"🎉 DONE: {count} rows imported")
 
 if __name__ == "__main__":
     main()
