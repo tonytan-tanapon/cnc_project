@@ -19,6 +19,7 @@ from deps.auth import (
     get_password_hash,
     require_superadmin,
 )
+
 router = APIRouter(
     prefix="/users",
     tags=["users"],

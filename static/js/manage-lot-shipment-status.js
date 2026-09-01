@@ -489,26 +489,25 @@ function makeColumns() {
         // =========================
         // DRAWING
         // =========================
-
-        if (
-          e.target.classList.contains("drawing")
-        ) {
+        if (e.target.classList.contains("drawing")) {
 
           e.preventDefault();
           e.stopPropagation();
 
-          lotId = d.lot_id;
-          travelerId = null;
+          const lotId = d.lot_id;
 
-          await loadTraveler();
+          if (!lotId) {
+            toast("Missing lot_id", false);
+            return;
+          }
 
-          console.log(
-            "load drawing",
-            travelerId,
-            lotId
-          );
+          const url = `/api/v1/lot_stamp/${encodeURIComponent(lotId)}?header_detail=false`;
 
-          await downloadDrawingBatch();
+          console.log("Open Stamp:", url);
+
+          window.open(url, "_blank");
+
+          return;
         }
 
       },
@@ -1222,11 +1221,7 @@ function makeColumns() {
         return `
           <div style="text-align:center; line-height:1.6;">
               <div>
-                  <a href="${location.origin}/api/v1/lot_stamp/${lotId}"
-   target="_blank">
-    🚀Stamp
-</a>
-                    
+                  <a href="${location.origin}/api/v1/lot_stamp/${lotId}" >    🚀Stamp </a>
               </div>
               
               <div>

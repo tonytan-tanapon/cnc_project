@@ -85,8 +85,9 @@ def get_page_info(page):
 def generate_stamp(
     lot_id: int,
     db: Session = Depends(get_db),
+    header_detail : bool = True,
 ):
-
+    print("start generate_stamp for lot_id:", lot_id)
     lot = (
         db.query(ProductionLot)
         .filter(ProductionLot.id == lot_id)
@@ -169,37 +170,37 @@ def generate_stamp(
     # -----------------------------
     # DEBUG
     # -----------------------------
+    if header_detail:
+        page.insert_htmlbox(
+            fitz.Rect(
+                1,
+                1,
+                350,
+                140,
+            ),
+            f"""
+            <div style="font-size:12pt">
+            
+                <b>LOT:</b> {lot.lot_no}, <b>PO:</b> {lot.po.po_number}, <b>QTY:</b> {lot_shipped_qty} pcs, <b>DUE:</b> {due}
+            </div>
+            """
+            # f"""
+            # <div style="font-size:8pt">
+            #     <b>Width:</b> {info["width"]}<br>
+            #     <b>Height:</b> {info["height"]}<br>
+            #     <b>Rotation:</b> {info["rotation"]}<br>
+            #     <b>Landscape:</b> {info["landscape"]}<br><br>
 
-    page.insert_htmlbox(
-        fitz.Rect(
-            1,
-            1,
-            350,
-            140,
-        ),
-        f"""
-        <div style="font-size:12pt">
-           
-            <b>LOT:</b> {lot.lot_no}, <b>PO:</b> {lot.po.po_number}, <b>QTY:</b> {lot_shipped_qty} pcs, <b>DUE:</b> {due}
-        </div>
-        """
-        # f"""
-        # <div style="font-size:8pt">
-        #     <b>Width:</b> {info["width"]}<br>
-        #     <b>Height:</b> {info["height"]}<br>
-        #     <b>Rotation:</b> {info["rotation"]}<br>
-        #     <b>Landscape:</b> {info["landscape"]}<br><br>
+            #     <b>Customer:</b> {cus_code}<br>
+            #     <b>Part:</b> {part_no}<br>
+            #     <b>Rev:</b> {rev}<br><br>
 
-        #     <b>Customer:</b> {cus_code}<br>
-        #     <b>Part:</b> {part_no}<br>
-        #     <b>Rev:</b> {rev}<br><br>
-
-        #     <b>LOT:</b> {lot.lot_no}<br>
-        #     <b>QTY:</b> {lot.planned_qty}<br>
-        #     <b>DUE:</b> {due}
-        # </div>
-        # """
-    )
+            #     <b>LOT:</b> {lot.lot_no}<br>
+            #     <b>QTY:</b> {lot.planned_qty}<br>
+            #     <b>DUE:</b> {due}
+            # </div>
+            # """
+        )
 
     pdf = doc.tobytes()
 

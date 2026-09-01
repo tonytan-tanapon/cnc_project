@@ -3207,6 +3207,21 @@ async function exportTravelerBlank() {
   }
 }
 
+function exportDrawing() {
+  console.log("Export drawing", lotId);
+
+  if (!lotId) {
+    toast("Missing lot_id", false);
+    return;
+  }
+
+  const url = `/api/v1/lot_stamp/${encodeURIComponent(lotId)}?header_detail=false`;
+
+  console.log("Open Stamp:", url);
+
+  window.open(url, "_blank");
+}
+
 async function exportTraveler() {
   console.log("Export traveler", travelerId);
 
@@ -3575,6 +3590,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   // $("btnDrawing").addEventListener("click", downloadDrawingBatch);
   // $("btnTraveler").addEventListener("click", downloadTravelerBatch);
   // $("btnInspection").addEventListener("click", downloadInspectionBatch);
+  $("btnDrawing").addEventListener("click", exportDrawing);
   $("btnExportTraveler").addEventListener("click", exportTraveler);
   $("btnExportTravelerBlank").addEventListener("click", exportTravelerBlank);
 
