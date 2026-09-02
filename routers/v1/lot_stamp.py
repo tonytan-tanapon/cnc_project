@@ -13,17 +13,6 @@ from models import ProductionLot
 from sqlalchemy import text
 
 
-import fitz
-import subprocess
-import tempfile
-import os
-
-from io import BytesIO
-from fastapi import HTTPException, Depends
-from fastapi.responses import StreamingResponse
-from sqlalchemy.orm import Session
-from sqlalchemy import text
-
 router = APIRouter(
     prefix="/lot_stamp",
     tags=["Lot Stamp"],
@@ -41,61 +30,6 @@ CUSTOMER_FOLDERS = {
     "AT9110": "Ametek",
 }
 
-def normalize_pdf_with_ghostscript(pdf_bytes: bytes) -> bytes:
-
-    with tempfile.TemporaryDirectory() as temp_dir:
-
-        input_path = os.path.join(temp_dir, "input.pdf")
-        output_path = os.path.join(temp_dir, "output.pdf")
-
-        # Save temporary input
-        with open(input_path, "wb") as f:
-            f.write(pdf_bytes)
-
-        # ปรับ path ให้ตรงกับเครื่อง
-        gs_path = r"C:\Program Files\gs\gs10.06.0\bin\gswin64c.exe"
-
-        command = [
-            gs_path,
-
-            "-sDEVICE=pdfwrite",
-
-            # รักษาคุณภาพ
-            "-dPDFSETTINGS=/prepress",
-
-            # PDF compatibility
-            "-dCompatibilityLevel=1.4",
-
-            "-dNOPAUSE",
-            "-dQUIET",
-            "-dBATCH",
-
-            # Font
-            "-dEmbedAllFonts=true",
-            "-dSubsetFonts=true",
-
-            # Output
-            f"-sOutputFile={output_path}",
-
-            input_path,
-        ]
-
-        result = subprocess.run(
-            command,
-            capture_output=True,
-            text=True,
-        )
-
-        if result.returncode != 0:
-            print("Ghostscript error:")
-            print(result.stderr)
-
-            raise RuntimeError(
-                "Ghostscript PDF normalization failed"
-            )
-
-        with open(output_path, "rb") as f:
-            return f.read()
 # =====================================================
 # Find Drawing PDF
 # =====================================================
@@ -143,18 +77,15 @@ def get_page_info(page):
     }
 
 
+# =====================================================
+# API
+# =====================================================
+
 @router.get("/{lot_id}")
 def generate_stamp(
     lot_id: int,
     db: Session = Depends(get_db),
-    header_detail: bool = True,
 ):
-
-    print("start generate_stamp for lot_id:", lot_id)
-
-    # =========================================================
-    # GET LOT
-    # =========================================================
 
     lot = (
         db.query(ProductionLot)
@@ -165,10 +96,6 @@ def generate_stamp(
     if not lot:
         raise HTTPException(404, "Lot not found")
 
-    # =========================================================
-    # SHIPPED QTY
-    # =========================================================
-
     row = db.execute(
         text("""
             SELECT lot_shipped_qty
@@ -178,51 +105,36 @@ def generate_stamp(
         {"lot_id": lot_id}
     ).mappings().first()
 
-    lot_shipped_qty = 0
+    lot_shipped_qty = int(row["lot_shipped_qty"] or 0)
 
-    if row:
-        lot_shipped_qty = int(
-            row["lot_shipped_qty"] or 0
-        )
-
-    # =========================================================
-    # VALIDATE
-    # =========================================================
+    # -----------------------------
+    # Validate relationships
+    # -----------------------------
 
     if not lot.po:
-        raise HTTPException(
-            400,
-            "Lot has no PO."
-        )
+        raise HTTPException(400, "Lot has no PO.")
 
     if not lot.po.customer:
-        raise HTTPException(
-            400,
-            "PO has no customer."
-        )
+        raise HTTPException(400, "PO has no customer.")
 
     if not lot.part:
-        raise HTTPException(
-            400,
-            "Lot has no Part."
-        )
-
-    # =========================================================
-    # DRAWING INFO
-    # =========================================================
+        raise HTTPException(400, "Lot has no Part.")
 
     part_no = lot.part.part_no
 
     rev = ""
-
     if lot.part_revision:
         rev = lot.part_revision.rev or ""
 
     cus_code = lot.po.customer.code
+    print("PO     :", lot.po.po_number)
+    print("Customer :", cus_code)
+    print("Part     :", part_no)
+    print("Revision :", rev)
 
-    # =========================================================
-    # FIND TEMPLATE
-    # =========================================================
+    # -----------------------------
+    # Find PDF
+    # -----------------------------
 
     template = find_template_pdf(
         cus_code,
@@ -236,95 +148,66 @@ def generate_stamp(
             f"Drawing not found ({part_no} {rev})"
         )
 
-    # =========================================================
-    # OPEN ORIGINAL PDF
-    # =========================================================
+    print(template)
+
+    # -----------------------------
+    # Open PDF
+    # -----------------------------
 
     doc = fitz.open(str(template))
-
-    if len(doc) == 0:
-        doc.close()
-
-        raise HTTPException(
-            400,
-            "PDF has no pages."
-        )
-
     page = doc[0]
 
-    # =========================================================
-    # HEADER
-    # =========================================================
+    info = get_page_info(page)
 
-    if header_detail:
+    print(info)
 
-        due = ""
+    due = ""
 
-        if lot.lot_po_duedate:
-            due = lot.lot_po_duedate.strftime(
-                "%m/%d/%Y"
-            )
+    if lot.lot_po_duedate:
+        due = lot.lot_po_duedate.strftime("%m/%d/%Y")
 
-        header_text = (
-            f"LOT: {lot.lot_no}, "
-            f"PO: {lot.po.po_number}, "
-            f"QTY: {lot_shipped_qty} pcs, "
-            f"DUE: {due}"
-        )
+    # -----------------------------
+    # DEBUG
+    # -----------------------------
 
-        page.insert_text(
-            fitz.Point(10, 20),
-            header_text,
-            fontsize=12,
-            fontname="helv",
-            overlay=True,
-        )
+    page.insert_htmlbox(
+        fitz.Rect(
+            1,
+            1,
+            350,
+            140,
+        ),
+        f"""
+        <div style="font-size:12pt">
+           
+            <b>LOT:</b> {lot.lot_no}, <b>PO:</b> {lot.po.po_number}, <b>QTY:</b> {lot_shipped_qty} pcs, <b>DUE:</b> {due}
+        </div>
+        """
+        # f"""
+        # <div style="font-size:8pt">
+        #     <b>Width:</b> {info["width"]}<br>
+        #     <b>Height:</b> {info["height"]}<br>
+        #     <b>Rotation:</b> {info["rotation"]}<br>
+        #     <b>Landscape:</b> {info["landscape"]}<br><br>
 
-    # =========================================================
-    # PYMuPDF OUTPUT
-    # =========================================================
+        #     <b>Customer:</b> {cus_code}<br>
+        #     <b>Part:</b> {part_no}<br>
+        #     <b>Rev:</b> {rev}<br><br>
 
-    pdf_bytes = doc.tobytes(
-        garbage=4,
-        deflate=True,
+        #     <b>LOT:</b> {lot.lot_no}<br>
+        #     <b>QTY:</b> {lot.planned_qty}<br>
+        #     <b>DUE:</b> {due}
+        # </div>
+        # """
     )
 
-    doc.close()
-
-    # =========================================================
-    # IMPORTANT
-    #
-    # Rewrite PDF using Ghostscript
-    # คล้าย Print -> PDF
-    # =========================================================
-
-    try:
-
-        pdf_bytes = normalize_pdf_with_ghostscript(
-            pdf_bytes
-        )
-
-    except Exception as e:
-
-        print(
-            "Ghostscript failed:",
-            e
-        )
-
-        raise HTTPException(
-            500,
-            "Could not normalize drawing PDF."
-        )
-
-    # =========================================================
-    # RETURN
-    # =========================================================
+    pdf = doc.tobytes()
 
     return StreamingResponse(
-        BytesIO(pdf_bytes),
+        BytesIO(pdf),
         media_type="application/pdf",
         headers={
             "Content-Disposition":
-                f'attachment; filename="{lot.lot_no}_stamp.pdf"'
+            f'attachment; filename="{lot.lot_no}_stamp.pdf"'
         },
     )
