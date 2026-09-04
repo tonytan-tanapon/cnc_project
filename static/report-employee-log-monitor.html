@@ -41,15 +41,120 @@
             border-bottom: 1px solid #e5e7eb;
         }
 
-        .search-lg {
-            width: 300px;
-            height: 36px;
+        /* ==============================
+   TOP BAR
+   ============================== */
+
+        .list-topbar {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+
+            height: 52px;
+            padding: 0 14px;
+
+            border-bottom: 1px solid #e5e7eb;
+            background: #ffffff;
+
+            flex-shrink: 0;
+        }
+
+        .topbar-title {
+            font-size: 15px;
+            font-weight: 700;
+            color: #111827;
+
+            white-space: nowrap;
+        }
+
+        .topbar-controls {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .filter-group {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+
+            /* สำคัญ: ไม่ให้ group ขยาย */
+            flex: 0 0 auto;
+        }
+
+        .filter-group label {
+            font-size: 13px;
+            font-weight: 600;
+            color: #4b5563;
+
+            white-space: nowrap;
+        }
+
+
+        /* ==============================
+   PART SEARCH
+   ============================== */
+
+        #partFilter {
+            width: 180px;
+            min-width: 180px;
+            max-width: 180px;
+
+            height: 32px;
+
+            padding: 0 10px;
+
+            border: 1px solid #d1d5db;
+            border-radius: 5px;
+
+            background: #ffffff;
+            font-size: 13px;
+
+            outline: none;
+
+            /* ไม่ให้ flex ขยาย */
+            flex: 0 0 180px;
+        }
+
+        #partFilter:focus {
+            border-color: #2563eb;
+        }
+
+
+        /* ==============================
+   DAYS SELECT
+   ============================== */
+
+        #daysBack {
+            width: 100px;
+            height: 32px;
+
+            padding: 0 8px;
+
+            border: 1px solid #d1d5db;
+            border-radius: 5px;
+
+            background: #ffffff;
+            font-size: 13px;
+
+            cursor: pointer;
+        }
+
+
+        /* ==============================
+   BUTTON
+   ============================== */
+
+        .list-topbar .btn {
+            height: 32px;
+            padding: 0 12px;
+
+            white-space: nowrap;
         }
 
         #listBody {
             flex: 1;
             min-height: 0;
-            overflow: auto;
         }
 
         #listBody .tabulator {
@@ -76,6 +181,49 @@
         .monday-col {
             background: #fef08a !important;
         }
+
+        /* ให้ข้อมูลทุก cell ชิดด้านบน */
+        #listBody .tabulator-cell {
+            align-items: flex-start !important;
+            vertical-align: top !important;
+        }
+
+        /* OP และ Nickname ชิดบน */
+        #listBody .tabulator-row .tabulator-cell {
+            padding-top: 6px;
+        }
+
+        /* Cell วันที่ */
+        #listBody .tabulator-cell[tabulator-field] {
+            overflow: visible;
+        }
+
+        /* แต่ละ Part */
+        .part-item {
+            display: block;
+            padding: 5px 4px;
+            border-bottom: 1px solid #e5e7eb;
+            text-decoration: none;
+            color: #2563eb;
+        }
+
+        .part-item:last-child {
+            border-bottom: none;
+        }
+
+        .part-no {
+            display: block;
+            font-size: 13px;
+            font-weight: 700;
+            line-height: 1.2;
+        }
+
+        .part-op {
+            display: block;
+            margin-top: 2px;
+            font-size: 11px;
+            color: #6b7280;
+        }
     </style>
 
 </head>
@@ -98,15 +246,42 @@
 
                 <div class="list-topbar">
 
-                    <!-- <input id="_q" type="search" class="search-lg" placeholder="Search employee...">
+                    <div class="topbar-title">
+                        Employee Log Monitor
+                    </div>
 
-                    <button id="btnRefresh" class="btn">
-                        Refresh
-                    </button> -->
- Employee Log Monitor
-                    <button id="btnExport" class="btn">
-                        Export Excel
-                    </button>
+                    <div class="topbar-controls">
+
+                        <div class="filter-group">
+                            <label for="partFilter">Part No:</label>
+
+                            <input id="partFilter" type="search" placeholder="Search part..." autocomplete="off">
+
+                            <button id="btnClearPart" class="btn btn-clear" type="button">
+                                Clear
+                            </button>
+                        </div>
+
+                        <div class="filter-group">
+                            <label for="daysBack">Show:</label>
+
+                            <select id="daysBack">
+                                
+                                <option value="30" selected>30 days</option>
+                                <option value="60">60 days</option>
+                                <option value="90">90 days</option>
+                                <option value="120">120 days</option>
+                                <option value="150">150 days</option>
+                                <option value="180">180 days</option>
+                                <option value="210">210 days</option>
+                            </select>
+                        </div>
+
+                        <button id="btnExport" class="btn" type="button">
+                            Export Excel
+                        </button>
+
+                    </div>
 
                 </div>
 
@@ -122,7 +297,7 @@
 
     <script src="/static/vendor/tabulator/tabulator.min.js"></script>
     <script src="/static/vendor/xlsx/xlsx.full.min.js"></script>
-    <script type="module" src="/static/js/page-report-employee-log-monitor.js?v=1.0"></script>
+    <script type="module" src="/static/js/page-report-employee-log-monitor.js?v=1.2"></script>
 
 </body>
 

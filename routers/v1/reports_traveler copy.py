@@ -135,27 +135,17 @@ def employee_log_monitor(
             {}
         )
 
-        log_map[row.operator_id].setdefault(
-            row.work_date,
-            []
-        )
+        # เก็บ part ล่าสุดของวันนั้น
+        if row.work_date not in log_map[row.operator_id]:
 
-        item = {
-            "part_no": row.part_no,
-            "step_code": row.step_code,
-            "lot_id": row.lot_id,
-        }
+            log_map[row.operator_id][
+                row.work_date
+            ] = {
+                "part_no": row.part_no,
+                "step_code": row.step_code,
+                "lot_id": row.lot_id,
+            }
 
-        existing_items = log_map[row.operator_id][row.work_date]
-
-        already_exists = any(
-            x["lot_id"] == row.lot_id
-            and x["step_code"] == row.step_code
-            for x in existing_items
-        )
-
-        if not already_exists:
-            existing_items.append(item)
     # ----------------------------
     # build rows
     # ----------------------------

@@ -5,6 +5,59 @@ import {
 
 let table;
 
+let partFilter = "";
+
+let daysBack = 30;
+
+function applyPartFilter() {
+
+    const input =
+        document.getElementById("partFilter");
+
+    partFilter =
+        input.value
+            .trim()
+            .toLowerCase();
+
+    if (!partFilter) {
+
+        table.clearFilter();
+        refreshTableRows();
+
+        return;
+    }
+
+    table.setFilter(function (data) {
+
+       for (let i = 0; i < daysBack; i++) {
+
+            const d = new Date();
+            d.setDate(d.getDate() - i);
+
+            const key =
+                d.toISOString().slice(0, 10);
+
+            const items =
+                data[key] || [];
+
+            const found =
+                items.some(v =>
+                    String(v.part_no || "")
+                        .toLowerCase()
+                        .includes(partFilter)
+                );
+
+            if (found) {
+                return true;
+            }
+        }
+
+        return false;
+    });
+
+    refreshTableRows();
+}
+
 function buildColumns() {
 
     const columns = [
@@ -25,7 +78,7 @@ function buildColumns() {
 
     ];
 
-    for (let i = 0; i < 15; i++) {
+    for (let i = 0; i < daysBack; i++) {
         const d = new Date();
         d.setDate(
             d.getDate() - i
@@ -70,39 +123,41 @@ function buildColumns() {
 
             formatter(cell) {
 
-                const v = cell.getValue();
+                let items = cell.getValue();
 
-                if (!v) {
+                if (!items || !items.length) {
                     return "";
                 }
 
-                return `
-                    <a
-                        href="/static/traveler-detail.html?lot_id=${v.lot_id}"
-                        target="_blank"
-                        style="
-                            color:#2563eb;
-                            text-decoration:none;
-                            display:flex;
-                            flex-direction:column;
-                            line-height:1.1;
-                        "
-                    >
-                    <span style="
-                        font-size:14px;
-                        font-weight:700;
-                    ">
-                        ${v.part_no}
-                    </span>
+                // ถ้ากำลังค้นหา Part
+                // ให้แสดงเฉพาะ Part ที่ match
+                if (partFilter) {
+                    items = items.filter(v =>
+                        String(v.part_no || "")
+                            .toLowerCase()
+                            .includes(partFilter)
+                    );
+                }
 
-                    <span style="
-                        font-size:11px;
-                        color:#666;
-                    ">
-                        OP#${v.step_code || ""}
-                    </span>
-                </a>
-            `;
+                if (!items.length) {
+                    return "";
+                }
+
+                return items.map(v => `
+        <a
+            class="part-item"
+            href="/static/traveler-detail.html?lot_id=${v.lot_id}"
+            target="_blank"
+        >
+            <span class="part-no">
+                ${v.part_no}
+            </span>
+
+            <span class="part-op">
+                OP#${v.step_code || ""}
+            </span>
+        </a>
+    `).join("");
             }
         });
     }
@@ -110,11 +165,11 @@ function buildColumns() {
 }
 
 async function loadData() {
-    const rows =
-        await jfetch(
-            "/api/v1/reports_traveler/employee-log-monitor"
-        );
+    const rows = await jfetch(
+        `/api/v1/reports_traveler/employee-log-monitor?days_back=${daysBack}`
+    );
     table.setData(rows);
+    console.log("Data loaded:", rows);
 }
 
 async function exportExcel() {
@@ -122,9 +177,9 @@ async function exportExcel() {
         table.getData("active");
     const wsData = [];
 
-    const header = [ "OP",   "Nickname"  ];
+    const header = ["OP", "Nickname"];
 
-    for (let i = 0; i < 15; i++) {
+     for (let i = 0; i < daysBack; i++) {
 
         const d = new Date();
 
@@ -136,9 +191,9 @@ async function exportExcel() {
             "SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"
         ];
 
-        const dayShort =  dayNames[d.getDay()];
+        const dayShort = dayNames[d.getDay()];
 
-        header.push(  `${dayShort} ${d.toISOString().slice(0, 10)}` );
+        header.push(`${dayShort} ${d.toISOString().slice(0, 10)}`);
     }
 
     wsData.push(header);
@@ -150,11 +205,25 @@ async function exportExcel() {
             r.nickname
         ];
 
-        for (let i = 0; i < 15; i++) {
+         for (let i = 0; i < daysBack; i++) {
             const d = new Date();
-            d.setDate(  d.getDate() - i );
-            const key =  d.toISOString().slice(0, 10);
-            row.push( r[key]?.part_no || "" );
+            d.setDate(d.getDate() - i);
+            const key = d.toISOString().slice(0, 10);
+            let items = r[key] || [];
+
+            if (partFilter) {
+                items = items.filter(v =>
+                    String(v.part_no || "")
+                        .toLowerCase()
+                        .includes(partFilter)
+                );
+            }
+
+            row.push(
+                items
+                    .map(v => `${v.part_no} OP#${v.step_code || ""}`)
+                    .join("\n")
+            );
         }
 
         wsData.push(row);
@@ -173,7 +242,7 @@ async function exportExcel() {
     ws["!cols"] = [
         { wch: 8 },
         { wch: 20 },
-        ...Array(15).fill({ wch: 18 })
+        ...Array(daysBack).fill({ wch: 18 })
     ];
 
     XLSX.utils.book_append_sheet(
@@ -182,22 +251,26 @@ async function exportExcel() {
         "Employee Log"
     );
 
-    XLSX.writeFile(
-        wb,
-        `Employee_Log_${new Date().toISOString().slice(0, 10)}.xlsx`
+    XLSX.writeFile(        wb,`Employee_Log_${new Date().toISOString().slice(0, 10)}.xlsx`
     );
 }
 
+function refreshTableRows() {
+
+    table.getRows().forEach(row => {
+        row.reformat();
+    });
+
+    table.redraw(true);
+}
 async function init() {
 
     table = new Tabulator(
         "#listBody",
         {
-
             layout: "fitColumns",
 
-            columns:
-                buildColumns(),
+            columns: buildColumns(),
 
             initialSort: [
                 {
@@ -208,16 +281,23 @@ async function init() {
 
             rowFormatter(row) {
 
-                const d =
-                    row.getData();
+                const d = row.getData();
 
-                if (
-                    d.missing_days >= 5
-                ) {
+                if (d.missing_days >= 5) {
                     row.getElement()
                         .classList
                         .add("late-row");
                 }
+
+                const cells = row
+                    .getElement()
+                    .querySelectorAll(".tabulator-cell");
+
+                cells.forEach(cell => {
+                    cell.style.alignItems = "flex-start";
+                });
+
+                row.normalizeHeight();
             }
         }
     );
@@ -289,11 +369,64 @@ async function init() {
     //     loadData;
 
     document
-        .getElementById(
-            "btnExport"
-        )
-        .onclick =
-        exportExcel;
+        .getElementById("btnExport")
+        .onclick = exportExcel;
+
+// ==============================
+// DAYS BACK
+// ==============================
+
+document
+    .getElementById("daysBack")
+    .addEventListener(
+        "change",
+        async function () {
+
+            daysBack = parseInt(this.value, 10);
+
+            // สร้าง column ใหม่
+            table.setColumns(
+                buildColumns()
+            );
+
+            // โหลดข้อมูลตามจำนวนวันที่เลือก
+            await loadData();
+
+            // ถ้ามี Part filter อยู่
+            if (partFilter) {
+                applyPartFilter();
+            }
+
+            table.redraw(true);
+        }
+    );
+    // ==============================
+    // PART FILTER
+    // ==============================
+
+    document
+        .getElementById("partFilter")
+        .addEventListener(
+            "input",
+            applyPartFilter
+        );
+
+
+    document
+        .getElementById("btnClearPart")
+        .addEventListener(
+            "click",
+            function () {
+
+                document.getElementById("partFilter").value = "";
+
+                partFilter = "";
+
+                table.clearFilter();
+
+                refreshTableRows();
+            }
+        );
 
 }
 
