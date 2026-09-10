@@ -4,6 +4,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
+from sqlalchemy import Date
 from sqlalchemy.orm import Session
 
 from database import get_db
@@ -13,15 +14,31 @@ from schemas import PayPeriodCreate, PayPeriodUpdate, PayPeriodOut
 router = APIRouter(prefix="/pay-periods", tags=["pay_periods"])
 
 
-def _overlap_exists(db: Session, start_at: datetime, end_at: datetime, exclude_id: Optional[int] = None) -> bool:
+# def _overlap_exists(db: Session, start_at: datetime, end_at: datetime, exclude_id: Optional[int] = None) -> bool:
+#     q = db.query(PayPeriod).filter(
+#         PayPeriod.start_at < end_at,
+#         PayPeriod.end_at > start_at,
+#     )
+#     if exclude_id:
+#         q = q.filter(PayPeriod.id != exclude_id)
+#     return db.query(q.exists()).scalar()
+
+def _overlap_exists(
+    db: Session,
+    start_at: datetime,
+    end_at: datetime,
+    exclude_id: Optional[int] = None
+) -> bool:
+
     q = db.query(PayPeriod).filter(
-        PayPeriod.start_at < end_at,
-        PayPeriod.end_at > start_at,
+        PayPeriod.start_at.cast(Date) < end_at.date(),
+        PayPeriod.end_at.cast(Date) > start_at.date(),
     )
+
     if exclude_id:
         q = q.filter(PayPeriod.id != exclude_id)
-    return db.query(q.exists()).scalar()
 
+    return db.query(q.exists()).scalar()
 
 # ---------- Pagination response ----------
 class PaginatedPayPeriods(BaseModel):
@@ -155,3 +172,4 @@ def delete_pay_period(pp_id: int, db: Session = Depends(get_db)):
         raise HTTPException(404, "PayPeriod not found")
     db.delete(pp); db.commit()
     return {"message": "PayPeriod deleted"}
+
