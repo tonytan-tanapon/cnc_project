@@ -317,6 +317,7 @@ def upsert_lot(db, row):
             # lot_po_qty=qty,
             lot_due_date=new_due_date,
             lot_po_duedate=new_due_date,
+            lot_po_qty=qty,
             status="not_start",
         )
         db.add(lot)
@@ -341,6 +342,7 @@ def upsert_lot(db, row):
     else:
 
         lot.planned_qty = qty
+        lot.lot_po_qty = qty
 
         # ใช้ Due Date - 1 เดือน เหมือนตอน CREATE
         lot.lot_due_date = new_due_date

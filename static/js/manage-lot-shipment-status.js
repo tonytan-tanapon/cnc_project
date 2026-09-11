@@ -1576,6 +1576,10 @@ function applyFilter() {
     table.addFilter((d) => {
 
       const part = String(d.part_no || "").toLowerCase();
+      const partName = String(d.part_name || "").toLowerCase();
+      const partDetail = String(d.part_detail || "").toLowerCase();
+      const partDetailExtra = String(d.part_detail_extra || "").toLowerCase();
+
       const lot = String(d.lot_no || "").toLowerCase();
       const customer = String(d.customer_name || "").toLowerCase();
       const customerCode = String(d.customer_code || "").toLowerCase();
@@ -1583,6 +1587,9 @@ function applyFilter() {
 
       return (
         part.includes(q) ||
+        partName.includes(q) ||
+        partDetail.includes(q) ||
+        partDetailExtra.includes(q) ||
         lot.includes(q) ||
         customer.includes(q) ||
         customerCode.includes(q) ||
@@ -1602,9 +1609,7 @@ function applyFilter() {
     });
 
   } else if (lotStatus) {
-
     table.addFilter("lot_status", "=", lotStatus);
-
   }
 
   // if (duedaysVal) {

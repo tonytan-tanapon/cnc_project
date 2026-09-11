@@ -63,42 +63,5 @@ for file_name in os.listdir(folder_path):
 # ===============================
 final_df = pd.DataFrame(output_rows)
 
-# ✅ Create Date from PO Date
-final_df["Date"] = final_df["PO Date"]
 
-# 🔥 Convert to datetime
-final_df["Date"] = pd.to_datetime(final_df["Date"], errors="coerce")
-final_df["Due Date"] = pd.to_datetime(final_df["Due Date"], errors="coerce")
 
-# 🔥 Format like your example (MM/DD/YY)
-final_df["Date"] = final_df["Date"].dt.strftime("%m/%d/%Y")
-final_df["Due Date"] = final_df["Due Date"].dt.strftime("%m/%d/%Y")
-
-# 🔥 Reorder columns to match your required format
-final_df = final_df[[
-    "Date",
-    "Customer",
-    "Lot Number",
-    "PO Number",
-    "Part No",
-    "Part Name",
-    "Rev",
-    "Due Date",
-    "Qty PO"
-]]
-
-# 🔥 Rename columns to EXACT format
-final_df = final_df.rename(columns={
-    "Customer": "Name",
-    "Lot Number": "Lot#",
-    "PO Number": "PO",
-    "Part No": "Part No.",
-    "Part Name": "Description",
-    "Rev": "Rev."
-})
-
-# Save
-output_file = os.path.join(folder_path, "lot_report_format.xlsx")
-final_df.to_excel(output_file, index=False)
-
-print("✅ DONE! File created:", output_file)

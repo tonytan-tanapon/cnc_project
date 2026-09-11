@@ -392,6 +392,7 @@ class ProductionLotCreate(BaseModel):
     part_revision_id: Optional[int] = None
     po_id: Optional[int] = None
     planned_qty: int = 0
+    lot_po_qty: Optional[int] = None
     lot_due_date : Optional[datetime] = None
     started_at: Optional[datetime] = None
     finished_at: Optional[datetime] = None

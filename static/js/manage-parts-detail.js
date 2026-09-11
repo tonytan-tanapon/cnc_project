@@ -569,8 +569,8 @@ function initTable() {
     columns: [
       {
         title: "📌",
-        
-  width: 80,
+
+        width: 80,
         minWidth: 40,
         field: "lot_status",
         hozAlign: "center",
@@ -614,23 +614,23 @@ function initTable() {
         },
       },
 
-     {
-  title: "Lot",
-  field: "lot_no",
+      {
+        title: "Lot",
+        field: "lot_no",
 
-  width: 80,        // ✅ fix width เล็กลง
-  minWidth: 80,
-  maxWidth: 140,     // ✅ กันมันยืด
-  headerSort: true,
+        width: 80,        // ✅ fix width เล็กลง
+        minWidth: 80,
+        maxWidth: 140,     // ✅ กันมันยืด
+        headerSort: true,
 
-  formatter: (cell) => {
-    const row = cell.getRow().getData();
-    const lotId = row.lot_id;
-    const lotNo = row.lot_no || "—";
+        formatter: (cell) => {
+          const row = cell.getRow().getData();
+          const lotId = row.lot_id;
+          const lotNo = row.lot_no || "—";
 
-    if (!lotId) return lotNo;
+          if (!lotId) return lotNo;
 
-    return `
+          return `
       <a href="/static/lot-detail.html?lot_id=${encodeURIComponent(lotId)}"
          onclick="event.stopPropagation();"
          style="
@@ -644,8 +644,8 @@ function initTable() {
          ${lotNo}
       </a>
     `;
-  },
-},
+        },
+      },
       // {
       //   title: "PO",
       //   field: "po_number",
@@ -677,36 +677,36 @@ function initTable() {
       //   },
       // },
       {
-  title: "PO<br><small>Ship/Total(Rem)</small>",
-  field: "po_number",
-  width: 130,                 // ✅ ลด width
-  minWidth: 110,
-  maxWidth: 150,
+        title: "PO<br><small>Ship/Total(Rem)</small>",
+        field: "po_number",
+        width: 130,                 // ✅ ลด width
+        minWidth: 110,
+        maxWidth: 150,
 
-  hozAlign: "center",
-  headerHozAlign: "center",
-  headerSort: true,
+        hozAlign: "center",
+        headerHozAlign: "center",
+        headerSort: true,
 
-  formatter: (cell) => {
-    const r = cell.getRow().getData();
+        formatter: (cell) => {
+          const r = cell.getRow().getData();
 
-    const poNumber = r.po_number || "—";
-    const poId = r.po_id;
+          const poNumber = r.po_number || "—";
+          const poId = r.po_id;
 
-    const shipped = r.po_shipped_total ?? 0;
-    const total = r.po_qty_total ?? 0;
-    const remain = r.po_remaining_qty ?? total - shipped;
+          const shipped = r.po_shipped_total ?? 0;
+          const total = r.po_qty_total ?? 0;
+          const remain = r.po_remaining_qty ?? total - shipped;
 
-    let color = "#6b7280";
-    if (shipped === 0) color = "#ef4444";
-    else if (remain > 0) color = "#f59e0b";
-    else if (remain === 0) color = "#10b981";
-    else color = "#7c3aed";
+          let color = "#6b7280";
+          if (shipped === 0) color = "#ef4444";
+          else if (remain > 0) color = "#f59e0b";
+          else if (remain === 0) color = "#10b981";
+          else color = "#7c3aed";
 
-    const remText = remain < 0 ? `-${Math.abs(remain)}` : remain;
+          const remText = remain < 0 ? `-${Math.abs(remain)}` : remain;
 
-    const poLink = poId
-      ? `<a href="/static/manage-pos-detail.html?id=${encodeURIComponent(poId)}"
+          const poLink = poId
+            ? `<a href="/static/manage-pos-detail.html?id=${encodeURIComponent(poId)}"
            onclick="event.stopPropagation();"
            style="
              color:#2563eb;
@@ -718,9 +718,9 @@ function initTable() {
            ">
            ${poNumber}
          </a>`
-      : poNumber;
+            : poNumber;
 
-    return `
+          return `
       <div style="
         display:flex;
         flex-direction:column;
@@ -738,8 +738,8 @@ function initTable() {
         </div>
       </div>
     `;
-  },
-},
+        },
+      },
 
       {
         title: "Prod<br>Qty",
@@ -853,30 +853,37 @@ function initTable() {
       //   width: 80,
       //   field: "lot_planned_ship_qty",
       // },
+      // {
+      //   title: "QTY",
+      //   width: 80,
+      //   field: "lot_planned_ship_qty",
+      //   hozAlign: "center",
+      //   headerHozAlign: "center",
+      //   editor: "number",        // ✅ inline edit
+      //   editorParams: {
+      //     min: 0,
+      //     step: 1,
+      //   },
+      //   cellEdited: async (cell) => {
+      //     const d = cell.getRow().getData();
+
+      //     await fetch(`/api/v1/lots/${d.lot_id}`, {
+      //       method: "PATCH",
+      //       headers: { "Content-Type": "application/json" },
+      //       body: JSON.stringify({
+      //         planned_ship_qty: d.lot_planned_ship_qty,   // ✅ correct field
+      //       }),
+      //     });
+
+      //     toast("Quantity updated", true);
+      //   }
+      // },
+
+
       {
-        title: "QTY",
-        width: 80,
-        field: "lot_planned_ship_qty",
-        hozAlign: "center",
-        headerHozAlign: "center",
-        editor: "number",        // ✅ inline edit
-        editorParams: {
-          min: 0,
-          step: 1,
-        },
-        cellEdited: async (cell) => {
-          const d = cell.getRow().getData();
-
-          await fetch(`/api/v1/lots/${d.lot_id}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              planned_ship_qty: d.lot_planned_ship_qty,   // ✅ correct field
-            }),
-          });
-
-          toast("Quantity updated", true);
-        }
+        title: "PO QTY<br>(New)",
+        width: 100,
+        field: "lot_po_qty",
       },
 
 
@@ -981,6 +988,24 @@ function initTable() {
         },
       },
 
+
+      // {
+      //   title: "PO due<br>(New)",
+      //   width: 100,
+      //   field: "lot_po_duedate",
+      //   formatter: function (cell) {
+      //     const value = cell.getValue();
+      //     if (!value) return "";
+
+      //     const date = new Date(value);
+
+      //     const mm = String(date.getMonth() + 1).padStart(2, "0");
+      //     const dd = String(date.getDate()).padStart(2, "0");
+      //     const yy = String(date.getFullYear()).slice(-2);
+
+      //     return `${mm}/${dd}/${yy}`;
+      //   },
+      // },
       {
         title: "Ship<br>QTY",
         width: 110,
@@ -1028,13 +1053,14 @@ function initTable() {
       },
 
       // placeholders...
-      // {
-      //   title: "FAIR",
-      //   field: "fair_note",
-      //   minWidth: 50,
-      //   headerSort: false,
-      // },
+      {
+        title: "FAIR",
+        field: "fair_note",
+        minWidth: 50,
+        headerSort: false,
+      },
 
+     
       {
         title: "Tracking no.",
         field: "lot_tracking_no",
