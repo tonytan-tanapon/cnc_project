@@ -895,7 +895,16 @@ ${machines.map(m => `
   ${opLabel}
 </option>
 `;
-    }).join("");
+   }).join("");
+
+  // =========================
+  // AUTO RESIZE NOTE
+  // =========================
+  requestAnimationFrame(() => {
+    document
+      .querySelectorAll(".col-note textarea")
+      .forEach(autoResizeTextarea);
+  });
 }
 
 function autoResizeTextarea(el) {
@@ -1794,3 +1803,16 @@ document.addEventListener("keydown", async function (e) {
     td.blur();
   }
 });
+
+
+function autoResizeTextarea(el) {
+  el.style.height = "auto";
+  el.style.height = el.scrollHeight + "px";
+}
+
+document.addEventListener("input", function (e) {
+  if (e.target.matches(".col-note textarea")) {
+    autoResizeTextarea(e.target);
+  }
+});
+
