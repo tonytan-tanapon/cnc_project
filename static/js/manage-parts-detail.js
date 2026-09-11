@@ -600,9 +600,9 @@ function initTable() {
 
           if (s === "completed") icon = "✅";
           else if (s === "in_process") icon = "⚙️";
-          else if (s === "not start" || s === "not_started") icon = "⏳";
-          else if (s === "hold") icon = "⏸️";
-          else if (s === "not_start") icon = "❌";
+          else if (s === "not_start" || s === "not_started") icon = "⏳";
+          else if (s === "shipped") icon = "📦";
+          else if (s === "canceled" || s === "cancelled" || s === "reject") icon = "❌";
 
           const color = colorMap[s] || "#111827";
 
