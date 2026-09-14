@@ -3444,11 +3444,23 @@ function makeLotLinks(lotId) {
       )}`,
       title: "Shipment",
     },
+   {
+  id: "part_link",
+
+  href:
+    `/static/manage-part-detail.html` +
+    `?part_id=${encodeURIComponent(originalTraveler?.part_id)}` +
+    `&part_revision_id=${encodeURIComponent(originalTraveler?.part_revision_id)}` +
+    `&customer_id=${encodeURIComponent(originalLot?.customer?.id)}`,
+
+  title: "Part",
+},
   ];
 
   links.forEach(({ id, href, title }) => {
-    const el = document.getElementById(id);
-    if (!el) return;
+  const el = document.getElementById(id);
+
+  if (!el || !href) return;
 
     const a = document.createElement("a");
     a.href = href;

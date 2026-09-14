@@ -500,6 +500,7 @@ def get_lot(lot_id: int, db: Session = Depends(get_db)):
         "lot_planned_qty": lot.planned_qty,
 
         "customer": {
+            "id": lot.po.customer.id,
             "name": lot.po.customer.name,
             "code": lot.po.customer.code,
         } if lot.po and lot.po.customer else None,

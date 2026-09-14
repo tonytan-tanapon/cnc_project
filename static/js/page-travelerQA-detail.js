@@ -1183,6 +1183,8 @@ function makeLotLinks(lotId) {
       )}`,
       title: "Shipment",
     },
+   
+
   ];
 
   links.forEach(({ id, href, title }) => {
