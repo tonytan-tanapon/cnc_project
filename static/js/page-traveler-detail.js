@@ -2053,7 +2053,7 @@ function initStepsTable() {
       {
         title: "Step Detail",
         field: "step_detail",
-        width: 220,
+        width: 550,
         variableHeight: true,
 
         formatter: function (cell) {
@@ -2599,7 +2599,7 @@ function initStepsTable() {
 
       {
         title: "Supplier / Comment",
-        width: 300,
+        width: 250,
 
         formatter: function (cell) {
 
@@ -2742,7 +2742,7 @@ function initStepsTable() {
 
       {
         title: "Check",
-        width: 200,
+        width: 150,
 
         formatter(cell) {
 
