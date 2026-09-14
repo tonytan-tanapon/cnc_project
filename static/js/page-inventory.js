@@ -36,51 +36,50 @@ function makeColumns() {
       hozAlign: "right",
       width: 100,
     },
+{
+  title: "Adjust",
+  field: "qty_adjust",
+  hozAlign: "right",
+  width: 100,
 
-    {
-      title: "Adjust",
-      field: "qty_adjust",
-      hozAlign: "right",
-      width: 100,
+  editor: "number",
 
+  formatter: (cell) => {
+    const el = cell.getElement();
 
-      editor: "number",
-      formatter(cell) {
-        cell.getElement().style.backgroundColor = "#fff3b0";
-        return cell.getValue();
-      },
-      cellEdited: async function (cell) {
+    el.style.setProperty("background-color", "#fff3b0", "important");
+    el.style.setProperty("font-weight", "bold", "important");
 
-        const row = cell.getRow().getData();
-        const value = Number(cell.getValue());
-        const oldValue = Number(cell.getOldValue());
+    return fmtQty(cell.getValue());
+  },
 
-        try {
+  cellEdited: async function (cell) {
+    const row = cell.getRow().getData();
+    const value = Number(cell.getValue());
+    const oldValue = Number(cell.getOldValue());
 
-          const updated = await jfetch(
-            ENDPOINTS.adjust,
-            {
-              method: "POST",
-              body: JSON.stringify({
-                lot_id: row.lot_id,
-                qty: value
-              })
-            }
-          );
-
-          cell.getRow().update(updated);
-
-          toast("Saved");
-
-        } catch (err) {
-
-          cell.setValue(oldValue, true);
-          toast("Save failed");
-
+    try {
+      const updated = await jfetch(
+        ENDPOINTS.adjust,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            lot_id: row.lot_id,
+            qty: value
+          })
         }
-      }
-    },
+      );
 
+      cell.getRow().update(updated);
+
+      toast("Saved");
+
+    } catch (err) {
+      cell.setValue(oldValue, true);
+      toast("Save failed");
+    }
+  }
+},
 
 
     {

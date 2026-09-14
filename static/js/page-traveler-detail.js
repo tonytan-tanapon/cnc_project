@@ -2600,7 +2600,6 @@ function initStepsTable() {
       {
         title: "Supplier / Comment",
         width: 300,
-        variableHeight: true,
 
         formatter: function (cell) {
 
@@ -2617,15 +2616,18 @@ function initStepsTable() {
             // SUPPLIER INFO
             // =====================
 
+
+
             if (l.supplier_name) {
+
               lines.push(
-                `<b>Supplier:</b> ${escapeHtml(l.supplier_name)}`
+                `<b>Supplier:</b> ${l.supplier_name}`
               );
             }
-
             if (l.supplier_po) {
+
               lines.push(
-                `<b>PO:</b> ${escapeHtml(l.supplier_po)}`
+                `<b>PO:</b> ${l.supplier_po}`
               );
             }
 
@@ -2639,13 +2641,17 @@ function initStepsTable() {
                 ).toUpperCase();
 
               if (stepCode.startsWith("M")) {
+
                 lines.push(
-                  `<b>Heat Lot:</b> ${escapeHtml(l.supplier_lot)}`
+                  `<b>Heat Lot:</b> ${l.supplier_lot}`
                 );
+
               } else {
+
                 lines.push(
-                  `<b>Cert:</b> ${escapeHtml(l.supplier_lot)}`
+                  `<b>Cert:</b> ${l.supplier_lot}`
                 );
+
               }
             }
 
@@ -2657,29 +2663,36 @@ function initStepsTable() {
               (l.note || "").trim();
 
             if (note) {
-              lines.push(`
-          <div class="supplier-comment-note">
-            ${escapeHtml(note)}
-          </div>
-        `);
+
+              lines.push(
+                `<div style="
+            margin-top:4px;
+            color:#2563eb;
+            font-style:italic;
+          ">
+            ${note}
+          </div>`
+              );
             }
 
+            // skip empty
             if (lines.length === 0) {
               return;
             }
 
-            const text = lines.join("<br>");
+            const text =
+              lines.join("<br>");
 
+            // prevent duplicate
             if (!blocks.includes(text)) {
+
               blocks.push(text);
             }
           });
 
-          return `
-      <div class="supplier-comment-cell">
-        ${blocks.join("<hr style='margin:6px 0'>")}
-      </div>
-    `;
+          return blocks.join(
+            "<hr style='margin:6px 0'>"
+          );
         }
       },
 

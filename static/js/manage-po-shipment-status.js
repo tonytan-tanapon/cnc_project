@@ -53,6 +53,7 @@ function makeColumns() {
         window.location.href = url;
       },
     },
+    
     {
   title: "Part",
   field: "part_nos",

@@ -553,6 +553,15 @@ function toDateOnly(v) {
 
   return null;
 }
+async function fetchInventory() {
+  try {
+    const res = await jfetch("/inventory");
+    return Array.isArray(res) ? res : [];
+  } catch (e) {
+    console.warn("Fetch inventory failed", e);
+    return [];
+  }
+}
 
 // ---- Tabulator
 function initTable() {
@@ -618,7 +627,7 @@ function initTable() {
         title: "Lot",
         field: "lot_no",
 
-        width: 80,        // ✅ fix width เล็กลง
+        width: 50,        // ✅ fix width เล็กลง
         minWidth: 80,
         maxWidth: 140,     // ✅ กันมันยืด
         headerSort: true,
@@ -679,7 +688,7 @@ function initTable() {
       {
         title: "PO<br><small>Ship/Total(Rem)</small>",
         field: "po_number",
-        width: 130,                 // ✅ ลด width
+        width: 150,                 // ✅ ลด width
         minWidth: 110,
         maxWidth: 150,
 
@@ -742,84 +751,94 @@ function initTable() {
       },
 
       {
-        title: "Prod<br>Qty",
-        field: "lot_qty",
-        width: 110,
+        title: "Prod",
+        field: "inventory_produced",
+        width: 100,
         hozAlign: "center",
         headerHozAlign: "center",
-
-        formatter: (cell) => {
-          const r = cell.getRow().getData();
-          const lotId = r.lot_id;
-          const rev = r.revision_code;
-          const qty = fmtQty(r.lot_qty);
-
-          if (!lotId) return qty ?? "—";
-
-          return `
-      <div style="
-        display:flex;
-        align-items:center;
-        justify-content:center;
-        gap:6px;
-        white-space:nowrap;
-      ">
-        <span style="font-weight:600;">
-          ${qty} 
-        </span>
-        <span data-action="materials"
-              title="Materials"
-              style="cursor:pointer;">
-          🔩
-        </span>
-        <span data-action="traveler"
-              title="Traveler"
-              style="cursor:pointer;">
-          🧾
-        </span>
-
-        
-      </div>
-    `;
-        },
-
-        cellClick: async (e, cell) => {
-          const action = e.target?.dataset?.action;
-          if (!action) return;
-
-          e.preventDefault();
-
-          const r = cell.getRow().getData();
-          const lotId = r.lot_id;
-          if (!lotId) return toast("No lot ID found", false);
-
-          try {
-            if (action === "traveler") {
-              const res = await fetch(
-                `/api/v1/lot-uses/lot/${encodeURIComponent(lotId)}/material-id`
-              );
-              if (!res.ok) throw new Error("Server error");
-              const data = await res.json();
-
-              if (!data.traveler_id) {
-                toast("❌ Traveler not found", false);
-                return;
-              }
-
-              window.location.href = `/static/traveler-detail.html?lot_id=${encodeURIComponent(
-                lotId
-              )}`;
-            } else if (action === "materials") {
-              window.location.href = `/static/manage-lot-materials.html?lot_id=${encodeURIComponent(
-                lotId
-              )}`;
-            }
-          } catch (err) {
-            toast("⚠️ Action failed", false);
-            console.error(err);
-          }
-        },
+        formatter: (cell) => fmtQty(cell.getValue()),
       },
+
+
+      //   {
+      //     title: "Prod<br>Qty",
+      //     field: "lot_qty",
+      //     width: 110,
+      //     hozAlign: "center",
+      //     headerHozAlign: "center",
+
+      //     formatter: (cell) => {
+      //       const r = cell.getRow().getData();
+      //       const lotId = r.lot_id;
+      //       const rev = r.revision_code;
+      //       const qty = fmtQty(r.lot_qty);
+
+      //       if (!lotId) return qty ?? "—";
+
+      //       return `
+      //   <div style="
+      //     display:flex;
+      //     align-items:center;
+      //     justify-content:center;
+      //     gap:6px;
+      //     white-space:nowrap;
+      //   ">
+      //     <span style="font-weight:600;">
+      //       ${qty} 
+      //     </span>
+      //     <span data-action="materials"
+      //           title="Materials"
+      //           style="cursor:pointer;">
+      //       🔩
+      //     </span>
+      //     <span data-action="traveler"
+      //           title="Traveler"
+      //           style="cursor:pointer;">
+      //       🧾
+      //     </span>
+
+
+      //   </div>
+      // `;
+      //     },
+
+      //     cellClick: async (e, cell) => {
+      //       const action = e.target?.dataset?.action;
+      //       if (!action) return;
+
+      //       e.preventDefault();
+
+      //       const r = cell.getRow().getData();
+      //       const lotId = r.lot_id;
+      //       if (!lotId) return toast("No lot ID found", false);
+
+      //       try {
+      //         if (action === "traveler") {
+      //           const res = await fetch(
+      //             `/api/v1/lot-uses/lot/${encodeURIComponent(lotId)}/material-id`
+      //           );
+      //           if (!res.ok) throw new Error("Server error");
+      //           const data = await res.json();
+
+      //           if (!data.traveler_id) {
+      //             toast("❌ Traveler not found", false);
+      //             return;
+      //           }
+
+      //           window.location.href = `/static/traveler-detail.html?lot_id=${encodeURIComponent(
+      //             lotId
+      //           )}`;
+      //         } else if (action === "materials") {
+      //           window.location.href = `/static/manage-lot-materials.html?lot_id=${encodeURIComponent(
+      //             lotId
+      //           )}`;
+      //         }
+      //       } catch (err) {
+      //         toast("⚠️ Action failed", false);
+      //         console.error(err);
+      //       }
+      //     },
+      //   },
 
       // {
       //   title: "Prod allocate",
@@ -833,7 +852,8 @@ function initTable() {
         title: "Prod<br>Date",
         field: "lot_due_date",
         headerSort: true,
-        minWidth: 80,
+        width: 100,
+        minWidth: 100,
         sorter: "string",
         formatter: (cell) => {
           const r = cell.getRow().getData();
@@ -881,9 +901,11 @@ function initTable() {
 
 
       {
-        title: "PO QTY<br>(New)",
-        width: 100,
+        title: "PO<br>QTY",
+        width: 90,
         field: "lot_po_qty",
+         hozAlign: "center",
+        headerHozAlign: "center",
       },
 
 
@@ -927,7 +949,8 @@ function initTable() {
         title: "Due<br>Date",
         field: "lot_po_duedate",
         headerSort: true,
-        minWidth: 90,
+        width: 100,
+        minWidth: 100,
         hozAlign: "center",
         headerHozAlign: "center",
         sorter: "string",
@@ -1022,22 +1045,77 @@ function initTable() {
           const url = `/static/manage-lot-shippments.html?lot_id=${d.lot_id}`;
 
           return `
-      <div style="display:flex; align-items:center; gap:6px; justify-content:center;">
+      <div style="
+        display:flex;
+        align-items:center;
+        gap:6px;
+        justify-content:center;
+      ">
         <span>${shipped}</span>
+      <span data-action="traveler"
+              title="Traveler"
+              style="cursor:pointer;">
+          🧾
+        </span>
         <a href="${url}"
            target="_blank"
            title="Open shipment"
            style="text-decoration:none; font-size:14px;">
-           📦 
+          📦
         </a>
+
+        
       </div>
     `;
+        },
+
+        cellClick: async (e, cell) => {
+          const action = e.target?.dataset?.action;
+
+          // ถ้าไม่ได้กด icon ที่มี data-action ไม่ต้องทำอะไร
+          if (!action) return;
+
+          e.preventDefault();
+          e.stopPropagation();
+
+          const d = cell.getRow().getData();
+          const lotId = d.lot_id;
+
+          if (!lotId) {
+            return toast("No lot ID found", false);
+          }
+
+          try {
+            if (action === "traveler") {
+              const res = await fetch(
+                `/api/v1/lot-uses/lot/${encodeURIComponent(lotId)}/material-id`
+              );
+
+              if (!res.ok) {
+                throw new Error("Server error");
+              }
+
+              const data = await res.json();
+
+              if (!data.traveler_id) {
+                toast("❌ Traveler not found", false);
+                return;
+              }
+
+              window.location.href =
+                `/static/traveler-detail.html?lot_id=${encodeURIComponent(lotId)}`;
+            }
+          } catch (err) {
+            toast("⚠️ Action failed", false);
+            console.error(err);
+          }
         },
       },
 
       {
-        title: "Shipped<br>Date",
+        title: "Ship<br>Date",
         field: "lot_shipped_at",
+        width: 100,
         minWidth: 100,
         headerSort: true,
         formatter: (cell) => {
@@ -1056,15 +1134,16 @@ function initTable() {
       {
         title: "FAIR",
         field: "fair_note",
-        minWidth: 50,
+        width: 70,
+        minWidth: 70,
         headerSort: false,
       },
 
-     
+
       {
         title: "Tracking no.",
         field: "lot_tracking_no",
-        minWidth: 120,
+        minWidth: 170,
         maxWidth: 250,
         headerSort: true,
         cssClass: "cell-wrap",
@@ -1134,6 +1213,103 @@ function initTable() {
         }
       }
 
+      , // ========================
+      // INVENTORY
+      // ========================
+
+      {
+        title: "Stock",
+        field: "inventory_stock",
+        width: 90,
+        hozAlign: "right",
+        headerHozAlign: "right",
+        formatter: (cell) => fmtQty(cell.getValue()),
+      },
+
+      {
+        title: "Adjust",
+        field: "inventory_adjust",
+        width: 90,
+        hozAlign: "right",
+        headerHozAlign: "right",
+        editor: "number",
+        editorParams: {
+          step: 1,
+        },
+
+        formatter: (cell) => fmtQty(cell.getValue()),
+
+        cellEdited: async (cell) => {
+          const row = cell.getRow();
+          const d = row.getData();
+
+          try {
+            const result = await updateInventory(d.lot_id, {
+              qty: Number(d.inventory_adjust || 0),
+            });
+
+            // backend recalculates Stock
+            await row.update({
+              inventory_adjust: result.qty_adjust,
+              inventory_stock: result.qty_on_hand,
+              inventory_produced: result.qty_produced,
+              inventory_status: result.status,
+            });
+
+            toast("Inventory updated", true);
+
+          } catch (e) {
+            console.error(e);
+            toast("Failed to update inventory", false);
+
+            await loadData();
+          }
+        },
+      },
+
+
+      {
+        title: "Status",
+        field: "inventory_status",
+        width: 110,
+
+        editor: "list",
+        editorParams: {
+          values: [
+            "Not checked",
+            "Checked",
+
+          ],
+        },
+
+        cellEdited: async (cell) => {
+          const row = cell.getRow();
+          const d = row.getData();
+
+          try {
+            const result = await updateInventory(d.lot_id, {
+              status: d.inventory_status,
+            });
+
+            await row.update({
+              inventory_adjust: result.qty_adjust,
+              inventory_stock: result.qty_on_hand,
+              inventory_produced: result.qty_produced,
+              inventory_status: result.status,
+            });
+
+            toast("Inventory status updated", true);
+
+          } catch (e) {
+            console.error(e);
+            toast("Failed to update status", false);
+
+            await loadData();
+          }
+        },
+      }
+
+
     ],
   });
 }
@@ -1199,6 +1375,17 @@ async function savePartDetail() {
   }
 }
 
+async function updateInventory(lotId, payload) {
+  return await jfetch("/inventory/adjust", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      lot_id: lotId,
+      ...payload,
+    }),
+  });
+}
+
 function initPartDetailEditor() {
   const detail =
     document.getElementById("h_part_detail");
@@ -1230,13 +1417,40 @@ function initPartDetailEditor() {
 //   applyFiltersToTable();
 // }
 async function loadData() {
-  const { meta } = await fetchDetail(); // header meta
-  const lots = await fetchLotsByPart(); // lot ของ part นี้
-  console.log("LOTS", lots);
-  allRows = lots; // ✅ ตัวแปรที่ประกาศไว้
+  const { meta } = await fetchDetail();
+
+  const [lots, inventories] = await Promise.all([
+    fetchLotsByPart(),
+    fetchInventory(),
+  ]);
+
+  const inventoryMap = new Map(
+    inventories.map(inv => [
+      Number(inv.lot_id),
+      inv
+    ])
+  );
+
+  const rows = lots.map(lot => {
+    const inv = inventoryMap.get(Number(lot.lot_id));
+
+    return {
+      ...lot,
+
+      inventory_stock: inv?.qty_on_hand ?? 0,
+      inventory_adjust: inv?.qty_adjust ?? 0,
+      inventory_produced: inv?.qty_produced ?? 0,
+      inventory_status: inv?.status ?? "",
+    };
+  });
+
+  console.log("LOTS + INVENTORY", rows);
+
+  allRows = rows;
+
   fillHeaderMeta(meta);
 
-  table?.setData(lots);
+  table?.setData(rows);
   applyFiltersToTable();
 }
 

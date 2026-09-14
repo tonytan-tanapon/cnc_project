@@ -104,44 +104,39 @@ from sqlalchemy.orm import joinedload
 @router.post("/adjust")
 def adjust_inventory(
     data: InventoryAdjust,
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db)
 ):
-
     inv = (
         db.query(Inventory)
-        .options(
-            joinedload(Inventory.lot).joinedload(ProductionLot.part),
-            joinedload(Inventory.lot).joinedload(ProductionLot.part_revision),
-        )
         .filter(Inventory.lot_id == data.lot_id)
         .first()
     )
 
     if not inv:
-        raise HTTPException(404, "Inventory not found")
+        raise HTTPException(
+            status_code=404,
+            detail="Inventory not found"
+        )
 
-    # Replace ค่า Adjust
-    inv.qty_adjust = Decimal(str(data.qty))
-    inv.note = data.note
-
+    # Update Adjust only when qty was sent
     if data.qty is not None:
         inv.qty_adjust = Decimal(str(data.qty))
 
+    # Update Note only when note was sent
     if data.note is not None:
         inv.note = data.note
 
+    # Update Status only when status was sent
     if data.status is not None:
         inv.inventory_status = data.status
 
+    # Recalculate stock
     recalc_inventory(inv)
 
-    # เปลี่ยนสถานะ
-    
     db.commit()
     db.refresh(inv)
 
     return inventory_to_dict(inv)
-
 
 @router.get("/parts")
 def get_parts():
