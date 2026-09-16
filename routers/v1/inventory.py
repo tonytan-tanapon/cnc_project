@@ -278,8 +278,6 @@ def rebuild_all_inventory(
         "total_lots": total
     }
 
-
-
 @router.post("/rebuild/{lot_id}")
 def rebuild_inventory(
     lot_id: int,
