@@ -146,15 +146,17 @@ function makeColumns() {
     {
       title: "Name",
       field: "name",
+      width: 250,
       minWidth: 160,
       editor: "input",
       validator: "required",
     },
-    { title: "Lastname", field: "lastname", width: 160, editor: "input" },
-    { title: "OP", field: "emp_op", width: 160, editor: "input" },
+    // { title: "Lastname", field: "lastname", width: 160, editor: "input" },
     { title: "Nickname", field: "nickname", width: 160, editor: "input" },
-    { title: "Position", field: "position", width: 160, editor: "input" },
-    { title: "Department", field: "department", width: 160, editor: "input" },
+    { title: "OP", field: "emp_op", width: 80, editor: "input" },
+    
+    { title: "Position", field: "position", width: 120, editor: "input" },
+    // { title: "Department", field: "department", width: 160, editor: "input" },
     { title: "Email", field: "email", width: 220, editor: "input" },
     { title: "Phone", field: "phone", width: 140, editor: "input" },
 
@@ -191,7 +193,7 @@ function makeColumns() {
     {
       title: "Status",
       field: "status",
-      width: 120,
+      width: 100,
       editor: "list",
       editorParams: { values: ["active", "on_leave", "inactive"] },
     },

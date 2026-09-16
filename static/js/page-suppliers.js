@@ -138,12 +138,12 @@ function makeColumns() {
   return [
     { title: "No.", width: 60, headerSort: false, formatter: "rownum" },
     { title: "Code", field: "code", width: 110, editor: "input" },
-    { title: "Name", field: "name", minWidth: 160, editor: "input", validator: "required" },
+    { title: "Name", field: "name", width: 150,minWidth: 160, editor: "input", validator: "required" },
     { title: "Contact", field: "contact", width: 140, editor: "input" },
     { title: "Email", field: "email", width: 200, editor: "input" },
     { title: "Phone", field: "phone", width: 140, editor: "input" },
-    { title: "Address", field: "address", widthGrow: 3, minWidth: 220, maxWidth: 600, editor: "input", cssClass: "wrap" },
-    { title: "Payment terms", field: "payment_terms", width: 160, editor: "input" },
+    { title: "Address", field: "address", widthGrow: 3, width: 150,minWidth: 220, maxWidth: 600, editor: "input", cssClass: "wrap" },
+    // { title: "Payment terms", field: "payment_terms", width: 160, editor: "input" },
     {
       title: "Actions",
       field: "_actions",

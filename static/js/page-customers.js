@@ -152,21 +152,23 @@ function showLoader(on) {
 function makeColumns() {
   return [
     
-    { title: "Code", field: "code", width: 100, editor: "input" },
+    { title: "Code", field: "code", width: 210, editor: "input" },
     {
       title: "Name",
       field: "name",
+      width: 300,
       minWidth: 160,
       editor: "input",
       validator: "required",
     },
-    { title: "Contact", field: "contact", width: 140, editor: "input" },
-    { title: "Email", field: "email", width: 200, editor: "input" },
+    // { title: "Contact", field: "contact", width: 140, editor: "input" },
+    // { title: "Email", field: "email", width: 200, editor: "input" },
     { title: "Phone", field: "phone", width: 140, editor: "input" },
     {
       title: "Address",
       field: "address",
       widthGrow: 3,
+      width: 400,
       minWidth: 220,
       maxWidth: 600,
       editor: "input",

@@ -266,9 +266,7 @@ def rebuild_all_inventory(
 
         # Shipment
         shipped = ship_map.get(lot.id, 0)
-
         inv.qty_shipped = Decimal(str(shipped or 0))
-
         recalc_inventory(inv)
 
         total += 1
