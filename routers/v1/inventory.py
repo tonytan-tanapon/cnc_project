@@ -118,25 +118,24 @@ def adjust_inventory(
             detail="Inventory not found"
         )
 
-    # Update Adjust only when qty was sent
-    if data.qty is not None:
-        inv.qty_adjust = Decimal(str(data.qty))
+    qty_changed = data.qty is not None
 
-    # Update Note only when note was sent
+    if qty_changed:
+        inv.qty_adjust = Decimal(str(data.qty))
+        inv.inventory_status = "checked"
+        recalc_inventory(inv)
+
     if data.note is not None:
         inv.note = data.note
 
-    # Update Status only when status was sent
     if data.status is not None:
         inv.inventory_status = data.status
-
-    # Recalculate stock
-    recalc_inventory(inv)
 
     db.commit()
     db.refresh(inv)
 
     return inventory_to_dict(inv)
+
 
 @router.get("/parts")
 def get_parts():

@@ -43,84 +43,76 @@ const table = new Tabulator("#listBody", {
         {
             title: "Status",
             field: "attendance_status",
-            width: 150,
-
-            formatter(cell) {
-
-                const row = cell.getRow().getData();
-                const status = row.attendance_status;
-
-                if (status === "Absent") {
-                    return `
-                <span style="
-                    color:#d32f2f;
-                    font-weight:bold;
-                ">
-                    Absent
-                </span>
-            `;
-                }
-
-                if (status === "Holiday") {
-                    return `
-                <span style="
-                    font-weight:bold;
-                ">
-                    Holiday
-                </span>
-            `;
-                }
-
-                return status || "";
-            }
-        },
-
-        {
-            title: "Clock In",
-            field: "clock_in_at",
-            width: 140,
+            width: 130,
 
             formatter(cell) {
 
                 const v = cell.getValue();
 
-                if (!v) return "";
+                if (v === "Absent") {
+                    return `<span style="
+                color:#d32f2f;
+                font-weight:bold;
+            ">${v}</span>`;
+                }
 
-                const d = new Date(v);
+                if (v === "Late") {
+                    return `<span style="
+                color:#ff9800;
+                font-weight:bold;
+            ">${v}</span>`;
+                }
 
-                const mm = String(d.getMonth() + 1).padStart(2, "0");
-                const dd = String(d.getDate()).padStart(2, "0");
-                const yy = String(d.getFullYear()).slice(-2);
-
-                const hh = String(d.getHours()).padStart(2, "0");
-                const mi = String(d.getMinutes()).padStart(2, "0");
-
-                return `${mm}/${dd}/${yy} ${hh}:${mi}`;
+                return v;
             }
         },
+
         {
-            title: "Clock Out",
-            field: "clock_out_at",
-            width: 140,
+    title: "Clock In",
+    field: "clock_in_at",
+    width: 140,
 
-            formatter(cell) {
+    formatter(cell) {
 
-                const v = cell.getValue();
+        const v = cell.getValue();
 
-                if (!v) return "";
+        if (!v) return "";
 
-                const d = new Date(v);
+        const d = new Date(v);
 
-                const mm = String(d.getMonth() + 1).padStart(2, "0");
-                const dd = String(d.getDate()).padStart(2, "0");
-                const yy = String(d.getFullYear()).slice(-2);
+        const mm = String(d.getMonth() + 1).padStart(2, "0");
+        const dd = String(d.getDate()).padStart(2, "0");
+        const yy = String(d.getFullYear()).slice(-2);
 
-                const hh = String(d.getHours()).padStart(2, "0");
-                const mi = String(d.getMinutes()).padStart(2, "0");
+        const hh = String(d.getHours()).padStart(2, "0");
+        const mi = String(d.getMinutes()).padStart(2, "0");
 
-                return `${mm}/${dd}/${yy} ${hh}:${mi}`;
-            }
-        },
+        return `${mm}/${dd}/${yy} ${hh}:${mi}`;
+    }
+},
+{
+    title: "Clock Out",
+    field: "clock_out_at",
+    width: 140,
+
+    formatter(cell) {
+
+        const v = cell.getValue();
+
+        if (!v) return "";
+
+        const d = new Date(v);
+
+        const mm = String(d.getMonth() + 1).padStart(2, "0");
+        const dd = String(d.getDate()).padStart(2, "0");
+        const yy = String(d.getFullYear()).slice(-2);
+
+        const hh = String(d.getHours()).padStart(2, "0");
+        const mi = String(d.getMinutes()).padStart(2, "0");
+
+        return `${mm}/${dd}/${yy} ${hh}:${mi}`;
+    }
+},
 
         {
             title: "Work",
@@ -141,77 +133,26 @@ const table = new Tabulator("#listBody", {
                 precision: 2
             }
         },
-
+       
         {
             title: "Late",
-            field: "is_late",
-            width: 120,
-
-            formatter(cell) {
-
-                const row = cell.getRow().getData();
-
-                if (!row.is_late) {
-                    return "";
-                }
-
-                const minutes = Math.round(
-                    Number(row.late_minutes || 0)
-                );
-
-                return `
-            <span style="
-                color:#ff9800;
-                font-weight:bold;
-            ">
-                Late (${minutes} min)
-            </span>
-        `;
-            }
+            field: "late_minutes",
+            hozAlign: "right"
         },
 
         {
             title: "Leave",
-            field: "leave_type",
-            width: 130,
-
-            formatter(cell) {
-
-                const row = cell.getRow().getData();
-
-                // มี leave จริง เช่น Vacation / Sick
-                if (row.leave_type) {
-                    return `
-                <span style="font-weight:bold;">
-                    ${row.leave_type}
-                </span>
-            `;
-                }
-
-                // ทำงานไม่ครบ 8 ชั่วโมง
-                if (row.is_half_day) {
-                    return `
-                <span style="
-                    color:#d32f2f;
-                    font-weight:bold;
-                ">
-                    Leave
-                </span>
-            `;
-                }
-
-                return "";
-            }
+            field: "leave_type"
         },
-
+        
 
         // {
         //     title: "Holiday",
         //     field: "holiday_name"
         // }
-        {
+         {
             title: "",
-
+            
         },
 
     ],

@@ -400,6 +400,10 @@ def attendance_detail(
 
         late_minutes,
 
+        is_late,
+
+        is_half_day,
+
         leave_type,
 
         holiday_name

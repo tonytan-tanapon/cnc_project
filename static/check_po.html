@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <title>Check PO · Topnotch – MFG</title>
+
+  <!-- Global styles -->
+  <link rel="stylesheet" href="/static/css/app.css" />
+  <link rel="stylesheet" href="/static/css/crud-page.css" />
+
+  <style>
+    /* =========================
+       Check PO Page
+       ========================= */
+
+    .check-po-page {
+      padding: 20px;
+    }
+
+    .check-po-title {
+      margin: 0 0 16px;
+      font-size: 22px;
+      font-weight: 700;
+    }
+
+    /* Search area */
+    .po-search-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .po-search-input {
+      width: 420px;
+      max-width: 100%;
+    }
+
+    /* Detail container */
+    .po-detail {
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      background: #fff;
+      overflow: hidden;
+    }
+
+    .po-detail-header {
+      padding: 12px 16px;
+      border-bottom: 1px solid #ddd;
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    .po-detail-body {
+      padding: 16px;
+    }
+
+    /* PO information */
+    .po-info-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(160px, 1fr));
+      gap: 14px 24px;
+    }
+
+    .po-info-item {
+      min-width: 0;
+    }
+
+    .po-info-label {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #666;
+    }
+
+    .po-info-value {
+      font-size: 15px;
+      font-weight: 600;
+      word-break: break-word;
+    }
+
+    /* Empty state */
+    .po-empty {
+      padding: 40px 20px;
+      text-align: center;
+      color: #777;
+    }
+
+    /* Loading */
+    .po-loading {
+      padding: 40px 20px;
+      text-align: center;
+      color: #555;
+    }
+
+    /* Error */
+    .po-error {
+      padding: 16px;
+      border: 1px solid #e0a0a0;
+      border-radius: 6px;
+      background: #fff5f5;
+      color: #b00020;
+    }
+
+    /* PO line section */
+    .po-lines-section {
+      margin-top: 22px;
+    }
+
+    .po-lines-title {
+      margin-bottom: 10px;
+      font-size: 16px;
+      font-weight: 700;
+    }
+
+    #poLinesTable {
+      width: 100%;
+    }
+
+    @media (max-width: 1100px) {
+      .po-info-grid {
+        grid-template-columns: repeat(2, minmax(160px, 1fr));
+      }
+    }
+
+    @media (max-width: 650px) {
+      .check-po-page {
+        padding: 12px;
+      }
+
+      .po-search-bar {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .po-search-input {
+        width: 100%;
+      }
+
+      .po-info-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="app">
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div id="navSlot" data-nav-slot></div>
+    </aside>
+
+    <!-- Main -->
+    <main class="main main--edge">
+
+      <section class="panel panel--edge check-po-page">
+
+        <h1 class="check-po-title">Check PO</h1>
+
+        <!-- =========================
+             SEARCH
+             ========================= -->
+        <div class="po-search-bar">
+
+          <input
+            id="poSearch"
+            type="search"
+            class="search-lg po-search-input"
+            placeholder="Enter PO number…"
+            autocomplete="off"
+          />
+
+          <button
+            id="poSearchBtn"
+            class="btn"
+            type="button"
+          >
+            Search
+          </button>
+
+        </div>
+
+
+        <!-- =========================
+             DETAIL AREA
+             ========================= -->
+        <div id="poDetailArea">
+
+          <!-- Default state -->
+          <div id="poEmptyState" class="po-empty">
+            Enter a PO number above to view PO details.
+          </div>
+
+
+          <!-- Loading state -->
+          <div
+            id="poLoadingState"
+            class="po-loading"
+            hidden
+          >Loading PO...
+          </div>
+
+
+          <!-- Error state -->
+          <div
+            id="poErrorState"
+            class="po-error"
+            hidden
+          ></div>
+
+
+          <!-- =========================
+               PO DETAIL
+               ========================= -->
+          <div
+            id="poDetail"
+            class="po-detail"
+            hidden
+          >
+
+            <div class="po-detail-header">
+              Purchase Order
+            </div>
+
+            <div class="po-detail-body">
+
+              <!-- PO Header Information -->
+              <div class="po-info-grid">
+
+                <div class="po-info-item">
+                  <span class="po-info-label">PO Number</span>
+                  <span
+                    id="poNumber"
+                    class="po-info-value"
+                  >
+                    -
+                  </span>
+                </div>
+
+
+                <div class="po-info-item">
+                  <span class="po-info-label">Customer</span>
+                  <span
+                    id="poCustomer"
+                    class="po-info-value"
+                  >
+                    -
+                  </span>
+                </div>
+
+
+                <div class="po-info-item">
+                  <span class="po-info-label">PO Date</span>
+                  <span
+                    id="poDate"
+                    class="po-info-value"
+                  >
+                    -
+                  </span>
+                </div>
+
+
+                <div class="po-info-item">
+                  <span class="po-info-label">Due Date</span>
+                  <span
+                    id="poDueDate"
+                    class="po-info-value"
+                  >
+                    -
+                  </span>
+                </div>
+
+
+                <div class="po-info-item">
+                  <span class="po-info-label">Status</span>
+                  <span
+                    id="poStatus"
+                    class="po-info-value"
+                  >
+                    -
+                  </span>
+                </div>
+
+
+                <div class="po-info-item">
+                  <span class="po-info-label">Total Quantity</span>
+                  <span
+                    id="poTotalQty"
+                    class="po-info-value"
+                  >
+                    -
+                  </span>
+                </div>
+
+
+                <div class="po-info-item">
+                  <span class="po-info-label">Shipped</span>
+                  <span
+                    id="poShippedQty"
+                    class="po-info-value"
+                  >
+                    -
+                  </span>
+                </div>
+
+
+                <div class="po-info-item">
+                  <span class="po-info-label">Remaining</span>
+                  <span
+                    id="poRemainingQty"
+                    class="po-info-value"
+                  >
+                    -
+                  </span>
+                </div>
+
+              </div>
+
+
+              <!-- =========================
+                   PO LINES
+                   ========================= -->
+              <div class="po-lines-section">
+
+                <div class="po-lines-title">
+                  PO Lines
+                </div>
+
+                <div id="poLinesTable"></div>
+
+              </div>
+
+            </div>
+          </div>
+
+        </div>
+
+      </section>
+
+    </main>
+
+  </div>
+
+
+  <!-- Toast -->
+  <div
+    class="toast"
+    id="toast"
+    role="status"
+    aria-live="polite"
+  >
+    <span id="toastText"></span>
+  </div>
+
+
+  <!-- Navigation -->
+  <script
+    type="module"
+    src="/static/js/nav-loader.js"
+  ></script>
+
+  <!-- Page JS -->
+  <script
+    type="module"
+    src="/static/js/page-check-po.js?v=1.0"
+  ></script>
+
+</body>
+</html>
