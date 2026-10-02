@@ -82,9 +82,10 @@ def to_row(e: ECAR):
 
         "po_no": e.po_no,
 
-        "lot_no": e.ncr_rma_job_no,
-        "part_name": e.part_description,
+        "lot_no": e.lot_no,
+        "part_name": e.part_name,
 
+        
         "part_no": e.part_no,
 
 
