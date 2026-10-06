@@ -6,13 +6,74 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Materials · Batch Ledger — Topnotch MFG</title>
 
-  <!-- Global styles -->
   <link rel="stylesheet" href="/static/css/app.css" />
-   <link rel="stylesheet" href="/static/css/crud-page.css">
-  <!-- Tabulator theme -->
-  <link rel="stylesheet" href="/static/vendor/tabulator/tabulator_modern.min.css" />
+  <link rel="stylesheet" href="/static/css/crud-page.css" />
+  <link rel="stylesheet"
+        href="/static/vendor/tabulator/tabulator_modern.min.css" />
 
- 
+  <style>
+  #addPanel {
+    display: block;
+    padding: 10px;
+    border-bottom: 1px solid #e5e7eb;
+    background: #f8f9fa;
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow-x: auto;
+  }
+
+  .batch-form-row {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 14px;
+    width: max-content;
+    min-width: 100%;
+    padding-bottom: 8px;
+  }
+
+  .batch-field {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 0 0 auto;
+    width: auto;
+  }
+
+  .batch-field label {
+    display: inline-block;
+    margin: 0;
+    white-space: nowrap;
+  }
+
+  .batch-field .form-control {
+    flex: 0 0 auto;
+    width: 110px;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+
+  .batch-field--material .form-control {
+    width: 280px;
+  }
+
+  .batch-field--supplier .form-control {
+    width: 220px;
+  }
+
+  .batch-field--qty .form-control {
+    width: 80px;
+  }
+
+  .batch-action {
+    flex: 0 0 auto;
+  }
+
+  .batch-action .btn {
+    white-space: nowrap;
+  }
+</style>
 </head>
 
 <body>
@@ -23,89 +84,86 @@
 
     <main class="main main--edge">
       <section class="panel panel--edge" id="listPanel">
-        <div>Materials Batch Ledger</div>
+        <div>Materials PO</div>
 
-        <div class="list-topbar">
-          <input id="_q" type="search" class="search-lg" placeholder="ค้นหา batch/material/supplier/location…" />
-
-          <button id="_add" class="btn" type="button">
-            + Add Batch
-          </button>
-          <!-- <span class="lbl">From</span> -->
-          <!-- <input id="_from" type="date" />
-            <span class="lbl">To</span>
-            <input id="_to" type="date" />
-            <button id="_apply" class="btn" type="button">Apply</button>
-            <button id="_export" class="btn" type="button">Export CSV</button> -->
+        <div class="list-topbar">Search 
+          <input
+            id="_q"
+            type="search"
+            class="search-lg"
+            placeholder="batch/material/supplier..."
+          />
         </div>
 
-        <div id="addPanel" style="
-        display:none;
-        padding:10px;
-        border-bottom:1px solid #e5e7eb;
-        background:#f8f9fa;
-">
+        <div id="addPanel">
+          <div class="batch-form-row">
 
-          <div style="
-        display:flex;
-        gap:10px;
-        flex-wrap:wrap;
-        align-items:end;
-    ">
-
-            <div>
-              <label>Batch No</label>
-              <input id="_batch_no" class="form-control">
+            <div class="batch-field">
+              <label for="_batch_no">Batch No</label>
+              <input id="_batch_no" class="form-control" />
             </div>
 
-            <div>
-              <label>Material</label>
-              <input id="_material_id" class="form-control" list="materialList" style="width:300px">
-
+            <div class="batch-field batch-field--material">
+              <label for="_material_id">Material</label>
+              <input
+                id="_material_id"
+                class="form-control"
+                list="materialList"
+              />
               <datalist id="materialList"></datalist>
             </div>
 
-            <div>
-              <label>Supplier</label>
-              <input id="_supplier_id" class="form-control" list="supplierList" style="width:250px">
-
+            <div class="batch-field batch-field--supplier">
+              <label for="_supplier_id">Supplier</label>
+              <input
+                id="_supplier_id"
+                class="form-control"
+                list="supplierList"
+              />
               <datalist id="supplierList"></datalist>
             </div>
 
-            <div>
-              <label>Heat Lot</label>
-              <input id="_heat_lot" class="form-control">
+            <div class="batch-field">
+              <label for="_heat_lot">Heat Lot</label>
+              <input id="_heat_lot" class="form-control" />
             </div>
 
-            <div>
-              <label>Size</label>
-              <input id="_size_text" class="form-control">
+            <div class="batch-field">
+              <label for="_size_text">Size</label>
+              <input id="_size_text" class="form-control" />
             </div>
 
-            <div>
-              <label>Length</label>
-              <input id="_length_text" class="form-control">
+            <div class="batch-field">
+              <label for="_length_text">Length</label>
+              <input id="_length_text" class="form-control" />
             </div>
 
-            <div>
-              <label>Qty</label>
-              <input id="_qty_received" class="form-control" type="number">
+            <div class="batch-field batch-field--qty">
+              <label for="_qty_received">Qty</label>
+              <input
+                id="_qty_received"
+                class="form-control"
+                type="number"
+              />
             </div>
 
-            <div>
-              <button id="_save" class="btn btn-primary">
-                Save
+            <div class="batch-action">
+              <button id="_save" class="btn btn-primary" type="button">
+                +Add
               </button>
             </div>
 
-            <div>
-              <button id="_cancelAdd" class="btn btn-secondary">
+            <div class="batch-action">
+              <button
+                id="_cancelAdd"
+                class="btn btn-secondary"
+                type="button" hidden
+              >
                 Cancel
               </button>
             </div>
 
           </div>
-
         </div>
 
         <div id="listBody"></div>
@@ -113,11 +171,14 @@
     </main>
   </div>
 
-  <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span></div>
+  <div class="toast" id="toast" role="status" aria-live="polite">
+    <span id="toastText"></span>
+  </div>
 
   <script type="module" src="/static/js/nav-loader.js"></script>
   <script src="/static/vendor/tabulator/tabulator.min.js"></script>
-  <script type="module" src="/static/js/page-batch-ledger.js?v=2.1"></script>
+  <script type="module"
+          src="/static/js/page-batch-ledger.js?v=2.2"></script>
 </body>
 
 </html>

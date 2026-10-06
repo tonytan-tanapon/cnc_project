@@ -225,51 +225,18 @@
     }
 
 
-    .quick-links a {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 6px 12px;
-      border-radius: 8px;
-      background: #f3f4f6;
-      font-weight: 600;
-    }
-
-    .quick-links a:hover {
-      background: #e5e7eb;
-    }
-
-    .table-wrap {
-      height: auto;
-      overflow: visible;
-    }
-
-    .quick-links {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 12px 18px;
+   .quick-links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: #f3f4f6;
+  font-weight: 600;
 }
 
-.lot-flex {
-  grid-template-columns: minmax(0, 1.6fr) minmax(0, 0.9fr);
-}
-
-.mat-row input {
-  min-width: 0;
-}
-
-@media (max-width: 800px) {
-  .lot-flex {
-    grid-template-columns: 1fr;
-  }
-}
-
-#batchNoInput {
-  width: 300px;
-  min-width: 0;
-  flex: none;
-  box-sizing: border-box;
+.quick-links a:hover {
+  background: #e5e7eb;
 }
   </style>
 </head>
@@ -282,8 +249,8 @@
 
     <main class="main main--edge">
       <section class="quick-links">
-        <div id="lot_link">🧾 LOT</div>
-        <div id="material_link">🔩 Material</div>
+<div id="lot_link">🧾 LOT</div>
+       <div id="material_link">🔩 Material</div>
         <div id="traveler_link">🧾 Traveler</div>
 
         <div id="shippment_link">📦 Shipment</div>
@@ -291,7 +258,7 @@
       <!-- ===== LOT HEADER + ADD MATERIAL ===== -->
       <div class="lot-info lot-flex">
         <div class="lot-left">
-         
+          <h2>📄 Lot Detail</h2>
           <div id="lotHeader" class="lot-grid">
             Loading lot information...
           </div>
@@ -316,11 +283,11 @@
           <label>Batch No</label>
           <input type="text" id="batchNoInput" placeholder="AUTO" />
 
-          <!-- <label>Material Name</label>
+          <label>Material Name</label>
           <input type="text" id="materialInput" placeholder="Search material..." />
 
           <label>Qty</label>
-          <input type="number" id="qtyInput" placeholder="0" min="0" step="0.01" /> -->
+          <input type="number" id="qtyInput" placeholder="0" min="0" step="0.01" />
 
           <button id="btnSaveBatch" class="btn">+ Add Batch</button>
         </div>
@@ -328,7 +295,17 @@
         <div id="materialTable" class="table-wrap"></div>
       </section>
 
+      <!-- ===== ALLOCATED MATERIALS ===== -->
+      <section class="panel">
+        <h3>🔗 Allocated Materials</h3>
+        <div id="allocationTable" class="table-wrap"></div>
+      </section>
 
+      <!-- ===== HISTORY ===== -->
+      <section class="panel">
+        <h3>📜 Material Allocation History</h3>
+        <div id="historyTable" class="table-wrap"></div>
+      </section>
     </main>
   </div>
 
@@ -336,7 +313,7 @@
 
   <script type="module" src="/static/js/nav-loader.js"></script>
   <script src="/static/vendor/tabulator/tabulator.min.js"></script>
-  <script type="module" src="/static/js/manage-lot-materials.js?v=1.0"></script>
+  <script type="module" src="/static/js/manage-lot-materials.js"></script>
 </body>
 
 </html>

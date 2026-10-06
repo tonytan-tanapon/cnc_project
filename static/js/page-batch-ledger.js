@@ -103,107 +103,163 @@ function makeColumns() {
   return [
     // { title: "No.", width: 70, headerSort: false, formatter: "rownum" },
 
+    // {
+    //   title: "QR",
+    //   width: 160,
+    //   hozAlign: "center",
+
+    //   formatter() {
+    //     return `
+    //   <button class="btn btn-sm btn-primary qr4">
+    //     4
+    //   </button>
+
+    //   <button class="btn btn-sm btn-success qr30">
+    //     30
+    //   </button>
+    //   <button class="btn btn-sm btn-success qr80">
+    //     80
+    //   </button>
+    // `;
+    //   },
+
+    //   async cellClick(e, cell) {
+
+
+
+    //     const row = cell.getRow().getData();
+
+    //     let url = "";
+
+    //     if (e.target.classList.contains("qr4")) {
+    //       url = `/api/v1/batches/export-docx/${row.batch_id}?qty=4`;
+
+    //     } else if (e.target.classList.contains("qr30")) {
+    //       url = `/api/v1/batches/export-docx/${row.batch_id}?qty=30`;
+
+    //     } else if (e.target.classList.contains("qr80")) {
+    //       url = `/api/v1/batches/export-docx/${row.batch_id}?qty=80`;
+    //     } else {
+    //       return;
+    //     }
+
+    //     const res = await fetch(url);
+
+    //     const blob = await res.blob();
+
+    //     const fileUrl = window.URL.createObjectURL(blob);
+
+    //     const a = document.createElement("a");
+
+    //     a.href = fileUrl;
+    //     a.download = `${row.batch_no}.docx`;
+
+    //     a.click();
+
+    //     window.URL.revokeObjectURL(fileUrl);
+    //   }
+    // },
+
+    // {
+    //   title: "Printed",
+    //   field: "printed",
+    //   width: 90,
+    //   hozAlign: "center",
+
+
+    //   formatter: "tickCross",
+
+    //   cellClick: async function (e, cell) {
+
+    //     const row = cell.getRow().getData();
+
+    //     const newValue = !row.printed;
+
+    //     try {
+
+    //       await jfetch(
+    //         `/api/v1/batches/${row.batch_id}`,
+    //         {
+    //           method: "PUT",
+    //           body: JSON.stringify({
+    //             printed: newValue
+    //           })
+    //         }
+    //       );
+
+    //       cell.setValue(newValue);
+
+    //       // โหลดใหม่ทั้งหมด
+    //       // await resetAndLoadFirst();
+
+    //     } catch (err) {
+
+    //       toast("Save failed", false);
+    //     }
+    //   }
+    // },
     {
-      title: "QR",
-      width: 160,
-      hozAlign: "center",
-
-      formatter() {
-        return `
-      <button class="btn btn-sm btn-primary qr4">
-        4
-      </button>
-
-      <button class="btn btn-sm btn-success qr30">
-        30
-      </button>
-      <button class="btn btn-sm btn-success qr80">
-        80
-      </button>
-    `;
-      },
-
-      async cellClick(e, cell) {
-
-
-
-        const row = cell.getRow().getData();
-
-        let url = "";
-
-        if (e.target.classList.contains("qr4")) {
-          url = `/api/v1/batches/export-docx/${row.batch_id}?qty=4`;
-
-        } else if (e.target.classList.contains("qr30")) {
-          url = `/api/v1/batches/export-docx/${row.batch_id}?qty=30`;
-
-        } else if (e.target.classList.contains("qr80")) {
-          url = `/api/v1/batches/export-docx/${row.batch_id}?qty=80`;
-        } else {
-          return;
-        }
-
-        const res = await fetch(url);
-
-        const blob = await res.blob();
-
-        const fileUrl = window.URL.createObjectURL(blob);
-
-        const a = document.createElement("a");
-
-        a.href = fileUrl;
-        a.download = `${row.batch_no}.docx`;
-
-        a.click();
-
-        window.URL.revokeObjectURL(fileUrl);
-      }
-    },
-
-    {
-      title: "Printed",
-      field: "printed",
-      width: 90,
-      hozAlign: "center",
-
-
-      formatter: "tickCross",
-
-      cellClick: async function (e, cell) {
-
-        const row = cell.getRow().getData();
-
-        const newValue = !row.printed;
-
-        try {
-
-          await jfetch(
-            `/api/v1/batches/${row.batch_id}`,
-            {
-              method: "PUT",
-              body: JSON.stringify({
-                printed: newValue
-              })
-            }
-          );
-
-          cell.setValue(newValue);
-
-          // โหลดใหม่ทั้งหมด
-          // await resetAndLoadFirst();
-
-        } catch (err) {
-
-          toast("Save failed", false);
-        }
-      }
-    },
-    {
-      title: "Batch No",
+      title: "Mat PO",
       field: "batch_no",
       width: 110,
       editor: "input"
     },
+
+    
+    {
+  title: "Type",
+  field: "material_id",
+  width: 150,
+
+  editor: "list",
+
+  editorParams: {
+    values: materialEditorOptions,
+    autocomplete: true,
+    listOnEmpty: true,
+    freetext: false,
+
+    filterFunc(term, label, value) {
+      const mat = materialLookup[value];
+
+      if (!mat) return false;
+
+      term = String(term || "").trim().toLowerCase();
+
+      return (
+        (mat.code || "").toLowerCase().includes(term) ||
+        (mat.type || "").toLowerCase().includes(term) ||
+        (mat.spec || "").toLowerCase().includes(term)
+      );
+    }
+  },
+
+  formatter(cell) {
+    const mat = materialLookup[cell.getValue()];
+
+    const el = document.createElement("span");
+    el.textContent = mat?.type || "";
+
+    return el;
+  }
+},
+{
+  title: "Spec",
+  field: "material_spec",
+  width: 220,
+  headerSort: false,
+
+  formatter(cell) {
+    const row = cell.getRow().getData();
+    const mat = materialLookup[row.material_id];
+
+    const el = document.createElement("span");
+    el.textContent = mat?.spec ?? row.material_spec ?? "";
+
+    return el;
+  }
+},
+
     // {
     //   title: "Part",
     //   field: "part_list",
@@ -248,81 +304,44 @@ function makeColumns() {
     //   editor: "input"
     // },
 
-    {
-      title: "Material",
-      field: "material_id",
-      width: 250,
+    // {
+    //   title: "Material",
+    //   field: "material_id",
+    //   width: 250,
 
-      editor: "list",
+    //   editor: "list",
 
-      editorParams: {
-        values: materialEditorOptions,
+    //   editorParams: {
+    //     values: materialEditorOptions,
 
-        autocomplete: true,
-        filterFunc(term, label, value) {
+    //     autocomplete: true,
+    //     filterFunc(term, label, value) {
 
-          const mat = materialLookup[value];
+    //       const mat = materialLookup[value];
 
-          if (!mat) return false;
+    //       if (!mat) return false;
 
-          term = term.toLowerCase();
+    //       term = term.toLowerCase();
 
-          return (
-            (mat.code || "").toLowerCase().includes(term) ||
-            (mat.type || "").toLowerCase().includes(term) ||
-            (mat.spec || "").toLowerCase().includes(term)
-          );
-        }
-      },
+    //       return (
+    //         (mat.code || "").toLowerCase().includes(term) ||
+    //         (mat.type || "").toLowerCase().includes(term) ||
+    //         (mat.spec || "").toLowerCase().includes(term)
+    //       );
+    //     }
+    //   },
 
-      formatter(cell) {
+    //   formatter(cell) {
 
-        const mat =
-          materialLookup[cell.getValue()];
+    //     const mat =
+    //       materialLookup[cell.getValue()];
 
-        if (!mat) return "";
+    //     if (!mat) return "";
 
-        return `${mat.type || ""} | ${mat.spec || ""}`;
-      }
-    },
-
-    {
-      title: "Location",
-      field: "location",
-      width: 140,
-      editor: "input"
-    },
-
-    {
-      title: "Heat PO",
-      field: "heat_po",
-      width: 120,
-
-      editor: "input"
-    },
-    {
-      title: "Heat Type",
-      field: "heat_type",
-      width: 120,
-      editor: "input"
-    },
-    {
-    title: "Created",
-    field: "date_created",
-    width: 140,
-
-    formatter(cell) {
-        const v = cell.getValue();
-        return v
-            ? new Date(v).toLocaleDateString()
-            : "";
-    }
-},
-
-    // { title: "Type", field: "material_type", width: 120 },
-
-    // { title: "Spec", field: "material_spec", width: 220 },
-    {
+    //     return `${mat.type || ""} | ${mat.spec || ""}`;
+    //   }
+    // },
+  {
       title: "Supplier",
       field: "supplier_id",
       width: 180,
@@ -341,6 +360,44 @@ function makeColumns() {
         return supplierEditorOptions[cell.getValue()] || "";
       }
     },
+    
+    {
+      title: "Heat PO",
+      field: "heat_po",
+      width: 120,
+
+      editor: "input"
+    },
+    {
+      title: "Location",
+      field: "location",
+      width: 140,
+      editor: "input"
+    },
+
+    // {
+    //   title: "Heat Type",
+    //   field: "heat_type",
+    //   width: 120,
+    //   editor: "input"
+    // },
+    {
+    title: "Created",
+    field: "date_created",
+    width: 140,
+
+    formatter(cell) {
+        const v = cell.getValue();
+        return v
+            ? new Date(v).toLocaleDateString()
+            : "";
+    }
+},
+
+    // { title: "Type", field: "material_type", width: 120 },
+
+    // { title: "Spec", field: "material_spec", width: 220 },
+  
     // {
     //   title: "Received At",
     //   field: "received_at",
@@ -682,7 +739,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         editingBatchId = null;
         toast("Saved");
 
-        document.getElementById("addPanel").style.display = "none";
+        // document.getElementById("addPanel").style.display = "none";
 
         document.getElementById("_batch_no").value = "";
         document.getElementById("_material_id").value = "";

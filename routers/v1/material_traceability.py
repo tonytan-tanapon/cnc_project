@@ -20,8 +20,9 @@ tags=["material-traceability"]
 
 @router.get("")
 def get_material_traceability(
-q: str | None = Query(None),
-db: Session = Depends(get_db)
+    q: str | None = Query(None),
+    lot_id: int | None = Query(None, gt=0),
+    db: Session = Depends(get_db)
 ):
     rows = (
         db.query(
@@ -73,6 +74,9 @@ db: Session = Depends(get_db)
             Part.id == ProductionLot.part_id
         )
     )
+
+    if lot_id is not None:
+        rows = rows.filter(ProductionLot.id == lot_id)
 
     if q:
 
