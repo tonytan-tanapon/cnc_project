@@ -401,6 +401,24 @@ class RawBatch(Base):
     qty_text = Column(String, nullable=True)
     cert_file = Column(String, nullable=True)
     location = Column(String, nullable=True)
+    
+    type_id = Column(
+        Integer,
+        ForeignKey("material_types.id", ondelete="RESTRICT"),
+        nullable=True,
+        index=True,
+    )
+
+    spec_id = Column(
+        Integer,
+        ForeignKey("material_specs.id", ondelete="RESTRICT"),
+        nullable=True,
+        index=True,
+    )
+
+    material_type = relationship("MaterialType")
+    material_spec = relationship("MaterialSpec")
+
 
     heat_lot = Column(Text, nullable=True)
     size = Column(Text, nullable=True)
@@ -453,6 +471,23 @@ class RawBatch(Base):
         return f"<RawBatch(material_id={self.material_id}, batch_no={self.batch_no})>"
 
 
+
+class MaterialType(Base):
+    __tablename__ = "material_types"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String, unique=True, nullable=False)
+    description = Column(Text, nullable=True)
+   
+
+
+class MaterialSpec(Base):
+    __tablename__ = "material_specs"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String, unique=True, nullable=False)
+    description = Column(Text, nullable=True)
+    
 # =========================================
 # ======= Part Master / Part Revisions ====
 # =========================================
