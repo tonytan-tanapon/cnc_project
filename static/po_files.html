@@ -1,0 +1,22 @@
+<form id="searchForm">
+  <label for="poNumber">PO number</label>
+  <input id="poNumber" placeholder="12345" maxlength="100" required>
+  <button id="searchButton" type="submit">Search</button>
+</form>
+
+<p id="status" role="status"></p>
+
+<table id="fileTable" hidden>
+  <thead>
+    <tr>
+      <th>File name</th>
+      <th>Folder</th>
+      <th>Size</th>
+      <th>Created date</th>
+      <th>Download</th>
+    </tr>
+  </thead>
+  <tbody id="fileRows"></tbody>
+</table>
+
+<script src="/static/js/po_files.js" defer></script>

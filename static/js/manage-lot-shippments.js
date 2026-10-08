@@ -680,8 +680,8 @@ function initShipmentTable() {
         width: 80,
 
         formatter: (cell) => {
-            const v = cell.getValue() ?? 0;
-            return `<div style="
+          const v = cell.getValue() ?? 0;
+          return `<div style="
           background: yellow;
           padding: 4px 8px;
           border-radius: 6px;
@@ -794,22 +794,27 @@ function initShipmentTable() {
           try {
             if (!confirmReworkLot()) return;
             if (action === "cofc") {
-
-              if (!confirmReworkLot()) return;
-
               await markLotAsShipped(rowData);
 
-              console.log("Downloading CofC for shipment:", rowData.shipment_no);
+              const currentNote = String(rowData.notes ?? "").trim();
+              const newNote = currentNote
+                ? `${currentNote}\nPrint CofC`
+                : "Print CofC";
 
-              const trackingCell = row.getCell("tracking_number");
-
-              trackingCell.setValue("Print CofC");
-
-              await updateField("tracking_number")(trackingCell);
+              await jfetch(
+                `/api/v1/lot-shippments/${rowData.id}/update-fields`,
+                {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ notes: newNote }),
+                }
+              );
 
               await downloadCofC(rowData);
+              await loadShipmentTable();
+              await loadLotHeader();
 
-              toast("✅ CofC + tracking updated");
+              toast("✅ CofC downloaded + note appended");
             }
 
             if (action === "packing") {
