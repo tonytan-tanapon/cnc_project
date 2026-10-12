@@ -1,22 +1,451 @@
-<form id="searchForm">
-  <label for="poNumber">PO number</label>
-  <input id="poNumber" placeholder="12345" maxlength="100" required>
-  <button id="searchButton" type="submit">Search</button>
-</form>
+<style>
+  .po-files {
+    box-sizing: border-box;
+    max-width: 1400px;
+    margin: 24px auto;
+    padding: 24px;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    font-family: system-ui, sans-serif;
+    color: #1e293b;
+  }
 
-<p id="status" role="status"></p>
+  .po-files h2 {
+    margin: 0 0 20px;
+    font-size: 22px;
+  }
 
-<table id="fileTable" hidden>
-  <thead>
-    <tr>
-      <th>File name</th>
-      <th>Folder</th>
-      <th>Size</th>
-      <th>Created date</th>
-      <th>Download</th>
-    </tr>
-  </thead>
-  <tbody id="fileRows"></tbody>
-</table>
+  .po-layout {
+    display: grid;
+    grid-template-columns: 190px minmax(0, 1fr);
+    gap: 24px;
+    align-items: start;
+  }
+
+  /* Left sidebar */
+  .po-filters {
+    padding: 16px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+  }
+
+  .filter-group {
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: none;
+  }
+
+  .filter-group + .filter-group {
+    margin-top: 24px;
+  }
+
+  .filter-heading {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+
+  .filter-group legend {
+    padding: 0;
+    margin-bottom: 10px;
+    font-size: 15px;
+    font-weight: 700;
+  }
+
+  .filter-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+    font-size: 14px;
+    cursor: pointer;
+  }
+
+  .filter-option:last-child {
+    margin-bottom: 0;
+  }
+
+  .filter-option input {
+    flex-shrink: 0;
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    accent-color: #1d4ed8;
+    cursor: pointer;
+  }
+
+  .filter-all {
+    padding-bottom: 10px;
+    border-bottom: 1px solid #e2e8f0;
+    font-weight: 600;
+  }
+
+  /* Right content */
+  .po-content {
+    min-width: 0;
+  }
+
+  #searchForm {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 12px;
+  }
+
+  .po-input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .po-input-group label {
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  #poNumber {
+    box-sizing: border-box;
+    width: 280px;
+    max-width: 100%;
+    height: 42px;
+    padding: 8px 12px;
+    border: 1px solid #94a3b8;
+    border-radius: 6px;
+    font: inherit;
+  }
+
+  #poNumber:focus {
+    outline: 3px solid #bfdbfe;
+    border-color: #2563eb;
+  }
+
+  #searchButton {
+    height: 42px;
+    padding: 0 22px;
+    border: none;
+    border-radius: 6px;
+    background: #1d4ed8;
+    color: #fff;
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  #searchButton:hover {
+    background: #1e40af;
+  }
+
+  #searchButton:disabled {
+    opacity: 0.6;
+    cursor: wait;
+  }
+
+  #status {
+    margin: 18px 0;
+    color: #475569;
+    font-size: 14px;
+  }
+
+  /* File table */
+  .po-table-wrap {
+    overflow-x: auto;
+  }
+
+  #fileTable {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+
+  #fileTable[hidden] {
+    display: none;
+  }
+
+  #fileTable th {
+    padding: 12px 16px;
+    background: #f1f5f9;
+    border-bottom: 2px solid #cbd5e1;
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  #fileTable td {
+    padding: 14px 16px;
+    border-bottom: 1px solid #e2e8f0;
+    vertical-align: middle;
+  }
+
+  #fileTable tbody tr:hover {
+    background: #f8fafc;
+  }
+
+  #fileTable td:nth-child(1) {
+    min-width: 220px;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+
+  #fileTable td:nth-child(2) {
+    min-width: 200px;
+    color: #475569;
+    overflow-wrap: anywhere;
+  }
+
+  #fileTable th:nth-child(3),
+  #fileTable td:nth-child(3) {
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  #fileTable td:nth-child(4) {
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
+  #fileTable th:last-child,
+  #fileTable td:last-child {
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  #fileTable td a {
+    display: inline-block;
+    padding: 7px 12px;
+    border: 1px solid #bfdbfe;
+    border-radius: 6px;
+    background: #eff6ff;
+    color: #1d4ed8;
+    text-decoration: none;
+    font-weight: 600;
+  }
+
+  #fileTable td a:hover {
+    background: #dbeafe;
+  }
+
+  .column-sort {
+    width: 100%;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-weight: 600;
+    text-align: inherit;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  @media (max-width: 700px) {
+    .po-files {
+      margin: 12px;
+      padding: 16px;
+    }
+
+    .po-layout {
+      grid-template-columns: 1fr;
+      gap: 16px;
+    }
+
+    .po-filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 24px;
+    }
+
+    .filter-group + .filter-group {
+      margin-top: 0;
+    }
+
+    .po-input-group,
+    #poNumber {
+      width: 100%;
+    }
+  }
+  #status {
+  white-space: pre-wrap;
+}
+</style>
+
+<section class="po-files">
+  <h2>PO File Search</h2>
+
+  <div class="po-layout">
+    <!-- Left sidebar -->
+    <aside class="po-filters" aria-label="File filters">
+      <fieldset class="filter-group">
+        <legend>Type</legend>
+
+        <label class="filter-option filter-all">
+          <input id="typeAll" type="checkbox" checked>
+          <span>All</span>
+        </label>
+
+        <label class="filter-option">
+          <input
+            type="checkbox"
+            name="fileType"
+            value="Material"
+            checked
+          >
+          <span>Material</span>
+        </label>
+
+        <label class="filter-option">
+          <input
+            type="checkbox"
+            name="fileType"
+            value="Supplier Cert"
+            checked
+          >
+          <span>Supplier Cert</span>
+        </label>
+
+        <label class="filter-option">
+          <input
+            type="checkbox"
+            name="fileType"
+            value="Supplier PO"
+            checked
+          >
+          <span>Supplier PO</span>
+        </label>
+
+        <label class="filter-option">
+          <input
+            type="checkbox"
+            name="fileType"
+            value="CofC"
+            checked
+          >
+          <span>CofC</span>
+        </label>
+
+        <label class="filter-option">
+          <input
+            type="checkbox"
+            name="fileType"
+            value="ScanWithLot"
+            checked
+          >
+          <span>ScanWithLot</span>
+        </label>
+      </fieldset>
+
+      <fieldset class="filter-group">
+        <legend>Year</legend>
+
+        <label class="filter-option filter-all">
+          <input id="yearAll" type="checkbox" checked>
+          <span>All</span>
+        </label>
+
+        <label class="filter-option">
+          <input type="checkbox" name="fileYear" value="2026" checked>
+          <span>2026</span>
+        </label>
+
+        <label class="filter-option">
+          <input type="checkbox" name="fileYear" value="2025" checked>
+          <span>2025</span>
+        </label>
+
+        <label class="filter-option">
+          <input type="checkbox" name="fileYear" value="2024" checked>
+          <span>2024</span>
+        </label>
+
+        <label class="filter-option">
+          <input type="checkbox" name="fileYear" value="2023" checked>
+          <span>2023</span>
+        </label>
+
+        <label class="filter-option">
+          <input type="checkbox" name="fileYear" value="2022" checked>
+          <span>2022</span>
+        </label>
+      </fieldset>
+    </aside>
+
+    <!-- Right content -->
+    <div class="po-content">
+      <form id="searchForm">
+        <div class="po-input-group">
+          <label for="poNumber">PO number</label>
+          <input
+            id="poNumber"
+            type="text"
+            placeholder="e.g. L17895"
+            maxlength="100"
+            required
+          >
+        </div>
+
+        <button id="searchButton" type="submit">
+          Search
+        </button>
+      </form>
+
+      <p id="status" role="status" aria-live="polite"></p>
+
+      <div class="po-table-wrap">
+        <table id="fileTable" hidden>
+          <thead>
+            <tr>
+              <th scope="col">File name</th>
+              <th scope="col">Folder</th>
+              <th scope="col">Size</th>
+              <th scope="col">Created date</th>
+              <th scope="col">Download</th>
+            </tr>
+          </thead>
+          <tbody id="fileRows"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
 
 <script src="/static/js/po_files.js" defer></script>
+
+<script>
+  // Select or clear every checkbox using "All".
+  function setupCheckboxGroup(allId, checkboxName) {
+    const allCheckbox = document.getElementById(allId);
+    const options = Array.from(
+      document.querySelectorAll(`input[name="${checkboxName}"]`)
+    );
+
+    function updateAllCheckbox() {
+      const checkedCount = options.filter(
+        option => option.checked
+      ).length;
+
+      allCheckbox.checked = checkedCount === options.length;
+      allCheckbox.indeterminate =
+        checkedCount > 0 && checkedCount < options.length;
+    }
+
+    allCheckbox.addEventListener("change", () => {
+      options.forEach(option => {
+        option.checked = allCheckbox.checked;
+      });
+
+      updateAllCheckbox();
+    });
+
+    options.forEach(option => {
+      option.addEventListener("change", updateAllCheckbox);
+    });
+
+    updateAllCheckbox();
+  }
+
+  setupCheckboxGroup("typeAll", "fileType");
+  setupCheckboxGroup("yearAll", "fileYear");
+</script>

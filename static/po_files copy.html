@@ -1,0 +1,222 @@
+<style>
+  .po-files {
+    max-width: 1200px;
+    margin: 24px auto;
+    padding: 24px;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    font-family: system-ui, sans-serif;
+    color: #1e293b;
+  }
+
+  .po-files h2 {
+    margin: 0 0 20px;
+    font-size: 22px;
+  }
+
+  #searchForm {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 12px;
+  }
+
+  .po-input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .po-input-group label {
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  #poNumber {
+    box-sizing: border-box;
+    width: 280px;
+    max-width: 100%;
+    height: 42px;
+    padding: 8px 12px;
+    border: 1px solid #94a3b8;
+    border-radius: 6px;
+    font: inherit;
+  }
+
+  #poNumber:focus {
+    outline: 3px solid #bfdbfe;
+    border-color: #2563eb;
+  }
+
+  #searchButton {
+    height: 42px;
+    padding: 0 22px;
+    border: none;
+    border-radius: 6px;
+    background: #1d4ed8;
+    color: #fff;
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  #searchButton:hover {
+    background: #1e40af;
+  }
+
+  #searchButton:disabled {
+    opacity: 0.6;
+    cursor: wait;
+  }
+
+  #status {
+    margin: 18px 0;
+    color: #475569;
+    font-size: 14px;
+  }
+
+  .po-table-wrap {
+    overflow-x: auto;
+  }
+
+  #fileTable {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+
+  #fileTable th {
+    padding: 12px 16px;
+    background: #f1f5f9;
+    border-bottom: 2px solid #cbd5e1;
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  
+
+  #fileTable td {
+    padding: 14px 16px;
+    border-bottom: 1px solid #e2e8f0;
+    vertical-align: middle;
+  }
+
+  #fileTable tbody tr:hover {
+    background: #f8fafc;
+  }
+
+  /* File name */
+  #fileTable td:nth-child(1) {
+    min-width: 220px;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+
+  /* Folder */
+  #fileTable td:nth-child(2) {
+    min-width: 200px;
+    color: #475569;
+    overflow-wrap: anywhere;
+  }
+
+  /* Size */
+  #fileTable th:nth-child(3),
+  #fileTable td:nth-child(3) {
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  /* Created date */
+  #fileTable td:nth-child(4) {
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Download */
+  #fileTable th:last-child,
+  #fileTable td:last-child {
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  #fileTable td a {
+    display: inline-block;
+    padding: 7px 12px;
+    border: 1px solid #bfdbfe;
+    border-radius: 6px;
+    background: #eff6ff;
+    color: #1d4ed8;
+    text-decoration: none;
+    font-weight: 600;
+  }
+
+  #fileTable td a:hover {
+    background: #dbeafe;
+  }
+
+  @media (max-width: 600px) {
+    .po-files {
+      margin: 12px;
+      padding: 16px;
+    }
+
+    .po-input-group,
+    #poNumber {
+      width: 100%;
+    }
+  }
+
+  .column-sort {
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  text-align: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+}
+</style>
+
+<section class="po-files">
+  <h2>PO File Search</h2>
+
+  <form id="searchForm">
+    <div class="po-input-group">
+      <label for="poNumber">PO number</label>
+      <input
+        id="poNumber"
+        type="text"
+        placeholder="e.g. L17895"
+        maxlength="100"
+        required
+      >
+    </div>
+
+    <button id="searchButton" type="submit">
+      Search
+    </button>
+  </form>
+
+  <p id="status" role="status" aria-live="polite"></p>
+
+  <div class="po-table-wrap">
+    <table id="fileTable" hidden>
+      <thead>
+        <tr>
+          <th scope="col">File name</th>
+          <th scope="col">Folder</th>
+          <th scope="col">Size</th>
+          <th scope="col">Created date</th>
+          <th scope="col">Download</th>
+        </tr>
+      </thead>
+      <tbody id="fileRows"></tbody>
+    </table>
+  </div>
+</section>
+
+<script src="/static/js/po_files.js" defer></script>
