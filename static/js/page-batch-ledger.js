@@ -103,101 +103,101 @@ function makeColumns() {
   return [
     // { title: "No.", width: 70, headerSort: false, formatter: "rownum" },
 
-    // {
-    //   title: "QR",
-    //   width: 160,
-    //   hozAlign: "center",
+    {
+      title: "QR",
+      width: 160,
+      hozAlign: "center",
 
-    //   formatter() {
-    //     return `
-    //   <button class="btn btn-sm btn-primary qr4">
-    //     4
-    //   </button>
+      formatter() {
+        return `
+      <button class="btn btn-sm btn-primary qr4">
+        4
+      </button>
 
-    //   <button class="btn btn-sm btn-success qr30">
-    //     30
-    //   </button>
-    //   <button class="btn btn-sm btn-success qr80">
-    //     80
-    //   </button>
-    // `;
-    //   },
+      <button class="btn btn-sm btn-success qr30">
+        30
+      </button>
+      <button class="btn btn-sm btn-success qr80">
+        80
+      </button>
+    `;
+      },
 
-    //   async cellClick(e, cell) {
-
-
-
-    //     const row = cell.getRow().getData();
-
-    //     let url = "";
-
-    //     if (e.target.classList.contains("qr4")) {
-    //       url = `/api/v1/batches/export-docx/${row.batch_id}?qty=4`;
-
-    //     } else if (e.target.classList.contains("qr30")) {
-    //       url = `/api/v1/batches/export-docx/${row.batch_id}?qty=30`;
-
-    //     } else if (e.target.classList.contains("qr80")) {
-    //       url = `/api/v1/batches/export-docx/${row.batch_id}?qty=80`;
-    //     } else {
-    //       return;
-    //     }
-
-    //     const res = await fetch(url);
-
-    //     const blob = await res.blob();
-
-    //     const fileUrl = window.URL.createObjectURL(blob);
-
-    //     const a = document.createElement("a");
-
-    //     a.href = fileUrl;
-    //     a.download = `${row.batch_no}.docx`;
-
-    //     a.click();
-
-    //     window.URL.revokeObjectURL(fileUrl);
-    //   }
-    // },
-
-    // {
-    //   title: "Printed",
-    //   field: "printed",
-    //   width: 90,
-    //   hozAlign: "center",
+      async cellClick(e, cell) {
 
 
-    //   formatter: "tickCross",
 
-    //   cellClick: async function (e, cell) {
+        const row = cell.getRow().getData();
 
-    //     const row = cell.getRow().getData();
+        let url = "";
 
-    //     const newValue = !row.printed;
+        if (e.target.classList.contains("qr4")) {
+          url = `/api/v1/batches/export-docx/${row.batch_id}?qty=4`;
 
-    //     try {
+        } else if (e.target.classList.contains("qr30")) {
+          url = `/api/v1/batches/export-docx/${row.batch_id}?qty=30`;
 
-    //       await jfetch(
-    //         `/api/v1/batches/${row.batch_id}`,
-    //         {
-    //           method: "PUT",
-    //           body: JSON.stringify({
-    //             printed: newValue
-    //           })
-    //         }
-    //       );
+        } else if (e.target.classList.contains("qr80")) {
+          url = `/api/v1/batches/export-docx/${row.batch_id}?qty=80`;
+        } else {
+          return;
+        }
 
-    //       cell.setValue(newValue);
+        const res = await fetch(url);
 
-    //       // โหลดใหม่ทั้งหมด
-    //       // await resetAndLoadFirst();
+        const blob = await res.blob();
 
-    //     } catch (err) {
+        const fileUrl = window.URL.createObjectURL(blob);
 
-    //       toast("Save failed", false);
-    //     }
-    //   }
-    // },
+        const a = document.createElement("a");
+
+        a.href = fileUrl;
+        a.download = `${row.batch_no}.docx`;
+
+        a.click();
+
+        window.URL.revokeObjectURL(fileUrl);
+      }
+    },
+
+    {
+      title: "Printed",
+      field: "printed",
+      width: 90,
+      hozAlign: "center",
+
+
+      formatter: "tickCross",
+
+      cellClick: async function (e, cell) {
+
+        const row = cell.getRow().getData();
+
+        const newValue = !row.printed;
+
+        try {
+
+          await jfetch(
+            `/api/v1/batches/${row.batch_id}`,
+            {
+              method: "PUT",
+              body: JSON.stringify({
+                printed: newValue
+              })
+            }
+          );
+
+          cell.setValue(newValue);
+
+          // โหลดใหม่ทั้งหมด
+          // await resetAndLoadFirst();
+
+        } catch (err) {
+
+          toast("Save failed", false);
+        }
+      }
+    },
     {
       title: "Mat PO",
       field: "batch_no",
