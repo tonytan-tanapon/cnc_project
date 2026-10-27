@@ -434,10 +434,10 @@
             <label>Order QTY</label>
             <input id="lot_planned_qty" type="number" placeholder="Quantity" />
           </div>
-          <div class="field col-2">
-            <label>Prod QTY</label>
-            <input id="lot_prod_qty" type="number" placeholder="Quantity" />
-          </div>
+          <!-- <div class="field col-2" hidden>
+            <label hidden>Prod QTY</label>
+            <input id="lot_prod_qty" type="number" placeholder="Quantity" hidden />
+          </div> -->
           <div class="field col-2">
             <label>Start QTY</label>
             <input id="start_qty" type="number" placeholder="Quantity" readonly />
@@ -445,6 +445,16 @@
           <div class="field col-2">
             <label>Final QTY</label>
             <input id="final_qty" type="number" placeholder="Quantity" readonly />
+          </div>
+
+          
+          <div class="field col-2">
+            <label>lot Shipped QTY</label>
+            <input id="lot_shipped_qty" type="number" placeholder="0" readonly />
+          </div>
+          <div class="field col-2">
+            <label>Stock QTY</label>
+            <input id="stock_qty" type="number" placeholder="0" readonly />
           </div>
 
           <!-- ------------------------------- -->
@@ -474,14 +484,6 @@
             </select>
           </div>
           <!-- ------------------------------------ -->
-          <div class="field col-2">
-            <label>lot Shipped QTY</label>
-            <input id="lot_shipped_qty" type="number" placeholder="0" readonly />
-          </div>
-          <div class="field col-2">
-            <label>Stock QTY</label>
-            <input id="stock_qty" type="number" placeholder="0" readonly />
-          </div>
           <div class="field col-2">
             <label>Notes</label>
             <textarea id="notes" rows="2" placeholder="Notes…"></textarea>
@@ -571,8 +573,8 @@
            <button id="btnExportTravelerBlank" class="btn-mini">🖨️  Print Open ST</button>   
           <button id="btnExportTraveler" class="btn-mini">🖨️  Print Close ST</button>
           
-          <button id="btnUpdateTravelerStep" class="btn-mini">💾 Save Traveler</button>
-          <b>Bold</b> -> **Text** or CTRL+B, Alt + 0216(Ø), 0177(±), 0176(°)
+          <button id="btnUpdateTravelerStep" class="btn-mini">💾 Save Lot Traveler</button>
+          <b>Bold</b> -> **Text** or CTRL+B, Alt + 0216(Ø), 0177(±), 0176(°) Ø±°
           <button id="btnDeleteAllSteps" class="btn-mini btn-danger" style="margin-left:auto">
             🗑 Delete All Steps
           </button>
@@ -603,7 +605,7 @@
   <!-- QRCode library (global variable) -->
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
   <!-- Page script -->
-  <script type="module" src="/static/js/page-traveler-detail.js?v=3.6"></script>
+  <script type="module" src="/static/js/page-traveler-detail.js?v=3.7"></script>
 
   <!-- ===== QR Code Modal ===== -->
   <style>
