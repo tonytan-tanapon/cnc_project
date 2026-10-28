@@ -43,7 +43,7 @@ table {
 
   width: 100%;
 
-  min-width: 2200px;
+  min-width: 1850px;
 
   border-collapse: collapse;
 
@@ -186,15 +186,15 @@ COLUMN CLASSES
 ========================= */
 
 .col-op {
-  width: 50px;
-  min-width: 50px;
-  max-width: 50px;
+  width: 30px;
+  min-width: 30px;
+  max-width: 30px;
 }
 
 .col-name {
 
-  width: 230px;
-  min-width: 230px;
+  width: 150px;
+  min-width: 150px;
 
   text-align: left;
 }
@@ -205,8 +205,8 @@ COLUMN CLASSES
 }
 
 .col-date {
-  width: 140px;
-  min-width: 140px;
+  width: 100px;
+  min-width: 100px;
 }
 
 .col-good,
@@ -221,14 +221,14 @@ COLUMN CLASSES
 
 .col-operator {
 
-  width: 90px;
-  min-width: 90px;
+  width: 75px;;
+  min-width: 75px;
 }
 
 .col-machine {
 
-  width: 85px;
-  min-width: 85px;
+  width: 75px;
+  min-width: 75px;
 }
 
 /* =========================
@@ -237,8 +237,8 @@ NOTE
 
 .col-note {
 
-  width: 260px;
-  min-width: 260px;
+  width: 100px;
+  min-width: 100px;
 
   padding: 4px !important;
 
@@ -251,7 +251,7 @@ NOTE
 
   width: 100%;
 
-  min-width: 240px;
+  min-width: 100px;
 
   min-height: 28px;
 
@@ -296,8 +296,8 @@ SUPPLIER
 .col-supplier,
 .col-heat-lot {
 
-  width: 100px;
-  min-width: 100px;
+  width: 60px;
+  min-width: 60px;
 }
 
 /* =========================
@@ -334,8 +334,8 @@ SUMMARY
 .col-reject,
 .col-remain {
 
-  width: 90px;
-  min-width: 90px;
+  width: 75px;
+  min-width: 75x;
 
   white-space: nowrap;
 
@@ -442,6 +442,89 @@ MOBILE
   box-sizing: border-box;
   background: white;
 }
+
+
+.col-op-detail {
+  width: 300px;
+  min-width: 300px;
+  text-align: left;
+  vertical-align: top !important;
+  white-space: normal;
+}
+
+.op-detail-wrap {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.op-detail-text {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+
+  overflow: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.op-detail-text.expanded {
+  display: block;
+  -webkit-line-clamp: unset;
+}
+
+.op-detail-toggle {
+  flex-shrink: 0;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: transparent;
+  color: #2563eb;
+  font: inherit;
+  cursor: pointer;
+}
+
+.op-detail-text.expanded {
+  display: block;
+  -webkit-line-clamp: unset;
+}
+
+table td.col-op-detail {
+  vertical-align: top !important;
+}
+
+.op-detail-text {
+  margin: 0;
+}
+
+table td.col-op-detail {
+  vertical-align: top !important;
+  white-space: normal;
+  padding: 4px 6px;
+}
+
+.op-detail-text {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+
+
+.col-name {
+  white-space: normal;
+}
+
+.col-name .op-detail-text {
+  -webkit-line-clamp: 2;
+}
+
+.col-name .op-detail-text.expanded {
+  -webkit-line-clamp: unset;
+}
 </style>
 
 </head>
@@ -467,7 +550,7 @@ MOBILE
     <select id="input_operator" hidden/></select>
     <select id="input_machine" hidden/></select>
 
-    <input type="text" id="input_note" placeholder="Note" style="width:180px" hidden/>
+    <input type="text" id="input_note" placeholder="Note" style="width:100px" hidden/>
     <input type="text" id="input_supplier_po" placeholder="Supplier PO" style="width:80px" hidden/>
 
     <input type="text" id="input_supplier_name" placeholder="Supplier" style="width:80px" hidden/>

@@ -4,9 +4,10 @@ let machines = [];
 
 const COLUMN_ORDER = [
 
-  "status",
+  // "status",
   "op",
   "name",
+  "op_detail",
   "date",
   "good",
   "bad",
@@ -25,14 +26,14 @@ const COLUMN_ORDER = [
   "supplier",
   "heat_lot",
 
-  "mat_type",
-  "mat_size",
-  "mat_length",
-  "mat_qty",
-  "mat_uom",
+  // "mat_type",
+  // "mat_size",
+  // "mat_length",
+  // "mat_qty",
+  // "mat_uom",
 
-  "send_date",
-  "recv_date",
+  // "send_date",
+  // "recv_date",
 
 
 
@@ -47,7 +48,12 @@ const HEADER_MAP = {
 
   name: `
     <th class="col-name">Name</th>
+    
   `,
+  op_detail: `
+    <th class="col-op-detail">OP Detail</th>
+  `,
+
 
   status: `
     <th class="col-status">Status</th>
@@ -135,6 +141,13 @@ const HEADER_MAP = {
 
 };
 
+function toggleOpDetail(button) {
+  const detail = button.previousElementSibling;
+  const expanded = detail.classList.toggle("expanded");
+
+  button.textContent = expanded ? "less" : "more";
+  button.setAttribute("aria-expanded", String(expanded));
+}
 function buildHeader() {
 
   const row =
@@ -146,6 +159,28 @@ function buildHeader() {
     COLUMN_ORDER
       .map(c => HEADER_MAP[c])
       .join("");
+}
+function refreshMoreButtons() {
+  document.querySelectorAll(".op-detail-wrap").forEach(wrap => {
+    const text = wrap.querySelector(".op-detail-text");
+    const button = wrap.querySelector(".op-detail-toggle");
+
+    if (!text || !button) return;
+
+    // Keep "less" visible when expanded.
+    if (text.classList.contains("expanded")) {
+      button.hidden = false;
+      return;
+    }
+
+    // Measure with the button hidden to use the full cell width.
+    button.hidden = true;
+
+    const overflowing =
+      text.scrollHeight > text.clientHeight + 1;
+
+    button.hidden = !overflowing;
+  });
 }
 
 let pendingUpdates = {};
@@ -167,6 +202,15 @@ function queueUpdate(log_id, field, value) {
   if (row) {
     row.style.background = "#fef3c7";
   }
+}
+function escapeOpDetail(value) {
+  return String(value ?? "").replace(/[&<>"']/g, char => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;"
+  })[char]);
 }
 
 async function load() {
@@ -262,9 +306,26 @@ async function load() {
 </td>
 `,
 
-        name: `
+       name: `
 <td class="col-name">
-  ${step.step_name || ""}
+  <div class="op-detail-wrap">
+    <div class="op-detail-text">${escapeOpDetail(step.step_name)}</div>
+    <button type="button" class="op-detail-toggle"
+      aria-expanded="false"
+      onclick="toggleOpDetail(this)">more</button>
+  </div>
+</td>
+`,
+
+
+op_detail: `
+<td class="col-op-detail">
+  <div class="op-detail-wrap">
+    <div class="op-detail-text">${escapeOpDetail(step.step_detail)}</div>
+    <button type="button" class="op-detail-toggle"
+      aria-expanded="false"
+      onclick="toggleOpDetail(this)">more</button>
+  </div>
 </td>
 `,
 
@@ -461,6 +522,7 @@ async function load() {
 
       let opCell = "";
       let nameCell = "";
+      let opDetailCell = "";
       let statusCell = "";
 
       let recvCell = "";
@@ -478,10 +540,25 @@ async function load() {
 </td>
 `;
 
-        nameCell = `
-<td class="col-name"
-    rowspan="${rowspan}">
-  ${step.step_name || ""}
+       nameCell = `
+<td class="col-name" rowspan="${rowspan}">
+  <div class="op-detail-wrap">
+    <div class="op-detail-text">${escapeOpDetail(step.step_name)}</div>
+    <button type="button" class="op-detail-toggle"
+      aria-expanded="false"
+      onclick="toggleOpDetail(this)">more</button>
+  </div>
+</td>
+`;
+
+ opDetailCell = `
+<td class="col-op-detail" rowspan="${rowspan}">
+  <div class="op-detail-wrap">
+    <div class="op-detail-text">${escapeOpDetail(step.step_detail)}</div>
+    <button type="button" class="op-detail-toggle"
+      aria-expanded="false"
+      onclick="toggleOpDetail(this)">more</button>
+  </div>
 </td>
 `;
 
@@ -539,7 +616,7 @@ async function load() {
         op: opCell,
 
         name: nameCell,
-
+        op_detail: opDetailCell,
         status: statusCell,
 
         date: `
@@ -895,7 +972,7 @@ ${machines.map(m => `
   ${opLabel}
 </option>
 `;
-   }).join("");
+    }).join("");
 
   // =========================
   // AUTO RESIZE NOTE
