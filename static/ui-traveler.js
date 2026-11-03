@@ -431,9 +431,11 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
 
      const isMachineMode =
-  step.input_mode === "machine_cut" ||
+  currentStepData.input_mode === "machine_cut" ||
   /^M[123]$/.test(
-    String(step.step_code || "").replace(/\s+/g, "").toUpperCase()
+    String(currentStepData.step_code || "")
+      .replace(/\s+/g, "")
+      .toUpperCase()
   );
       // 🔥 LOAD LOGS ONCE
       const logs = await jfetch(`/api/v1/step-logs?step_id=${stepId}`);
