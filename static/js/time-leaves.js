@@ -47,21 +47,13 @@ const fmtHours = (h) =>
 
 
 
-
 function overlapsPeriod(leaveFrom, leaveTo, ps, pe) {
   if (!ps || !pe || !leaveFrom) return false;
 
-  const lf = new Date(leaveFrom);
+  const from = fmtDate(leaveFrom);
+  const to = leaveTo ? fmtDate(leaveTo) : from;
 
-  // ถ้าไม่มี To ถือว่าเป็นวันเดียวกับ From
-  const lt = leaveTo
-    ? new Date(leaveTo)
-    : new Date(leaveFrom);
-
-  const pStart = new Date(ps);
-  const pEnd = new Date(pe);
-
-  return lf <= pEnd && lt >= pStart;
+  return from <= pe && to >= ps;
 }
 
 
@@ -190,7 +182,7 @@ function renderTimeLeaves(leaves) {
     tr.dataset.id = lv.id;
 
     if (inPeriod) {
-      tr.style.backgroundColor = "#fff8c4"; // highlight
+      tr.classList.toggle("leave-in-period", inPeriod); // highlight
     }
 
     tr.innerHTML = `
@@ -457,6 +449,4 @@ function wireLeaveRow(tr, lv) {
 // };
 /* =================== INIT =================== */
 
-document.addEventListener("DOMContentLoaded", loadLeaves);
-
-
+leaveSection.addEventListener("payroll-period-ready", loadLeaves);

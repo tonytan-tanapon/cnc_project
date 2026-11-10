@@ -4,7 +4,9 @@ from io import BytesIO
 
 from openpyxl import Workbook
 from openpyxl.styles import Font
+from openpyxl.styles import Font, PatternFill
 
+LEAVE_PERIOD_FILL = PatternFill(fill_type="solid", fgColor="FFFFF8C4")
 from fastapi.responses import StreamingResponse
 router = APIRouter(
     prefix="/payroll_service",
@@ -573,7 +575,12 @@ def export_excel(
             3,
             leave.leave_type
         )
+        leave_start = leave.start_at.date()
+        leave_end = leave.end_at.date() if leave.end_at else leave_start
 
+        if leave_start <= pay_end and leave_end >= pay_start:
+            for col in range(1, 4):
+                ws.cell(row=row_no, column=col).fill = LEAVE_PERIOD_FILL
        
 
         row_no += 1
@@ -1015,28 +1022,17 @@ def export_payee(
 
     row_no += 1
 
-    for idx, leave in enumerate(
-        payroll["leave_rows"],
-        start=1
-    ):
-
+    for idx, leave in enumerate(payroll["leave_rows"], start=1):
         ws.cell(row_no, 1, idx)
+        ws.cell(row_no, 2, leave.start_at.strftime("%m/%d/%y"))
+        ws.cell(row_no, 3, leave.leave_type)
 
-        ws.cell(
-            row_no,
-            2,
-            leave.start_at.strftime("%m/%d/%y")
-        )
+        leave_start = leave.start_at.date()
+        leave_end = leave.end_at.date() if leave.end_at else leave_start
 
-       
-
-        ws.cell(
-            row_no,
-            3,
-            leave.leave_type
-        )
-
-        
+        if leave_start <= pay_end and leave_end >= pay_start:
+            for col in range(1, 4):
+                ws.cell(row_no, col).fill = LEAVE_PERIOD_FILL
 
         row_no += 1
 

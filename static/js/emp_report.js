@@ -49,6 +49,22 @@ function fmtMDY(v) {
         v.substring(8, 10) + "/" +
         v.substring(2, 4);
 }
+
+
+function alertLeaveInPeriod() {
+    const hasLeave = document.querySelector(
+        "#leaveTblBody tr.leave-in-period"
+    );
+
+    if (hasLeave) {
+        alert(
+            "มีการลาในงวด Payroll นี้\n" +
+            "กรุณาตรวจสอบแถวสีเหลืองในไฟล์ Excel"
+        );
+    }
+}
+
+
 async function loadPayroll() {
 
     const employee_id = getQS("employee_id");
@@ -74,7 +90,11 @@ async function loadPayroll() {
         console.log(payroll.rows);
 
         const header = document.getElementById("header");
+        const leaveSection = document.getElementById("leaveSection");
 
+        leaveSection.dataset.ppStart = payroll.pay_period.start_at.slice(0, 10);
+        leaveSection.dataset.ppEnd = payroll.pay_period.end_at.slice(0, 10);
+        leaveSection.dispatchEvent(new Event("payroll-period-ready"));
 
         const start =
             fmtMDY(
@@ -942,6 +962,9 @@ document
                 || rate * 1.5
             );
 
+        alertLeaveInPeriod();
+
+
         window.open(
             `/api/v1/payroll_service/export_excel?employee_id=${employee_id}&pp_id=${pp_id}&rate=${rate}&ot_rate=${ot_rate}&show_payee=${showingPayee}`
         );
@@ -968,6 +991,9 @@ document
                 document.getElementById("ot_rate").value
                 || rate * 1.5
             );
+
+            alertLeaveInPeriod();
+
 
         window.open(
             `/api/v1/payroll_service/export_payee?employee_id=${employee_id}` +
