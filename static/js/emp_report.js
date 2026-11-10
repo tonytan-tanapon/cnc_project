@@ -49,21 +49,79 @@ function fmtMDY(v) {
         v.substring(8, 10) + "/" +
         v.substring(2, 4);
 }
+async function alertLeaveInPeriod() {
+    const employeeId = getQS("employee_id");
+    const periodId = getQS("pp_id");
 
+    const rate =
+        Number(document.getElementById("rate").value || 0);
 
-function alertLeaveInPeriod() {
-    const hasLeave = document.querySelector(
-        "#leaveTblBody tr.leave-in-period"
+    const otRate =
+        Number(document.getElementById("ot_rate").value || rate * 1.5);
+
+    const payroll = await jfetch(
+        `/payroll_service/calculate?employee_id=${employeeId}` +
+        `&pp_id=${periodId}` +
+        `&rate=${rate}` +
+        `&ot_rate=${otRate}` +
+        `&show_payee=true`
+    );
+    const employee = payroll.employee;
+
+    const members = [
+        { id: employee.id, name: employee.name },
+        ...(employee.payroll_dependents || [])
+    ];
+
+    const uniqueMembers = [
+        ...new Map(members.map(member => [member.id, member])).values()
+    ];
+
+    const periodStart = payroll.pay_period.start_at.slice(0, 10);
+    const periodEnd = payroll.pay_period.end_at.slice(0, 10);
+
+    // ใช้วันท้องถิ่นเหมือนตาราง Time Leave
+    function localDate(value) {
+        const date = new Date(value);
+
+        return [
+            date.getFullYear(),
+            String(date.getMonth() + 1).padStart(2, "0"),
+            String(date.getDate()).padStart(2, "0")
+        ].join("-");
+    }
+
+    const results = await Promise.all(
+        uniqueMembers.map(async member => {
+            const leaves = await jfetch(
+                `/api/v1/leaves?employee_id=${member.id}`
+            );
+
+            const hasLeave = leaves.some(leave => {
+                if (!leave.start_at) return false;
+
+                const from = localDate(leave.start_at);
+                const to = leave.end_at
+                    ? localDate(leave.end_at)
+                    : from;
+
+                return from <= periodEnd && to >= periodStart;
+            });
+
+            return hasLeave ? member.name : null;
+        })
     );
 
-    if (hasLeave) {
+    const names = results.filter(Boolean);
+
+    if (names.length) {
         alert(
-            "มีการลาในงวด Payroll นี้\n" +
-            "กรุณาตรวจสอบแถวสีเหลืองในไฟล์ Excel"
+            "พบการลาในงวด Payroll นี้\n\n" +
+            names.map(name => `• ${name}`).join("\n") +
+            "\n\nกรุณาตรวจสอบการลาก่อนดำเนินการจ่ายเงิน"
         );
     }
 }
-
 
 async function loadPayroll() {
 
@@ -942,63 +1000,58 @@ function addNewRow() {
 
 }
 
-
 document
     .getElementById("exportBtn")
-    .addEventListener("click", () => {
-
-        const employee_id =
-            getQS("employee_id");
-
-        const pp_id =
-            getQS("pp_id");
+    .addEventListener("click", async () => {
+        const employee_id = getQS("employee_id");
+        const pp_id = getQS("pp_id");
 
         const rate =
             Number(document.getElementById("rate").value || 0);
 
         const ot_rate =
-            Number(
-                document.getElementById("ot_rate").value
-                || rate * 1.5
+            Number(document.getElementById("ot_rate").value || rate * 1.5);
+
+        try {
+            await alertLeaveInPeriod();
+
+            window.location.assign(
+                `/api/v1/payroll_service/export_excel?employee_id=${employee_id}` +
+                `&pp_id=${pp_id}&rate=${rate}&ot_rate=${ot_rate}` +
+                `&show_payee=${showingPayee}`
             );
-
-        alertLeaveInPeriod();
-
-
-        window.open(
-            `/api/v1/payroll_service/export_excel?employee_id=${employee_id}&pp_id=${pp_id}&rate=${rate}&ot_rate=${ot_rate}&show_payee=${showingPayee}`
-        );
+        } catch (err) {
+            alert(
+                "ตรวจสอบการลาไม่สำเร็จ กรุณาลองอีกครั้ง\n" +
+                err.message
+            );
+        }
     });
 
 
 document
     .getElementById("exportPayeeBtn")
-    .addEventListener("click", () => {
-
-        const employee_id =
-            getQS("employee_id");
-
-        const pp_id =
-            getQS("pp_id");
+    .addEventListener("click", async () => {
+        const employee_id = getQS("employee_id");
+        const pp_id = getQS("pp_id");
 
         const rate =
-            Number(
-                document.getElementById("rate").value || 0
-            );
+            Number(document.getElementById("rate").value || 0);
 
         const ot_rate =
-            Number(
-                document.getElementById("ot_rate").value
-                || rate * 1.5
+            Number(document.getElementById("ot_rate").value || rate * 1.5);
+
+        try {
+            await alertLeaveInPeriod();
+
+            window.location.assign(
+                `/api/v1/payroll_service/export_payee?employee_id=${employee_id}` +
+                `&pp_id=${pp_id}&rate=${rate}&ot_rate=${ot_rate}`
             );
-
-            alertLeaveInPeriod();
-
-
-        window.open(
-            `/api/v1/payroll_service/export_payee?employee_id=${employee_id}` +
-            `&pp_id=${pp_id}` +
-            `&rate=${rate}` +
-            `&ot_rate=${ot_rate}`
-        );
+        } catch (err) {
+            alert(
+                "ตรวจสอบการลาไม่สำเร็จ กรุณาลองอีกครั้ง\n" +
+                err.message
+            );
+        }
     });
