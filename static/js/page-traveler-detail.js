@@ -794,6 +794,10 @@ const PATCH_DEBOUNCE_MS = 350;
 function normalizeStep(row) {
 
   const logs = row.logs || [];
+  const lastWorkDate = logs.reduce((latest, log) => {
+    const workDate = (log.work_date || "").slice(0, 10);
+    return workDate > latest ? workDate : latest;
+  }, "");
 
   // 🔥 latest log
   const latestLog =
@@ -873,6 +877,8 @@ function normalizeStep(row) {
 
     supplier_receive_date:
       latestLog.supplier_receive_date ?? "",
+
+      last_work_date: lastWorkDate,
 
     logs
   };
@@ -1096,770 +1102,770 @@ function initStepsTable() {
     ],
 
     columns: [
-      {
-        title: "",
-        formatter: function (cell) {
+  //     {
+  //       title: "",
+  //       formatter: function (cell) {
 
-          const opened =
-            cell.getRow()
-              .getElement()
-              .querySelector(".log-holder");
+  //         const opened =
+  //           cell.getRow()
+  //             .getElement()
+  //             .querySelector(".log-holder");
 
-          return opened ? "▼" : "▶";
-        },
-        width: 50,
-        hozAlign: "center",
-        cellClick: function (e, cell) {
+  //         return opened ? "▼" : "▶";
+  //       },
+  //       width: 50,
+  //       hozAlign: "center",
+  //       cellClick: function (e, cell) {
 
-          const row = cell.getRow();
+  //         const row = cell.getRow();
 
-          const el = row.getElement();
+  //         const el = row.getElement();
 
-          const old =
-            el.querySelector(".log-holder");
+  //         const old =
+  //           el.querySelector(".log-holder");
 
-          if (old) {
+  //         if (old) {
 
-            old.remove();
+  //           old.remove();
 
-            return;
-          }
+  //           return;
+  //         }
 
-          const data = row.getData();
+  //         const data = row.getData();
 
-          const holder =
-            document.createElement("div");
+  //         const holder =
+  //           document.createElement("div");
 
-          holder.className = "log-holder";
+  //         holder.className = "log-holder";
 
-          holder.style.padding = "10px";
+  //         holder.style.padding = "10px";
 
-          holder.innerHTML = `
+  //         holder.innerHTML = `
 
-      <div>
+  //     <div>
 
-        <div style="margin-bottom:10px; display:flex; gap:10px; align-items:center;">
+  //       <div style="margin-bottom:10px; display:flex; gap:10px; align-items:center;">
 
-        <input
-        type="date"
-        class="new-log-date"
-        value="${new Date().toISOString().slice(0, 10)}"
-        style="width:140px;"
-      >
+  //       <input
+  //       type="date"
+  //       class="new-log-date"
+  //       value="${new Date().toISOString().slice(0, 10)}"
+  //       style="width:140px;"
+  //     >
 
-        <button
-        type="button"
-        class="btn-mini btn-success add-log-btn"
-        data-step-id="${data.id}"
-      >
-        + Add Log
-      </button>
+  //       <button
+  //       type="button"
+  //       class="btn-mini btn-success add-log-btn"
+  //       data-step-id="${data.id}"
+  //     >
+  //       + Add Log
+  //     </button>
 
-      <button
-        type="button"
-        class="btn-mini btn-primary save-all-logs-btn"
-      >
-        💾 Save All Logs
-      </button>
+  //     <button
+  //       type="button"
+  //       class="btn-mini btn-primary save-all-logs-btn"
+  //     >
+  //       💾 Save All Logs
+  //     </button>
 
-      </div>
+  //     </div>
 
-  <table class="log-subtable">
+  // <table class="log-subtable">
 
-        <thead>
-          <tr>
-            <th style="width:110px;">Date</th>
-            <th style="min-width:90px;">Good</th>
-            <th style="min-width:90px;">Bad</th>
-            <th style="min-width:80px;">Operator</th>
-            <th style="min-width:80px;">Machine</th>
-            <th style="min-width:220px;">Note</th>
-            <th>Supplier PO</th>
-            <th>Supplier</th>
-            <th>Heat Lot</th>
-            <th>Mat Type</th>
-            <th>Mat Size</th>
-            <th>Length</th>
-            <th style="width:70px;">Qty</th>
-            <th>UOM</th>
-            <th>Send Date</th>
-            <th>Recv Date</th>
-            <th>Del</th>
-          </tr>
-        </thead>
+  //       <thead>
+  //         <tr>
+  //           <th style="width:110px;">Date</th>
+  //           <th style="min-width:90px;">Good</th>
+  //           <th style="min-width:90px;">Bad</th>
+  //           <th style="min-width:80px;">Operator</th>
+  //           <th style="min-width:80px;">Machine</th>
+  //           <th style="min-width:220px;">Note</th>
+  //           <th>Supplier PO</th>
+  //           <th>Supplier</th>
+  //           <th>Heat Lot</th>
+  //           <th>Mat Type</th>
+  //           <th>Mat Size</th>
+  //           <th>Length</th>
+  //           <th style="width:70px;">Qty</th>
+  //           <th>UOM</th>
+  //           <th>Send Date</th>
+  //           <th>Recv Date</th>
+  //           <th>Del</th>
+  //         </tr>
+  //       </thead>
 
-        <tbody>
+  //       <tbody>
 
-        ${(data.logs || []).map(log => `
+  //       ${(data.logs || []).map(log => `
 
-            <tr data-log-id="${log.id}">
+  //           <tr data-log-id="${log.id}">
 
-              <!-- DATE -->
-              <td>
-                <input
+  //             <!-- DATE -->
+  //             <td>
+  //               <input
                   
-                  class="log-input date-input"
-                  type="date"
-                  data-log-id="${log.id}"
-                  data-field="work_date"
-                  value="${log.work_date || ""}"
-                >
-              </td>
-
-              <!-- GOOD -->
-              <td>
-                <input
-                  class="log-input"
-                  type="number"
-                  data-log-id="${log.id}"
-                  data-field="qty_accept"
-                  value="${log.qty_accept || 0}"
-                >
-              </td>
-
-              <!-- BAD -->
-              <td>
-                <input
-                  class="log-input"
-                  type="number"
-                  data-log-id="${log.id}"
-                  data-field="qty_reject"
-                  value="${log.qty_reject || 0}"
-                >
-              </td>
-
-              <!-- OPERATOR -->
-              <td>
-
-              <select
-                class="log-input table-select"
-                data-log-id="${log.id}"
-                data-field="operator_id"
-              >
-
-            <option value="">
-              Select
-            </option>
-
-          ${employees.map(e => `
-
-          <option
-            value="${e.id}"
-
-            ${Number(e.id) ===
-              Number(log.operator_id)
-              ? "selected"
-              : ""}
-
-          >
-          ${e.nickname || ""}
-          </option>
-
-          `).join("")}
-
-          </select>
-
-          </td>
-
-          <!-- MACHINE -->
-          <td>
-
-          <select
-            class="log-input table-select"
-            data-log-id="${log.id}"
-            data-field="machine_id"
-          >
-
-          <option value="">
-            Select
-          </option>
-
-          ${machines.map(m => `
-
-          <option
-            value="${m.id}"
-
-            ${Number(m.id) ===
-                  Number(log.machine_id)
-                  ? "selected"
-                  : ""}
-
-          >
-            ${m.code}
-          </option>
-
-          `).join("")}
-
-          </select>
-
-          </td>
-
-            <!-- NOTE -->
-            <td>
-              <textarea
-                class="log-input"
-                data-log-id="${log.id}"
-                data-field="note"
-                rows="2"
-              >${log.note || ""}</textarea>
-            </td>
-
-            <!-- SUPPLIER PO -->
-            <td>
-              <input
-                class="log-input"
-                data-log-id="${log.id}"
-                data-field="supplier_po"
-                value="${log.supplier_po || ""}"
-              >
-            </td>
-
-            <!-- SUPPLIER -->
-            <td>
-              <input
-                class="log-input"
-                data-log-id="${log.id}"
-                data-field="supplier_name"
-                value="${log.supplier_name || ""}"
-              >
-            </td>
-
-            <!-- HEAT LOT -->
-            <td>
-              <input
-                class="log-input"
-                data-log-id="${log.id}"
-                data-field="supplier_lot"
-                value="${log.supplier_lot || ""}"
-              >
-            </td>
-
-            <!-- MAT TYPE -->
-            <td>
-              <input
-                class="log-input"
-                data-log-id="${log.id}"
-                data-field="material_type"
-                value="${log.material_type || ""}"
-              >
-            </td>
-
-            <!-- MAT SIZE -->
-            <td>
-              <input
-                class="log-input"
-                data-log-id="${log.id}"
-                data-field="material_size"
-                value="${log.material_size || ""}"
-              >
-            </td>
-
-            <!-- LENGTH -->
-            <td>
-              <input
-                class="log-input"
-                data-log-id="${log.id}"
-                data-field="material_length"
-                value="${log.material_length || ""}"
-              >
-            </td>
-
-            <!-- QTY -->
-            <td>
-              <input
-                class="log-input qty-small-input"
-                type="number"
-                data-log-id="${log.id}"
-                data-field="material_qty"
-                value="${log.material_qty || 0}"
-              >
-            </td>
-
-            <!-- UOM -->
-            <td>
-              <input
-                class="log-input"
-                data-log-id="${log.id}"
-                data-field="material_uom"
-                value="${log.material_uom || ""}"
-              >
-            </td>
-
-            <!-- SEND DATE -->
-            <td>
-              <input
-                class="log-input"
-                type="date"
-                data-log-id="${log.id}"
-                data-field="supplier_send_date"
-                value="${log.supplier_send_date || ""}"
-              >
-            </td>
-
-            <!-- RECV DATE -->
-            <td>
-              <input
-                class="log-input"
-                type="date"
-                data-log-id="${log.id}"
-                data-field="supplier_receive_date"
-                value="${log.supplier_receive_date || ""}"
-              >
-            </td>
-
-            <!-- DELETE -->
-            <td>
-
-              <button
-                type="button"
-                class="btn-mini btn-danger delete-log-btn"
-                data-log-id="${log.id}"
-              >
-                🗑
-              </button>
-
-            </td>
-
-          </tr>
-
-          `).join("")
-            }
-
-        </tbody>
-
-              </table>
-            `;
-
-          el.appendChild(holder);
-
-          holder
-            .querySelector(".save-all-logs-btn")
-            .addEventListener("click", async () => {
-
-              try {
-
-                const rows =
-                  holder.querySelectorAll("tbody tr");
-
-                for (const row of rows) {
-
-                  const logId =
-                    row.dataset.logId;
-
-                  if (!logId) {
-                    continue;
-                  }
-
-                  const payload = {};
-
-                  row
-                    .querySelectorAll(".log-input")
-                    .forEach(input => {
-
-                      const field =
-                        input.dataset.field;
-
-                      if (!field) return;
-
-                      let value =
-                        input.value;
-
-                      if (
-                        field === "qty_accept" ||
-                        field === "qty_reject" ||
-                        field === "material_qty"
-                      ) {
-                        value = Number(value || 0);
-                      }
-
-                      // skip display-only fields
-                      if (
-                        field === "operator_nickname" ||
-                        field === "machine_name"
-                      ) {
-                        return;
-                      }
-
-                      payload[field] = value;
-                    });
-
-                  console.log(
-                    "SAVE LOG",
-                    logId,
-                    payload
-                  );
-
-                  await jfetch(
-                    `/api/v1/step-logs/${logId}`,
-                    {
-                      method: "PATCH",
-
-                      body: JSON.stringify(payload)
-                    }
-                  );
-                }
-
-                toast("All logs saved");
-
-              } catch (err) {
-
-                console.error(err);
-
-                toast("Save logs failed", false);
-              }
-            });
-
-          holder
-            .querySelectorAll(".delete-log-btn")
-            .forEach(btn => {
-
-              btn.addEventListener("click", async (e) => {
-
-                e.preventDefault();
-                e.stopPropagation();
-
-                const logId =
-                  btn.dataset.logId;
-
-                if (!confirm("Delete log?")) {
-                  return;
-                }
-
-                try {
-
-                  await jfetch(
-                    `/api/v1/step-logs/${logId}`,
-                    {
-                      method: "DELETE"
-                    }
-                  );
-
-                  btn.closest("tr").remove();
-
-                  toast("Log deleted");
-
-                } catch (err) {
-
-                  console.error(err);
-
-                  toast("Delete failed", false);
-                }
-              });
-            });
-          holder
-            .querySelector(".add-log-btn")
-            .addEventListener("click", async (e) => {
-
-              e.preventDefault();
-              e.stopPropagation();
-
-              try {
-
-                const selectedDate =
-                  holder.querySelector(".new-log-date").value;
-
-                // 🔥 create and get created row back
-                const created =
-                  await jfetch(
-                    "/api/v1/step-logs",
-                    {
-                      method: "POST",
-
-                      body: JSON.stringify({
-
-                        step_id: data.id,
-
-                        work_date: selectedDate,
-
-                        qty_accept: 0,
-
-                        qty_reject: 0,
-
-                        supplier_po: "",
-
-                        supplier_name: "",
-
-                        supplier_lot: "",
-
-                        material_type: "",
-
-                        material_size: "",
-
-                        material_length: "",
-
-                        material_qty: 0,
-
-                        material_uom: ""
-
-                      })
-                    }
-                  );
-
-
-                console.log("LOG CREATED =", created);
-                toast("Log created");
-                const createdId =
-                  created?.id ||
-                  created?.data?.id;
-
-                console.log(
-                  "CREATED ID =",
-                  createdId
-                );
-
-                if (!createdId) {
-
-                  toast(
-                    "Backend did not return log id",
-                    false
-                  );
-
-                  return;
-                }
-                const tbody =
-                  holder.querySelector("tbody");
-                if (!createdId) {
-
-                  toast("Backend did not return log id", false);
-
-                  return;
-                }
-
-                tbody.insertAdjacentHTML(
-                  "beforeend",
-
-                  `
-                  <tr data-log-id="${createdId}">
-
-                    <!-- DATE -->
-                    <td>
-                      <input
-                        class="log-input"
-                        type="date"
-                        data-log-id="${createdId}"
-                        data-field="work_date"
-                        value="${selectedDate}"
-                      >
-                    </td>
-
-                    <!-- GOOD -->
-                    <td>
-                      <input
-                        class="log-input"
-                        type="number"
-                        data-log-id="${createdId}"
-                        data-field="qty_accept"
-                        value="0"
-                      >
-                    </td>
-
-                    <!-- BAD -->
-                    <td>
-                      <input
-                        class="log-input"
-                        type="number"
-                        data-log-id="${createdId}"
-                        data-field="qty_reject"
-                        value="0"
-                      >
-                    </td>
-
-                    <!-- OPERATOR -->
-                  <td>
-
-                  <select
-                    class="log-input table-select"
-                    data-log-id="${createdId}"
-                    data-field="operator_id"
-                  >
-
-                  <option value="">
-                    Select
-                  </option>
-
-                  ${employees.map(e => `
-
-                  <option value="${e.id}">
-                    ${e.emp_code} - ${e.nickname || ""}
-                  </option>
-
-                  `).join("")}
-
-                  </select>
-
-                  </td>
-
-                  <!-- MACHINE -->
-                  <td>
-
-                  <select
-                    class="log-input table-select"
-                    data-log-id="${createdId}"
-                    data-field="machine_id"
-                  >
-
-                  <option value="">
-                    Select
-                  </option>
-
-                  ${machines.map(m => `
-
-                  <option value="${m.id}">
-                    ${m.code}
-                  </option>
-
-                  `).join("")}
-
-                  </select>
-
-                  </td>
-
-                    <!-- NOTE -->
-                    <td>
-                      <textarea
-                        class="log-input"
-                        data-log-id="${createdId}"
-                        data-field="note"
-                        rows="2"
-                      ></textarea>
-                    </td>
-
-                    <!-- SUPPLIER PO -->
-                    <td>
-                      <input
-                        class="log-input"
-                        data-log-id="${createdId}"
-                        data-field="supplier_po"
-                        value=""
-                      >
-                    </td>
-
-                    <!-- SUPPLIER -->
-                    <td>
-                      <input
-                        class="log-input"
-                        data-log-id="${createdId}"
-                        data-field="supplier_name"
-                        value=""
-                      >
-                    </td>
-
-                    <!-- HEAT LOT -->
-                    <td>
-                      <input
-                        class="log-input"
-                        data-log-id="${createdId}"
-                        data-field="supplier_lot"
-                        value=""
-                      >
-                    </td>
-
-                    <!-- MAT TYPE -->
-                    <td>
-                      <input
-                        class="log-input"
-                        data-log-id="${createdId}"
-                        data-field="material_type"
-                        value=""
-                      >
-                    </td>
-
-                    <!-- MAT SIZE -->
-                    <td>
-                      <input
-                        class="log-input"
-                        data-log-id="${createdId}"
-                        data-field="material_size"
-                        value=""
-                      >
-                    </td>
-
-                    <!-- LENGTH -->
-                    <td>
-                      <input
-                        class="log-input"
-                        data-log-id="${createdId}"
-                        data-field="material_length"
-                        value=""
-                      >
-                    </td>
-
-                    <!-- QTY -->
-                    <td>
-                      <input
-                        class="log-input"
-                        type="number"
-                        data-log-id="${createdId}"
-                        data-field="material_qty"
-                        value="0"
-                      >
-                    </td>
-
-                    <!-- UOM -->
-                    <td>
-                      <input
-                        class="log-input"
-                        data-log-id="${createdId}"
-                        data-field="material_uom"
-                        value=""
-                      >
-                    </td>
-
-                    <!-- SEND DATE -->
-                    <td>
-                      <input
-                        class="log-input"
-                        type="date"
-                        data-log-id="${createdId}"
-                        data-field="supplier_send_date"
-                        value=""
-                      >
-                    </td>
-
-                    <!-- RECV DATE -->
-                    <td>
-                      <input
-                        class="log-input"
-                        type="date"
-                        data-log-id="${createdId}"
-                        data-field="supplier_receive_date"
-                        value=""
-                      >
-                    </td>
-
-                    <!-- DELETE -->
-                    <td>
-
-                      <button
-                        type="button"
-                        class="btn-mini btn-danger delete-log-btn"
-                        data-log-id="${createdId}"
-                      >
-                        🗑
-                      </button>
-
-                    </td>
-
-                  </tr>
-                  `
-                );
-
-              } catch (err) {
-
-                console.error(err);
-
-                toast("Create log failed", false);
-              }
-            });
-        }
-      },
+  //                 class="log-input date-input"
+  //                 type="date"
+  //                 data-log-id="${log.id}"
+  //                 data-field="work_date"
+  //                 value="${log.work_date || ""}"
+  //               >
+  //             </td>
+
+  //             <!-- GOOD -->
+  //             <td>
+  //               <input
+  //                 class="log-input"
+  //                 type="number"
+  //                 data-log-id="${log.id}"
+  //                 data-field="qty_accept"
+  //                 value="${log.qty_accept || 0}"
+  //               >
+  //             </td>
+
+  //             <!-- BAD -->
+  //             <td>
+  //               <input
+  //                 class="log-input"
+  //                 type="number"
+  //                 data-log-id="${log.id}"
+  //                 data-field="qty_reject"
+  //                 value="${log.qty_reject || 0}"
+  //               >
+  //             </td>
+
+  //             <!-- OPERATOR -->
+  //             <td>
+
+  //             <select
+  //               class="log-input table-select"
+  //               data-log-id="${log.id}"
+  //               data-field="operator_id"
+  //             >
+
+  //           <option value="">
+  //             Select
+  //           </option>
+
+  //         ${employees.map(e => `
+
+  //         <option
+  //           value="${e.id}"
+
+  //           ${Number(e.id) ===
+  //             Number(log.operator_id)
+  //             ? "selected"
+  //             : ""}
+
+  //         >
+  //         ${e.nickname || ""}
+  //         </option>
+
+  //         `).join("")}
+
+  //         </select>
+
+  //         </td>
+
+  //         <!-- MACHINE -->
+  //         <td>
+
+  //         <select
+  //           class="log-input table-select"
+  //           data-log-id="${log.id}"
+  //           data-field="machine_id"
+  //         >
+
+  //         <option value="">
+  //           Select
+  //         </option>
+
+  //         ${machines.map(m => `
+
+  //         <option
+  //           value="${m.id}"
+
+  //           ${Number(m.id) ===
+  //                 Number(log.machine_id)
+  //                 ? "selected"
+  //                 : ""}
+
+  //         >
+  //           ${m.code}
+  //         </option>
+
+  //         `).join("")}
+
+  //         </select>
+
+  //         </td>
+
+  //           <!-- NOTE -->
+  //           <td>
+  //             <textarea
+  //               class="log-input"
+  //               data-log-id="${log.id}"
+  //               data-field="note"
+  //               rows="2"
+  //             >${log.note || ""}</textarea>
+  //           </td>
+
+  //           <!-- SUPPLIER PO -->
+  //           <td>
+  //             <input
+  //               class="log-input"
+  //               data-log-id="${log.id}"
+  //               data-field="supplier_po"
+  //               value="${log.supplier_po || ""}"
+  //             >
+  //           </td>
+
+  //           <!-- SUPPLIER -->
+  //           <td>
+  //             <input
+  //               class="log-input"
+  //               data-log-id="${log.id}"
+  //               data-field="supplier_name"
+  //               value="${log.supplier_name || ""}"
+  //             >
+  //           </td>
+
+  //           <!-- HEAT LOT -->
+  //           <td>
+  //             <input
+  //               class="log-input"
+  //               data-log-id="${log.id}"
+  //               data-field="supplier_lot"
+  //               value="${log.supplier_lot || ""}"
+  //             >
+  //           </td>
+
+  //           <!-- MAT TYPE -->
+  //           <td>
+  //             <input
+  //               class="log-input"
+  //               data-log-id="${log.id}"
+  //               data-field="material_type"
+  //               value="${log.material_type || ""}"
+  //             >
+  //           </td>
+
+  //           <!-- MAT SIZE -->
+  //           <td>
+  //             <input
+  //               class="log-input"
+  //               data-log-id="${log.id}"
+  //               data-field="material_size"
+  //               value="${log.material_size || ""}"
+  //             >
+  //           </td>
+
+  //           <!-- LENGTH -->
+  //           <td>
+  //             <input
+  //               class="log-input"
+  //               data-log-id="${log.id}"
+  //               data-field="material_length"
+  //               value="${log.material_length || ""}"
+  //             >
+  //           </td>
+
+  //           <!-- QTY -->
+  //           <td>
+  //             <input
+  //               class="log-input qty-small-input"
+  //               type="number"
+  //               data-log-id="${log.id}"
+  //               data-field="material_qty"
+  //               value="${log.material_qty || 0}"
+  //             >
+  //           </td>
+
+  //           <!-- UOM -->
+  //           <td>
+  //             <input
+  //               class="log-input"
+  //               data-log-id="${log.id}"
+  //               data-field="material_uom"
+  //               value="${log.material_uom || ""}"
+  //             >
+  //           </td>
+
+  //           <!-- SEND DATE -->
+  //           <td>
+  //             <input
+  //               class="log-input"
+  //               type="date"
+  //               data-log-id="${log.id}"
+  //               data-field="supplier_send_date"
+  //               value="${log.supplier_send_date || ""}"
+  //             >
+  //           </td>
+
+  //           <!-- RECV DATE -->
+  //           <td>
+  //             <input
+  //               class="log-input"
+  //               type="date"
+  //               data-log-id="${log.id}"
+  //               data-field="supplier_receive_date"
+  //               value="${log.supplier_receive_date || ""}"
+  //             >
+  //           </td>
+
+  //           <!-- DELETE -->
+  //           <td>
+
+  //             <button
+  //               type="button"
+  //               class="btn-mini btn-danger delete-log-btn"
+  //               data-log-id="${log.id}"
+  //             >
+  //               🗑
+  //             </button>
+
+  //           </td>
+
+  //         </tr>
+
+  //         `).join("")
+  //           }
+
+  //       </tbody>
+
+  //             </table>
+  //           `;
+
+  //         el.appendChild(holder);
+
+  //         holder
+  //           .querySelector(".save-all-logs-btn")
+  //           .addEventListener("click", async () => {
+
+  //             try {
+
+  //               const rows =
+  //                 holder.querySelectorAll("tbody tr");
+
+  //               for (const row of rows) {
+
+  //                 const logId =
+  //                   row.dataset.logId;
+
+  //                 if (!logId) {
+  //                   continue;
+  //                 }
+
+  //                 const payload = {};
+
+  //                 row
+  //                   .querySelectorAll(".log-input")
+  //                   .forEach(input => {
+
+  //                     const field =
+  //                       input.dataset.field;
+
+  //                     if (!field) return;
+
+  //                     let value =
+  //                       input.value;
+
+  //                     if (
+  //                       field === "qty_accept" ||
+  //                       field === "qty_reject" ||
+  //                       field === "material_qty"
+  //                     ) {
+  //                       value = Number(value || 0);
+  //                     }
+
+  //                     // skip display-only fields
+  //                     if (
+  //                       field === "operator_nickname" ||
+  //                       field === "machine_name"
+  //                     ) {
+  //                       return;
+  //                     }
+
+  //                     payload[field] = value;
+  //                   });
+
+  //                 console.log(
+  //                   "SAVE LOG",
+  //                   logId,
+  //                   payload
+  //                 );
+
+  //                 await jfetch(
+  //                   `/api/v1/step-logs/${logId}`,
+  //                   {
+  //                     method: "PATCH",
+
+  //                     body: JSON.stringify(payload)
+  //                   }
+  //                 );
+  //               }
+
+  //               toast("All logs saved");
+
+  //             } catch (err) {
+
+  //               console.error(err);
+
+  //               toast("Save logs failed", false);
+  //             }
+  //           });
+
+  //         holder
+  //           .querySelectorAll(".delete-log-btn")
+  //           .forEach(btn => {
+
+  //             btn.addEventListener("click", async (e) => {
+
+  //               e.preventDefault();
+  //               e.stopPropagation();
+
+  //               const logId =
+  //                 btn.dataset.logId;
+
+  //               if (!confirm("Delete log?")) {
+  //                 return;
+  //               }
+
+  //               try {
+
+  //                 await jfetch(
+  //                   `/api/v1/step-logs/${logId}`,
+  //                   {
+  //                     method: "DELETE"
+  //                   }
+  //                 );
+
+  //                 btn.closest("tr").remove();
+
+  //                 toast("Log deleted");
+
+  //               } catch (err) {
+
+  //                 console.error(err);
+
+  //                 toast("Delete failed", false);
+  //               }
+  //             });
+  //           });
+  //         holder
+  //           .querySelector(".add-log-btn")
+  //           .addEventListener("click", async (e) => {
+
+  //             e.preventDefault();
+  //             e.stopPropagation();
+
+  //             try {
+
+  //               const selectedDate =
+  //                 holder.querySelector(".new-log-date").value;
+
+  //               // 🔥 create and get created row back
+  //               const created =
+  //                 await jfetch(
+  //                   "/api/v1/step-logs",
+  //                   {
+  //                     method: "POST",
+
+  //                     body: JSON.stringify({
+
+  //                       step_id: data.id,
+
+  //                       work_date: selectedDate,
+
+  //                       qty_accept: 0,
+
+  //                       qty_reject: 0,
+
+  //                       supplier_po: "",
+
+  //                       supplier_name: "",
+
+  //                       supplier_lot: "",
+
+  //                       material_type: "",
+
+  //                       material_size: "",
+
+  //                       material_length: "",
+
+  //                       material_qty: 0,
+
+  //                       material_uom: ""
+
+  //                     })
+  //                   }
+  //                 );
+
+
+  //               console.log("LOG CREATED =", created);
+  //               toast("Log created");
+  //               const createdId =
+  //                 created?.id ||
+  //                 created?.data?.id;
+
+  //               console.log(
+  //                 "CREATED ID =",
+  //                 createdId
+  //               );
+
+  //               if (!createdId) {
+
+  //                 toast(
+  //                   "Backend did not return log id",
+  //                   false
+  //                 );
+
+  //                 return;
+  //               }
+  //               const tbody =
+  //                 holder.querySelector("tbody");
+  //               if (!createdId) {
+
+  //                 toast("Backend did not return log id", false);
+
+  //                 return;
+  //               }
+
+  //               tbody.insertAdjacentHTML(
+  //                 "beforeend",
+
+  //                 `
+  //                 <tr data-log-id="${createdId}">
+
+  //                   <!-- DATE -->
+  //                   <td>
+  //                     <input
+  //                       class="log-input"
+  //                       type="date"
+  //                       data-log-id="${createdId}"
+  //                       data-field="work_date"
+  //                       value="${selectedDate}"
+  //                     >
+  //                   </td>
+
+  //                   <!-- GOOD -->
+  //                   <td>
+  //                     <input
+  //                       class="log-input"
+  //                       type="number"
+  //                       data-log-id="${createdId}"
+  //                       data-field="qty_accept"
+  //                       value="0"
+  //                     >
+  //                   </td>
+
+  //                   <!-- BAD -->
+  //                   <td>
+  //                     <input
+  //                       class="log-input"
+  //                       type="number"
+  //                       data-log-id="${createdId}"
+  //                       data-field="qty_reject"
+  //                       value="0"
+  //                     >
+  //                   </td>
+
+  //                   <!-- OPERATOR -->
+  //                 <td>
+
+  //                 <select
+  //                   class="log-input table-select"
+  //                   data-log-id="${createdId}"
+  //                   data-field="operator_id"
+  //                 >
+
+  //                 <option value="">
+  //                   Select
+  //                 </option>
+
+  //                 ${employees.map(e => `
+
+  //                 <option value="${e.id}">
+  //                   ${e.emp_code} - ${e.nickname || ""}
+  //                 </option>
+
+  //                 `).join("")}
+
+  //                 </select>
+
+  //                 </td>
+
+  //                 <!-- MACHINE -->
+  //                 <td>
+
+  //                 <select
+  //                   class="log-input table-select"
+  //                   data-log-id="${createdId}"
+  //                   data-field="machine_id"
+  //                 >
+
+  //                 <option value="">
+  //                   Select
+  //                 </option>
+
+  //                 ${machines.map(m => `
+
+  //                 <option value="${m.id}">
+  //                   ${m.code}
+  //                 </option>
+
+  //                 `).join("")}
+
+  //                 </select>
+
+  //                 </td>
+
+  //                   <!-- NOTE -->
+  //                   <td>
+  //                     <textarea
+  //                       class="log-input"
+  //                       data-log-id="${createdId}"
+  //                       data-field="note"
+  //                       rows="2"
+  //                     ></textarea>
+  //                   </td>
+
+  //                   <!-- SUPPLIER PO -->
+  //                   <td>
+  //                     <input
+  //                       class="log-input"
+  //                       data-log-id="${createdId}"
+  //                       data-field="supplier_po"
+  //                       value=""
+  //                     >
+  //                   </td>
+
+  //                   <!-- SUPPLIER -->
+  //                   <td>
+  //                     <input
+  //                       class="log-input"
+  //                       data-log-id="${createdId}"
+  //                       data-field="supplier_name"
+  //                       value=""
+  //                     >
+  //                   </td>
+
+  //                   <!-- HEAT LOT -->
+  //                   <td>
+  //                     <input
+  //                       class="log-input"
+  //                       data-log-id="${createdId}"
+  //                       data-field="supplier_lot"
+  //                       value=""
+  //                     >
+  //                   </td>
+
+  //                   <!-- MAT TYPE -->
+  //                   <td>
+  //                     <input
+  //                       class="log-input"
+  //                       data-log-id="${createdId}"
+  //                       data-field="material_type"
+  //                       value=""
+  //                     >
+  //                   </td>
+
+  //                   <!-- MAT SIZE -->
+  //                   <td>
+  //                     <input
+  //                       class="log-input"
+  //                       data-log-id="${createdId}"
+  //                       data-field="material_size"
+  //                       value=""
+  //                     >
+  //                   </td>
+
+  //                   <!-- LENGTH -->
+  //                   <td>
+  //                     <input
+  //                       class="log-input"
+  //                       data-log-id="${createdId}"
+  //                       data-field="material_length"
+  //                       value=""
+  //                     >
+  //                   </td>
+
+  //                   <!-- QTY -->
+  //                   <td>
+  //                     <input
+  //                       class="log-input"
+  //                       type="number"
+  //                       data-log-id="${createdId}"
+  //                       data-field="material_qty"
+  //                       value="0"
+  //                     >
+  //                   </td>
+
+  //                   <!-- UOM -->
+  //                   <td>
+  //                     <input
+  //                       class="log-input"
+  //                       data-log-id="${createdId}"
+  //                       data-field="material_uom"
+  //                       value=""
+  //                     >
+  //                   </td>
+
+  //                   <!-- SEND DATE -->
+  //                   <td>
+  //                     <input
+  //                       class="log-input"
+  //                       type="date"
+  //                       data-log-id="${createdId}"
+  //                       data-field="supplier_send_date"
+  //                       value=""
+  //                     >
+  //                   </td>
+
+  //                   <!-- RECV DATE -->
+  //                   <td>
+  //                     <input
+  //                       class="log-input"
+  //                       type="date"
+  //                       data-log-id="${createdId}"
+  //                       data-field="supplier_receive_date"
+  //                       value=""
+  //                     >
+  //                   </td>
+
+  //                   <!-- DELETE -->
+  //                   <td>
+
+  //                     <button
+  //                       type="button"
+  //                       class="btn-mini btn-danger delete-log-btn"
+  //                       data-log-id="${createdId}"
+  //                     >
+  //                       🗑
+  //                     </button>
+
+  //                   </td>
+
+  //                 </tr>
+  //                 `
+  //               );
+
+  //             } catch (err) {
+
+  //               console.error(err);
+
+  //               toast("Create log failed", false);
+  //             }
+  //           });
+  //       }
+  //     },
 
       // { title: "#", field: "seq", width: 70, hozAlign: "center", editor: "number" },
 
       {
         title: "OP",
         field: "step_code",
-        width: 40,
+        width: 70,
         editor: "input",
 
         sorter: function (a, b) {
@@ -2479,7 +2485,21 @@ function initStepsTable() {
       //   }
       // },
 
+      {
+        title: "Date",
+        field: "last_work_date",
+        width: 95,
+        hozAlign: "center",
+        headerHozAlign: "center",
+        sorter: "string",
+        formatter: (cell) => {
+          const value = cell.getValue();
+          if (!value) return "—";
 
+          const [year, month, day] = value.split("-");
+          return `${month}/${day}/${year.slice(-2)}`;
+        },
+      },
       // { title: "Station", field: "station", width: 140 },
       // 🔥 TOTALS (READ ONLY)
       {
@@ -2598,8 +2618,8 @@ function initStepsTable() {
 
 
       {
-        title: "Supplier / Comment",
-        width: 250,
+        title: "Supplier/Note",
+        width: 200,
 
         formatter: function (cell) {
 
@@ -3444,23 +3464,23 @@ function makeLotLinks(lotId) {
       )}`,
       title: "Shipment",
     },
-   {
-  id: "part_link",
+    {
+      id: "part_link",
 
-  href:
-    `/static/manage-part-detail.html` +
-    `?part_id=${encodeURIComponent(originalTraveler?.part_id)}` +
-    `&part_revision_id=${encodeURIComponent(originalTraveler?.part_revision_id)}` +
-    `&customer_id=${encodeURIComponent(originalLot?.customer?.id)}`,
+      href:
+        `/static/manage-part-detail.html` +
+        `?part_id=${encodeURIComponent(originalTraveler?.part_id)}` +
+        `&part_revision_id=${encodeURIComponent(originalTraveler?.part_revision_id)}` +
+        `&customer_id=${encodeURIComponent(originalLot?.customer?.id)}`,
 
-  title: "Part",
-},
+      title: "Part",
+    },
   ];
 
   links.forEach(({ id, href, title }) => {
-  const el = document.getElementById(id);
+    const el = document.getElementById(id);
 
-  if (!el || !href) return;
+    if (!el || !href) return;
 
     const a = document.createElement("a");
     a.href = href;
