@@ -1029,22 +1029,109 @@ function initTable() {
       //     return `${mm}/${dd}/${yy}`;
       //   },
       // },
-      {
-        title: "Ship<br>QTY",
-        width: 110,
-        field: "lot_shipped_qty",
-        hozAlign: "center",
-        headerHozAlign: "center",
+    //   {
+    //     title: "Ship<br>QTY",
+    //     width: 110,
+    //     field: "lot_shipped_qty",
+    //     hozAlign: "center",
+    //     headerHozAlign: "center",
 
-        formatter: (cell) => {
-          const d = cell.getRow().getData();
-          const shipped = d.lot_shipped_qty ?? 0;
+    //     formatter: (cell) => {
+    //       const d = cell.getRow().getData();
+    //       const shipped = d.lot_shipped_qty ?? 0;
 
-          if (!d.lot_id) return shipped;
+    //       if (!d.lot_id) return shipped;
 
-          const url = `/static/manage-lot-shippments.html?lot_id=${d.lot_id}`;
+    //       const url = `/static/manage-lot-shippments.html?lot_id=${d.lot_id}`;
 
-          return `
+    //       return `
+    //   <div style="
+    //     display:flex;
+    //     align-items:center;
+    //     gap:6px;
+    //     justify-content:center;
+    //   ">
+    //     <span>${shipped}</span>
+    //   <span data-action="traveler"
+    //           title="Traveler"
+    //           style="cursor:pointer;">
+    //       🧾
+    //     </span>
+    //     <a href="${url}"
+    //        target="_blank"
+    //        title="Open shipment"
+    //        style="text-decoration:none; font-size:14px;">
+    //       📦
+    //     </a>
+
+        
+    //   </div>
+    // `;
+    //     },
+
+    //     cellClick: async (e, cell) => {
+    //       const action = e.target?.dataset?.action;
+
+    //       // ถ้าไม่ได้กด icon ที่มี data-action ไม่ต้องทำอะไร
+    //       if (!action) return;
+
+    //       e.preventDefault();
+    //       e.stopPropagation();
+
+    //       const d = cell.getRow().getData();
+    //       const lotId = d.lot_id;
+
+    //       if (!lotId) {
+    //         return toast("No lot ID found", false);
+    //       }
+
+    //       try {
+    //         if (action === "traveler") {
+    //           const res = await fetch(
+    //             `/api/v1/lot-uses/lot/${encodeURIComponent(lotId)}/material-id`
+    //           );
+
+    //           if (!res.ok) {
+    //             throw new Error("Server error");
+    //           }
+
+    //           const data = await res.json();
+
+    //           if (!data.traveler_id) {
+    //             toast("❌ Traveler not found", false);
+    //             return;
+    //           }
+
+    //           window.location.href =
+    //             `/static/traveler-detail.html?lot_id=${encodeURIComponent(lotId)}`;
+    //         }
+    //       } catch (err) {
+    //         toast("⚠️ Action failed", false);
+    //         console.error(err);
+    //       }
+    //     },
+    //   },
+
+    {
+  title: "Ship<br>QTY",
+  width: 110,
+  field: "lot_shipped_qty",
+  hozAlign: "center",
+  headerHozAlign: "center",
+
+  formatter: (cell) => {
+    const d = cell.getRow().getData();
+    const shipped = d.lot_shipped_qty ?? 0;
+
+    if (!d.lot_id) return shipped;
+
+    const lotId = encodeURIComponent(d.lot_id);
+    const travelerUrl =
+      `/static/traveler-detail.html?lot_id=${lotId}`;
+    const shipmentUrl =
+      `/static/manage-lot-shippments.html?lot_id=${lotId}`;
+
+    return `
       <div style="
         display:flex;
         align-items:center;
@@ -1052,65 +1139,66 @@ function initTable() {
         justify-content:center;
       ">
         <span>${shipped}</span>
-      <span data-action="traveler"
-              title="Traveler"
-              style="cursor:pointer;">
+
+        <a href="${travelerUrl}"
+           data-action="traveler"
+           title="Open Traveler"
+           style="text-decoration:none; cursor:pointer;">
           🧾
-        </span>
-        <a href="${url}"
+        </a>
+
+        <a href="${shipmentUrl}"
            target="_blank"
+           rel="noopener"
            title="Open shipment"
+           onclick="event.stopPropagation();"
            style="text-decoration:none; font-size:14px;">
           📦
         </a>
-
-        
       </div>
     `;
-        },
+  },
 
-        cellClick: async (e, cell) => {
-          const action = e.target?.dataset?.action;
+  cellClick: async (e, cell) => {
+    const link = e.target.closest('a[data-action="traveler"]');
+    if (!link) return;
 
-          // ถ้าไม่ได้กด icon ที่มี data-action ไม่ต้องทำอะไร
-          if (!action) return;
+    e.stopPropagation();
 
-          e.preventDefault();
-          e.stopPropagation();
+    // ให้ Ctrl/Cmd/Shift + คลิก ใช้งานตามปกติ
+    if (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
 
-          const d = cell.getRow().getData();
-          const lotId = d.lot_id;
+    e.preventDefault();
 
-          if (!lotId) {
-            return toast("No lot ID found", false);
-          }
+    const lotId = cell.getRow().getData().lot_id;
+    if (!lotId) {
+      toast("No lot ID found", false);
+      return;
+    }
 
-          try {
-            if (action === "traveler") {
-              const res = await fetch(
-                `/api/v1/lot-uses/lot/${encodeURIComponent(lotId)}/material-id`
-              );
+    try {
+      const res = await fetch(
+        `/api/v1/lot-uses/lot/${encodeURIComponent(lotId)}/material-id`
+      );
 
-              if (!res.ok) {
-                throw new Error("Server error");
-              }
+      if (!res.ok) {
+        throw new Error(`Server error: ${res.status}`);
+      }
 
-              const data = await res.json();
+      const data = await res.json();
 
-              if (!data.traveler_id) {
-                toast("❌ Traveler not found", false);
-                return;
-              }
+      if (!data.traveler_id) {
+        toast("❌ Traveler not found", false);
+        return;
+      }
 
-              window.location.href =
-                `/static/traveler-detail.html?lot_id=${encodeURIComponent(lotId)}`;
-            }
-          } catch (err) {
-            toast("⚠️ Action failed", false);
-            console.error(err);
-          }
-        },
-      },
+      window.location.href = link.href;
+    } catch (err) {
+      toast("⚠️ Action failed", false);
+      console.error("Open Traveler failed:", err);
+    }
+  },
+},
 
       {
         title: "Ship<br>Date",
