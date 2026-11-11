@@ -70,6 +70,45 @@
       font-variant-numeric: tabular-nums;
       /* numbers align nicely */
     }
+
+    
+
+.part-detail-text {
+  padding: 4px;
+  font-size: 12px;
+  line-height: 18px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+#listBody .shipment-note-cell .part-detail-text {
+  background: #fef3c7;
+  border-radius: 6px;
+}
+
+.part-detail-text.is-collapsed {
+  /* 3 บรรทัด × 18px โดยไม่นับ padding */
+  max-height: 54px;
+  box-sizing: content-box;
+  overflow: hidden;
+}
+
+.part-detail-toggle {
+  display: block;
+  margin: 0 4px 4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #2563eb;
+  font-size: 12px;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.part-detail-toggle[hidden] {
+  display: none;
+}
+
+
   </style>
 </head>
 

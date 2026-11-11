@@ -153,6 +153,41 @@ function copyWithFeedback(icon, text, msg = "Copied") {
 }
 
 
+function formatPartDetail(cell, formatterParams, onRendered) {
+  const wrapper = document.createElement("div");
+
+  const detail = document.createElement("div");
+  detail.className = "part-detail-text is-collapsed";
+  detail.textContent = cell.getValue() ?? "";
+
+  const toggle = document.createElement("button");
+  toggle.type = "button";
+  toggle.className = "part-detail-toggle";
+  toggle.textContent = "Show more";
+  toggle.setAttribute("aria-expanded", "false");
+  toggle.hidden = true;
+
+  toggle.addEventListener("click", (event) => {
+    // คลิกปุ่มแล้วไม่เปิด textarea ของ Tabulator
+    event.stopPropagation();
+
+    const collapsed = detail.classList.toggle("is-collapsed");
+    toggle.textContent = collapsed ? "Show more" : "Show less";
+    toggle.setAttribute("aria-expanded", String(!collapsed));
+
+    // ปรับความสูงของแถวหลังขยายหรือย่อ
+    cell.getRow().normalizeHeight();
+  });
+
+  wrapper.append(detail, toggle);
+
+  onRendered(() => {
+    toggle.hidden = detail.scrollHeight <= detail.clientHeight;
+  });
+
+  return wrapper;
+}
+
 /* ===== Build columns ===== */
 function makeColumns() {
   return [
@@ -659,17 +694,8 @@ function makeColumns() {
 
       editor: "textarea",
 
-      formatter: (cell) => {
-        const v = cell.getValue();
-
-        return `
-      <div style="
-        white-space: pre-wrap;
-        padding:4px;
-        font-size:12px;
-      ">${v ?? ""}</div>
-    `;
-      },
+      variableHeight: true,
+      formatter: formatPartDetail,
 
       cellEdited: async (cell) => {
         const d = cell.getRow().getData();
@@ -701,17 +727,8 @@ function makeColumns() {
 
       editor: "textarea",
 
-      formatter: (cell) => {
-        const v = cell.getValue();
-
-        return `
-      <div style="
-        white-space: pre-wrap;
-        padding:4px;
-        font-size:12px;
-      ">${v ?? ""}</div>
-    `;
-      },
+      variableHeight: true,
+      formatter: formatPartDetail,
 
       cellEdited: async (cell) => {
         const d = cell.getRow().getData();
@@ -1491,59 +1508,47 @@ function makeColumns() {
 
     {
       title: "Note",
-      field: "lot_note", // ✅ มาจาก view
+      field: "lot_note",
       width: 200,
+      editor: "textarea",
+      variableHeight: true,
+      cssClass: "shipment-note-cell",
+      formatter: formatPartDetail,
 
-      editor: "textarea", // ✅ multiline (ดีกว่า input)
+    // 🚀 ใช้ jfetch ของคุณ (สำคัญ)
+    cellEdited: async (cell) => {
+      const row = cell.getRow().getData();
+      const note = cell.getValue();
 
-      formatter: (cell) => {
-        const v = cell.getValue();
-        return `<div style="
-      white-space: pre-wrap;
-      padding:4px;
-      border-radius:6px;
-      background:#fef3c7;
-      font-size:12px;
-      min-height:24px;
-    ">
-      ${v ?? ""}
-    </div>`;
-      },
+      try {
+        await jfetch(`/api/v1/lots/${encodeURIComponent(row.lot_id)}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ note }),
+        });
 
-      // 🚀 ใช้ jfetch ของคุณ (สำคัญ)
-      cellEdited: async (cell) => {
-        const row = cell.getRow().getData();
-        const note = cell.getValue();
-
-        try {
-          await jfetch(`/api/v1/lots/${encodeURIComponent(row.lot_id)}`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ note }),
-          });
-
-          toast("Note updated ✅");
-        } catch (err) {
-          console.error(err);
-          toast("Update failed ❌", false);
-        }
-      },
+        toast("Note updated ✅");
+      } catch (err) {
+        console.error(err);
+        toast("Update failed ❌", false);
+      }
+    },
     },
 
-    {
-      title: "Shipped Date",
-      field: "lot_last_ship_date",
+{
+  title: "Shipped Date",
+    field: "lot_last_ship_date",
       width: 160,
 
-      sorter: (a, b) => {
-        return new Date(a || 0) - new Date(b || 0);
-      },
+        sorter: (a, b) => {
+          return new Date(a || 0) - new Date(b || 0);
+        },
 
-      formatter: (cell) => {
-        const v = cell.getValue();
-        return v ? new Date(v).toLocaleDateString() : "";
-      }
-    }
+          formatter: (cell) => {
+            const v = cell.getValue();
+            return v ? new Date(v).toLocaleDateString() : "";
+          }
+}
 
 
 
