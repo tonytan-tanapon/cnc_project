@@ -1,4 +1,6 @@
 # routers/travelers.py
+from decimal import Decimal
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import or_
@@ -86,166 +88,110 @@ class ShopTravelerRowOut(BaseModel):
 
     customer_code: Optional[str] = None
 
-    
+   
 
-# ---------- Helpers ----------
+    # ใน ShopTravelerRowOut
+    used_by_other_lots: Decimal = Decimal("0")
+    on_hand_qty: Decimal = Decimal("0")
+
+
+    # reserved_for_other_lots: Decimal = Decimal("0")
+    # available_qty: Decimal = Decimal("0")
+
+
 def to_row_out(t: ShopTraveler, db: Session) -> ShopTravelerRowOut:
+    from services.lot_service import calculate_final_qty
 
-  
-
-    # =========================
-    # START QTY
-    # =========================
-
+    lot = t.lot
     start_qty = 0
 
     steps_sorted = sorted(
         t.steps or [],
-        key=lambda s: (
-            0 if str(s.step_code or "").upper().startswith("M") else 1,
-            int("".join(filter(str.isdigit, str(s.step_code or ""))) or 999999),
+        key=lambda step: (
+            0 if str(step.step_code or "").upper().startswith("M") else 1,
+            int("".join(filter(str.isdigit, str(step.step_code or ""))) or 999999),
         ),
     )
 
-    m_accept_total = 0
-
     for step in steps_sorted:
-
-        accept = sum(
-            log.qty_accept or 0
-            for log in (step.logs or [])
-        )
-
-        if str(step.step_code or "").upper().startswith("M"):
-
-            m_accept_total += accept
-
-        else:
-            start_qty = m_accept_total
+        if not str(step.step_code or "").upper().startswith("M"):
             break
-    # =========================
-    # FINAL QTY
-    # =========================
-    # =========================
-    # =========================
-    # FINAL QTY = GOOD OF LAST STEP
-    # =========================
 
-    # final_qty = 0
+        start_qty += sum(log.qty_accept or 0 for log in (step.logs or []))
 
-    # steps_sorted = sorted(
-    #     t.steps or [],
-    #     key=lambda s: (
-    #         int(''.join(filter(str.isdigit, str(s.step_code or "0"))))
-    #         if any(ch.isdigit() for ch in str(s.step_code or ""))
-    #         else 999999
-    #     )
-    # )
+    final_qty = calculate_final_qty(t) or 0
+    from_lot_qty = Decimal("0")
+    lot_shipped_qty = Decimal("0")
+    used_by_other_lots = Decimal("0")
+    uses_from_lot = bool(lot and (lot.from_lot or "").strip())
 
-    # final_step = (
-    #     steps_sorted[-1]
-    #     if steps_sorted
-    #     else None
-    # )
-
-    # if final_step:
-
-    #     for log in final_step.logs or []:
-
-    #         final_qty += (
-    #             log.qty_accept or 0
-    #         )
-    from services.lot_service import calculate_final_qty
-
-    final_qty = calculate_final_qty(t)
-
-    # =========================
-    # STOCK QTY
-    # =========================
-
-    lot_shipped_qty = (
-        db.query(
-            func.coalesce(
-                func.sum(CustomerShipmentItem.qty),
-                0
-            )
-        )
-        .filter(
-            CustomerShipmentItem.lot_id == t.lot.id
-        )
-        .scalar()
-        if t.lot else 0
-    )
-
-    stock_qty = (
-        final_qty - lot_shipped_qty
-    )
-    if t.lot and t.lot.from_lot:
-
+    if uses_from_lot:
+        from_lot_qty = Decimal(str(lot.from_lot_qty or 0))
         start_qty = 0
         final_qty = 0
 
+    if lot:
+        lot_shipped_qty = (
+            db.query(func.coalesce(func.sum(CustomerShipmentItem.qty), 0))
+            .filter(CustomerShipmentItem.lot_id == lot.id)
+            .scalar()
+        )
 
-    row = ShopTravelerRowOut(
+        used_by_other_lots = (
+            db.query(func.coalesce(func.sum(ProductionLot.from_lot_qty), 0))
+            .filter(
+                func.trim(ProductionLot.from_lot) == lot.lot_no.strip(),
+                ProductionLot.id != lot.id,
+            )
+            .scalar()
+        )
+
+    produced_qty = Decimal(str(final_qty))
+    stock_qty = produced_qty + from_lot_qty - lot_shipped_qty
+    on_hand_qty = (
+        Decimal("0")
+        if uses_from_lot
+        else produced_qty - lot_shipped_qty - used_by_other_lots
+    )
+
+    revision = lot.part_revision if lot else None
+    customer = lot.po.customer if lot and lot.po else None
+    template = t.template
+
+    return ShopTravelerRowOut(
         id=t.id,
         traveler_no=t.traveler_no,
         lot_id=t.lot_id,
-        lot_no=(t.lot.lot_no if t.lot else None),
+        lot_no=lot.lot_no if lot else None,
         created_by_id=t.created_by_id,
         status=t.status,
         notes=t.notes,
         production_due_date=t.production_due_date,
         created_at=t.created_at.isoformat() if t.created_at else None,
-
-        # 🔥 ADD
         start_qty=start_qty,
         final_qty=final_qty,
         stock_qty=stock_qty,
-
-        part_id=t.lot.part_id if t.lot else None,
-        part_revision_id=t.lot.part_revision_id if t.lot else None,
-        part_no=(
-            t.lot.part.part_no
-            if t.lot and t.lot.part
-            else None
-        ),
-
-        customer_code=(
-            t.lot.po.customer.code
-            if t.lot and t.lot.po and t.lot.po.customer
-            else None
-        ),
-
-        part_rev=(
-            t.lot.part_revision.rev
-            if t.lot and t.lot.part_revision
-            else None
-        ),
-        file_dir=t.file_dir,   # <-- เพิ่มตรงนี้
+        part_id=lot.part_id if lot else None,
+        part_revision_id=lot.part_revision_id if lot else None,
+        part_no=lot.part.part_no if lot and lot.part else None,
+        part_rev=revision.rev if revision else None,
+        customer_code=customer.code if customer else None,
+        file_dir=t.file_dir,
+        used_by_other_lots=used_by_other_lots,
+        on_hand_qty=on_hand_qty,
+        latest_template=bool(template and template.is_latest),
+        latest_template_name=template.template_name if template else None,
+        latest_template_version=template.version if template else None,
+        lot={
+            "id": lot.id,
+            "part_revision": {
+                "id": revision.id,
+                "rev": revision.rev,
+                "material": revision.material,
+            } if revision else None,
+        } if lot else None,
     )
 
-    data = row.model_dump()
-
-    # 🔥 current template used by traveler
-    tmpl = t.template
-
-    data["latest_template"] = bool(tmpl and tmpl.is_latest)
-    data["lot"] = {
-        "id": t.lot.id,
-
-        "part_revision": {
-            "id": t.lot.part_revision.id,
-            "rev": t.lot.part_revision.rev,
-            "material": t.lot.part_revision.material,
-        } if t.lot and t.lot.part_revision else None,
-    }
-
-    if tmpl:
-        
-        data["latest_template_name"] = tmpl.template_name
-        data["latest_template_version"] = tmpl.version
-
-    return ShopTravelerRowOut(**data)
 
 # ---------- CREATE ----------
 @router.post("", response_model=ShopTravelerRowOut)
@@ -709,11 +655,13 @@ def copy_from_lot(
         lot = db.get(
             ProductionLot,
             traveler.lot_id
+
         )
         print("Found lot for traveler:", lot)
 
         if lot:
             lot.from_lot = payload.from_lot_no
+            lot.from_lot_qty = payload.from_lot_qty
 
     db.commit()
 

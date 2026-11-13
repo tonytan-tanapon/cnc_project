@@ -66,3 +66,8 @@ Task
 Part management
 มีสรุป part ที่เหลือทั้งหมด
 แต่ละแถวโชร์ว่าเหลือเท่าไร
+
+=== create folder ===
+Every year, a new folder will be create such as 2026, 2027. 
+Use /create_folder.bat
+go to folder chage destination and double click to create.

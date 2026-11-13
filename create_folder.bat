@@ -5,6 +5,7 @@ setlocal
 set "SOURCE=Z:\Topnotch Group\Public\2026"
 
 :: ====== Destination Folder ======
+:: Change this to your desired destination folder ex Z:\Topnotch Group\Public\2027"
 set "DEST=C:\Users\TPSERVER\Desktop\test_create"
 
 :: Copy โครงสร้างโฟลเดอร์อย่างเดียว

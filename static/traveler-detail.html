@@ -418,31 +418,30 @@
 
     /*left*/
     .header {
-  grid-template-columns: 300px minmax(0, 1fr);
-}
+      grid-template-columns: 300px minmax(0, 1fr);
+    }
 
-.header-notes {
-  grid-column: 1;
-  grid-row: 1;
-}
+    .header-notes {
+      grid-column: 1;
+      grid-row: 1;
+    }
 
-.header-data {
-  grid-column: 2;
-  grid-row: 1;
-}
+    .header-data {
+      grid-column: 2;
+      grid-row: 1;
+    }
 
-@media (max-width: 900px) {
-  .header {
-    grid-template-columns: minmax(0, 1fr);
-  }
+    @media (max-width: 900px) {
+      .header {
+        grid-template-columns: minmax(0, 1fr);
+      }
 
-  .header-notes,
-  .header-data {
-    grid-column: 1;
-    grid-row: auto;
-  }
-}
-
+      .header-notes,
+      .header-data {
+        grid-column: 1;
+        grid-row: auto;
+      }
+    }
   </style>
 </head>
 
@@ -552,9 +551,25 @@
               <label>Stock QTY</label>
               <input id="stock_qty" type="number" placeholder="0" readonly />
             </div>
+            <div class="field col-2">
+              <label for="used_by_other_lots">Used by Other Lots</label>
+              <input id="used_by_other_lots" type="number" readonly />
+            </div>
 
+            <div class="field col-2">
+              <label for="on_hand_qty">On Hand</label>
+              <input id="on_hand_qty" type="number" readonly />
+            </div>
             <!-- ------------------------------- -->
+            <!-- <div class="field col-2">
+              <label for="reserved_for_other_lots">Reserved for Other Lots</label>
+              <input id="reserved_for_other_lots" type="number" readonly />
+            </div>
 
+            <div class="field col-2">
+              <label for="available_qty">Available</label>
+              <input id="available_qty" type="number" readonly />
+            </div> -->
 
             <div class="field col-2">
               <label>Lot Status</label>
@@ -608,6 +623,16 @@
               </select>
             </div>
 
+
+            <div class="field col-2">
+              <label>From Lot</label>
+              <input id="from_lot" />
+            </div>
+
+            <div class="field col-2">
+              <label>From Lot QTY</label>
+              <input id="from_lot_qty" type="number" placeholder="Quantity" />
+            </div>
 
             <div class="field col-3" hidden>
               <!-- <label hidden >started_at</label> -->
@@ -697,7 +722,7 @@
   <!-- QRCode library (global variable) -->
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
   <!-- Page script -->
-  <script type="module" src="/static/js/page-traveler-detail.js?v=3.7"></script>
+  <script type="module" src="/static/js/page-traveler-detail.js?v=3.8"></script>
 
   <!-- ===== QR Code Modal ===== -->
   <style>

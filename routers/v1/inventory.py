@@ -60,44 +60,166 @@ def inventory_to_dict(inv):
 
     }
 
-def recalc_inventory(inv):
-    produced = inv.qty_produced or Decimal("0")
-    shipped = inv.qty_shipped or Decimal("0")
-    scrap = inv.qty_scrap or Decimal("0")
-    adjust = inv.qty_adjust or Decimal("0")
+def recalc_inventory(db: Session, inv: Inventory, lot: ProductionLot):
+    zero = Decimal("0")
+
+    # Lot ลูกใช้ชิ้นงานเพื่อส่งต่อ ตามกติกาเดียวกับ Traveler Detail
+    if (lot.from_lot or "").strip():
+        inv.qty_on_hand = zero
+        return
+
+    used_by_other_lots = (
+        db.query(func.coalesce(func.sum(ProductionLot.from_lot_qty), 0))
+        .filter(
+            func.trim(ProductionLot.from_lot) == lot.lot_no.strip(),
+            ProductionLot.id != lot.id,
+        )
+        .scalar()
+    )
 
     inv.qty_on_hand = (
-        produced
-        - shipped
-        - scrap
-        + adjust
+        (inv.qty_produced or zero)
+        - (inv.qty_shipped or zero)
+        - Decimal(str(used_by_other_lots or 0))
+        - (inv.qty_scrap or zero)
+        + (inv.qty_adjust or zero)
     )
     
-@router.get("")
-def get_inventory(
-    db: Session = Depends(get_db),
-):
+# @router.get("")
+# def get_inventory(
+#     db: Session = Depends(get_db),
+# ):
 
-    from sqlalchemy.orm import joinedload
+#     from sqlalchemy.orm import joinedload
+
+#     rows = (
+#         db.query(Inventory)
+#         .options(
+#             joinedload(Inventory.lot)
+#                 .joinedload(ProductionLot.part),
+
+#             joinedload(Inventory.lot)
+#                 .joinedload(ProductionLot.part_revision),
+#         )
+#         .all()
+#     )
+
+   
+
+#     return [
+#         inventory_to_dict(inv)
+#         for inv in rows
+#     ]
+
+@router.get("")
+def get_inventory(db: Session = Depends(get_db)):
+    from sqlalchemy.orm import joinedload, selectinload
+
+    from models import ShopTraveler, ShopTravelerStep
+    from services.lot_service import calculate_final_qty
 
     rows = (
         db.query(Inventory)
         .options(
-            joinedload(Inventory.lot)
-                .joinedload(ProductionLot.part),
-
-            joinedload(Inventory.lot)
-                .joinedload(ProductionLot.part_revision),
+            joinedload(Inventory.lot).joinedload(ProductionLot.part),
+            joinedload(Inventory.lot).joinedload(ProductionLot.part_revision),
         )
         .all()
     )
 
-   
+    latest_traveler_ids = (
+        db.query(func.max(ShopTraveler.id).label("traveler_id"))
+        .filter(ShopTraveler.lot_id.in_([inv.lot_id for inv in rows]))
+        .group_by(ShopTraveler.lot_id)
+        .subquery()
+    )
 
-    return [
-        inventory_to_dict(inv)
-        for inv in rows
-    ]
+    travelers_by_lot = {
+        traveler.lot_id: traveler
+        for traveler in (
+            db.query(ShopTraveler)
+            .join(
+                latest_traveler_ids,
+                latest_traveler_ids.c.traveler_id == ShopTraveler.id,
+            )
+            .options(
+                selectinload(ShopTraveler.steps)
+                .selectinload(ShopTravelerStep.logs)
+            )
+            .all()
+        )
+    }
+
+    source_lot_no = func.trim(ProductionLot.from_lot)
+    used_by_source = dict(
+        db.query(source_lot_no, func.sum(ProductionLot.from_lot_qty))
+        .filter(
+            source_lot_no != "",
+            source_lot_no != func.trim(ProductionLot.lot_no),
+        )
+        .group_by(source_lot_no)
+        .all()
+    )
+    shipped_by_lot = dict(
+        db.query(CustomerShipmentItem.lot_id, func.sum(CustomerShipmentItem.qty))
+        .group_by(CustomerShipmentItem.lot_id)
+        .all()
+    )
+    result = []
+
+    for inv in rows:
+        lot = inv.lot
+        traveler = travelers_by_lot.get(inv.lot_id)
+        qty_start = None
+        qty_final = None
+
+        if (lot.from_lot or "").strip():
+            qty_start = 0
+            qty_final = 0
+        elif traveler:
+            qty_start = sum(
+                log.qty_accept or 0
+                for step in traveler.steps
+                if (step.step_code or "").upper().startswith("M")
+                for log in step.logs
+            )
+            qty_final = calculate_final_qty(traveler) or 0
+
+
+        used_qty = Decimal(str(used_by_source.get(lot.lot_no.strip()) or 0))
+        shipped_qty = Decimal(str(shipped_by_lot.get(lot.id) or 0))
+
+        # ถ้ามี Traveler ใช้ Final QTY แม้ค่าเป็น 0
+        produced_qty = Decimal(str(
+            qty_final if qty_final is not None else (inv.qty_produced or 0)
+        ))
+
+        on_hand_qty = (
+            Decimal("0")
+            if (lot.from_lot or "").strip()
+            else (
+                produced_qty
+                - shipped_qty
+                - used_qty
+                - Decimal(str(inv.qty_scrap or 0))
+                + Decimal(str(inv.qty_adjust or 0))
+            )
+        )
+        result.append({
+            **inventory_to_dict(inv),
+            "qty_on_hand": float(on_hand_qty),
+            "qty_start": float(qty_start) if qty_start is not None else None,
+            "qty_final": float(qty_final) if qty_final is not None else None,
+            "from_lot": lot.from_lot,
+            "from_lot_qty": (
+                float(lot.from_lot_qty)
+                if lot.from_lot_qty is not None
+                else None
+            ),
+            "used_by_other_lots": float(used_qty),
+        })
+
+    return result
 
 
 from sqlalchemy.orm import joinedload
@@ -123,7 +245,7 @@ def adjust_inventory(
     if qty_changed:
         inv.qty_adjust = Decimal(str(data.qty))
         inv.inventory_status = "checked"
-        recalc_inventory(inv)
+        recalc_inventory(db, inv, inv.lot)
 
     if data.note is not None:
         inv.note = data.note
@@ -229,6 +351,26 @@ def get_materials(db: Session = Depends(get_db)):
 #     db.refresh(inv)
 
 #     return inv
+
+
+def get_inventory_produced_qty(db: Session, lot: ProductionLot) -> Decimal:
+    from models import ShopTraveler
+    from services.lot_service import calculate_final_qty
+
+    if (lot.from_lot or "").strip():
+        return Decimal("0")
+
+    traveler = (
+        db.query(ShopTraveler)
+        .filter(ShopTraveler.lot_id == lot.id)
+        .order_by(ShopTraveler.id.desc())
+        .first()
+    )
+
+    if traveler is None:
+        return Decimal(str(lot.planned_qty or 0))
+
+    return Decimal(str(calculate_final_qty(traveler) or 0))
 @router.post("/rebuild")
 def rebuild_all_inventory(
     db: Session = Depends(get_db),
@@ -261,13 +403,12 @@ def rebuild_all_inventory(
             db.add(inv)
 
         # Produced
-        inv.qty_produced = Decimal(str(lot.planned_qty or 0))
+        inv.qty_produced = get_inventory_produced_qty(db, lot)
 
         # Shipment
         shipped = ship_map.get(lot.id, 0)
         inv.qty_shipped = Decimal(str(shipped or 0))
-        recalc_inventory(inv)
-
+        recalc_inventory(db, inv, lot)
         total += 1
 
     db.commit()
@@ -299,7 +440,7 @@ def rebuild_inventory(
         db.add(inv)
 
     # ผลิตได้
-    inv.qty_produced = Decimal(str(lot.planned_qty or 0))
+    inv.qty_produced = get_inventory_produced_qty(db, lot)
 
     # ส่งออก
     shipped = (
@@ -312,7 +453,7 @@ def rebuild_inventory(
 
     inv.qty_shipped = Decimal(str(shipped or 0))
 
-    recalc_inventory(inv)
+    recalc_inventory(db, inv, lot)
 
     db.commit()
     db.refresh(inv)

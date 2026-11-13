@@ -422,6 +422,8 @@ class ProductionLotUpdate(BaseModel):
     lot_po_date: Optional[date] = None
     lot_po_duedate: Optional[date] = None
     risk: Optional[str] = None
+    from_lot: str | None = None
+    from_lot_qty: int | None = None
 
 class PartTiny(BaseModel):
     model_config = ConfigDict(from_attributes=True)
