@@ -1,6 +1,7 @@
 # routers/v1/inventory.py
 
 from fastapi import APIRouter, Depends,HTTPException
+from matplotlib.pyplot import box
 from sqlalchemy.orm import Session
 from database import get_db  # or your session dependency
 from models import Part, RawMaterial, RawBatch, LotMaterialUse,Inventory
@@ -19,14 +20,18 @@ router = APIRouter(prefix="/inventory", tags=["inventory"])
 
 from pydantic import BaseModel
 
+from typing import Literal, Optional
 
-from typing import Optional
+
+
 class InventoryAdjust(BaseModel):
     lot_id: int
     qty: Optional[float] = None
     note: Optional[str] = None
     status: Optional[str] = None
     counted_qty: Decimal | None = None
+    
+    container: Literal["tray", "bag", "box", ""] | None = None
     
 
 
@@ -59,6 +64,7 @@ def inventory_to_dict(inv):
         "status": inv.inventory_status,
 
         "note": inv.note or "",
+        "container": inv.container or "",
 
         "counted_qty": (
             float(inv.counted_qty) if inv.counted_qty is not None else None
@@ -334,6 +340,8 @@ def adjust_inventory(
     elif data.qty is not None:
         inv.qty_adjust = Decimal(str(data.qty))
         inv.inventory_status = "checked"
+
+       
         recalc_inventory(db, inv, inv.lot)
 
     if data.note is not None:
@@ -346,6 +354,18 @@ def adjust_inventory(
 
     if data.status is not None:
         inv.inventory_status = data.status
+
+    # if data.container is not None:
+    #     inv.container = data.container
+
+    if data.container is not None:
+        inv.container = data.container
+
+    # When saving Counted QTY, default an empty container to box
+    if data.counted_qty is not None and not (inv.container or "").strip():
+        # inv.container = "box"
+        inv.container = "bag"
+        # inv.container = "tray"
 
     db.commit()
     db.refresh(inv)

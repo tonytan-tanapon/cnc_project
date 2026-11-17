@@ -250,6 +250,44 @@ function makeColumns() {
     },
 
     {
+      title: "Container",
+      field: "container",
+      width: 130,
+      editor: "list",
+      editorParams: {
+        values: {
+          "": "—",
+          tray: "Tray",
+          bag: "Bag",
+          box: "Box",
+        },
+      },
+
+      cellEdited: async function (cell) {
+        const oldValue = cell.getOldValue();
+        const { lot_id } = cell.getRow().getData();
+
+        try {
+          await jfetch(ENDPOINTS.adjust, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              lot_id,
+              container: cell.getValue() ?? "",
+            }),
+          });
+        } catch (err) {
+          console.error("Container save failed:", err);
+          cell.restoreOldValue();
+          toast("Save failed");
+          return;
+        }
+
+        toast("Saved");
+      },
+    },
+
+    {
       title: "Note",
       field: "note",
       width: 250,

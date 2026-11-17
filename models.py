@@ -2711,6 +2711,7 @@ class Inventory(Base):
         server_default=text("'normal'")
     )
     note = Column(Text, nullable=True)
+    container = Column(Text, nullable=True)
     lot = relationship(
         "ProductionLot",
         backref="inventory",
