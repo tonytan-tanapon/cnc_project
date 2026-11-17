@@ -1,7 +1,7 @@
 # routers/v1/inventory.py
 
 from fastapi import APIRouter, Depends,HTTPException
-from matplotlib.pyplot import box
+#from matplotlib.pyplot import box
 from sqlalchemy.orm import Session
 from database import get_db  # or your session dependency
 from models import Part, RawMaterial, RawBatch, LotMaterialUse,Inventory
