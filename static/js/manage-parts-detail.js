@@ -750,16 +750,16 @@ function initTable() {
         },
       },
 
-      // {
-      //   title: "Prod",
-      //   field: "inventory_produced",
-      //   width: 100,
-      //   hozAlign: "center",
-      //   headerHozAlign: "center",
-      //   formatter: (cell) => fmtQty(cell.getValue()),
-      // },
       {
         title: "Prod",
+        field: "inventory_produced",
+        width: 100,
+        hozAlign: "center",
+        headerHozAlign: "center",
+        formatter: (cell) => fmtQty(cell.getValue()),
+      },
+      {
+        title: "qty_final",
         field: "qty_final",
         width: 90,
         hozAlign: "right",
@@ -1310,20 +1310,20 @@ function initTable() {
       , // ========================
       // INVENTORY
       // ========================
-      // {
-      //   title: "Start<br>QTY",
-      //   field: "qty_start",
-      //   width: 90,
-      //   hozAlign: "right",
-      //   formatter: (cell) => fmtQty(cell.getValue()),
-      // },
-      // {
-      //   title: "Final<br>QTY",
-      //   field: "qty_final",
-      //   width: 90,
-      //   hozAlign: "right",
-      //   formatter: (cell) => fmtQty(cell.getValue()),
-      // },
+      {
+        title: "Start<br>QTY",
+        field: "qty_start",
+        width: 90,
+        hozAlign: "right",
+        formatter: (cell) => fmtQty(cell.getValue()),
+      },
+      {
+        title: "Final<br>QTY",
+        field: "qty_final",
+        width: 90,
+        hozAlign: "right",
+        formatter: (cell) => fmtQty(cell.getValue()),
+      },
       {
         title: "Stock<br>QTY",
         field: "lot_stock_qty",

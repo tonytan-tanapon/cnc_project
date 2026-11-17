@@ -32,13 +32,18 @@ function makeColumns() {
     {
       title: "Lot",
       field: "lot_no",
-      width: 150,
+      width: 100,
+      sorter: (a, b) =>
+        String(a ?? "").localeCompare(String(b ?? ""), undefined, {
+          numeric: true,
+          sensitivity: "base",
+        }),
     },
 
     {
       title: "Part",
       field: "part_no",
-      width: 180,
+      width: 120,
     },
 
     {
@@ -48,10 +53,37 @@ function makeColumns() {
     },
 
     {
-      title: "Stock",
-      field: "qty_on_hand",
+      title: "Start<br>QTY",
+      field: "qty_start",
+      hozAlign: "right",
+      width: 90,
+    },
+    {
+      title: "Final<br>QTY",
+      field: "qty_final",
+      hozAlign: "right",
+      width: 90,
+    },
+
+    {
+      title: "Produced (old)",
+      field: "qty_produced",
+      hozAlign: "right",
+      width: 120,
+    },
+
+    {
+      title: "Ship",
+      field: "qty_shipped",
       hozAlign: "right",
       width: 100,
+    },
+
+    {
+      title: "On Hand",
+      field: "qty_on_hand",
+      hozAlign: "right",
+      width: 120,
     },
     {
       title: "Adjust",
@@ -71,47 +103,96 @@ function makeColumns() {
       },
 
       cellEdited: async function (cell) {
-        const row = cell.getRow().getData();
-        const value = Number(cell.getValue());
-        const oldValue = Number(cell.getOldValue());
+        const { lot_id } = cell.getRow().getData();
+        const qty = Number(cell.getValue());
+        const oldValue = cell.getOldValue();
+
+        if (!Number.isFinite(qty)) {
+          cell.setValue(oldValue, true);
+          toast("Enter a valid adjustment");
+          return;
+        }
 
         try {
-          const updated = await jfetch(
-            ENDPOINTS.adjust,
-            {
-              method: "POST",
-              body: JSON.stringify({
-                lot_id: row.lot_id,
-                qty: value
-              })
-            }
-          );
-
-          cell.getRow().update(updated);
-
-          toast("Saved");
-
+          await jfetch(ENDPOINTS.adjust, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ lot_id, qty }),
+          });
         } catch (err) {
+          console.error("Adjustment save failed:", err);
           cell.setValue(oldValue, true);
           toast("Save failed");
+          return;
         }
-      }
-    },
 
+        try {
+          await loadData();
+          toast("Saved");
+        } catch (err) {
+          console.error("Inventory reload failed:", err);
+          toast("Saved, but the table could not reload");
+        }
+      },
+    },
 
     {
-      title: "Produced",
-      field: "qty_produced",
+      title: "Counted<br>QTY",
+      field: "counted_qty",
       hozAlign: "right",
-      width: 100,
+      width: 110,
+      editor: "number",
+      editorParams: { min: 0 },
+
+      editable: (cell) =>
+        !String(cell.getRow().getData().from_lot ?? "").trim(),
+
+      formatter: (cell) => {
+        const value = cell.getValue();
+        return value == null ? "" : fmtQty(value);
+      },
+
+      cellEdited: async function (cell) {
+        const { lot_id } = cell.getRow().getData();
+        const value = cell.getValue();
+        const counted_qty = Number(value);
+
+        if (
+          value == null ||
+          String(value).trim() === "" ||
+          !Number.isFinite(counted_qty) ||
+          counted_qty < 0
+        ) {
+          cell.restoreOldValue();
+          toast("Enter a valid counted quantity");
+          return;
+        }
+
+        try {
+          await jfetch(ENDPOINTS.adjust, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ lot_id, counted_qty }),
+          });
+        } catch (err) {
+          console.error("Counted quantity save failed:", err);
+          cell.restoreOldValue();
+          toast("Save failed");
+          return;
+        }
+
+        try {
+          await loadData();
+          toast("Saved");
+        } catch (err) {
+          console.error("Inventory reload failed:", err);
+          toast("Saved, but the table could not reload");
+        }
+      },
     },
 
-    {
-      title: "Shipped",
-      field: "qty_shipped",
-      hozAlign: "right",
-      width: 100,
-    },
+
+
 
     // {
     //   title: "Scrap",
@@ -134,33 +215,39 @@ function makeColumns() {
           "used",
           "scrap",
           "rework",
-        ]
+        ],
       },
 
       cellEdited: async function (cell) {
+        const lotId = cell.getRow().getData().lot_id;
+        const status = cell.getValue();
         const oldValue = cell.getOldValue();
 
         try {
-          const row = cell.getRow().getData();
-
-          const updated = await jfetch(ENDPOINTS.adjust, {
+          await jfetch(ENDPOINTS.adjust, {
             method: "POST",
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              lot_id: row.lot_id,
-              status: cell.getValue()
-            })
+              lot_id: lotId,
+              status,
+            }),
           });
-
-          cell.getRow().update(updated);
-          toast("Saved");
-
         } catch (err) {
+          console.error("Status save failed:", err);
           cell.setValue(oldValue, true);
           toast("Save failed");
+          return;
         }
-      }
-    },
 
+        try {
+          await loadData();
+          toast("Saved");
+        } catch (err) {
+          console.error("Inventory reload failed:", err);
+          toast("Saved, but the table could not reload");
+        }
+      },
+    },
 
     {
       title: "Note",
@@ -191,6 +278,26 @@ function makeColumns() {
         }
       }
     },
+
+    {
+      title: "Used by<br>Other Lots",
+      field: "used_by_other_lots",
+      hozAlign: "right",
+      width: 130,
+    },
+    {
+      title: "From Lot",
+      field: "from_lot",
+      width: 110,
+    },
+    {
+      title: "From Lot<br>QTY",
+      field: "from_lot_qty",
+      hozAlign: "right",
+      width: 95,
+    },
+
+
     // {
 
     //   title: "",
@@ -247,58 +354,56 @@ function makeColumns() {
 }
 
 function initTable() {
-
   table = new Tabulator("#listBody", {
-
     layout: "fitColumns",
-
     height: "100%",
-
     data: [],
+    columns: makeColumns(),
 
-    columns: makeColumns()
-
+    initialSort: [
+      { column: "lot_no", dir: "asc" },
+    ],
   });
-
 }
 
+let inventoryRequestId = 0;
+
 async function loadData() {
+  const requestId = ++inventoryRequestId;
+  const search = $("_q")?.value.trim() ?? "";
+  const params = new URLSearchParams({ limit: "200" });
 
-  const rows = await jfetch(
-    ENDPOINTS.list
-  );
+  if (search) {
+    params.set("q", search);
+  }
 
-  table.setData(rows);
-
+  // const rows = await jfetch(`${ENDPOINTS.list}?${params}`);
+  const rows = await jfetch(`${ENDPOINTS.list}?${params}`, {
+    cache: "no-store",
+  });
+  if (requestId === inventoryRequestId) {
+    await table.setData(rows);
+  }
 }
 
 function bindSearch() {
-
   const box = $("_q");
-
   if (!box) return;
 
+  let timer;
+
   box.addEventListener("input", () => {
+    clearTimeout(timer);
 
-    const value = box.value.trim();
-
-    table.setFilter([
-      [
-        {
-          field: "lot_no",
-          type: "like",
-          value: value
-        },
-        {
-          field: "part_no",
-          type: "like",
-          value: value
-        }
-      ]
-    ]);
-
+    timer = setTimeout(async () => {
+      try {
+        await loadData();
+      } catch (err) {
+        console.error("Inventory search failed:", err);
+        toast("Search failed");
+      }
+    }, 300);
   });
-
 }
 
 function bindButtons() {

@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends,HTTPException
 from sqlalchemy.orm import Session
 from database import get_db  # or your session dependency
 from models import Part, RawMaterial, RawBatch, LotMaterialUse,Inventory
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from models import (
     Inventory,
@@ -25,6 +26,7 @@ class InventoryAdjust(BaseModel):
     qty: Optional[float] = None
     note: Optional[str] = None
     status: Optional[str] = None
+    counted_qty: Decimal | None = None
     
 
 
@@ -57,6 +59,10 @@ def inventory_to_dict(inv):
         "status": inv.inventory_status,
 
         "note": inv.note or "",
+
+        "counted_qty": (
+            float(inv.counted_qty) if inv.counted_qty is not None else None
+        ),
 
     }
 
@@ -112,20 +118,40 @@ def recalc_inventory(db: Session, inv: Inventory, lot: ProductionLot):
 #     ]
 
 @router.get("")
-def get_inventory(db: Session = Depends(get_db)):
+def get_inventory(
+    db: Session = Depends(get_db),
+    limit: int | None = Query(default=None, ge=1, le=200),
+    q: str = Query(default=""),
+):
     from sqlalchemy.orm import joinedload, selectinload
 
     from models import ShopTraveler, ShopTravelerStep
     from services.lot_service import calculate_final_qty
 
-    rows = (
-        db.query(Inventory)
-        .options(
-            joinedload(Inventory.lot).joinedload(ProductionLot.part),
-            joinedload(Inventory.lot).joinedload(ProductionLot.part_revision),
-        )
-        .all()
+    inventory_query = db.query(Inventory).options(
+        joinedload(Inventory.lot).joinedload(ProductionLot.part),
+        joinedload(Inventory.lot).joinedload(ProductionLot.part_revision),
     )
+
+    search = q.strip()
+
+    if search:
+        inventory_query = inventory_query.join(Inventory.lot).outerjoin(
+            ProductionLot.part
+        ).filter(
+            ProductionLot.lot_no.icontains(search, autoescape=True)
+            | Part.part_no.icontains(search, autoescape=True)
+        )
+
+    if limit is not None:
+        inventory_query = (
+            inventory_query.order_by(Inventory.lot_id.desc()).limit(limit)
+        )
+
+    rows = inventory_query.all()
+
+    if not rows:
+        return []
 
     latest_traveler_ids = (
         db.query(func.max(ShopTraveler.id).label("traveler_id"))
@@ -240,15 +266,83 @@ def adjust_inventory(
             detail="Inventory not found"
         )
 
-    qty_changed = data.qty is not None
+    if data.counted_qty is not None:
+        from datetime import datetime, timezone
+        from models import ShopTraveler
+        from services.lot_service import calculate_final_qty
 
-    if qty_changed:
+        counted_qty = data.counted_qty
+
+        if not counted_qty.is_finite() or counted_qty < 0:
+            raise HTTPException(400, "Counted quantity must be zero or greater")
+
+        if data.qty is not None:
+            raise HTTPException(400, "Send only one quantity")
+
+        lot = inv.lot
+        if (lot.from_lot or "").strip():
+            raise HTTPException(400, "Enter the count on the source lot")
+
+        # ใช้ยอดผลิตและยอดส่งล่าสุดเหมือน GET /inventory
+        traveler = (
+            db.query(ShopTraveler)
+            .filter(ShopTraveler.lot_id == lot.id)
+            .order_by(ShopTraveler.id.desc())
+            .first()
+        )
+
+        # ใช้ Final QTY คำนวณ แต่ไม่แก้ Produced (old)
+        produced_qty = (
+            Decimal(str(calculate_final_qty(traveler) or 0))
+            if traveler is not None
+            else Decimal(str(inv.qty_produced or 0))
+        )
+        shipped_qty = (
+            db.query(func.coalesce(func.sum(CustomerShipmentItem.qty), 0))
+            .filter(CustomerShipmentItem.lot_id == lot.id)
+            .scalar()
+        )
+        inv.qty_shipped = Decimal(str(shipped_qty or 0))
+
+        # คำนวณ On Hand ปัจจุบันโดยรวม Adjust เดิม
+        used_by_other_lots = (
+            db.query(
+                func.coalesce(func.sum(ProductionLot.from_lot_qty), 0)
+            )
+            .filter(
+                func.trim(ProductionLot.from_lot) == lot.lot_no.strip(),
+                ProductionLot.id != lot.id,
+            )
+            .scalar()
+        )
+
+        # ยอดคงเหลือก่อนรวม Adjust
+        base_on_hand = (
+            produced_qty
+            - inv.qty_shipped
+            - Decimal(str(used_by_other_lots or 0))
+            - Decimal(str(inv.qty_scrap or 0))
+        )
+
+        # ปรับส่วนต่างให้ On Hand เท่ากับยอดที่นับจริง
+        inv.qty_adjust = counted_qty - base_on_hand
+        inv.qty_on_hand = counted_qty
+        inv.counted_qty = counted_qty
+        inv.counted_at = datetime.now(timezone.utc)
+        inv.inventory_status = "checked"
+
+    elif data.qty is not None:
         inv.qty_adjust = Decimal(str(data.qty))
         inv.inventory_status = "checked"
         recalc_inventory(db, inv, inv.lot)
 
     if data.note is not None:
         inv.note = data.note
+    elif (
+        (data.qty is not None or data.counted_qty is not None)
+        and not (inv.note or "").strip()
+    ):
+        inv.note = "All goods"
 
     if data.status is not None:
         inv.inventory_status = data.status
