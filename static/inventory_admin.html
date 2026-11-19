@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Inventory · Topnotch – MFG</title>
+
+  <!-- Global styles -->
+  <link rel="stylesheet" href="/static/css/app.css" />
+  <link rel="stylesheet" href="/static/css/crud-page.css">
+  <!-- Tabulator theme -->
+  <link rel="stylesheet" href="/static/vendor/tabulator/tabulator_modern.min.css" />
+
+</head>
+
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div id="navSlot" data-nav-slot></div>
+    </aside>
+
+    <main class="main main--edge">
+      <section class="panel panel--edge" id="listPanel">
+        <div>Inventory</div>
+
+        <div class="list-topbar">
+          <input id="_q" type="search" class="search-lg" placeholder="Search part, lot..." />
+
+          <button id="_add" class="btn btn-primary" hidden>
+            + Add
+          </button>
+        </div>
+
+        <div id="listBody"></div>
+        <div id="inventory_sentinel" style="height: 1px"></div>
+      </section>
+    </main>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite">
+    <span id="toastText"></span>
+  </div>
+
+  <script type="module" src="/static/js/nav-loader.js"></script>
+  <script src="/static/vendor/tabulator/tabulator.min.js"></script>
+  <script type="module" src="/static/js/page-inventory_admin.js?v=1.4"></script>
+</body>
+
+</html>

@@ -52,25 +52,25 @@ function makeColumns() {
       width: 80,
     },
 
+    // {
+    //   title: "Start<br>QTY",
+    //   field: "qty_start",
+    //   hozAlign: "right",
+    //   width: 90,
+    // },
     {
-      title: "Start<br>QTY",
-      field: "qty_start",
-      hozAlign: "right",
-      width: 90,
-    },
-    {
-      title: "Final<br>QTY",
+      title: "Prod<br>QTY",
       field: "qty_final",
       hozAlign: "right",
       width: 90,
     },
 
-    {
-      title: "Produced (old)",
-      field: "qty_produced",
-      hozAlign: "right",
-      width: 120,
-    },
+    // {
+    //   title: "Produced (old)",
+    //   field: "qty_produced",
+    //   hozAlign: "right",
+    //   width: 120,
+    // },
 
     {
       title: "Ship",
@@ -79,62 +79,62 @@ function makeColumns() {
       width: 100,
     },
 
-    {
-      title: "On Hand",
-      field: "qty_on_hand",
-      hozAlign: "right",
-      width: 120,
-    },
-    {
-      title: "Adjust",
-      field: "qty_adjust",
-      hozAlign: "right",
-      width: 100,
+    // {
+    //   title: "On Hand",
+    //   field: "qty_on_hand",
+    //   hozAlign: "right",
+    //   width: 120,
+    // },
+    // {
+    //   title: "Adjust",
+    //   field: "qty_adjust",
+    //   hozAlign: "right",
+    //   width: 100,
 
-      editor: "number",
+    //   editor: "number",
 
-      formatter: (cell) => {
-        const el = cell.getElement();
+    //   // formatter: (cell) => {
+    //   //   const el = cell.getElement();
 
-        el.style.setProperty("background-color", "#fff3b0", "important");
-        el.style.setProperty("font-weight", "bold", "important");
+    //   //   el.style.setProperty("background-color", "#fff3b0", "important");
+    //   //   el.style.setProperty("font-weight", "bold", "important");
 
-        return fmtQty(cell.getValue());
-      },
+    //   //   return fmtQty(cell.getValue());
+    //   // },
 
-      cellEdited: async function (cell) {
-        const { lot_id } = cell.getRow().getData();
-        const qty = Number(cell.getValue());
-        const oldValue = cell.getOldValue();
+    //   cellEdited: async function (cell) {
+    //     const { lot_id } = cell.getRow().getData();
+    //     const qty = Number(cell.getValue());
+    //     const oldValue = cell.getOldValue();
 
-        if (!Number.isFinite(qty)) {
-          cell.setValue(oldValue, true);
-          toast("Enter a valid adjustment");
-          return;
-        }
+    //     if (!Number.isFinite(qty)) {
+    //       cell.setValue(oldValue, true);
+    //       toast("Enter a valid adjustment");
+    //       return;
+    //     }
 
-        try {
-          await jfetch(ENDPOINTS.adjust, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ lot_id, qty }),
-          });
-        } catch (err) {
-          console.error("Adjustment save failed:", err);
-          cell.setValue(oldValue, true);
-          toast("Save failed");
-          return;
-        }
+    //     try {
+    //       await jfetch(ENDPOINTS.adjust, {
+    //         method: "POST",
+    //         headers: { "Content-Type": "application/json" },
+    //         body: JSON.stringify({ lot_id, qty }),
+    //       });
+    //     } catch (err) {
+    //       console.error("Adjustment save failed:", err);
+    //       cell.setValue(oldValue, true);
+    //       toast("Save failed");
+    //       return;
+    //     }
 
-        try {
-          await loadData();
-          toast("Saved");
-        } catch (err) {
-          console.error("Inventory reload failed:", err);
-          toast("Saved, but the table could not reload");
-        }
-      },
-    },
+    //     try {
+    //       await loadData();
+    //       toast("Saved");
+    //     } catch (err) {
+    //       console.error("Inventory reload failed:", err);
+    //       toast("Saved, but the table could not reload");
+    //     }
+    //   },
+    // },
 
     {
       title: "Counted<br>QTY",
@@ -148,6 +148,11 @@ function makeColumns() {
         !String(cell.getRow().getData().from_lot ?? "").trim(),
 
       formatter: (cell) => {
+        const el = cell.getElement();
+
+        el.style.setProperty("background-color", "#fff3b0", "important");
+        el.style.setProperty("font-weight", "bold", "important");
+
         const value = cell.getValue();
         return value == null ? "" : fmtQty(value);
       },
@@ -201,89 +206,158 @@ function makeColumns() {
     // },
 
 
-    {
-      title: "Status",
-      field: "status",
-      width: 140,
-      editor: "list",
-      editorParams: {
-        values: [
-          "normal",
-          "good",
-          "checked",
-          "not_checked",
-          "used",
-          "scrap",
-          "rework",
-        ],
-      },
+    // {
+    //   title: "Status",
+    //   field: "status",
+    //   width: 140,
+    //   editor: "list",
+    //   editorParams: {
+    //     values: [
+    //       "normal",
+    //       "good",
+    //       "checked",
+    //       "not_checked",
+    //       "used",
+    //       "scrap",
+    //       "rework",
+    //     ],
+    //   },
 
-      cellEdited: async function (cell) {
-        const lotId = cell.getRow().getData().lot_id;
-        const status = cell.getValue();
-        const oldValue = cell.getOldValue();
+    //   cellEdited: async function (cell) {
+    //     const lotId = cell.getRow().getData().lot_id;
+    //     const status = cell.getValue();
+    //     const oldValue = cell.getOldValue();
 
-        try {
-          await jfetch(ENDPOINTS.adjust, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              lot_id: lotId,
-              status,
-            }),
-          });
-        } catch (err) {
-          console.error("Status save failed:", err);
-          cell.setValue(oldValue, true);
-          toast("Save failed");
-          return;
-        }
+    //     try {
+    //       await jfetch(ENDPOINTS.adjust, {
+    //         method: "POST",
+    //         headers: { "Content-Type": "application/json" },
+    //         body: JSON.stringify({
+    //           lot_id: lotId,
+    //           status,
+    //         }),
+    //       });
+    //     } catch (err) {
+    //       console.error("Status save failed:", err);
+    //       cell.setValue(oldValue, true);
+    //       toast("Save failed");
+    //       return;
+    //     }
 
-        try {
-          await loadData();
-          toast("Saved");
-        } catch (err) {
-          console.error("Inventory reload failed:", err);
-          toast("Saved, but the table could not reload");
-        }
-      },
-    },
+    //     try {
+    //       await loadData();
+    //       toast("Saved");
+    //     } catch (err) {
+    //       console.error("Inventory reload failed:", err);
+    //       toast("Saved, but the table could not reload");
+    //     }
+    //   },
+    // },
+
+    // {
+    //   title: "Container",
+    //   field: "container",
+    //   width: 130,
+    //   editor: "list",
+    //   editorParams: {
+    //     values: {
+    //       "": "—",
+    //       tray: "Tray",
+    //       bag: "Bag",
+    //       box: "Box",
+    //     },
+    //   },
+
+    //   cellEdited: async function (cell) {
+    //     const oldValue = cell.getOldValue();
+    //     const { lot_id } = cell.getRow().getData();
+
+    //     try {
+    //       await jfetch(ENDPOINTS.adjust, {
+    //         method: "POST",
+    //         headers: { "Content-Type": "application/json" },
+    //         body: JSON.stringify({
+    //           lot_id,
+    //           container: cell.getValue() ?? "",
+    //         }),
+    //       });
+    //     } catch (err) {
+    //       console.error("Container save failed:", err);
+    //       cell.restoreOldValue();
+    //       toast("Save failed");
+    //       return;
+    //     }
+
+    //     toast("Saved");
+    //   },
+    // },
 
     {
       title: "Container",
       field: "container",
-      width: 130,
-      editor: "list",
-      editorParams: {
-        values: {
-          "": "—",
-          tray: "Tray",
-          bag: "Bag",
-          box: "Box",
-        },
-      },
+      width: 230,
 
-      cellEdited: async function (cell) {
-        const oldValue = cell.getOldValue();
-        const { lot_id } = cell.getRow().getData();
+      formatter: (cell) => {
+        const current = cell.getValue() ?? "";
+        const wrapper = document.createElement("div");
 
-        try {
-          await jfetch(ENDPOINTS.adjust, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              lot_id,
-              container: cell.getValue() ?? "",
-            }),
+        wrapper.style.cssText =
+          "display:flex; align-items:center; gap:12px; height:100%;";
+
+        for (const [value, text] of [
+          ["tray", "Tray"],
+          ["bag", "Bag"],
+          ["box", "Box"],
+        ]) {
+          const label = document.createElement("label");
+          label.style.cssText =
+            "display:flex; align-items:center; gap:4px; cursor:pointer;";
+
+          const radio = document.createElement("input");
+          radio.type = "radio";
+          radio.value = value;
+          radio.checked = current === value;
+
+          label.append(radio, document.createTextNode(text));
+          wrapper.append(label);
+
+          radio.addEventListener("click", (e) => e.stopPropagation());
+
+          radio.addEventListener("change", async () => {
+            const inputs = wrapper.querySelectorAll("input");
+            inputs.forEach((input) => {
+              input.disabled = true;
+            });
+
+            try {
+              const { lot_id } = cell.getRow().getData();
+
+              await jfetch(ENDPOINTS.adjust, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  lot_id,
+                  container: value,
+                }),
+              });
+            } catch (err) {
+              console.error("Container save failed:", err);
+
+              inputs.forEach((input) => {
+                input.checked = input.value === current;
+                input.disabled = false;
+              });
+
+              toast("Save failed");
+              return;
+            }
+
+            cell.setValue(value);
+            toast("Saved");
           });
-        } catch (err) {
-          console.error("Container save failed:", err);
-          cell.restoreOldValue();
-          toast("Save failed");
-          return;
         }
 
-        toast("Saved");
+        return wrapper;
       },
     },
 
@@ -317,23 +391,23 @@ function makeColumns() {
       }
     },
 
-    {
-      title: "Used by<br>Other Lots",
-      field: "used_by_other_lots",
-      hozAlign: "right",
-      width: 130,
-    },
-    {
-      title: "From Lot",
-      field: "from_lot",
-      width: 110,
-    },
-    {
-      title: "From Lot<br>QTY",
-      field: "from_lot_qty",
-      hozAlign: "right",
-      width: 95,
-    },
+    // {
+    //   title: "Used by<br>Other Lots",
+    //   field: "used_by_other_lots",
+    //   hozAlign: "right",
+    //   width: 130,
+    // },
+    // {
+    //   title: "From Lot",
+    //   field: "from_lot",
+    //   width: 110,
+    // },
+    // {
+    //   title: "From Lot<br>QTY",
+    //   field: "from_lot_qty",
+    //   hozAlign: "right",
+    //   width: 95,
+    // },
 
 
     // {
