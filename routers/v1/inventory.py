@@ -364,8 +364,8 @@ def adjust_inventory(
     # When saving Counted QTY, default an empty container to box
     if data.counted_qty is not None and not (inv.container or "").strip():
         # inv.container = "box"
-        inv.container = "bag"
-        # inv.container = "tray"
+        # inv.container = "bag"
+        inv.container = "tray"
 
     db.commit()
     db.refresh(inv)
