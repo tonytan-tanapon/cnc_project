@@ -310,9 +310,11 @@ function makeColumns() {
           "display:flex; align-items:center; gap:12px; height:100%;";
 
         for (const [value, text] of [
-          ["tray", "Tray"],
+          ["egg", "Egg"],
+          
           ["bag", "Bag"],
           ["box", "Box"],
+          ["tray", "Tray"],
         ]) {
           const label = document.createElement("label");
           label.style.cssText =

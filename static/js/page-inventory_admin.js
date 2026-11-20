@@ -259,112 +259,114 @@ function makeColumns() {
       },
     },
 
-    // {
-    //   title: "Container",
-    //   field: "container",
-    //   width: 130,
-    //   editor: "list",
-    //   editorParams: {
-    //     values: {
-    //       "": "—",
-    //       tray: "Tray",
-    //       bag: "Bag",
-    //       box: "Box",
-    //     },
-    //   },
-
-    //   cellEdited: async function (cell) {
-    //     const oldValue = cell.getOldValue();
-    //     const { lot_id } = cell.getRow().getData();
-
-    //     try {
-    //       await jfetch(ENDPOINTS.adjust, {
-    //         method: "POST",
-    //         headers: { "Content-Type": "application/json" },
-    //         body: JSON.stringify({
-    //           lot_id,
-    //           container: cell.getValue() ?? "",
-    //         }),
-    //       });
-    //     } catch (err) {
-    //       console.error("Container save failed:", err);
-    //       cell.restoreOldValue();
-    //       toast("Save failed");
-    //       return;
-    //     }
-
-    //     toast("Saved");
-    //   },
-    // },
-
     {
       title: "Container",
       field: "container",
-      width: 230,
+      width: 130,
+      editor: "list",
+      editorParams: {
+        values: {
+          "": "—",
 
-      formatter: (cell) => {
-        const current = cell.getValue() ?? "";
-        const wrapper = document.createElement("div");
+          egg: "Egg",
+          bag: "Bag",
+          box: "Box",
+          tray: "Tray",
+        },
+      },
 
-        wrapper.style.cssText =
-          "display:flex; align-items:center; gap:12px; height:100%;";
+      cellEdited: async function (cell) {
+        const oldValue = cell.getOldValue();
+        const { lot_id } = cell.getRow().getData();
 
-        for (const [value, text] of [
-          ["tray", "Tray"],
-          ["bag", "Bag"],
-          ["box", "Box"],
-        ]) {
-          const label = document.createElement("label");
-          label.style.cssText =
-            "display:flex; align-items:center; gap:4px; cursor:pointer;";
-
-          const radio = document.createElement("input");
-          radio.type = "radio";
-          radio.value = value;
-          radio.checked = current === value;
-
-          label.append(radio, document.createTextNode(text));
-          wrapper.append(label);
-
-          radio.addEventListener("click", (e) => e.stopPropagation());
-
-          radio.addEventListener("change", async () => {
-            const inputs = wrapper.querySelectorAll("input");
-            inputs.forEach((input) => {
-              input.disabled = true;
-            });
-
-            try {
-              const { lot_id } = cell.getRow().getData();
-
-              await jfetch(ENDPOINTS.adjust, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  lot_id,
-                  container: value,
-                }),
-              });
-            } catch (err) {
-              console.error("Container save failed:", err);
-
-              inputs.forEach((input) => {
-                input.checked = input.value === current;
-                input.disabled = false;
-              });
-
-              toast("Save failed");
-              return;
-            }
-
-            cell.setValue(value);
-            toast("Saved");
+        try {
+          await jfetch(ENDPOINTS.adjust, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              lot_id,
+              container: cell.getValue() ?? "",
+            }),
           });
+        } catch (err) {
+          console.error("Container save failed:", err);
+          cell.restoreOldValue();
+          toast("Save failed");
+          return;
         }
 
-        return wrapper;
+        toast("Saved");
       },
     },
+
+    // {
+    //   title: "Container",
+    //   field: "container",
+    //   width: 230,
+
+    //   formatter: (cell) => {
+    //     const current = cell.getValue() ?? "";
+    //     const wrapper = document.createElement("div");
+
+    //     wrapper.style.cssText =
+    //       "display:flex; align-items:center; gap:12px; height:100%;";
+
+    //     for (const [value, text] of [
+    //       ["tray", "Tray"],
+    //       ["bag", "Bag"],
+    //       ["box", "Box"],
+    //     ]) {
+    //       const label = document.createElement("label");
+    //       label.style.cssText =
+    //         "display:flex; align-items:center; gap:4px; cursor:pointer;";
+
+    //       const radio = document.createElement("input");
+    //       radio.type = "radio";
+    //       radio.value = value;
+    //       radio.checked = current === value;
+
+    //       label.append(radio, document.createTextNode(text));
+    //       wrapper.append(label);
+
+    //       radio.addEventListener("click", (e) => e.stopPropagation());
+
+    //       radio.addEventListener("change", async () => {
+    //         const inputs = wrapper.querySelectorAll("input");
+    //         inputs.forEach((input) => {
+    //           input.disabled = true;
+    //         });
+
+    //         try {
+    //           const { lot_id } = cell.getRow().getData();
+
+    //           await jfetch(ENDPOINTS.adjust, {
+    //             method: "POST",
+    //             headers: { "Content-Type": "application/json" },
+    //             body: JSON.stringify({
+    //               lot_id,
+    //               container: value,
+    //             }),
+    //           });
+    //         } catch (err) {
+    //           console.error("Container save failed:", err);
+
+    //           inputs.forEach((input) => {
+    //             input.checked = input.value === current;
+    //             input.disabled = false;
+    //           });
+
+    //           toast("Save failed");
+    //           return;
+    //         }
+
+    //         cell.setValue(value);
+    //         toast("Saved");
+    //       });
+    //     }
+
+    //     return wrapper;
+    //   },
+    // },
 
     {
       title: "Note",
