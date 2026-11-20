@@ -58,6 +58,11 @@ function makeColumns() {
     //   hozAlign: "right",
     //   width: 90,
     // },
+     {
+  title: "Customer",
+  field: "customer_no",
+  width: 130,
+},
     {
       title: "Prod<br>QTY",
       field: "qty_final",

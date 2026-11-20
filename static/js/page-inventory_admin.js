@@ -51,6 +51,11 @@ function makeColumns() {
       field: "rev",
       width: 80,
     },
+    {
+  title: "Customer",
+  field: "customer_no",
+  width: 130,
+},
 
     {
       title: "Start<br>QTY",

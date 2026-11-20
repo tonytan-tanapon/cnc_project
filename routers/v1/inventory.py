@@ -7,6 +7,8 @@ from database import get_db  # or your session dependency
 from models import Part, RawMaterial, RawBatch, LotMaterialUse,Inventory
 from fastapi import APIRouter, Depends, HTTPException, Query
 
+from sqlalchemy import func, select, text
+
 from models import (
     Inventory,
     ProductionLot,
@@ -159,6 +161,20 @@ def get_inventory(
     if not rows:
         return []
 
+    customer_by_lot = dict(
+        db.execute(
+            text("""
+                SELECT pl.id, cu.code
+                FROM production_lots pl
+                JOIN po_lines pol ON pol.id = pl.po_line_id
+                JOIN purchase_orders po ON po.id = pol.po_id
+                JOIN customers cu ON cu.id = po.customer_id
+                WHERE pl.id = ANY(:lot_ids)
+            """),
+            {"lot_ids": [inv.lot_id for inv in rows]},
+        ).all()
+    )
+
     latest_traveler_ids = (
         db.query(func.max(ShopTraveler.id).label("traveler_id"))
         .filter(ShopTraveler.lot_id.in_([inv.lot_id for inv in rows]))
@@ -249,6 +265,7 @@ def get_inventory(
                 else None
             ),
             "used_by_other_lots": float(used_qty),
+            "customer_no": customer_by_lot.get(lot.id) or "",
         })
 
     return result
