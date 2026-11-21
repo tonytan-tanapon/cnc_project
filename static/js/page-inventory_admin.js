@@ -272,6 +272,9 @@ function makeColumns() {
           bag: "Bag",
           box: "Box",
           tray: "Tray",
+          rework: "Rework",
+          wip: "WIP",
+          mrb: "MRB"
         },
       },
 
@@ -315,6 +318,10 @@ function makeColumns() {
     //       ["tray", "Tray"],
     //       ["bag", "Bag"],
     //       ["box", "Box"],
+    //       ["egg", "Egg"],
+    //       ["rework", "Rework"],
+    //       ["wip", "WIP"],
+    //       ["mrb", "MRB"]
     //     ]) {
     //       const label = document.createElement("label");
     //       label.style.cssText =

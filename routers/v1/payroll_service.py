@@ -974,37 +974,48 @@ def export_payee(
 
     for emp in employee_totals:
 
-        final_pay = emp["total_pay"] + ot_paid
+        # Calculate individual leave pay
+        emp_leave_pay = 0
+        leave_types = set()
+
+        for leave in payroll["leave_rows"]:
+            if (
+                leave.employee_id == emp["id"]
+                and leave.leave_type in ("sick", "vacation")
+                and pay_start <= leave.start_at.date() <= pay_end
+            ):
+                emp_leave_pay += 8 * rate
+                leave_types.add(leave.leave_type.title())
+
+        final_pay = emp["total_pay"] + ot_paid + emp_leave_pay
 
         grand_total += final_pay
 
         ws.cell(row_no, 12, emp["name"])
 
-        ws.cell(
-            row_no,
-            14,
-            round(final_pay, 2)
-        )
+        ws.cell(row_no, 14, round(final_pay, 2))
+        ws.cell(row_no, 14).number_format = '$#,##0.00'
+        
 
-        ws.cell(
-            row_no,
-            14
-        ).number_format = '$#,##0.00'
+        if emp_leave_pay > 0:
+            ws.cell(row_no, 16, ", ".join(sorted(leave_types)))
+            ws.cell(row_no, 17, round(emp_leave_pay, 2))
+            ws.cell(row_no, 17).number_format = '$#,##0.00'
 
-        row_no += 1
+        row_no += 1         
 
     ws.cell(row_no, 12, "Total")
     ws.cell(row_no, 14, round(grand_total, 2))
     ws.cell(row_no, 14).number_format = '$#,##0.00'
 
-    if leave_pay > 0 :
-            row_no +=2 
-            ws.cell(row_no,11,"Leave_pay")  
-            ws.cell(row_no,12,leave_pay)  
-            ws.cell(row_no,12).number_format = '$#,##0.00'
-            ws.cell(row_no,13,"Total")     
-            ws.cell(row_no,14,leave_pay+payroll["total_pay"])
-            ws.cell(row_no,14).number_format = '$#,##0.00'
+    # if leave_pay > 0 :
+    #         row_no +=2 
+    #         ws.cell(row_no,11,"Leave_pay")  
+    #         ws.cell(row_no,12,leave_pay)  
+    #         ws.cell(row_no,12).number_format = '$#,##0.00'
+    #         ws.cell(row_no,13,"Total")     
+    #         ws.cell(row_no,14,leave_pay+payroll["total_pay"])
+    #         ws.cell(row_no,14).number_format = '$#,##0.00'
 
     # ==========================
     # Time Leave

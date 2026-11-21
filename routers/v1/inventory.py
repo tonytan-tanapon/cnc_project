@@ -32,9 +32,10 @@ class InventoryAdjust(BaseModel):
     note: Optional[str] = None
     status: Optional[str] = None
     counted_qty: Decimal | None = None
-    
-    container: Literal["egg", "tray", "bag", "box", ""] | None = None
-    
+
+    container: Literal[
+        "", "egg", "tray", "bag", "box", "rework", "wip", "mrb"
+    ] | None = None
 
 
 def inventory_to_dict(inv):

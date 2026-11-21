@@ -300,7 +300,7 @@ function makeColumns() {
     {
       title: "Container",
       field: "container",
-      width: 230,
+      width: 450,
 
       formatter: (cell) => {
         const current = cell.getValue() ?? "";
@@ -310,11 +310,14 @@ function makeColumns() {
           "display:flex; align-items:center; gap:12px; height:100%;";
 
         for (const [value, text] of [
-          ["egg", "Egg"],
-          
+          ["", "—"],
+          ["egg", "Egg"],          
           ["bag", "Bag"],
           ["box", "Box"],
           ["tray", "Tray"],
+          ["wip", "WIP"],
+          // ["mrb", "MRB"],
+          ["rework", "Rework"]
         ]) {
           const label = document.createElement("label");
           label.style.cssText =
@@ -397,6 +400,12 @@ function makeColumns() {
         }
       }
     },
+     {
+      title: "ttest",
+      field: "",
+      width: 250,
+      editor: "input",
+     }
 
     // {
     //   title: "Used by<br>Other Lots",

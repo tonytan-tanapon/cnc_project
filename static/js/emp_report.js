@@ -116,9 +116,9 @@ async function alertLeaveInPeriod() {
 
     if (names.length) {
         alert(
-            "พบการลาในงวด Payroll นี้\n\n" +
+            "Employee leave records found for this payroll period.\n\n" +
             names.map(name => `• ${name}`).join("\n") +
-            "\n\nกรุณาตรวจสอบการลาก่อนดำเนินการจ่ายเงิน"
+            "\n\nPlease review the leave records before processing payroll."
         );
     }
 }
