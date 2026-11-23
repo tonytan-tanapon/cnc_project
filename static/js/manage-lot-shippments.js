@@ -603,9 +603,39 @@ function initShipmentTable() {
       {
         title: "Tracking #",
         field: "tracking_number",
-        editor: "input",
+        editor: "textarea",
+        formatter: "textarea",
+        variableHeight: true,
         width: 160,
-        cellEdited: updateField("tracking_number"),
+
+        cellEdited: async (cell) => {
+          const row = cell.getRow().getData();
+
+          const oldTracking = String(cell.getOldValue() ?? "").trim();
+          const newTracking = String(cell.getValue() ?? "").trim();
+
+          const payload = {
+            tracking_number: newTracking
+          };
+
+          // Update date only when entering tracking for the first time
+          if (!oldTracking && newTracking) {
+            payload.shipped_date = new Date()
+              .toLocaleDateString("en-CA", {
+                timeZone: "America/Los_Angeles"
+              });
+          }
+
+          await jfetch(
+            `/api/v1/lot-shippments/${row.id}/update-fields`,
+            {
+              method: "PATCH",
+              body: JSON.stringify(payload)
+            }
+          );
+
+          await loadShipmentTable();
+        },
       },
 
       //   {
@@ -797,9 +827,19 @@ function initShipmentTable() {
               await markLotAsShipped(rowData);
 
               const currentNote = String(rowData.notes ?? "").trim();
+              // const newNote = currentNote
+              //   ? `${currentNote}\nPrint CofC`
+              //   : "Print CofC";
+
+              const date = new Date().toLocaleDateString("en-US", {
+                month: "2-digit",
+                day: "2-digit",
+                year: "2-digit"
+              });
+
               const newNote = currentNote
-                ? `${currentNote}\nPrint CofC`
-                : "Print CofC";
+                ? `${currentNote}\n${date} Print CofC`
+                : `${date} Print CofC`;
 
               await jfetch(
                 `/api/v1/lot-shippments/${rowData.id}/update-fields`,
@@ -905,6 +945,28 @@ function initShipmentTable() {
           }
 
           await markLotAsShipped(row);
+
+          const date = new Date().toLocaleDateString("en-US", {
+            month: "2-digit",
+            day: "2-digit",
+            year: "2-digit"
+          });
+
+          const currentNote = String(row.notes ?? "").trim();
+
+          const message = `${date} Print Label (${type}, ${size})`;
+
+          const newNote = currentNote
+            ? `${currentNote}\n${message}`
+            : message;
+
+          await jfetch(
+            `/api/v1/lot-shippments/${row.id}/update-fields`,
+            {
+              method: "PATCH",
+              body: JSON.stringify({ notes: newNote })
+            }
+          );
           await loadShipmentTable();
           await loadLotHeader();
 
@@ -917,7 +979,9 @@ function initShipmentTable() {
       {
         title: "Note",
         field: "notes",
-        editor: "input",
+        editor: "textarea",
+        formatter: "textarea",
+        variableHeight: true,
         width: 300,
         cellEdited: updateField("notes"),
       },

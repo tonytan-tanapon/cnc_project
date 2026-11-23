@@ -601,23 +601,28 @@ def update_shipment_fields(
 
     # ---- Tracking No ----
     # ---- Tracking No ----
+    # ---- Tracking No ----
     if "tracking_number" in payload:
-        shipment.tracking_no = payload["tracking_number"]
+
+        old_tracking = (shipment.tracking_no or "").strip()
+        new_tracking = (payload["tracking_number"] or "").strip()
+
+        shipment.tracking_no = new_tracking
         updated_fields.append("tracking_number")
 
-        # Auto-mark as shipped if tracking number is provided
-        if payload["tracking_number"]:
-            shipment.status = "shipped"
-            updated_fields.append("status")
+        # Append note when tracking number is added or changed
+        if new_tracking != old_tracking:
+            date_str = datetime.now().strftime("%m/%d/%y")
 
-            lot = db.get(ProductionLot, shipment.lot_id)
-            if lot:
-                lot.status = "shipped"
-                updated_fields.append("lot.status=shipped")
+            message = f"{date_str} Tracking: {new_tracking}"
+            shipment.notes = (
+                f"{shipment.notes}\n{message}"
+                if shipment.notes
+                else message
+            )
 
-            shipment.shipped_at = datetime.utcnow()
-            updated_fields.append("shipped_date")
-
+            updated_fields.append("notes")
+        
            
 
     # ---- Shipped Date ----

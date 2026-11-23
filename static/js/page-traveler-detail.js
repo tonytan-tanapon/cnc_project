@@ -538,7 +538,43 @@ function initHeaderAutocomplete() {
 
 /* ---------- Traveler IO ---------- */
 
+async function setLotInProcess() {
+  if (!lotId) return;
 
+  const now = new Date();
+
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
+  const dd = String(now.getDate()).padStart(2, "0");
+  const yy = String(now.getFullYear()).slice(-2);
+
+  const newNote = `${mm}/${dd}/${yy} ST issue`;
+
+  // Keep existing notes
+  const oldNote = $("notes").value.trim();
+
+  const note = oldNote
+    ? `${oldNote}\n${newNote}`
+    : newNote;
+
+  // Update database
+  await jfetch(`/lots/${lotId}`, {
+    method: "PUT",
+    body: JSON.stringify({
+      status: "in_process",
+      note: note
+    })
+  });
+
+  // Update UI
+  $("status").value = "in_process";
+  $("notes").value = note;
+
+  // Update local data
+  if (originalLot?.all) {
+    originalLot.all.status = "in_process";
+    originalLot.all.note = note;
+  }
+}
 
 async function fillTraveler(t) {
 
@@ -3591,6 +3627,8 @@ async function handleImportFile(e) {
 
     const result = await res.json();
 
+    await setLotInProcess();
+
     toast(`Imported ${result.count || 0} steps`);
 
     await reloadSteps();
@@ -3598,15 +3636,15 @@ async function handleImportFile(e) {
 
 
     // ⭐ UPDATE LOT STATUS
-    if (lotId) {
-      await jfetch(`/api/v1/lots/${lotId}/status`, {
-        method: "PUT",
-        body: JSON.stringify({
-          status: "in_process"
-        })
-      });
-      console.log("Lot status updated to in_process");
-    }
+    // if (lotId) {
+    //   await jfetch(`/api/v1/lots/${lotId}/status`, {
+    //     method: "PUT",
+    //     body: JSON.stringify({
+    //       status: "in_process"
+    //     })
+    //   });
+    //   console.log("Lot status updated to in_process");
+    // }
 
   } catch (err) {
 
@@ -3755,7 +3793,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             })
           }
         );
-
+        await setLotInProcess();
         toast("Steps copied");
 
         await reloadSteps();
@@ -3805,6 +3843,8 @@ document.addEventListener("DOMContentLoaded", async () => {
           })
         }
       );
+
+      await setLotInProcess();
 
       toast("From Blank completed");
 
@@ -3884,20 +3924,23 @@ document.addEventListener("DOMContentLoaded", async () => {
         { method: "POST" }
       );
 
+      await setLotInProcess();
+
+
       toast("Latest template applied");
       await loadTraveler();   // 🔥 reload badge/version
       await reloadSteps();
 
       // ⭐ UPDATE LOT STATUS
-      if (lotId) {
-        await jfetch(`/api/v1/lots/${lotId}/status`, {
-          method: "PUT",
-          body: JSON.stringify({
-            status: "in_process"
-          })
-        });
-        console.log("Lot status updated to in_process");
-      }
+      // if (lotId) {
+      //   await jfetch(`/api/v1/lots/${lotId}/status`, {
+      //     method: "PUT",
+      //     body: JSON.stringify({
+      //       status: "in_process"
+      //     })
+      //   });
+      //   console.log("Lot status updated to in_process");
+      // }
 
     } catch (err) {
       console.error(err);
