@@ -1354,10 +1354,15 @@ function makeColumns() {
         values: {
           not_start: "No Ship",      // 👈 เปลี่ยนตรงนี้ด้วย
           in_process: "In Process",
-
           shipped: "Shipped",
           completed: "Completed",
+
+          creating: "Creating",
+          inspection:"Inspection",           
+          checked: "Checked",          
           canceled: "Canceled",
+     
+
         },
       },
 
@@ -1406,7 +1411,7 @@ function makeColumns() {
         if (newStatus === oldStatus) return;
 
         try {
-          await jfetch(`/api/v1/lots/${row.lot_id}/status`, {
+          const res = await jfetch(`/api/v1/lots/${row.lot_id}/status`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ status: newStatus }), // ✅ ยังส่ง not_start อยู่

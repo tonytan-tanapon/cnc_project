@@ -1,5 +1,7 @@
 # routers/lots.py
 from typing import List, Optional, Dict
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from models import (
     ProductionLot,
     Part,
@@ -558,11 +560,35 @@ def update_lot_put(lot_id: int, payload: ProductionLotUpdate, db: Session = Depe
         if prv.part_id != part_id:
             raise HTTPException(400, "part_revision_id does not belong to part_id")
         
+    # data = payload.dict(exclude_unset=True)
+
+    # for k, v in data.items():
+    #     setattr(lot, k, v)
     data = payload.dict(exclude_unset=True)
+
+    # Append note when lot status changes
+    new_status = data.get("status")
+
+    if new_status and new_status != lot.status:
+
+        date_str = datetime.now(
+            ZoneInfo("America/Los_Angeles")
+        ).strftime("%m/%d/%y")
+
+        status_text = new_status.replace("_", " ").title()
+
+        message = f"{date_str} {status_text}"
+
+        old_note = (data.get("note", lot.note) or "").strip()
+
+        data["note"] = (
+            f"{old_note}\n{message}"
+            if old_note
+            else message
+        )
 
     for k, v in data.items():
         setattr(lot, k, v)
-
     db.commit()
     db.refresh(lot)
     rebuild_inventory(
@@ -703,7 +729,6 @@ def delete_lot(lot_id: int, db: Session = Depends(get_db)):
     return {"message": "Lot deleted"}
 
 
-from sqlalchemy import text
 @router.put("/{lot_id}/status")
 def update_lot_status(
     lot_id: int,
@@ -719,17 +744,76 @@ def update_lot_status(
         "shipped",
         "completed",
         "canceled",
+        "inspection",
+        "checked",
+        "creating",
     }:
         raise HTTPException(400, "Invalid status")
 
-    db.execute(
-        text("""
-          UPDATE production_lots
-          SET status = :status
-          WHERE id = :lot_id
-        """),
-        {"status": status, "lot_id": lot_id},
-    )
-    db.commit()
+    lot = db.get(ProductionLot, lot_id)
 
-    return {"ok": True}
+    if not lot:
+        raise HTTPException(404, "Lot not found")
+
+    if lot.status != status:
+
+        date_str = datetime.now(
+            ZoneInfo("America/Los_Angeles")
+        ).strftime("%m/%d/%y")
+
+        status_text = status.replace("_", " ").title()
+
+        message = f"{date_str} {status_text}"
+
+        old_note = (lot.note or "").strip()
+
+        lot.note = (
+            f"{old_note}\n{message}"
+            if old_note
+            else message
+        )
+
+        lot.status = status
+
+        db.commit()
+        db.refresh(lot)
+
+    return {
+        "ok": True,
+        "status": lot.status,
+        "note": lot.note
+    }
+# from sqlalchemy import text
+# @router.put("/{lot_id}/status")
+# def update_lot_status(
+#     lot_id: int,
+#     payload: dict,
+#     db: Session = Depends(get_db),
+# ):
+#     status = payload.get("status")
+
+#     if status not in {
+#         "not_start",
+#         "in_process",
+#         "hold",
+#         "shipped",
+#         "completed",
+#         "canceled",
+#         "inspection",
+#         "checked",
+#         "creating"
+        
+#     }:
+#         raise HTTPException(400, "Invalid status")
+
+#     db.execute(
+#         text("""
+#           UPDATE production_lots
+#           SET status = :status
+#           WHERE id = :lot_id
+#         """),
+#         {"status": status, "lot_id": lot_id},
+#     )
+#     db.commit()
+
+#     return {"ok": True}
