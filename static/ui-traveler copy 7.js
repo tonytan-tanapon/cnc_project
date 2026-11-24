@@ -1,0 +1,1671 @@
+// /static/js/ui-traveler.js
+import { jfetch, toast } from "/static/js/api.js";
+
+let firstLoad = true;
+let activeTarget = null;
+let activeType = null;
+let currentUOM = "pcs";
+let originalValue = null;
+let currentReceive = 0;
+let manualRejectEdit = false; // tracks if user manually edits reject
+let selectedLogDate = null;
+let selectedLogId = null;
+let currentLotId = null;
+let manualRowSelected = false;
+let currentStepData = null;   // ✅ FIX สำคัญ
+let currentMachineId = null;      // Header
+let editingMachineId = null;      // Log ที่กำลังแก้
+
+let selectedLengthUOM = "foot";
+
+const machineIdFromURL = new URLSearchParams(location.search).get("machine_id");
+
+const travelerNo = new URLSearchParams(location.search).get("traveler_no");
+const travelerStep = new URLSearchParams(location.search).get("seq");
+const travelerEmp = new URLSearchParams(location.search).get("traveler_emp");
+
+
+
+function getLADate() {
+  return new Date()
+    .toLocaleString("sv-SE", {
+      timeZone: "America/Los_Angeles"
+    })
+    .slice(0, 10);
+}
+
+/* ===== KEYPAD CONTROL ===== */
+function showKeypad(target, type) {
+
+  // ⭐ reset old row selection
+  if (!document.querySelector(".active-row")) {
+    selectedLogDate = null;
+  }
+
+  // ✅ Prevent tablet keyboard from appearing
+  if (document.activeElement && document.activeElement.blur) {
+    document.activeElement.blur();
+  }
+  document.querySelectorAll("input, textarea").forEach((el) => {
+    if (el.id !== "remarkInput") el.setAttribute("readonly", "readonly");
+  });
+
+  activeTarget = target;
+  activeType = type;
+
+  // ✅ Update visible label at top of keypad
+  const labelEl = document.querySelector("#keypadTypeLabel");
+  if (labelEl) {
+    labelEl.textContent =
+      type === "receive"
+        ? "Receive"
+        : type === "accept"
+          ? "Accept"
+          : type === "reject"
+            ? "Reject"
+            : type === "po"
+              ? "PO"
+              : type === "length"
+                ? "Length"
+                : type === "qty"
+                  ? "Qty"
+                  : "";
+
+    labelEl.style.color =
+      type === "po"
+        ? "#2563eb"
+        : type === "length"
+          ? "#f59e0b"
+          : type === "qty"
+            ? "#16a34a"
+            : type === "receive"
+              ? "#2563eb"
+              : type === "accept"
+                ? "#16a34a"
+                : type === "reject"
+                  ? "#dc2626"
+                  : "#111";
+  }
+
+  const uomPanel =
+    document.querySelector("#lengthUOMPanel");
+
+  if (type === "length") {
+    uomPanel.style.display = "flex";
+  } else {
+    uomPanel.style.display = "none";
+  }
+  document.querySelector("#keypad").style.display = "flex";
+  if (type === "length") {
+
+    document.querySelector("#uomLabel").textContent =
+      selectedLengthUOM.toUpperCase();
+
+  } else {
+
+    document.querySelector("#uomLabel").textContent =
+      "PCS";
+  }
+
+  const currentVal = activeTarget.textContent.trim() || "0";
+  document.querySelector("#keypadDisplay").textContent = currentVal;
+
+  originalValue = currentVal;
+  isFirstKeyPress = true;
+}
+
+/* ===== DISABLE PHYSICAL KEYBOARD WHILE KEYPAD ACTIVE ===== */
+function disablePhysicalKeyboard() {
+  document.addEventListener(
+    "keydown",
+    (e) => {
+      const keypadVisible =
+        document.querySelector("#keypad").style.display === "flex";
+      if (keypadVisible) {
+        e.preventDefault();
+        e.stopPropagation();
+        console.log("🔒 Physical keyboard blocked:", e.key);
+      }
+    },
+    true
+  );
+}
+disablePhysicalKeyboard();
+
+function updateDisplay(val) {
+  const display = document.querySelector("#keypadDisplay");
+  if (display) display.textContent = val;
+}
+
+function hideKeypad(cancel = false) {
+  document.querySelector("#keypad").style.display = "none";
+
+  // ✅ Re-enable remark input typing
+  document.querySelectorAll("input, textarea").forEach((el) => {
+    el.removeAttribute("readonly");
+  });
+
+  // ✅ Restore previous value if canceled
+  if (cancel && activeTarget && originalValue !== null) {
+    activeTarget.textContent = originalValue;
+    updateDisplay(originalValue);
+  }
+
+  activeTarget = null;
+  activeType = null;
+  originalValue = null;
+}
+
+/* ===== DOM READY ===== */
+let isFirstKeyPress = true;
+
+function toastCenter(message, success = true, duration = 1500) {
+  // Remove old toast if any
+  const old = document.querySelector(".toast-center");
+  if (old) old.remove();
+
+  // Create toast element
+  const div = document.createElement("div");
+  div.className = "toast-center";
+  div.textContent = message;
+
+  // ✅ Style (bottom-centered)
+  Object.assign(div.style, {
+    position: "fixed",
+    bottom: "40px", // move to bottom
+    left: "50%",
+    transform: "translateX(-50%)",
+    background: success ? "rgba(46, 204, 113, 0.9)" : "rgba(231, 76, 60, 0.9)",
+    color: "#fff",
+    padding: "14px 22px",
+    borderRadius: "8px",
+    fontSize: "18px",
+    fontWeight: "600",
+    zIndex: "9999",
+    boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
+    opacity: "0",
+    transition: "opacity 0.3s ease, transform 0.3s ease",
+  });
+
+  document.body.appendChild(div);
+
+  // Animate in (slide up)
+  setTimeout(() => {
+    div.style.opacity = "1";
+    div.style.transform = "translateX(-50%) translateY(-10px)";
+  }, 50);
+
+  // Fade out and remove
+  setTimeout(() => {
+    div.style.opacity = "0";
+    div.style.transform = "translateX(-50%) translateY(0)";
+    setTimeout(() => div.remove(), 300);
+  }, duration);
+}
+
+window.toastCenter = toastCenter;
+
+function showRemark(title, text) {
+
+  document.querySelector("#remarkTitle").textContent =
+    title;
+
+  document.querySelector("#remarkContent").textContent =
+    text || "No Remark";
+
+  document.querySelector("#remarkModal").style.display =
+    "flex";
+}
+
+window.showRemark = showRemark;
+
+document.addEventListener("click", (e) => {
+
+  if (
+    e.target.id === "closeRemark" ||
+    e.target.id === "remarkModal"
+  ) {
+
+    document.querySelector("#remarkModal").style.display =
+      "none";
+  }
+
+});
+
+async function openMachineSelect(isEditLog = false) {
+
+  const machines = await jfetch("/api/v1/machines");
+
+  const list = document.querySelector("#machineList");
+
+  list.innerHTML = "";
+
+  machines.forEach(m => {
+
+    const btn = document.createElement("button");
+
+    btn.className = "machine-btn";
+    btn.innerText = m.code || m.name;
+
+    btn.onclick = async () => {
+
+      document.querySelector("#machineOverlay").style.display = "none";
+
+      // ===== แก้จากตาราง =====
+      if (isEditLog && selectedLogId) {
+
+        editingMachineId = m.id;
+
+        await jfetch(`/api/v1/step-logs/${selectedLogId}`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            machine_id: editingMachineId
+          })
+        });
+
+        await loadOperation();
+        editingMachineId = null;
+        selectedLogId = null;
+        return;
+      }
+
+      // ===== เปลี่ยน Machine Header =====
+      currentMachineId = m.id;
+
+      document.querySelector("#machinename").textContent =
+        m.name || m.code;
+    };
+
+    list.appendChild(btn);
+
+  });
+
+  document.querySelector("#machineOverlay").style.display = "flex";
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+
+  document
+    .querySelector("#machinename")
+    .addEventListener("click", () => {
+
+      selectedLogId = null;
+
+      openMachineSelect(false);
+    });
+
+  document
+    .querySelectorAll(".length-uom-btn")
+    .forEach((btn) => {
+
+      btn.addEventListener("click", () => {
+
+        document
+          .querySelectorAll(".length-uom-btn")
+          .forEach(b => b.classList.remove("active"));
+
+        btn.classList.add("active");
+
+        selectedLengthUOM =
+          btn.dataset.uom;
+
+        document.querySelector("#uomLabel").textContent =
+          selectedLengthUOM.toUpperCase();
+
+        console.log(
+          "Selected Length UOM:",
+          selectedLengthUOM
+        );
+      });
+    });
+  // ✅ Default to PCS
+  // document.querySelector('.unit-btn[data-uom="pcs"]').classList.add("active");
+
+  // ✅ Only show custom keypad (no keyboard)
+  document.querySelectorAll(".action-box").forEach((box) => {
+    box.addEventListener("click", (e) => {
+
+      const type = box.dataset.type;
+
+      // ❌ BLOCK RECEIVE
+      if (type === "receive") {
+        toastCenter("Receive is auto-calculated", false);
+        return;
+      }
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      const target = box.querySelector(".qty-display");
+      showKeypad(target, type);
+    });
+  });
+  // ===== Backspace button =====
+  document.querySelector(".backspace-btn").addEventListener("click", () => {
+    if (!activeTarget) return;
+
+    let val = activeTarget.textContent.trim();
+
+    // remove last character
+    val = val.slice(0, -1);
+
+    // if empty -> 0
+    if (val === "") val = "0";
+
+    activeTarget.textContent = val;
+    updateDisplay(val);
+  });
+  // ===== Keypad numeric keys =====
+  // ===== Keypad numeric keys =====
+  document.querySelectorAll(".key").forEach((btn) => {
+
+    btn.addEventListener("click", () => {
+
+      if (!activeTarget) return;
+
+      let val =
+        activeTarget.textContent.trim();
+
+      const key =
+        btn.textContent.trim();
+
+      // ⭐ prevent multiple .
+      if (
+        key === "." &&
+        val.includes(".")
+      ) {
+        return;
+      }
+
+      if (
+        isFirstKeyPress ||
+        val === "0"
+      ) {
+
+        // keep 0. working
+        if (key === ".") {
+          val = "0";
+        } else {
+          val = "";
+        }
+
+        isFirstKeyPress = false;
+      }
+
+      val = val + key;
+
+      activeTarget.textContent = val;
+
+      updateDisplay(val);
+    });
+  });
+
+
+  // ===== OK button =====
+  document.querySelector(".ok-btn").addEventListener("click", async () => {
+    if (!activeTarget || !activeType) return;
+
+    const stepId = currentStepData?.id;
+    if (!stepId) {
+      toastCenter("Step not ready", false);
+      return;
+    }
+
+    const val = parseFloat(activeTarget.textContent.trim());
+    const poValue =
+      document.querySelector("#poValue")?.textContent?.trim() || "";
+
+    const lengthValue =
+      document.querySelector("#lengthValue")?.textContent?.trim() || "";
+
+    // const qtyValue =
+    //   parseFloat(
+    //     document.querySelector("#qtyValue")?.textContent?.trim() || "0"
+    //   );
+
+    if (isNaN(val) || val < 0) {
+      toastCenter("Invalid number", false);
+      return;
+    }
+
+    try {
+
+     const isMachineMode =
+  currentStepData.input_mode === "machine_cut" ||
+  /^M[123]$/.test(
+    String(currentStepData.step_code || "")
+      .replace(/\s+/g, "")
+      .toUpperCase()
+  );
+      // 🔥 LOAD LOGS ONCE
+      const logs = await jfetch(`/api/v1/step-logs?step_id=${stepId}`);
+
+      const targetDate =
+        manualRowSelected
+          ? selectedLogDate
+          : getLADate();
+
+      const existing = logs.find((l) => {
+        const logDate = formatLADate(l.work_date);
+
+        return logDate === targetDate;
+      });
+
+      let qty_accept = existing?.qty_accept || 0;
+      let qty_reject = existing?.qty_reject || 0;
+
+
+      // 🔥 APPLY CHANGE
+      if (!isMachineMode) {
+
+        if (activeType === "accept")
+          qty_accept = val;
+
+        if (activeType === "reject")
+          qty_reject = val;
+      }
+
+      if (isMachineMode && activeType === "accept") {
+        qty_accept = val;
+      }
+
+      // 🔥 VALIDATION (IMPORTANT)
+      const receive = currentReceive;
+
+      const old_accept = existing?.qty_accept || 0;
+      const old_reject = existing?.qty_reject || 0;
+
+      // remove old value first
+
+      const new_total =
+        (qty_accept + qty_reject) - (old_accept + old_reject);
+
+      const current_total = old_accept + old_reject;
+
+      // if (current_total + new_total > receive) {
+      //   toastCenter("❌ Accept + Reject > Receive", false);
+      //   // return;
+      // }
+
+      const remark = document.querySelector("#remarkInput")?.value.trim() || "";
+
+      let operator_id = null;
+      if (travelerEmp) {
+        const emp = await jfetch(`/api/v1/employees/by-code/${travelerEmp}`);
+        operator_id = emp?.id || null;
+      }
+
+      // 🔥 SAVE
+      if (existing) {
+        await jfetch(`/api/v1/step-logs/${existing.id}`, {
+          method: "PATCH",
+          body: JSON.stringify(
+
+            isMachineMode
+              ? {
+
+                supplier_po: poValue,
+
+                material_length: lengthValue,
+                material_uom: selectedLengthUOM,
+
+                // material_qty: qtyValue,
+                qty_accept,   // ⭐ ADD THIS
+
+                operator_id,
+
+                machine_id: editingMachineId || currentMachineId,
+
+                note: remark,
+              }
+
+              : {
+
+                qty_accept,
+                qty_reject,
+
+                operator_id,
+
+                machine_id: editingMachineId || currentMachineId,
+
+                note: remark,
+              }
+          ),
+        });
+      } else {
+        await jfetch(`/api/v1/step-logs`, {
+          method: "POST",
+          body: JSON.stringify(
+
+            isMachineMode
+              ? {
+
+                step_id: stepId,
+
+                work_date: targetDate,
+
+                supplier_po: poValue,
+
+                material_length: lengthValue,
+                qty_accept,   // ⭐ ADD THIS
+
+                material_uom: selectedLengthUOM,
+
+                // material_qty: qtyValue,
+
+                operator_id,
+
+                machine_id: editingMachineId || currentMachineId,
+
+                note: remark,
+              }
+
+              : {
+
+                step_id: stepId,
+
+                work_date: targetDate,
+
+                qty_accept,
+                qty_reject,
+
+                operator_id,
+
+                machine_id: editingMachineId || currentMachineId,
+
+                note: remark,
+              }
+          ),
+        });
+      }
+
+      toastCenter(`💾 Saved ${activeType} = ${val}`, true);
+      console.log("Updating lot status for:", currentLotId);
+      // ⭐ UPDATE LOT STATUS
+      if (currentLotId) {
+        await jfetch(`/api/v1/lots/${currentLotId}/status`, {
+          method: "PUT",
+          body: JSON.stringify({
+            status: "in_process"
+          })
+        });
+        console.log("Lot status updated to in_process");
+      }
+
+      // // ⭐ AUTO PASS FOR MATERIAL OP
+      // if (
+      //   isMachineMode &&
+      //   poValue &&
+      //   poValue.trim() !== ""
+      // ) {
+
+      //   await jfetch(
+      //     `/api/v1/traveler-steps/${stepId}/status`,
+      //     {
+      //       method: "PUT",
+      //       body: JSON.stringify({
+      //         status: "passed"
+      //       })
+      //     }
+      //   );
+      // }
+
+
+
+      hideKeypad();
+
+      setTimeout(loadOperation, 300);
+
+    } catch (err) {
+      console.error("❌ ERROR", err);
+      toastCenter("Save failed", false);
+    }
+  });
+
+  document
+    .querySelector(".close-btn")
+    .addEventListener("click", () => hideKeypad(true));
+
+  document.querySelector("#btnConfirm").addEventListener("click", async () => {
+    try {
+
+      const travelerStep = new URLSearchParams(location.search).get("seq");
+      const qs =
+        travelerStep !== null ? `?seq=${encodeURIComponent(travelerStep)}` : "";
+
+      const data = await jfetch(`/api/v1/travelers/by_no/${travelerNo}${qs}`);
+
+      currentLotId = data.lot_id;
+      console.log("✅ Lot ID loaded:", currentLotId);
+
+
+
+      // 🔥 FIX: ใช้ตัวเดียว
+      const stepId = currentStepData?.id || data?.active_step?.id;
+
+      if (!stepId) {
+        toastCenter("No active step found", false);
+        return;
+      }
+
+      const remark = document.querySelector("#remarkInput").value.trim();
+
+
+      const logs = await jfetch(`/api/v1/step-logs?step_id=${stepId}`);
+      const targetDate =
+        manualRowSelected
+          ? selectedLogDate
+          : getLADate();
+
+      const existing = logs.find((l) => {
+        const logDate = formatLADate(l.work_date);
+
+        return logDate === targetDate;
+      });
+
+      const qty_accept = existing?.qty_accept || 0;
+      const qty_reject = existing?.qty_reject || 0;
+      const operator_id = existing?.operator_id || null;
+
+      if (existing) {
+        await jfetch(`/api/v1/step-logs/${existing.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            qty_accept,
+            qty_reject,
+            operator_id,
+            machine_id: editingMachineId || currentMachineId,
+            note: remark,
+          }),
+        });
+      } else {
+        await jfetch(`/api/v1/step-logs`, {
+          method: "POST",
+          body: JSON.stringify({
+            step_id: stepId,
+            work_date: targetDate,
+            qty_accept,
+            qty_reject,
+            note: remark || "",
+          }),
+        });
+      }
+
+      toastCenter("💬 Remark saved", true);
+
+      setTimeout(loadOperation, 400);
+
+    } catch (err) {
+      console.error("❌ Confirm save error", err);
+      toastCenter("Save failed", false);
+    }
+  });
+
+  // Load first data
+
+  loadOperation();
+  console.log("UI Traveler loaded with traveler_no:", travelerNo);
+});
+
+/* ===== AUTO-SAVE REMARK ===== */
+let remarkTimer = null;
+const AUTO_SAVE_DELAY = 500;
+
+document.querySelector("#remarkInput").addEventListener("input", () => {
+  clearTimeout(remarkTimer);
+
+  remarkTimer = setTimeout(async () => {
+    const remark = document.querySelector("#remarkInput").value.trim();
+
+    try {
+      const stepId = currentStepData?.id;
+      if (!stepId) return;
+
+      const logs = await jfetch(`/api/v1/step-logs?step_id=${stepId}`);
+
+      // 🔥 FIX DATE
+      const targetDate =
+        manualRowSelected
+          ? selectedLogDate
+          : getLADate();
+
+      const existing = logs.find((l) => {
+        const logDate = formatLADate(l.work_date);
+        return logDate === targetDate;
+      });
+
+      if (existing) {
+        await jfetch(`/api/v1/step-logs/${existing.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            note: remark || "",   // 🔥 FIX: allow empty
+          }),
+        });
+      } else {
+        await jfetch(`/api/v1/step-logs`, {
+          method: "POST",
+          body: JSON.stringify({
+            step_id: stepId,
+            work_date: targetDate,
+            note: remark || "",
+          }),
+        });
+      }
+
+      console.log("💬 Auto-saved:", remark);
+
+    } catch (err) {
+      console.error("❌ Auto-save error", err);
+      toast("Failed to save remark", false);
+    }
+  }, AUTO_SAVE_DELAY);
+});
+
+function getFirstActiveStatus(steps) {
+  if (!steps || steps.length === 0) return "pending";
+
+  // 🔥 sort ก่อน (กัน bug)
+  const sorted = [...steps].sort((a, b) => a.seq - b.seq);
+
+  // 🔥 หา step แรกที่ยังไม่ผ่าน
+  const firstActive = sorted.find(s => s.status !== "passed");
+
+  if (!firstActive) return "passed";
+
+  return firstActive.status;
+}
+
+function formatLADate(date) {
+  if (!date) return "";
+
+  // ✅ pure DATE from backend
+  if (typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return date;
+  }
+
+  // datetime fallback
+  return new Date(date)
+    .toLocaleString("sv-SE", {
+      timeZone: "America/Los_Angeles",
+    })
+    .slice(0, 10);
+}
+
+
+/* ===== LOAD CURRENT STEP ===== */
+function getTodayLog(logs) {
+  const today = getLADate();
+  console.log("Looking for today's log. Today =", today);
+  return logs.find(
+    l => l.work_date && formatLADate(l.work_date) === today
+  );
+}
+
+function calcReceive(step, steps, allLogs, todayAccept, todayReject) {
+  // STEP 1
+  if (step.seq === 1) {
+    return todayAccept + todayReject;
+  }
+
+  const prevStep = steps
+    ?.filter(s => s.seq < step.seq)
+    .sort((a, b) => b.seq - a.seq)[0];
+
+  if (!prevStep?.id) return 0;
+
+  const prevLogs = allLogs[prevStep.id] || [];
+
+  return prevLogs.reduce(
+    (sum, l) => sum + (Number(l.qty_accept || 0) + Number(l.qty_reject || 0)),
+    0
+  );
+}
+
+
+async function loadOperation() {
+
+  console.log("machineIdFromURL =", machineIdFromURL);
+  console.log("currentMachineId =", currentMachineId);
+  // =========================
+  // MACHINE
+  // =========================
+
+
+  try {
+    const qs = travelerStep ? `?seq=${encodeURIComponent(travelerStep)}` : "";
+    const data = await jfetch(`/api/v1/travelers/by_no/${travelerNo}${qs}`);
+
+    currentLotId = data.lot_id;
+    console.log("✅ currentLotId loaded:", currentLotId);
+
+    // ⭐ SHOW LOT + PART (CORRECT PLACE)
+    document.querySelector("#lot_no").textContent =
+      `Lot: ${data.lot?.lot_no || "-"}`;
+    // console.log("LOT QTY:",data.lot?.planned_qty)
+    document.querySelector("#lot_qty").textContent =
+      `PO QTY: ${data.lot?.planned_qty || "-"}`;
+
+    // document.querySelector("#part_no").textContent =
+    //   `Part: ${data.lot?.part?.part_no || "-"}`;
+
+
+    const part = data.lot?.part || {};
+
+    document.querySelector("#part_no").innerHTML = `
+        <div>
+
+          <b>Part:</b> ${part.part_no || "-"}
+
+          ${part.ecar === "Y" ? `
+              <span
+              onclick="showRemark( 'ECAR', '${(part.ecar_remark || 'Open ECAR').replace(/'/g, "\\'")}' )"
+              style="color:#dc2626;font-weight:bold;margin-left:10px;cursor:pointer;"    >
+              🚨CAR
+              </span>
+              ` : ""
+      }
+          ${part.icar === "Y" ? `
+              <span
+                onclick="showRemark('ICAR', '${(part.icar_remark || 'Open ICAR').replace(/'/g, "\\'")}' )"
+                style="
+                  color:#d97706;
+                  font-weight:bold;
+                  margin-left:10px;
+                  cursor:pointer;
+                "
+              >
+                ⚠️ICAR
+              </span>
+              `: ""
+      }
+
+          </div>
+          `;
+
+    //     const part = data.lot?.part || {};
+
+    //     document.querySelector("#part_no").innerHTML = `
+    //   <div>
+    //     <b>Part:</b> ${part.part_no || "-"}
+
+    //     ${part.ecar_remark
+    //         ? `
+    //       <div style="
+    //           color:#dc2626;
+    //           font-weight:bold;
+    //           margin-top:4px;
+    //       ">
+    //           🚨 ${part.ecar_remark}
+    //       </div>
+    //       `
+    //         : ""
+    //       }
+
+    //     ${part.icar_remark
+    //         ? `
+    //       <div style="
+    //           color:#d97706;
+    //           font-weight:bold;
+    //       ">
+    //           ⚠️ ${part.icar_remark}
+    //       </div>
+    //       `
+    //         : ""
+    //       }
+
+    //   </div>
+    // `;
+
+    document.querySelector("#part_rev").textContent =
+      `Rev: ${data.lot?.part?.part_rev || "-"}`;
+
+    if (!data) return;
+
+    // =========================
+    // 🔥 OP LIST (INSIDE loadOperation)
+    // =========================
+    const opListEl = document.querySelector("#op_list");
+
+    if (opListEl) {
+      opListEl.innerHTML = "";
+
+      const steps = data.steps || [];
+
+      steps.forEach((s) => {
+        const div = document.createElement("div");
+
+        div.className = "op-item";
+
+        if (Number(s.seq) === Number(travelerStep)) {
+          div.classList.add("active");
+        }
+
+        div.style.borderLeft = `10px solid ${statusColor(s.status)}`;
+
+        div.innerHTML = `
+  <div style="font-size:18px;font-weight:700;">${s.step_code}</div>
+ </div>
+`;
+
+        div.onclick = () => {
+          location.href =
+            `/static/ui-traveler.html?traveler_no=${encodeURIComponent(travelerNo)}`
+            + `&seq=${encodeURIComponent(s.seq)}`
+            + `&traveler_emp=${encodeURIComponent(travelerEmp)}`
+            + `&machine_id=${currentMachineId}`;
+        };
+
+        opListEl.appendChild(div);
+      });
+    }
+    // =========================
+    // STEP
+    // =========================
+
+
+    let step = data.active_step || {};
+
+
+
+    if (!step.id && data.steps?.length) {
+      step = data.steps.find(s => s.seq == travelerStep) || data.steps[0];
+    }
+
+    currentStepData = step;
+    console.log("STEPPPPPPPPP:", step)
+    const isMachineMode =
+  currentStepData?.input_mode === "machine_cut" ||
+  /^M[123]$/.test(
+    String(currentStepData?.step_code || "").replace(/\s+/g, "").toUpperCase()
+  );
+    const head = document.querySelector("#logTableHead");
+
+    if (head) {
+
+      head.innerHTML = isMachineMode
+        ? `
+      <tr>
+        <th>Date</th>
+        <th>PO</th>
+        <th>Length</th>
+         <th>QTY</th>
+        <th>Operator</th>
+        <th>Machine</th>
+      </tr>
+    `
+        : `
+      <tr>
+        <th>Date</th>
+        <th>Accept</th>
+        <th>Reject</th>
+        <th>Operator</th>
+        <th>Machine</th>
+      </tr>
+    `;
+    }
+    document.querySelector("#machinePanel")
+      .style.display =
+      isMachineMode ? "flex" : "none";
+
+    document.querySelector("#normalPanel")
+      .style.display =
+      isMachineMode ? "none" : "flex";
+
+    const logs = await jfetch(`/api/v1/step-logs?step_id=${step.id}`);
+
+    const todayLog = getTodayLog(logs);
+    const activeLog = selectedLogDate
+      ? logs.find(l =>
+        formatLADate(l.work_date) === selectedLogDate
+      )
+      : getTodayLog(logs);
+
+    const today = getLADate();
+
+    // =========================
+    // LEFT SIDE (TODAY)
+    // =========================
+
+
+    if (isMachineMode) {
+
+      document.querySelector("#poValue").textContent =
+        activeLog?.supplier_po || "-";
+
+      document.querySelector("#lengthValue").textContent =
+        activeLog?.material_length || "0";
+
+      document.querySelector("#goodQty").textContent =
+        parseInt(activeLog?.qty_accept || 0);
+
+      // document.querySelector("#qtyValue").textContent =
+      //   parseFloat(activeLog?.material_qty || 0);
+
+    } else {
+
+      const accept = activeLog?.qty_accept || 0;
+      const reject = activeLog?.qty_reject || 0;
+
+      document.querySelector("#acceptQty").textContent =
+        parseInt(accept || 0);
+
+      document.querySelector("#rejectQty").textContent =
+        parseInt(reject || 0);
+    }
+
+
+
+    // =========================
+    // RECEIVE (FIXED)
+    // =========================
+    const stepData = data.steps.find(s => s.id === step.id) || {};
+    // console.log("Current Step Data:", stepData);
+
+
+    const receive =
+      stepData.qty_receive || 0;
+
+    const remain =
+      stepData.qty_remain || 0;
+
+    currentReceive = receive;
+
+    const el = document.querySelector("#remainText");
+    if (el) {
+      el.textContent = `Remain/Receive : ${remain} / ${receive}`;
+      el.style.color = remain === 0 ? "#16a34a" : "#dc2626";
+    }
+
+    // =========================
+    // 🔥 TOTAL (ADD HERE)
+    // =========================
+    const totalAccept =
+      stepData.total_accept || 0;
+
+    const totalReject =
+      stepData.total_reject || 0;
+
+    const elTotalAccept = document.querySelector("#totalAccept");
+    const elTotalReject = document.querySelector("#totalReject");
+
+    if (elTotalAccept) elTotalAccept.textContent = parseInt(totalAccept || 0);
+    if (elTotalReject) elTotalReject.textContent = parseInt(totalReject || 0);
+
+    // =========================
+    // RIGHT SIDE TABLE
+    // =========================
+    const tbody = document.querySelector("#logTable tbody");
+
+    if (tbody) {
+      tbody.innerHTML = "";
+
+      if (logs.length === 0) {
+        tbody.innerHTML = `
+<tr>
+  <td colspan="${isMachineMode ? 6 : 5}" style="color:#999">
+    No data
+  </td>
+</tr>
+`;
+      } else {
+        const totalAccept = logs.reduce(
+          (sum, l) => sum + Number(l.qty_accept || 0),
+          0
+        );
+
+        const totalReject = logs.reduce(
+          (sum, l) => sum + Number(l.qty_reject || 0),
+          0
+        );
+
+        logs
+          .sort((a, b) => new Date(b.work_date) - new Date(a.work_date))
+          .forEach((l) => {
+
+            const tr = document.createElement("tr");
+
+            const logDate = formatLADate(l.work_date);
+            const today = getLADate();
+
+            // ⭐ highlight on load
+            if (
+              selectedLogDate === logDate ||
+              (!selectedLogDate && logDate === today)
+            ) {
+              tr.classList.add("active-row");
+            }
+            tr.style.cursor = "pointer";
+
+            tr.onclick = () => {
+
+              manualRowSelected = true;
+
+              selectedLogDate =
+                formatLADate(l.work_date);
+
+              // remove old
+              document
+                .querySelectorAll("#logTable tbody tr")
+                .forEach(r => r.classList.remove("active-row"));
+
+              // add new
+              tr.classList.add("active-row");
+
+              // ⭐ MACHINE MODE
+              if (isMachineMode) {
+
+                document.querySelector("#goodQty").textContent =
+                  parseInt(l.qty_accept || 0);
+
+                document.querySelector("#poValue").textContent =
+                  l.supplier_po || "-";
+
+                document.querySelector("#lengthValue").textContent =
+                  l.material_length || "0";
+
+              }
+
+              // ⭐ NORMAL MODE
+              else {
+
+                document.querySelector("#acceptQty").textContent =
+                  parseInt(l.qty_accept || 0);
+
+                document.querySelector("#rejectQty").textContent =
+                  parseInt(l.qty_reject || 0);
+              }
+
+              // remark
+              document.querySelector("#remarkInput").value =
+                l.note || "";
+
+              toastCenter(
+                `Editing ${selectedLogDate}`,
+                true
+              );
+            };
+
+            tr.innerHTML = isMachineMode
+
+              ? `
+          <td>
+
+
+
+            ${l.work_date
+                ? (() => {
+                  const [y, m, d] = l.work_date.split("-");
+                  return `${m}/${d}/${y.slice(2)}`;
+                })()
+                : "-"
+              }
+</td>
+
+<td>${l.supplier_po || "-"}</td>
+
+<td>
+  ${l.material_length
+                ? `${l.material_length} ${(l.material_uom || "").toUpperCase()}`
+                : "-"
+              }
+</td>
+</td>
+
+<td>
+  ${parseInt(l.qty_accept || 0)}
+</td>
+
+<td>
+  ${l.operator_nickname || l.operator_name || "-"}
+</td>
+
+<td class="machine-cell"
+    data-log-id="${l.id}"
+    data-machine-id="${l.machine_id || ""}">
+    ${l.machine_name || "-"}
+</td>
+`
+
+              : `
+<td>
+  ${l.work_date
+                ? (() => {
+                  const [y, m, d] = l.work_date.split("-");
+                  return `${m}/${d}/${y.slice(2)}`;
+                })()
+                : "-"
+              }
+</td>
+
+<td>${parseInt(l.qty_accept || 0)}</td>
+
+<td>${parseInt(l.qty_reject || 0)}</td>
+
+<td>${l.operator_nickname || l.operator_name || "-"}</td>
+
+<td class="machine-cell"
+    data-log-id="${l.id}"
+    data-machine-id="${l.machine_id}">
+    ${l.machine_name || "-"}
+</td>
+`;
+
+            const machineCell = tr.querySelector(".machine-cell");
+
+            if (machineCell) {
+
+              machineCell.onclick = (e) => {
+
+                e.stopPropagation();
+
+                selectedLogId = l.id;
+                editingMachineId = l.machine_id;
+
+                openMachineSelect(true);   // true = edit log
+              };
+            }
+
+            tbody.appendChild(tr);
+          });
+
+        // 🔥 ADD TOTAL ROW HERE
+        const totalRow = document.createElement("tr");
+
+        totalRow.innerHTML = isMachineMode
+
+          ? `
+<td style="font-weight:700;">Total</td>
+<td></td>
+<td style="font-weight:700; color:#f59e0b;">
+
+  ${logs.reduce(
+            (sum, l) =>
+              sum + parseFloat(l.material_length || 0),
+            0
+          )
+          }
+
+  ${(logs[0]?.material_uom || "").toUpperCase()}
+
+</td>
+
+<td style="font-weight:700; color:#16a34a;">
+  ${parseInt(totalAccept || 0)}
+</td>
+
+<td></td>
+
+<td></td>
+`
+
+          : `
+<td style="font-weight:700;">Total</td>
+
+<td style="font-weight:700; color:#16a34a;">
+  ${parseInt(totalAccept || 0)}
+</td>
+
+<td style="font-weight:700; color:#ef4444;">
+  ${parseInt(totalReject || 0)}
+</td>
+
+<td></td>
+<td></td>
+`;
+
+        totalRow.style.background = "#f9fafb";
+        totalRow.style.borderTop = "2px solid #111";
+
+        tbody.appendChild(totalRow);
+      }
+    }
+
+    // =========================
+    // REMARK
+    // =========================
+
+
+    let currentRemark = "";
+
+    if (selectedLogDate) {
+
+
+      const selectedLog = logs.find(l => {
+        const logDate = formatLADate(l.work_date);
+
+
+
+
+        return logDate === selectedLogDate;
+      });
+
+      currentRemark = selectedLog?.note || "";
+    } else {
+      currentRemark = todayLog?.note || step.note || "";
+    }
+
+
+    document.querySelector("#remarkInput").value =
+      currentRemark;
+
+    // ⭐ IMPORTANT
+    const remarkInput =
+      document.querySelector("#remarkInput");
+
+    remarkInput.style.height = "auto";
+
+    remarkInput.style.height =
+      remarkInput.scrollHeight + "px";
+
+    // =========================
+    // OPERATOR
+    // =========================
+
+    let operatorText = travelerEmp || "—";
+
+    console.log("Loading operator for code:", travelerEmp);
+
+    try {
+
+      if (travelerEmp) {
+
+        const emp = await jfetch(
+          `/api/v1/employees/by-code/${travelerEmp}`
+        );
+
+        console.log("emp =", emp);
+
+        operatorText =
+
+          emp.nickname ||
+          emp.name ||
+          emp.emp_code ||
+          travelerEmp;
+
+        console.log("operatorText =", operatorText);
+      }
+
+    } catch (err) {
+
+      console.warn("Failed to load employee", err);
+    }
+
+    let machineText = "-";
+
+    // ใช้ค่าใน URL แค่ครั้งแรก
+    if (!currentMachineId && machineIdFromURL) {
+      currentMachineId = Number(machineIdFromURL);
+    }
+
+
+    if (currentMachineId) {
+      try {
+        const m = await jfetch(`/api/v1/machines/${currentMachineId}`);
+        machineText = m.name || m.code || currentMachineId;
+      } catch {
+        machineText = currentMachineId;
+      }
+    }
+
+    // document.querySelector("#machinename").textContent =
+    //   "Machine: " + machineText;
+
+    document.querySelector("#operatorName").textContent =
+      operatorText;
+
+    document.querySelector("#machinename").textContent =
+      machineText;
+
+    // document.querySelector("#loginOP").textContent =
+    //   `Login: ${travelerEmp}`;
+
+    // =========================
+    // STATUS
+    // =========================
+    const refreshedStep =
+      data.steps.find(s => s.id === step.id) || step;
+
+    const op_status = travelerStep
+      ? refreshedStep.status
+      : getFirstActiveStatus(data.steps);
+
+    const opStatusEl = document.querySelector("#op_status");
+    opStatusEl.textContent = op_status;
+    opStatusEl.style.backgroundColor = statusColor(op_status);
+
+    const cleanStepName =
+      (step.step_name || "-")
+        .replace(/\*\*/g, "");
+
+    document.querySelector("#opName").textContent =
+      cleanStepName;
+
+    document.querySelector("#opCode").textContent =
+      step.seq ? `${step.step_code}` : "-";
+
+  } catch (err) {
+
+    console.error("❌ loadOperation failed FULL:", err);
+
+    if (err.response) {
+
+      try {
+
+        const txt =
+          await err.response.text();
+
+        console.error("SERVER RESPONSE:", txt);
+
+      } catch (e) {
+        console.error(e);
+      }
+
+    }
+
+    toast(
+      err.message || "Load failed",
+      false
+    );
+  }
+}
+
+function statusColor(status) {
+  return (
+    {
+      passed: "#10b981",
+      pending: "#6b7280",
+      in_process: "#f59e0b",
+      rejected: "#ef4444",
+      running: "#3b82f6",
+    }[status] || "#6b7280"
+  );
+}
+
+
+
+
+/* ===== SCANNER INPUT HANDLING ===== */
+let typingTimer;
+const doneTypingInterval = 200;
+
+async function handleInput() {
+  clearTimeout(typingTimer);
+  typingTimer = setTimeout(async () => {
+    const input = document.getElementById("scannerInput");
+    const value = input.value.trim();
+    if (!value) return;
+
+    console.log("📥 Scanned:", value);
+
+    // === CASE 1: Machine QR code ===
+    // Example: prefix your QR with "MC:" or detect machine code pattern
+    if (value.startsWith("m") || value.startsWith("cnc")) {
+      try {
+        const m = await jfetch(`/api/v1/machines/by_code/${value}`);
+
+        currentMachineId = m.id;   // ✅ สำคัญ
+        document.getElementById("machinename").textContent = m.name || value;
+
+        toastCenter(`🖥️ Machine: ${m.name}`, true);
+
+      } catch (err) {
+        toastCenter("Machine not found", false);
+      }
+
+      input.value = "";
+      input.focus({ preventScroll: true });
+      return;
+    }
+    if (value.startsWith("e") || value.startsWith("E")) {
+      // just show machine code directly, or fetch from API
+      document.getElementById("machinename").textContent = value;
+      toastCenter(`Employee selected: ${value}`, true);
+
+      // optional: if you have a backend lookup for machine details
+      // try {
+      //   const machine = await jfetch(`/api/v1/machines/by_code/${value}`);
+      //   document.getElementById("machinename").textContent = machine.name || value;
+      //   toastCenter(`🖥️ Machine: ${machine.name}`, true);
+      // } catch (err) {
+      //   console.warn("Machine lookup failed", err);
+      // }
+
+      input.value = "";
+      input.focus({ preventScroll: true });
+      return; // stop further traveler logic
+    } else {
+      // === CASE 2: Operator / Traveler scan (existing logic) ===
+      try {
+        const traveler = await jfetch(`/api/v1/travelers/by_no/${travelerNo}`);
+        const activeStep = traveler?.active_step;
+        if (!activeStep || !activeStep.id) {
+          toast("⚠️ No active step found");
+          return;
+        }
+
+        const stepId = activeStep.id;
+        await jfetch(`/api/v1/travelers/traveler_steps/${stepId}`, {
+          method: "PATCH",
+          body: JSON.stringify({ operator_code: value }),
+        });
+
+        toastCenter(`🖥️ Operator selected: ${value}`, true);
+        await loadOperation();
+      } catch (err) {
+        console.error("❌ Operator scan update failed:", err);
+        toastCenter("Failed to update operator", false);
+      }
+    }
+    input.value = "";
+    input.focus();
+  }, doneTypingInterval);
+
+
+}
+window.handleInput = handleInput;
+
+window.showKeypad = showKeypad;
+window.activeType = activeType;
+window.activeTarget = activeTarget;
+
+
+document.getElementById("exitBtn").onclick = () => {
+  window.location.href = "/static/ui-traveler-landing.html";
+  // 🔁 change to your main page
+};
+
+const remarkInput =
+  document.querySelector("#remarkInput");
+
+if (remarkInput) {
+
+  function autoResizeRemark() {
+
+    remarkInput.style.height = "auto";
+
+    remarkInput.style.height =
+      remarkInput.scrollHeight + "px";
+  }
+
+  remarkInput.addEventListener(
+    "input",
+    autoResizeRemark
+  );
+
+  autoResizeRemark();
+}
+async function loadInspection() {
+
+  // เปิด Popup
+  document.getElementById("inspectionModal").style.display = "flex";
+
+  // หา Inspection ของ Lot
+  const qa = await jfetch(
+    `/api/v1/qa-inspections/by-lot/${currentLotId}`
+  );
+
+  if (!qa) {
+
+    document.querySelector("#inspectionTable").innerHTML = `
+            <tr>
+                <td>No inspection found</td>
+            </tr>
+        `;
+
+    return;
+  }
+
+  // โหลดรายการ Inspection
+  const items = await jfetch(
+    `/api/v1/qa-inspections/${qa.id}/items`
+  );
+
+  console.log(items);
+
+  renderInspection(items);
+}
+document.addEventListener("click", (e) => {
+
+  if (
+    e.target.id === "closeInspection" ||
+    e.target.id === "inspectionModal"
+  ) {
+
+    document.querySelector("#inspectionModal").style.display = "none";
+
+  }
+
+});
+
+function renderInspection(items) {
+
+  document.querySelector("#inspectionTable").innerHTML = `
+        <thead>
+            <tr>
+                <th>OP</th>
+                <th>Bubble</th>
+                <th>Dimension</th>
+                <th>Actual</th>
+                <th>Result</th>
+            </tr>
+        </thead>
+
+        <tbody>
+            ${items.map(i => `
+                <tr>
+                    <td>${i.op_no}</td>
+                    <td>${i.bb_no}</td>
+                    <td>${i.dimension}</td>
+                    <td>${i.actual_value ?? ""}</td>
+                    <td>${i.result ?? ""}</td>
+                </tr>
+                `).join("")
+    }
+        </tbody>
+    `;
+}
+document.getElementById("inspection").addEventListener("click", async () => {
+
+  await loadInspection();
+
+});

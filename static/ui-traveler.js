@@ -430,13 +430,20 @@ document.addEventListener("DOMContentLoaded", () => {
 
     try {
 
-     const isMachineMode =
-  currentStepData.input_mode === "machine_cut" ||
-  /^M[123]$/.test(
-    String(currentStepData.step_code || "")
-      .replace(/\s+/g, "")
-      .toUpperCase()
-  );
+      const isMachineMode =
+        currentStepData.input_mode === "machine_cut" ||
+        /^M[123]$/.test(
+          String(currentStepData.step_code || "")
+            .replace(/\s+/g, "")
+            .toUpperCase()
+        );
+
+      const isOutsideMode =
+    String(currentStepData?.step_name || "")
+        .toUpperCase()
+        .includes("OUTSIDE");
+
+
       // 🔥 LOAD LOGS ONCE
       const logs = await jfetch(`/api/v1/step-logs?step_id=${stepId}`);
 
@@ -520,15 +527,18 @@ document.addEventListener("DOMContentLoaded", () => {
               }
 
               : {
-
                 qty_accept,
                 qty_reject,
 
+                ...(isOutsideMode ? {
+                  supplier_po: document
+                    .querySelector("#outsidePOValue")
+                    .textContent.trim()
+                } : {}),
+
                 operator_id,
-
                 machine_id: editingMachineId || currentMachineId,
-
-                note: remark,
+                note: remark
               }
           ),
         });
@@ -568,6 +578,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
                 qty_accept,
                 qty_reject,
+                ...(isOutsideMode ? {
+                  supplier_po: document
+                    .querySelector("#outsidePOValue")
+                    .textContent.trim()
+                } : {}),
 
                 operator_id,
 
@@ -851,6 +866,7 @@ async function loadOperation() {
 
     const part = data.lot?.part || {};
 
+
     document.querySelector("#part_no").innerHTML = `
         <div>
 
@@ -973,11 +989,15 @@ async function loadOperation() {
 
     currentStepData = step;
     console.log("STEPPPPPPPPP:", step)
-    const isMachineMode =
-  currentStepData?.input_mode === "machine_cut" ||
-  /^M[123]$/.test(
-    String(currentStepData?.step_code || "").replace(/\s+/g, "").toUpperCase()
-  );
+    const isMachineMode = currentStepData?.input_mode === "machine_cut" || /^M[123]$/.test(String(currentStepData?.step_code || "").replace(/\s+/g, "").toUpperCase());
+
+
+    const isOutsideMode =
+    String(currentStepData?.step_name || "")
+        .toUpperCase()
+        .includes("OUTSIDE");
+    document.querySelector("#outsidePOPanel").style.display =
+      isOutsideMode ? "flex" : "none";
     const head = document.querySelector("#logTableHead");
 
     if (head) {
@@ -1025,10 +1045,7 @@ async function loadOperation() {
     // =========================
     // LEFT SIDE (TODAY)
     // =========================
-
-
     if (isMachineMode) {
-
       document.querySelector("#poValue").textContent =
         activeLog?.supplier_po || "-";
 
@@ -1038,22 +1055,18 @@ async function loadOperation() {
       document.querySelector("#goodQty").textContent =
         parseInt(activeLog?.qty_accept || 0);
 
-      // document.querySelector("#qtyValue").textContent =
-      //   parseFloat(activeLog?.material_qty || 0);
-
     } else {
-
-      const accept = activeLog?.qty_accept || 0;
-      const reject = activeLog?.qty_reject || 0;
-
       document.querySelector("#acceptQty").textContent =
-        parseInt(accept || 0);
+        parseInt(activeLog?.qty_accept || 0);
 
       document.querySelector("#rejectQty").textContent =
-        parseInt(reject || 0);
+        parseInt(activeLog?.qty_reject || 0);
+
+      if (isOutsideMode) {
+        document.querySelector("#outsidePOValue").textContent =
+          activeLog?.supplier_po || "0";
+      }
     }
-
-
 
     // =========================
     // RECEIVE (FIXED)
@@ -1167,12 +1180,16 @@ async function loadOperation() {
 
               // ⭐ NORMAL MODE
               else {
-
                 document.querySelector("#acceptQty").textContent =
                   parseInt(l.qty_accept || 0);
 
                 document.querySelector("#rejectQty").textContent =
                   parseInt(l.qty_reject || 0);
+
+                if (isOutsideMode) {
+                  document.querySelector("#outsidePOValue").textContent =
+                    l.supplier_po || "0";
+                }
               }
 
               // remark

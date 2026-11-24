@@ -851,47 +851,47 @@
       z-index: 1000;
     }
 
-    #inspectionModal{
-    display:none;
-    position:fixed;
-    inset:0;
-    background:rgba(0,0,0,.5);
+    #inspectionModal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, .5);
 
-    z-index:99999;
+      z-index: 99999;
 
-    align-items:center;
-    justify-content:center;
-}
+      align-items: center;
+      justify-content: center;
+    }
 
-#inspectionModal > div{
-    background:white;
+    #inspectionModal>div {
+      background: white;
 
-    width:900px;
-    max-width:95%;
+      width: 900px;
+      max-width: 95%;
 
-    max-height:90vh;
+      max-height: 90vh;
 
-    overflow:auto;
+      overflow: auto;
 
-    border-radius:10px;
+      border-radius: 10px;
 
-    padding:20px;
-}
+      padding: 20px;
+    }
 
-#inspectionTable{
-    width:100%;
-    border-collapse:collapse;
-}
+    #inspectionTable {
+      width: 100%;
+      border-collapse: collapse;
+    }
 
-#inspectionTable th,
-#inspectionTable td{
-    border:1px solid #ddd;
-    padding:8px;
-}
+    #inspectionTable th,
+    #inspectionTable td {
+      border: 1px solid #ddd;
+      padding: 8px;
+    }
 
-#inspectionTable th{
-    background:#f3f4f6;
-}
+    #inspectionTable th {
+      background: #f3f4f6;
+    }
   </style>
 </head>
 
@@ -921,7 +921,7 @@
           <div class="op_status" id="op_status"></div>
           <div class="loginOP" id="loginOP"></div>
           <div class="lot_no" id="lot_no"></div>
-          <div class="lot_qty" id = "lot_qty">xx pcs</div>
+          <div class="lot_qty" id="lot_qty">xx pcs</div>
           <div class="part_no" id="part_no"></div>
           <div class="part_rev" id="part_rev"></div>
 
@@ -959,6 +959,13 @@
             <div class="action-box" data-type="reject">
               <div class="action-title">Reject</div>
               <div class="qty-display" id="rejectQty">0</div>
+            </div>
+
+            <div id="outsidePOPanel" class="action-box" data-type="po" style="display:none;">
+
+              <div class="action-title">PO</div>
+              <div class="qty-display" id="outsidePOValue">0</div>
+
             </div>
 
           </div>
@@ -1019,7 +1026,7 @@
 
       </div>
 
-      
+
 
       <div class="remarks">
 
@@ -1228,16 +1235,17 @@ font-weight:800;
 
 <div id="inspectionModal">
 
-    <div>
+  <div>
 
-        <div class="header">
-            <h2>Inspection</h2>
-            <button id="closeInspection">X</button>
-        </div>
-
-        <table id="inspectionTable"></table>
-
+    <div class="header">
+      <h2>Inspection</h2>
+      <button id="closeInspection">X</button>
     </div>
 
+    <table id="inspectionTable"></table>
+
+  </div>
+
 </div>
+
 </html>
