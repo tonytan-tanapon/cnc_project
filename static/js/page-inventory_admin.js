@@ -25,6 +25,72 @@ function fmtQty(value) {
   });
 }
 
+function countedColumn(title, field) {
+  return {
+    title,
+    field,
+    hozAlign: "right",
+    width: 110,
+    editor: "number",
+    editorParams: { min: 0 },
+
+    editable: (cell) =>
+      !String(cell.getRow().getData().from_lot ?? "").trim(),
+
+    formatter: (cell) => {
+      const el = cell.getElement();
+
+      el.style.setProperty(
+        "background-color",
+        "#fff3b0",
+        "important"
+      );
+
+      el.style.fontWeight = "bold";
+
+      const value = cell.getValue();
+
+      return value == null ? "" : fmtQty(value);
+    },
+
+    cellEdited: async function (cell) {
+      const { lot_id } = cell.getRow().getData();
+      const value = cell.getValue();
+      const qty = Number(value);
+
+      if (
+        value == null ||
+        String(value).trim() === "" ||
+        !Number.isFinite(qty) ||
+        qty < 0
+      ) {
+        cell.restoreOldValue();
+        toast("Enter a valid quantity");
+        return;
+      }
+
+      try {
+        await jfetch(ENDPOINTS.adjust, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+
+          body: JSON.stringify({
+            lot_id,
+            [field]: qty,
+          }),
+        });
+      } catch (err) {
+        console.error("Save failed:", err);
+        cell.restoreOldValue();
+        toast("Save failed");
+        return;
+      }
+
+      toast("Saved");
+    },
+  };
+}
+
 function makeColumns() {
 
   return [
@@ -52,10 +118,10 @@ function makeColumns() {
       width: 80,
     },
     {
-  title: "Customer",
-  field: "customer_no",
-  width: 130,
-},
+      title: "Customer",
+      field: "customer_no",
+      width: 130,
+    },
 
     {
       title: "Start<br>QTY",
@@ -199,11 +265,11 @@ function makeColumns() {
           toast("Saved, but the table could not reload");
         }
       },
+
+
     },
 
-
-
-
+   
     // {
     //   title: "Scrap",
     //   field: "qty_scrap",
@@ -301,6 +367,12 @@ function makeColumns() {
         toast("Saved");
       },
     },
+
+     countedColumn("Counted<br>Rework", "counted_rework_qty"),
+
+    countedColumn("Counted<br>WIP", "counted_wip_qty"),
+
+
 
     // {
     //   title: "Container",

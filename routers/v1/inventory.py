@@ -31,7 +31,10 @@ class InventoryAdjust(BaseModel):
     qty: Optional[float] = None
     note: Optional[str] = None
     status: Optional[str] = None
+
     counted_qty: Decimal | None = None
+    counted_rework_qty: Decimal | None = None
+    counted_wip_qty: Decimal | None = None
 
     container: Literal[
         "", "egg", "tray", "bag", "box", "rework", "wip", "mrb"
@@ -71,6 +74,18 @@ def inventory_to_dict(inv):
 
         "counted_qty": (
             float(inv.counted_qty) if inv.counted_qty is not None else None
+        ),
+
+        "counted_rework_qty": (
+            float(inv.counted_rework_qty)
+            if inv.counted_rework_qty is not None
+            else None
+        ),
+
+        "counted_wip_qty": (
+            float(inv.counted_wip_qty)
+            if inv.counted_wip_qty is not None
+            else None
         ),
 
     }
@@ -384,6 +399,24 @@ def adjust_inventory(
         # inv.container = "box"
         inv.container = "bag"
         # inv.container = "tray"
+
+
+    if data.counted_rework_qty is not None:
+        qty = data.counted_rework_qty
+
+        if not qty.is_finite() or qty < 0:
+            raise HTTPException(400, "Invalid rework quantity")
+
+        inv.counted_rework_qty = qty
+
+
+    if data.counted_wip_qty is not None:
+        qty = data.counted_wip_qty
+
+        if not qty.is_finite() or qty < 0:
+            raise HTTPException(400, "Invalid WIP quantity")
+
+        inv.counted_wip_qty = qty
 
     db.commit()
     db.refresh(inv)

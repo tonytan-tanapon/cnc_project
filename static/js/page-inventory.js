@@ -25,6 +25,72 @@ function fmtQty(value) {
   });
 }
 
+
+function countedColumn(title, field) {
+  return {
+    title,
+    field,
+    hozAlign: "right",
+    width: 110,
+    editor: "number",
+    editorParams: { min: 0 },
+
+    editable: (cell) =>
+      !String(cell.getRow().getData().from_lot ?? "").trim(),
+
+    formatter: (cell) => {
+      const el = cell.getElement();
+
+      el.style.setProperty(
+        "background-color",
+        "#fff3b0",
+        "important"
+      );
+
+      el.style.fontWeight = "bold";
+
+      const value = cell.getValue();
+
+      return value == null ? "" : fmtQty(value);
+    },
+
+    cellEdited: async function (cell) {
+      const { lot_id } = cell.getRow().getData();
+      const value = cell.getValue();
+      const qty = Number(value);
+
+      if (
+        value == null ||
+        String(value).trim() === "" ||
+        !Number.isFinite(qty) ||
+        qty < 0
+      ) {
+        cell.restoreOldValue();
+        toast("Enter a valid quantity");
+        return;
+      }
+
+      try {
+        await jfetch(ENDPOINTS.adjust, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+
+          body: JSON.stringify({
+            lot_id,
+            [field]: qty,
+          }),
+        });
+      } catch (err) {
+        console.error("Save failed:", err);
+        cell.restoreOldValue();
+        toast("Save failed");
+        return;
+      }
+
+      toast("Saved");
+    },
+  };
+}
 function makeColumns() {
 
   return [
@@ -300,7 +366,7 @@ function makeColumns() {
     {
       title: "Container",
       field: "container",
-      width: 450,
+      width: 300,
 
       formatter: (cell) => {
         const current = cell.getValue() ?? "";
@@ -315,9 +381,9 @@ function makeColumns() {
           ["bag", "Bag"],
           ["box", "Box"],
           ["tray", "Tray"],
-          ["wip", "WIP"],
+          // ["wip", "WIP"],
           // ["mrb", "MRB"],
-          ["rework", "Rework"]
+          // ["rework", "Rework"]
         ]) {
           const label = document.createElement("label");
           label.style.cssText =
@@ -371,10 +437,16 @@ function makeColumns() {
       },
     },
 
+     countedColumn("Counted<br>Rework", "counted_rework_qty"),
+
+    countedColumn("Counted<br>WIP", "counted_wip_qty"),
+
+
+
     {
       title: "Note",
       field: "note",
-      width: 250,
+      width: 500,
       editor: "input",
 
       cellEdited: async function (cell) {
@@ -400,12 +472,12 @@ function makeColumns() {
         }
       }
     },
-     {
-      title: "ttest",
-      field: "",
-      width: 250,
-      editor: "input",
-     }
+    //  {
+    //   title: "ttest",
+    //   field: "",
+    //   width: 250,
+    //   editor: "input",
+    //  }
 
     // {
     //   title: "Used by<br>Other Lots",

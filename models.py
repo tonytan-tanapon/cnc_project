@@ -2691,6 +2691,9 @@ class Inventory(Base):
     counted_qty = Column(Numeric(18, 3), nullable=True)
     counted_at = Column(DateTime(timezone=True), nullable=True)
 
+    counted_rework_qty = Column(Numeric(18, 3), nullable=True)
+    counted_wip_qty = Column(Numeric(18, 3), nullable=True)
+
     created_at = Column(
         DateTime(timezone=True),
         server_default=func.now(),
@@ -2712,6 +2715,7 @@ class Inventory(Base):
     )
     note = Column(Text, nullable=True)
     container = Column(Text, nullable=True)
+    # container_other = Column(Text, nullable=True)
     lot = relationship(
         "ProductionLot",
         backref="inventory",
