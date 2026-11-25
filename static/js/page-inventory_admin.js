@@ -625,17 +625,19 @@ function bindButtons() {
 
 }
 
-document.addEventListener(
-  "DOMContentLoaded",
-  async () => {
-
+document.addEventListener("DOMContentLoaded", async () => {
     initTable();
 
     bindSearch();
-
     bindButtons();
 
-    await loadData();
+    // Get lot number from URL
+    const params = new URLSearchParams(window.location.search);
+    const lotNo = params.get("q");
 
-  }
-);
+    if (lotNo && $("_q")) {
+        $("_q").value = lotNo;
+    }
+
+    await loadData();
+});

@@ -774,6 +774,10 @@ def generate_traveler_from_db_blank(template_path, data: dict, output_path):
         else:
            detail +=  "\n\n\n"
         new_row.cells[4].text = detail
+        step_code = str(step.get("step_code", "")).strip().upper()
+
+        if step_code.startswith("M"):
+            new_row.cells[4].text = "SUPPLIER:\nPO#\nHT#"
          # new_row.cells[5].text = str(step.get("qty_accept", ""))   # accept col 6
         # new_row.cells[6].text = str(step.get("qty_reject", ""))   # reject col 7
 

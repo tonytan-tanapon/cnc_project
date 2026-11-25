@@ -3526,6 +3526,12 @@ function makeLotLinks(lotId) {
       )}`,
       title: "Shipment",
     },
+
+    {
+      id: "inventory_link",
+      href: `/static/inventory_admin.html?q=${encodeURIComponent(originalLot?.part?.part_no ?? "")}`,
+      title: "Inventory",
+    },
     {
       id: "part_link",
 

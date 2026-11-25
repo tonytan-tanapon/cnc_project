@@ -1246,12 +1246,24 @@ function makeColumns() {
                     target="_blank">🧾ST</a>
                   |
                   <a href="/static/manage-lot-shippments.html?lot_id=${encodeURIComponent(lotId)}"
-                    target="_blank">📦Ship</a>
+                    target="_blank">🚚Ship</a>
               </div>
+              
+            <div>
+                <a href="/static/inventory_admin.html?q=${encodeURIComponent(r.part_no ?? "")}"
+                  target="_blank">📦Inventory</a>
+            </div>
           </div>
           `;
       },
     },
+    // search by LOT
+    //  <div>
+    //              <a href="/static/inventory_admin.html?q=${encodeURIComponent(r.lot_no ?? "")}"
+    //                target="_blank">📦Inventory</a>
+    //           </div>
+
+
     // {
     //   title: "Ship",
     //   width: 110,
@@ -1358,10 +1370,10 @@ function makeColumns() {
           completed: "Completed",
 
           creating: "Creating",
-          inspection:"Inspection",           
-          checked: "Checked",          
+          inspection: "Inspection",
+          checked: "Checked",
           canceled: "Canceled",
-     
+
 
         },
       },
@@ -1520,40 +1532,40 @@ function makeColumns() {
       cssClass: "shipment-note-cell",
       formatter: formatPartDetail,
 
-    // 🚀 ใช้ jfetch ของคุณ (สำคัญ)
-    cellEdited: async (cell) => {
-      const row = cell.getRow().getData();
-      const note = cell.getValue();
+      // 🚀 ใช้ jfetch ของคุณ (สำคัญ)
+      cellEdited: async (cell) => {
+        const row = cell.getRow().getData();
+        const note = cell.getValue();
 
-      try {
-        await jfetch(`/api/v1/lots/${encodeURIComponent(row.lot_id)}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ note }),
-        });
+        try {
+          await jfetch(`/api/v1/lots/${encodeURIComponent(row.lot_id)}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ note }),
+          });
 
-        toast("Note updated ✅");
-      } catch (err) {
-        console.error(err);
-        toast("Update failed ❌", false);
-      }
+          toast("Note updated ✅");
+        } catch (err) {
+          console.error(err);
+          toast("Update failed ❌", false);
+        }
+      },
     },
-    },
 
-{
-  title: "Shipped Date",
-    field: "lot_last_ship_date",
+    {
+      title: "Shipped Date",
+      field: "lot_last_ship_date",
       width: 160,
 
-        sorter: (a, b) => {
-          return new Date(a || 0) - new Date(b || 0);
-        },
+      sorter: (a, b) => {
+        return new Date(a || 0) - new Date(b || 0);
+      },
 
-          formatter: (cell) => {
-            const v = cell.getValue();
-            return v ? new Date(v).toLocaleDateString() : "";
-          }
-}
+      formatter: (cell) => {
+        const v = cell.getValue();
+        return v ? new Date(v).toLocaleDateString() : "";
+      }
+    }
 
 
 
