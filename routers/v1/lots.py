@@ -747,6 +747,7 @@ def update_lot_status(
         "inspection",
         "checked",
         "creating",
+        "wip",
     }:
         raise HTTPException(400, "Invalid status")
 

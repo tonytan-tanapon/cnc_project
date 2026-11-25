@@ -1373,6 +1373,7 @@ function makeColumns() {
           inspection: "Inspection",
           checked: "Checked",
           canceled: "Canceled",
+          wip: "WIP"
 
 
         },

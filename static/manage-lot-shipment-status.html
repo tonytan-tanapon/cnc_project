@@ -160,6 +160,18 @@
               <span>Completed</span>
             </label>
 
+            <label class="radio-pill">
+              <input type="radio" name="lot_status" value="inspection" />
+              <span>Inspection</span>
+            </label>
+            <label class="radio-pill">
+              <input type="radio" name="lot_status" value="checked" />
+              <span>Checked</span>
+            </label>
+            <label class="radio-pill">
+              <input type="radio" name="lot_status" value="wip" />
+              <span>WIP</span>
+            </label>
           </div>
 
           <button id="_reload" class="btn" type="button">Reload</button>
@@ -178,7 +190,7 @@
   <script type="module" src="/static/js/nav-loader.js?v=1.1"></script>
 
   <!-- ✅ UPDATE JS -->
-  <script type="module">  import "/static/js/manage-lot-shipment-status.js?v=2.8";  </script>
+  <script type="module">  import "/static/js/manage-lot-shipment-status.js?v=2.9";  </script>
 
   <!-- ✅ STYLE (สำคัญ ทำให้สวยเหมือน button) -->
   <style>
