@@ -13,6 +13,7 @@ const UI = {
 
 let els = {};
 let table = null;
+let lotsByPO = new Map();
 
 let travelerId = null;
 let lotId = null;
@@ -221,36 +222,126 @@ function makeColumns() {
       },
     },
 
+
     /* ===== LOT ===== */
     {
       title: "Lot",
       field: "lot_no",
-      width: 95,
+      width: 200,
+      variableHeight: true,
+
       sorter: (a, b) => {
         const na = Number((a || "").match(/\d+/)?.[0] || 0);
         const nb = Number((b || "").match(/\d+/)?.[0] || 0);
         return na - nb;
       },
+
       formatter: (cell) => {
         const d = cell.getRow().getData();
+
         if (!d.lot_id) return cell.getValue() ?? "";
-        return `
-          <div style="display:flex;gap:6px;align-items:center;">
-            <a class="link"
-              href="/static/lot-detail.html?lot_id=${d.lot_id}">
-              ${cell.getValue()}
-            </a>
-            <span class="copy-lot" style="cursor:pointer;">📋</span>
-          </div>
+
+        const compositeLots = [
+          ...(lotsByPO.get(d.po_id)?.values() ?? [])
+        ].filter(r =>
+          r.lot_id !== d.lot_id &&
+          r.part_no !== d.part_no
+        );
+
+        const wrapper = document.createElement("div");
+
+        wrapper.innerHTML = `
+      <div style="display:flex;gap:6px;align-items:center;">
+        <a class="link"
+           href="/static/traveler-detail.html?lot_id=${d.lot_id}">
+          ${cell.getValue()}
+        </a>
+
+        <span class="copy-lot" style="cursor:pointer;">
+          📋
+        </span>
+      </div>
+    `;
+
+        if (compositeLots.length > 0) {
+          const container = document.createElement("div");
+
+          container.style.cssText = `
+        margin-top:6px;
+        padding-left:6px;
+        border-left:2px solid #94a3b8;
+        font-size:11px;
+        white-space:normal;
+      `;
+
+          const title = document.createElement("div");
+          // title.textContent = "Composite Lots";
+          title.style.cssText = "font-weight:bold;color:#64748b;";
+
+          container.appendChild(title);
+
+          for (const r of compositeLots) {
+            const link = document.createElement("a");
+
+            link.href =
+              `/static/traveler-detail.html?lot_id=${encodeURIComponent(r.lot_id)}`;
+
+            link.textContent = `↳ ${r.lot_no} - ${r.part_no}`;
+
+            link.style.cssText = `
+          display:block;
+          color:#2563eb;
+          margin-top:3px;
         `;
+
+            container.appendChild(link);
+          }
+
+          wrapper.appendChild(container);
+        }
+
+        return wrapper;
       },
+
       cellClick: (e, cell) => {
         if (!e.target.classList.contains("copy-lot")) return;
+
         e.preventDefault();
         e.stopPropagation();
+
         copyWithFeedback(e.target, cell.getValue(), "Copied Lot");
       },
     },
+    // /* ===== LOT ===== */
+    // {
+    //   title: "Lot",
+    //   field: "lot_no",
+    //   width: 95,
+    //   sorter: (a, b) => {
+    //     const na = Number((a || "").match(/\d+/)?.[0] || 0);
+    //     const nb = Number((b || "").match(/\d+/)?.[0] || 0);
+    //     return na - nb;
+    //   },
+    //   formatter: (cell) => {
+    //     const d = cell.getRow().getData();
+    //     if (!d.lot_id) return cell.getValue() ?? "";
+    //     return `
+    //       <div style="display:flex;gap:6px;align-items:center;">
+    //         <a class="link"
+    //           href="/static/lot-detail.html?lot_id=${d.lot_id}">
+    //           ${cell.getValue()}
+    //         </a>
+    //         <span class="copy-lot" style="cursor:pointer;">📋</span>
+    //       </div>
+    //     `;
+    //   },
+    //   cellClick: (e, cell) => {
+    //     if (!e.target.classList.contains("copy-lot")) return;
+    //     e.preventDefault();
+    //     e.stopPropagation();
+    //     copyWithFeedback(e.target, cell.getValue(), "Copied Lot");
+    //   },
+    // },
 
     // /* ===== PO ===== */
     // {
@@ -1648,18 +1739,33 @@ function applyFilter() {
 /* ===== Load Data ===== */
 async function loadData() {
   els[UI.reload].disabled = true;
+
   try {
     const res = await jfetch(API_URL);
-    console.log("shipment data:", res);
-    table.setData(res);
+
+    lotsByPO.clear();
+
+    for (const r of res) {
+      if (!r.po_id || !r.lot_id) continue;
+
+      if (!lotsByPO.has(r.po_id)) {
+        lotsByPO.set(r.po_id, new Map());
+      }
+
+      lotsByPO.get(r.po_id).set(r.lot_id, r);
+    }
+
+    await table.setData(res);
     applyFilter();
+
     toast("Data loaded");
+
   } catch (err) {
     toast("Load failed: " + err?.message, false);
   }
+
   els[UI.reload].disabled = false;
 }
-
 // async function loadData() {
 //   console.log("loadData called");
 //   els[UI.reload].disabled = true;

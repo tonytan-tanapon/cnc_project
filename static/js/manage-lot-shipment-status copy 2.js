@@ -1,0 +1,1726 @@
+import { $, jfetch, toast } from "./api.js";
+
+/* ===== CONFIG ===== */
+const API_URL = "/reports/shipment-status";
+const UI = {
+  q: "_q",
+  // lotStatus: "_lot_status",
+  // duedays: "_duedays",
+  reload: "_reload",
+  export: "_export",   // ✅ ADD
+  table: "listBody",
+};
+
+let els = {};
+let table = null;
+
+let travelerId = null;
+let lotId = null;
+let originalTraveler = null;
+
+async function loadTraveler() {
+  if (!travelerId && !lotId) {
+    toast("Missing travelerId or lotId", false);
+    return;
+  }
+
+  try {
+    let t = null;
+
+    if (travelerId) {
+      t = await jfetch(`/travelers/${encodeURIComponent(travelerId)}`);
+    } else if (lotId) {
+      const list = await jfetch(
+        `/travelers?lot_id=${encodeURIComponent(lotId)}`
+      );
+      if (Array.isArray(list) && list.length > 0) {
+        t = list[0];
+      } else {
+        toast("No traveler found for this lot", false);
+        return;
+      }
+    }
+
+    travelerId = t.id;
+    originalTraveler = t;
+
+    console.log("Traveler loaded:", t);
+    toast("Traveler loaded");
+  } catch (e) {
+    toast(e?.message || "Load failed", false);
+  }
+}
+
+function formatDateShort(v) {
+  if (!v) return "";
+
+  let d;
+
+  // รองรับทั้ง string และ Date
+  if (typeof v === "string") {
+    d = new Date(v);
+  } else if (v instanceof Date) {
+    d = v;
+  } else {
+    return "";
+  }
+
+  const m = d.getMonth() + 1;
+  const day = d.getDate();
+  const y = d.getFullYear().toString().slice(-2);
+
+  return `${m}/${day}/${y}`;
+}
+
+
+function exportExcel() {
+  table.download("xlsx", "shipment_status.xlsx", {
+    sheetName: "Shipment",
+
+    downloadDataFormatter: (data) => {
+      return data.map((d) => ({
+        Lot: d.lot_no,
+        PO: d.po_number,
+        Cust: d.customer_code,
+        Part: d.part_no,
+        "Part Name": d.part_name,
+
+        // ✅ FIX HERE
+        Due: formatDateShort(d.lot_po_duedate),
+
+        Left: d.lot_po_days_left,
+        "QTY Shipped": d.accept_input,
+        Shipped: d.lot_shipped_qty,
+        "Lot Status": d.lot_status,
+
+        // ✅ FIX HERE
+        "Shipped Date": formatDateShort(d.lot_last_ship_date),
+
+        Note: d.lot_note,
+      }));
+    },
+  });
+}
+
+async function downloadDrawingBatch() {
+  try {
+    const res = await fetch(`/api/v1/traveler_drawing/drawing/${travelerId}`, {
+      method: "POST",
+    });
+
+    if (!res.ok) {
+      const txt = await res.text().catch(() => "");
+      console.error("Download error:", res.status, txt);
+      toast("Download failed");
+      return;
+    }
+    console.log(res);
+    const blob = await res.blob();
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `drawing_${travelerId}.bat`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  } catch (err) {
+    console.error("Download exception:", err);
+    toast("Download failed (exception)");
+  }
+}
+
+/* ===== Copy helper ===== */
+function copyWithFeedback(icon, text, msg = "Copied") {
+  if (!text) return;
+
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  ta.style.position = "fixed";
+  ta.style.top = "-1000px";
+  document.body.appendChild(ta);
+  ta.select();
+  document.execCommand("copy");
+  document.body.removeChild(ta);
+
+  const old = icon.textContent;
+  icon.textContent = "✅";
+  icon.style.pointerEvents = "none";
+
+  setTimeout(() => {
+    icon.textContent = old || "📋";
+    icon.style.pointerEvents = "";
+  }, 1200);
+
+  toast?.success?.(msg);
+}
+
+
+function formatPartDetail(cell, formatterParams, onRendered) {
+  const wrapper = document.createElement("div");
+
+  const detail = document.createElement("div");
+  detail.className = "part-detail-text is-collapsed";
+  detail.textContent = cell.getValue() ?? "";
+
+  const toggle = document.createElement("button");
+  toggle.type = "button";
+  toggle.className = "part-detail-toggle";
+  toggle.textContent = "Show more";
+  toggle.setAttribute("aria-expanded", "false");
+  toggle.hidden = true;
+
+  toggle.addEventListener("click", (event) => {
+    // คลิกปุ่มแล้วไม่เปิด textarea ของ Tabulator
+    event.stopPropagation();
+
+    const collapsed = detail.classList.toggle("is-collapsed");
+    toggle.textContent = collapsed ? "Show more" : "Show less";
+    toggle.setAttribute("aria-expanded", String(!collapsed));
+
+    // ปรับความสูงของแถวหลังขยายหรือย่อ
+    cell.getRow().normalizeHeight();
+  });
+
+  wrapper.append(detail, toggle);
+
+  onRendered(() => {
+    toggle.hidden = detail.scrollHeight <= detail.clientHeight;
+  });
+
+  return wrapper;
+}
+
+/* ===== Build columns ===== */
+function makeColumns() {
+  return [
+    /* ===== COPY SUMMARY ===== */
+
+
+    {
+      title: "Copy",
+      download: false,
+      width: 90,
+      hozAlign: "center",
+      formatter: () => `
+        <button style="
+          padding:4px 8px;
+          background:#e5e7eb;
+          border-radius:6px;
+          font-size:12px;
+          cursor:pointer;
+        ">Copy</button>
+      `,
+      cellClick: (e, cell) => {
+        const d = cell.getRow().getData();
+        const text = [
+          d.po_number ? `PO#${d.po_number}` : null,
+          d.part_no ? `Part#${d.part_no}` : null,
+          d.lot_no ? `${d.lot_no}` : null,
+        ]
+          .filter(Boolean)
+          .join(",");
+        copyWithFeedback(e.target, text, "Copied summary");
+      },
+    },
+
+    /* ===== LOT ===== */
+    {
+      title: "Lot",
+      field: "lot_no",
+      width: 95,
+      sorter: (a, b) => {
+        const na = Number((a || "").match(/\d+/)?.[0] || 0);
+        const nb = Number((b || "").match(/\d+/)?.[0] || 0);
+        return na - nb;
+      },
+      formatter: (cell) => {
+        const d = cell.getRow().getData();
+        if (!d.lot_id) return cell.getValue() ?? "";
+        return `
+          <div style="display:flex;gap:6px;align-items:center;">
+            <a class="link"
+              href="/static/lot-detail.html?lot_id=${d.lot_id}">
+              ${cell.getValue()}
+            </a>
+            <span class="copy-lot" style="cursor:pointer;">📋</span>
+          </div>
+        `;
+      },
+      cellClick: (e, cell) => {
+        if (!e.target.classList.contains("copy-lot")) return;
+        e.preventDefault();
+        e.stopPropagation();
+        copyWithFeedback(e.target, cell.getValue(), "Copied Lot");
+      },
+    },
+
+    // /* ===== PO ===== */
+    // {
+    //   title: "PO",
+    //   field: "po_number",
+    //   width: 90,
+    //   formatter: (cell) => {
+    //     const d = cell.getData();
+    //     if (!d.po_id) return cell.getValue() ?? "";
+    //     return `
+    //       <div style="display:flex;gap:6px;align-items:center;">
+    //         <a class="link"
+    //           href="/static/manage-pos-detail.html?id=${d.po_id}">
+    //           ${cell.getValue()}
+    //         </a>
+    //         <span class="copy-po" style="cursor:pointer;">📋</span>
+    //       </div>
+    //     `;
+    //   },
+    //   cellClick: (e, cell) => {
+    //     if (!e.target.classList.contains("copy-po")) return;
+    //     e.preventDefault();
+    //     e.stopPropagation();
+    //     copyWithFeedback(e.target, cell.getValue(), "Copied PO");
+    //   },
+    // },
+
+    {
+      title: "PO<br><small>Ship/Total(Rem)</small>",
+      titleDownload: "PO",
+      field: "po_number",
+      width: 160,
+      hozAlign: "center",
+      headerHozAlign: "center",
+
+      formatter: (cell) => {
+        const r = cell.getRow().getData();
+
+        const shipped = r.po_shipped_total ?? 0;
+        const total = r.po_qty_total ?? 0;
+        const remain = r.po_remaining_qty ?? total - shipped;
+
+        let color = "#6b7280";
+        if (shipped === 0) color = "#ef4444";
+        else if (remain > 0) color = "#f59e0b";
+        else if (remain === 0) color = "#10b981";
+        else color = "#7c3aed";
+
+        return `
+      <div style="display:flex;flex-direction:column;align-items:center;">
+        
+        <div>
+          <a href="/static/manage-pos-detail.html?id=${r.po_id}"
+             style="color:#2563eb;text-decoration:underline;">
+             ${r.po_number}
+          </a>
+          <span class="copy-po" style="cursor:pointer;margin-left:6px;">📋</span>
+        </div>
+
+        <div style="font-size:12px;font-weight:600;color:${color};">
+          ${shipped}/${total} (${remain})
+        </div>
+
+      </div>
+    `;
+      },
+
+      cellClick: (e, cell) => {
+        const r = cell.getRow().getData();
+
+        if (e.target.classList.contains("copy-po")) {
+          e.stopPropagation();
+          copyWithFeedback(e.target, r.po_number, "Copied PO");
+          return;
+        }
+
+        if (e.target.tagName === "A") return;
+
+        if (r.po_id) {
+          window.location.href =
+            `/static/manage-pos-detail.html?id=${encodeURIComponent(r.po_id)}`;
+        }
+      },
+    }
+    ,
+    { title: "Cust", field: "customer_code", width: 80 },
+
+    /* ===== PART + PART NAME ===== */
+    {
+      title: "Part",
+      field: "part_no",
+      width: 250,
+
+      formatter: (cell) => {
+        const d = cell.getData();
+
+        const rev = d.revision
+          ? ` (${d.revision})`
+          : "";
+
+        const label =
+          `${d.part_no ?? ""}${rev}`;
+
+        const partName =
+          d.part_name ?? "";
+
+        const ecar =
+          d.ecar === "Y"
+            ? `
+          <a
+            href="/static/ecars.html?q=${encodeURIComponent(d.part_no || "")}"
+            style="color:#c0392b;font-weight:bold;"
+          >
+            ⛔CAR
+          </a>
+        `
+            : "";
+
+        const icar =
+          d.icar === "Y"
+            ? `
+          <a
+            href="/static/icars.html?q=${encodeURIComponent(d.part_no || "")}"
+            style="color:#2980b9;font-weight:bold;"
+          >
+            ⚠️ICAR
+          </a>
+        `
+            : "";
+
+        const tags = [ecar, icar]
+          .filter(Boolean)
+          .join(" | ");
+
+        return `
+      <div>
+
+        <!-- PART NUMBER -->
+        <div style="
+          display:flex;
+          gap:6px;
+          align-items:center;
+        ">
+
+          <span
+            class="drawing"
+            style="cursor:pointer;"
+            title="CNC drawing"
+          >
+            📐
+          </span>
+
+          ${d.part_id
+            ? `
+                <a
+                  class="link"
+                  href="/static/manage-part-detail.html?part_id=${d.part_id}&part_revision_id=${d.part_revision_id ?? ""}&customer_id=${d.customer_id ?? ""}"
+                >
+                  ${label}
+                </a>
+              `
+            : `<span>${label}</span>`
+          }
+
+          <span
+            class="copy-part"
+            style="cursor:pointer;"
+            title="Copy Part Number"
+          >
+            📋
+          </span>
+
+        </div>
+
+
+        <!-- PART NAME -->
+        ${partName
+            ? `
+              <div style="
+                margin-left:22px;
+                margin-top:3px;
+                font-size:12px;
+                display:flex;
+                gap:5px;
+                align-items:center;
+              ">
+
+                <span>${partName}</span>
+
+                <span
+                  class="copy-pname"
+                  style="cursor:pointer;"
+                  title="Copy Part Name"
+                >
+                  📋
+                </span>
+
+              </div>
+            `
+            : ""
+          }
+
+
+        <!-- ECAR / ICAR -->
+        ${tags
+            ? `
+              <div style="
+                margin-left:22px;
+                margin-top:3px;
+                font-size:11px;
+                font-weight:bold;
+              ">
+                ${tags}
+              </div>
+            `
+            : ""
+          }
+
+      </div>
+    `;
+      },
+
+
+      cellClick: async (e, cell) => {
+
+        const d = cell.getRow().getData();
+
+
+        // =========================
+        // COPY PART NUMBER
+        // =========================
+
+        if (
+          e.target.classList.contains("copy-part")
+        ) {
+
+          e.preventDefault();
+          e.stopPropagation();
+
+          copyWithFeedback(
+            e.target,
+            `${d.part_no ?? ""}`,
+            "Copied Part"
+          );
+
+          return;
+        }
+
+
+        // =========================
+        // COPY PART NAME
+        // =========================
+
+        if (
+          e.target.classList.contains("copy-pname")
+        ) {
+
+          e.preventDefault();
+          e.stopPropagation();
+
+          copyWithFeedback(
+            e.target,
+            `${d.part_name ?? ""}`,
+            "Copied Part Name"
+          );
+
+          return;
+        }
+
+
+        // =========================
+        // DRAWING
+        // =========================
+        if (e.target.classList.contains("drawing")) {
+
+          e.preventDefault();
+          e.stopPropagation();
+
+          const lotId = d.lot_id;
+
+          if (!lotId) {
+            toast("Missing lot_id", false);
+            return;
+          }
+
+          const url = `/api/v1/lot_stamp/${encodeURIComponent(lotId)}?header_detail=false`;
+
+          console.log("Open Stamp:", url);
+
+          window.open(url, "_blank");
+
+          return;
+        }
+
+      },
+
+    },
+
+    //   /* ===== PART ===== */
+    //   {
+    //     title: "Part",
+    //     field: "part_no",
+    //     width: 200,
+    //     formatter: (cell) => {
+    //       const d = cell.getData();
+
+    //       const rev =
+    //         d.revision
+    //           ? ` (${d.revision})`
+    //           : "";
+
+    //       const label =
+    //         `${d.part_no ?? ""}${rev}`;
+
+    //       const ecar =
+    //         d.ecar === "Y"
+    //           ? `
+    //     <a
+    //       href="/static/ecars.html?q=${encodeURIComponent(d.part_no || "")}"
+    //       style="color:#c0392b;font-weight:bold;"
+    //     >
+    //       ⛔CAR
+    //     </a>
+    //   `
+    //           : "";
+    //       const icar = d.icar === "Y" ? `
+    //     <a href="/static/icars.html?q=${encodeURIComponent(d.part_no || "")}" style="color:#2980b9;font-weight:bold;" >⚠️ICAR </a>
+    //   `
+    //         : "";
+
+    //       const tags =
+    //         [ecar, icar]
+    //           .filter(Boolean)
+    //           .join(" | ");
+
+    //       return `
+    //   <div>
+
+    //     <div style="display:flex;gap:6px;align-items:center;">
+
+    //       <span
+    //         class="drawing"
+    //         style="cursor:pointer;"
+    //         title="CNC drawing"
+    //       >
+    //         📐
+    //       </span>
+
+    //       ${d.part_id
+    //           ? `
+    //             <a class="link"
+    //                href="/static/manage-part-detail.html?part_id=${d.part_id}
+    //                &part_revision_id=${d.part_revision_id ?? ""}
+    //                &customer_id=${d.customer_id ?? ""}">
+    //                ${label}
+    //             </a>
+    //           `
+    //           : `<span>${label}</span>`
+    //         }
+
+    //       <span
+    //         class="copy-part"
+    //         style="cursor:pointer;"
+    //       >
+    //         📋
+    //       </span>
+
+    //     </div>
+
+    //     ${tags
+    //           ? `
+    //           <div
+    //             style="
+    //               margin-left:22px;
+    //               font-size:11px;
+    //               color:#c0392b;
+    //               font-weight:bold;
+    //             "
+    //           >
+    //             ${tags}
+    //           </div>
+    //         `
+    //           : ""
+    //         }
+
+    //   </div>
+    // `;
+    //     },
+    //     cellClick: async (e, cell) => {
+    //       const d = cell.getRow().getData();
+
+    //       if (e.target.classList.contains("copy-part")) {
+    //         e.preventDefault();
+    //         e.stopPropagation();
+    //         copyWithFeedback(e.target, `${d.part_no ?? ""}`, "Copied Part");
+    //         return;
+    //       }
+
+    //       if (e.target.classList.contains("drawing")) {
+    //         e.preventDefault();
+    //         e.stopPropagation();
+
+    //         const d = cell.getRow().getData();
+
+    //         lotId = d.lot_id;   // ✅ set before calling
+    //         travelerId = null;  // optional reset
+
+    //         await loadTraveler();
+
+    //         console.log("load drawing", travelerId, lotId);
+
+    //         await downloadDrawingBatch();
+    //       }
+    //     },
+
+    //   },
+
+    //   /* ===== PART NAME ===== */
+    //   {
+    //     title: "Part Name",
+    //     field: "part_name",
+    //     width: 160,
+    //     formatter: (cell) => `
+    //       <div style="display:flex;gap:6px;align-items:center;">
+    //         <span>${cell.getValue() ?? ""}</span>
+    //         <span class="copy-pname" style="cursor:pointer;">📋</span>
+    //       </div>
+    //     `,
+    //     cellClick: (e, cell) => {
+    //       if (!e.target.classList.contains("copy-pname")) return;
+    //       e.preventDefault();
+    //       e.stopPropagation();
+    //       copyWithFeedback(e.target, cell.getValue(), "Copied Part Name");
+    //     },
+    //   },
+
+    {
+      title: "Part Detail",
+      field: "part_detail",
+      width: 180,
+
+      editor: "textarea",
+
+      variableHeight: true,
+      formatter: formatPartDetail,
+
+      cellEdited: async (cell) => {
+        const d = cell.getRow().getData();
+
+        const res = await fetch(
+          `/api/v1/parts/${d.part_id}`,
+          {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              part_detail: cell.getValue()
+            })
+          }
+        );
+
+        if (!res.ok) {
+          alert("Failed to update Part Detail");
+        }
+      },
+    },
+
+
+    {
+      title: "Part Detail Extra",
+      field: "part_detail_extra",
+      width: 200,
+
+      editor: "textarea",
+
+      variableHeight: true,
+      formatter: formatPartDetail,
+
+      cellEdited: async (cell) => {
+        const d = cell.getRow().getData();
+
+        const res = await fetch(
+          `/api/v1/parts/${d.part_id}`,
+          {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              part_detail_extra: cell.getValue()
+            })
+          }
+        );
+
+        if (!res.ok) {
+          alert("Failed to update Part Detail Extra");
+        }
+      },
+    },
+    // {
+    //   title: "Part Detail",
+    //   field: "part_detail",
+    //   width: 180,
+    //   formatter: (cell) => {
+    //     const v = cell.getValue();
+
+    //     return `
+    //   <div style="
+    //     white-space: normal;
+    //     padding:4px;
+    //     font-size:12px;
+    //   ">
+    //     ${v ?? ""}
+    //   </div>
+    // `;
+    //   },
+    // },
+
+    // {
+    //   title: "Part Detail Extra",
+    //   field: "part_detail_extra",
+    //   width: 200,
+    //   formatter: (cell) => {
+    //     const v = cell.getValue();
+
+    //     return `
+    //   <div style="
+    //     white-space: pre-wrap;
+    //     padding:4px;
+    //     font-size:12px;
+    //   ">
+    //     ${v ?? ""}
+    //   </div>
+    // `;
+    //   },
+    // },
+
+
+    // /* ===== DUE DATE ===== */
+    // {
+    //   title: "Due po_line",
+    //   field: "po_line_due_date",
+    //   width: 90,
+    //   formatter: (cell) => {
+    //     const v = cell.getValue();
+    //     if (!v) return "";
+    //     const d = new Date(v);
+    //     return `${String(d.getMonth() + 1).padStart(2, "0")}/
+    //             ${String(d.getDate()).padStart(2, "0")}/
+    //             ${String(d.getFullYear()).slice(-2)}`;
+    //   },
+    // },
+
+
+    // {
+    //   title: "Due",
+    //   field: "lot_po_duedate",
+    //   width: 90,
+
+    //   formatter: (cell) => {
+    //     const v = cell.getValue();
+    //     if (!v) return "";
+
+    //     const [y, m, d] = v.split("T")[0].split("-");
+    //     return `${m}/${d}/${y.slice(-2)}`;
+    //   },
+
+    //   // ✅ IMPORTANT
+    //   accessorDownload: (value) => {
+    //     if (!value) return "";
+
+    //     const [y, m, d] = value.split("T")[0].split("-");
+    //     return `${m}/${d}/${y.slice(-2)}`;
+    //   }
+    // }
+    // ,
+
+    // /* ===== DAYS LEFT (PO LEVEL) ===== */
+    // {
+    //   title: "Left",
+    //   field: "lot_po_days_left",
+    //   width: 90,
+    //   hozAlign: "center",
+    //   sorter: "number",
+    //   formatter: (cell) => {
+    //     const r = cell.getRow().getData();
+    //     const days = cell.getValue();
+
+    //     // ---- normalize status ----
+    //     const lotStatus = String(r.lot_status ?? "").toLowerCase();
+
+    //     // 1️⃣ PO completed
+    //     // 1️⃣ PO completed (highest priority)
+    //     if (r.po_remaining_qty === 0) {
+    //       return `
+    //     <span title="PO Completed" style="
+    //       display:inline-flex;
+    //       align-items:center;
+    //       justify-content:center;
+    //       background:#10b981;
+    //       color:white;
+    //       width:34px;
+    //       height:24px;
+    //       border-radius:999px;
+    //       font-weight:700;
+    //     ">
+    //       ✔
+    //     </span>
+    //   `;
+    //     }
+
+    //     // 2️⃣ Lot completed
+    //     if (lotStatus === "completed") {
+    //       if (r.po_remaining_qty > 0) {
+    //         return `
+    //     <span title="PO remain" style="
+    //       display:inline-flex;
+    //       align-items:center;
+    //       justify-content:center;
+    //       background:#10b981;
+    //       color:white;
+    //       width:34px;
+    //       height:24px;
+    //       border-radius:999px;
+    //       font-weight:700;
+    //     ">
+    //       X
+    //     </span>
+    //   `;
+    //       }
+    //       return `
+    //     <span title="Lot Completed" style="
+    //       display:inline-flex;
+    //       align-items:center;
+    //       justify-content:center;
+    //       background:#9ca3af;
+    //       color:white;
+    //       width:34px;
+    //       height:24px;
+    //       border-radius:999px;
+    //       font-weight:700;
+    //     ">
+    //       O
+    //     </span>
+    //   `;
+    //     }
+    //     // ✓
+    //     // 3️⃣ Normal due logic
+    //     if (days == null) return "";
+
+    //     const color = days < 0 ? "#ef4444" : days <= 3 ? "#f59e0b" : "#10b981";
+
+    //     const text = days < 0 ? `${Math.abs(days)}d OD` : `${days}d left`;
+
+    //     return `<span style="
+    //   background:${color};
+    //   color:white;
+    //   padding:4px 8px;
+    //   border-radius:8px;
+    //   font-weight:600;
+    // ">
+    //   ${text}
+    // </span>`;
+    //   },
+    // },
+
+    {
+      title: "Due",
+      field: "lot_po_duedate",
+      width: 90,
+      hozAlign: "center",
+
+      formatter: (cell) => {
+        const r = cell.getRow().getData();
+
+        const dueDate = r.lot_po_duedate;
+        const days = r.lot_po_days_left;
+        const lotStatus = String(r.lot_status ?? "").toLowerCase();
+
+        // =========================
+        // FORMAT DUE DATE
+        // =========================
+        let dueText = "";
+
+        if (dueDate) {
+          const [y, m, d] = dueDate.split("T")[0].split("-");
+          dueText = `${m}/${d}/${y.slice(-2)}`;
+        }
+
+        // =========================
+        // LEFT STATUS
+        // =========================
+        let leftHtml = "";
+
+        // 1. PO Completed
+        //   if (r.po_remaining_qty === 0) {
+        //     leftHtml = `
+        //   <span title="PO Completed" style="
+        //     display:inline-flex;
+        //     align-items:center;
+        //     justify-content:center;
+        //     background:#10b981;
+        //     color:white;
+        //     width:34px;
+        //     height:24px;
+        //     border-radius:999px;
+        //     font-weight:700;
+        //   ">
+        //     ✔
+        //   </span>
+        // `;
+        //   }
+
+        //   // 2. Lot Completed but PO still remain
+        //   else if (lotStatus === "completed") {
+        if (lotStatus === "completed") {
+          if (r.po_remaining_qty > 0) {
+            leftHtml = `
+          <span title="PO remain" style="
+            display:inline-flex;
+            align-items:center;
+            justify-content:center;
+            background:#10b981;
+            color:white;
+            width:34px;
+            height:24px;
+            border-radius:999px;
+            font-weight:700;
+          ">
+            X
+          </span>
+        `;
+          } else {
+            leftHtml = `
+          <span title="Lot Completed" style="
+            display:inline-flex;
+            align-items:center;
+            justify-content:center;
+            background:#9ca3af;
+            color:white;
+            width:34px;
+            height:24px;
+            border-radius:999px;
+            font-weight:700;
+          ">
+            O
+          </span>
+        `;
+          }
+        }
+
+        // 3. Normal due logic
+        else if (days != null) {
+          const color =
+            days < 0
+              ? "#ef4444"
+              : days <= 3
+                ? "#f59e0b"
+                : "#10b981";
+
+          const text =
+            days < 0
+              ? `${Math.abs(days)}d OD`
+              : `${days}d left`;
+
+          leftHtml = `
+        <span style="
+          background:${color};
+          color:white;
+          padding:4px 8px;
+          border-radius:8px;
+          font-weight:600;
+        ">
+          ${text}
+        </span>
+      `;
+        }
+
+        // =========================
+        // COMBINE
+        // =========================
+        return `
+      <div style="
+        display:flex;
+        flex-direction:column;
+        align-items:center;
+        justify-content:center;
+        gap:3px;
+      ">
+        <div>${dueText}</div>
+        <div>${leftHtml}</div>
+      </div>
+    `;
+      },
+
+      // =========================
+      // EXCEL DOWNLOAD
+      // =========================
+      accessorDownload: (value, data) => {
+        if (!value) return "";
+
+        const [y, m, d] = value.split("T")[0].split("-");
+        const dueText = `${m}/${d}/${y.slice(-2)}`;
+
+        const days = data.lot_po_days_left;
+
+        if (data.po_remaining_qty === 0) {
+          return `${dueText} - Completed`;
+        }
+
+        if (String(data.lot_status ?? "").toLowerCase() === "completed") {
+          return `${dueText} - Lot Completed`;
+        }
+
+        if (days == null) {
+          return dueText;
+        }
+
+        const leftText =
+          days < 0
+            ? `${Math.abs(days)}d OD`
+            : `${days}d left`;
+
+        return `${dueText} - ${leftText}`;
+      }
+    },
+
+    {
+      title: "QTY<br>Shipped",
+      titleDownload: "QTY Shipped",
+      width: 110,
+      field: "lot_shipped_qty",
+      hozAlign: "center",
+      headerHozAlign: "center",
+
+      editor: "number",
+      editorParams: {
+        min: 0,
+        step: 1,
+      },
+
+      // 🎨 simple display
+      formatter: (cell) => {
+        const v = cell.getValue();
+        return `<div style="
+      padding:4px;
+      border-radius:6px;
+      text-align:center;
+      font-weight:600;
+      background:${v ? "#dcfce7" : "#f3f4f6"};
+    ">
+      ${v ?? ""}
+    </div>
+    
+    `;
+      },
+
+      cellEdited: async (cell) => {
+        const d = cell.getRow().getData();
+        const qty = Number(cell.getValue());
+
+        if (Number.isNaN(qty) || qty < 0) {
+          toast("Invalid qty", false);
+          cell.restoreOldValue();
+          return;
+        }
+
+        try {
+          await jfetch(`/api/v1/lot-shippments/shipment/update-from-ui`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              lot_id: d.lot_id,
+              qty: qty
+            }),
+          });
+
+          toast("Shipment updated", true);
+
+        } catch (err) {
+          console.error(err);
+          toast(err?.message || "Save failed", false);
+          cell.restoreOldValue();
+        }
+      }
+    },
+
+    // {
+    //   title: "Ship",
+    //   width: 80,
+    //   field: "planned_qty",
+    //   // field: "lot_planned_ship_qty",
+    //   hozAlign: "center",
+    //   headerHozAlign: "center",
+    //   // editor: "number",        // ✅ inline edit
+    //   // editorParams: {
+    //   //   min: 0,
+    //   //   step: 1,
+    //   // },
+    //   // cellEdited: async (cell) => {
+    //     // const d = cell.getRow().getData();
+
+    //     // await fetch(`/api/v1/lots/${d.lot_id}`, {
+    //     //   method: "PATCH",
+    //     //   headers: { "Content-Type": "application/json" },
+    //     //   body: JSON.stringify({
+    //     //     planned_ship_qty: d.lot_planned_ship_qty,   // ✅ correct field
+    //     //   }),
+    //     // });
+
+    //     // toast("Quantity updated", true);
+    //   // }
+    // },
+    // {
+    //   title: "Tracking",
+    //   width: 140,
+    //   field: "tracking_number",   // ✅ correct field
+    //   hozAlign: "center",
+    //   headerHozAlign: "center",
+
+    //   editor: "input",            // ✅ tracking เป็น text ไม่ใช่ number
+
+    //   formatter: (cell) => {
+    //     const v = cell.getValue();
+    //     return `<div style="
+    //       padding:4px;
+    //       border-radius:6px;
+    //       text-align:center;
+    //       font-weight:500;
+    //       background:${v ? "#e0f2fe" : "#f3f4f6"};
+    //     ">
+    //       ${v ?? ""}
+    //     </div>`;
+    //   },
+
+    //   cellEdited: async (cell) => {
+    //     const d = cell.getRow().getData();
+    //     const tracking = cell.getValue();
+
+    //     if (!d.shipment_id) {
+    //       toast("No shipment found", false);
+    //       cell.restoreOldValue();
+    //       return;
+    //     }
+
+    //     try {
+    //       await jfetch(`/api/v1/lot-shippments/${d.shipment_id}/update-fields`, {
+    //         method: "PATCH",
+    //         headers: { "Content-Type": "application/json" },
+    //         body: JSON.stringify({
+    //           tracking_number: tracking,
+    //         }),
+    //       });
+
+    //       toast("Tracking updated", true);
+
+    //       // ✅ update UI (optional)
+    //       cell.getRow().update({
+    //         tracking_number: tracking,
+    //       });
+
+    //     } catch (err) {
+    //       console.error(err);
+    //       toast("Update failed", false);
+    //       cell.restoreOldValue();
+    //     }
+    //   }
+    // } , 
+
+    {
+      title: "Shop Link",
+      width: 150,
+      field: "lot_shipped_qty",
+      hozAlign: "center",
+      headerHozAlign: "center",
+
+      formatter: (cell) => {
+        const r = cell.getRow().getData();
+        const lotId = r.lot_id;
+        const shipped = r.lot_shipped_qty ?? 0;
+
+        if (!lotId) return shipped;
+
+        return `
+          <div style="text-align:center; line-height:1.6;">
+              <div>
+                  <a href="${location.origin}/api/v1/lot_stamp/${lotId}" >    🚀Stamp </a>
+              </div>
+              
+              <div>
+                  <a href="/static/traveler-detail.html?lot_id=${encodeURIComponent(lotId)}"
+                    target="_blank">🧾ST</a>
+                  |
+                  <a href="/static/manage-lot-shippments.html?lot_id=${encodeURIComponent(lotId)}"
+                    target="_blank">🚚Ship</a>
+              </div>
+              
+            <div>
+                <a href="/static/inventory_admin.html?q=${encodeURIComponent(r.part_no ?? "")}"
+                  target="_blank">📦Inventory</a>
+            </div>
+          </div>
+          `;
+      },
+    },
+    // search by LOT
+    //  <div>
+    //              <a href="/static/inventory_admin.html?q=${encodeURIComponent(r.lot_no ?? "")}"
+    //                target="_blank">📦Inventory</a>
+    //           </div>
+
+
+    // {
+    //   title: "Ship",
+    //   width: 110,
+    //   field: "lot_shipped_qty",
+    //   hozAlign: "center",
+
+    //   formatter: (cell) => {
+    //     const d = cell.getRow().getData();
+    //     const shipped = d.lot_shipped_qty ?? 0;
+
+    //     if (!d.lot_id) return shipped;
+
+    //     const url = `http://100.88.56.126:9000/static/manage-lot-shippments.html?lot_id=${d.lot_id}`;
+
+    //     return `
+    //       <div style="display:flex; align-items:center; gap:6px; justify-content:center;">
+    //         <span>${shipped}</span>
+    //         <a href="${url}"
+    //            target="_blank"
+    //            title="Open shipment"
+    //            style="text-decoration:none; font-size:14px;">
+    //            📦
+    //         </a>
+    //       </div>
+    //     `;
+    //   }
+    // },
+
+    // {
+    //   title: "Ship/PO(Rem)",
+    //   width: 170,
+    //   hozAlign: "center",
+    //   formatter: (cell) => {
+    //     const r = cell.getRow().getData();
+
+    //     const shipped = r.po_shipped_total ?? 0;
+    //     const total = r.po_qty_total ?? 0;
+    //     const remain = r.po_remaining_qty ?? total - shipped;
+
+    //     // สีตามสถานะ
+    //     let bg = "#6b7280"; // gray
+    //     if (shipped === 0) bg = "#ef4444"; // not shipped
+    //     else if (remain > 0) bg = "#f59e0b"; // partial
+    //     else if (remain === 0) bg = "#10b981"; // complete
+    //     else bg = "#7c3aed"; // overship
+
+    //     // format remain
+    //     const remText = remain < 0 ? `-${Math.abs(remain)}` : remain;
+
+    //     return `
+    //   <span style="
+    //     background:${bg};
+    //     color:white;
+    //     padding:4px 10px;
+    //     border-radius:8px;
+    //     font-weight:600;
+    //     display:inline-block;
+    //     min-width:120px;
+    //     text-align:center;
+    //   ">
+    //     ${shipped} / ${total} (${remText})
+    //   </span>
+    // `;
+    //   },
+    // },
+
+    // /* ===== LOT STATUS ===== */
+    // {
+    //   title: "Lot Status",
+    //   field: "lot_status",
+    //   width: 120,
+    //   formatter: (cell) => {
+    //     const v = cell.getValue();
+    //     const colors = {.
+    //       not_start: "#6b7280",
+    //       in_process: "#3b82f6",
+    //       hold: "#f59e0b",
+    //       completed: "#10b981",
+    //       canceled: "#ef4444",
+    //     };
+    //     return `<span style="
+    //       background:${colors[v]};
+    //       color:white;
+    //       padding:4px 8px;
+    //       border-radius:6px;
+    //       font-weight:600;">
+    //       ${v}
+    //     </span>`;
+    //   },
+    // },
+
+    {
+      title: "Lot Status",
+      field: "lot_status",
+      width: 150,
+      hozAlign: "center",
+
+      editor: "select",
+      editorParams: {
+        values: {
+          not_start: "No Ship",      // 👈 เปลี่ยนตรงนี้ด้วย
+          in_process: "In Process",
+          shipped: "Shipped",
+          completed: "Completed",
+
+          creating: "Creating",
+          inspection: "Inspection",
+          checked: "Checked",
+          canceled: "Canceled",
+          wip: "WIP"
+
+
+        },
+      },
+
+      formatter: (cell) => {
+        const v = cell.getValue();
+
+        const colors = {
+          not_start: "#6b7280",
+          in_process: "#3b82f6",
+
+          shipped: "#06b6d4",   // ✅ ADD
+
+          completed: "#10b981",
+          canceled: "#ef4444",
+        };
+
+        // ✅ label mapping
+        const labels = {
+          not_start: "No Ship",
+          in_process: "In Process",
+
+          shipped: "Shipped",   // ✅ ADD
+          completed: "Completed",
+          canceled: "Canceled",
+        };
+
+        return `<span style="
+      background:${colors[v] || "#6b7280"};
+      color:white;
+      padding:4px 8px;
+      border-radius:6px;
+      font-weight:600;
+      display:inline-block;
+      min-width:90px;
+      text-align:center;
+    ">
+      ${labels[v] || v || ""}
+    </span>`;
+      },
+
+      cellEdited: async (cell) => {
+        const newStatus = cell.getValue();
+        const oldStatus = cell.getOldValue();
+        const row = cell.getRow().getData();
+
+        if (newStatus === oldStatus) return;
+
+        try {
+          const res = await jfetch(`/api/v1/lots/${row.lot_id}/status`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ status: newStatus }), // ✅ ยังส่ง not_start อยู่
+          });
+
+          toast("Lot status updated", true);
+        } catch (err) {
+          toast("Update failed", false);
+          cell.setValue(oldStatus, true);
+          console.error(err);
+        }
+      },
+    },
+    /* ===== LAST SHIPPED ===== */
+    // {
+    //   title: "Shipped Date",
+    //   field: "lot_last_ship_date",
+    //   width: 160,
+    //   formatter: (cell) => {
+    //     const v = cell.getValue();
+    //     return v ? new Date(v).toLocaleDateString() : "";
+    //   },
+
+    //   accessorDownload: (value) => {
+    //     return formatDateShort(value);
+    //   },
+    // },
+
+    {
+      title: "% Progress",
+      field: "progress_percent",
+      width: 120,
+      hozAlign: "center",
+
+      sorter: (a, b) => {
+        return Number(a || 0) - Number(b || 0);
+      },
+
+      formatter: (cell) => {
+
+        const v =
+          Number(
+            cell.getValue() || 0
+          );
+
+        let color =
+          "#ef4444";
+
+        if (v >= 100)
+          color = "#10b981";
+
+        else if (v >= 50)
+          color = "#f59e0b";
+
+        else if (v > 0)
+          color = "#3b82f6";
+
+        return `
+<div
+  style="
+    position:relative;
+    height:22px;
+    background:#e5e7eb;
+    border-radius:4px;
+    overflow:hidden;
+  "
+>
+
+  <div
+    style="
+      width:${v}%;
+      background:${color};
+      height:100%;
+    "
+  ></div>
+
+  <div style="
+    position:absolute;
+    top:0;
+    left:0;
+    width:100%;
+    height:100%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    color:black;
+    font-weight:700;
+    font-size:12px;
+  ">
+
+    ${v.toFixed(0)}%
+
+  </div>
+
+</div>
+`;
+      },
+    },
+
+    {
+      title: "Note",
+      field: "lot_note",
+      width: 200,
+      editor: "textarea",
+      variableHeight: true,
+      cssClass: "shipment-note-cell",
+      formatter: formatPartDetail,
+
+      // 🚀 ใช้ jfetch ของคุณ (สำคัญ)
+      cellEdited: async (cell) => {
+        const row = cell.getRow().getData();
+        const note = cell.getValue();
+
+        try {
+          await jfetch(`/api/v1/lots/${encodeURIComponent(row.lot_id)}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ note }),
+          });
+
+          toast("Note updated ✅");
+        } catch (err) {
+          console.error(err);
+          toast("Update failed ❌", false);
+        }
+      },
+    },
+
+    {
+      title: "Shipped Date",
+      field: "lot_last_ship_date",
+      width: 160,
+
+      sorter: (a, b) => {
+        return new Date(a || 0) - new Date(b || 0);
+      },
+
+      formatter: (cell) => {
+        const v = cell.getValue();
+        return v ? new Date(v).toLocaleDateString() : "";
+      }
+    }
+
+
+
+  ];
+}
+
+/* ===== Apply Filter ===== */
+function applyFilter() {
+  const q = els[UI.q].value.trim().toLowerCase();
+  // const lotStatus = els[UI.lotStatus].value;
+  // const duedaysVal = els[UI.duedays].value;
+  const lotStatus =
+    document.querySelector('input[name="lot_status"]:checked')?.value || "";
+
+  table.clearFilter(true);
+
+  // if (q) {
+  //   table.addFilter(
+  //     (d) =>
+  //       d.part_no?.toLowerCase().includes(q) ||
+  //       d.lot_no?.toLowerCase().includes(q) ||
+  //       d.customer_name?.toLowerCase().includes(q) ||
+  //       d.customer_code?.toLowerCase().includes(q) ||
+  //       d.po_number?.toLowerCase().includes(q)
+  //   );
+
+  // }
+
+  if (q) {
+    table.addFilter((d) => {
+
+      const part = String(d.part_no || "").toLowerCase();
+      const partName = String(d.part_name || "").toLowerCase();
+      const partDetail = String(d.part_detail || "").toLowerCase();
+      const partDetailExtra = String(d.part_detail_extra || "").toLowerCase();
+
+      const lot = String(d.lot_no || "").toLowerCase();
+      const customer = String(d.customer_name || "").toLowerCase();
+      const customerCode = String(d.customer_code || "").toLowerCase();
+      const po = String(d.po_number || "").toLowerCase();
+
+      return (
+        part.includes(q) ||
+        partName.includes(q) ||
+        partDetail.includes(q) ||
+        partDetailExtra.includes(q) ||
+        lot.includes(q) ||
+        customer.includes(q) ||
+        customerCode.includes(q) ||
+        po.includes(q)
+      );
+    });
+  }
+
+  if (lotStatus === "open_po") {
+
+    // Open PO = No Ship + In Process
+    table.addFilter((d) => {
+      return (
+        d.lot_status === "not_start" ||
+        d.lot_status === "in_process"
+      );
+    });
+
+  } else if (lotStatus) {
+    table.addFilter("lot_status", "=", lotStatus);
+  }
+
+  // if (duedaysVal) {
+  //   if (duedaysVal === "gt90") {
+  //     table.addFilter((d) => d.days_left > 90);
+  //   } else {
+  //     const limit = Number(duedaysVal);
+  //     table.addFilter((d) => d.days_left >= 0 && d.days_left <= limit);
+  //   }
+  // }
+}
+
+/* ===== Load Data ===== */
+async function loadData() {
+  els[UI.reload].disabled = true;
+  try {
+    const res = await jfetch(API_URL);
+    console.log("shipment data:", res);
+    table.setData(res);
+    applyFilter();
+    toast("Data loaded");
+  } catch (err) {
+    toast("Load failed: " + err?.message, false);
+  }
+  els[UI.reload].disabled = false;
+}
+
+// async function loadData() {
+//   console.log("loadData called");
+//   els[UI.reload].disabled = true;
+
+//   try {
+//     console.time("TOTAL");
+
+//     console.time("API");
+//     const res = await jfetch(API_URL);
+//     console.timeEnd("API");
+
+//     console.log("Rows:", res.length);
+
+//     console.time("TABULATOR");
+//     await table.setData(res);
+//     console.timeEnd("TABULATOR");
+
+//     console.time("FILTER");
+//     applyFilter();
+//     console.timeEnd("FILTER");
+
+//     console.timeEnd("TOTAL");
+
+//     toast("Data loaded");
+
+//   } catch (err) {
+//     toast("Load failed: " + err?.message, false);
+//   }
+
+//   els[UI.reload].disabled = false;
+// }
+
+/* ===== Init ===== */
+function initTable() {
+
+  table = new Tabulator(`#${UI.table}`, {
+    layout: "fitColumns",
+    height: "100%",
+    placeholder: "No data",
+    columns: makeColumns(),
+    initialSort: [{ column: "days_left", dir: "asc" }],
+  });
+
+  // 🔥 IMPORTANT
+  window.table = table;
+}
+document.addEventListener("DOMContentLoaded", () => {
+
+  Object.values(UI).forEach((id) => (els[id] = $(id)));
+  initTable();
+  loadData();
+
+  els[UI.reload].addEventListener("click", loadData);
+  els[UI.q].addEventListener("input", () => {
+    clearTimeout(window._flt);
+    window._flt = setTimeout(applyFilter, 300);
+  });
+  // els[UI.duedays].addEventListener("change", applyFilter);
+  // els[UI.lotStatus].addEventListener("change", applyFilter);
+  els[UI.export].addEventListener("click", exportExcel);
+  document.querySelectorAll('input[name="lot_status"]').forEach((radio) => {
+    radio.addEventListener("change", applyFilter);
+  });
+});

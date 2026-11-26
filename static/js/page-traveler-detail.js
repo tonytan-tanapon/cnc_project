@@ -263,7 +263,24 @@ function ensureHeaderButtons() {
   btnGetQR.textContent = "🔳 Get QR";
   btnGetQR.onclick = showTravelerQR;
 
-  wrap.append(btnHdrSave, btnHdrCancel, btnGetQR);
+  const compositeBox = document.createElement("div");
+
+  compositeBox.id = "compositeLots";
+  compositeBox.style.cssText = `
+  display:none;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:8px;
+  font-size:12px;
+  margin-left:10px;
+`;
+
+  wrap.append(
+    btnHdrSave,
+    btnHdrCancel,
+    btnGetQR,
+    compositeBox
+  );
 
   // ✅ ใช้วิธี append หลัง h2 โดยตรงแทน
   const titleRow = sub.parentElement;
@@ -272,6 +289,76 @@ function ensureHeaderButtons() {
   console.log("✅ Header buttons added");
 }
 
+async function loadCompositeLots() {
+  const box = $("compositeLots");
+
+  if (!box) return;
+
+  box.replaceChildren();
+  box.style.display = "none";
+
+  const poId = originalLot?.po?.id;
+  const partNo = originalLot?.part?.part_no;
+
+  if (!poId || !partNo) return;
+
+  try {
+    const rows = await jfetch(
+  `/lots/${encodeURIComponent(lotId)}/composite-lots`
+);
+
+    const compositeLots = new Map();
+
+    for (const r of rows) {
+      if (
+        Number(r.po_id) === Number(poId) &&
+        r.lot_id &&
+        Number(r.lot_id) !== Number(lotId) &&
+        r.part_no &&
+        r.part_no !== partNo
+      ) {
+        compositeLots.set(r.lot_id, r);
+      }
+    }
+
+    if (!compositeLots.size) return;
+
+    const label = document.createElement("strong");
+    label.textContent = "Composite Lots:";
+
+    box.appendChild(label);
+
+    for (const r of compositeLots.values()) {
+      const link = document.createElement("a");
+
+      link.href =
+        `/static/traveler-detail.html?lot_id=${encodeURIComponent(r.lot_id)}`;
+
+      link.textContent = `${r.lot_no} - ${r.part_no}`;
+      link.title = r.part_no;
+
+      link.style.cssText = `
+        color:#2563eb;
+        background:#eff6ff;
+        padding:5px 8px;
+        border-radius:5px;
+        font-weight:bold;
+        text-decoration:none;
+      `;
+
+      if (box.querySelector("a")) {
+        box.appendChild(document.createTextNode(", "));
+      }
+
+      box.appendChild(link);
+    }
+
+    box.style.display = "flex";
+
+  } catch (err) {
+    console.error("Load composite lots failed", err);
+  }
+}
 async function savePartRevisionMaterial() {
 
   const revId = originalTraveler?.part_revision_id;
@@ -645,7 +732,7 @@ async function fillTraveler(t) {
   $("fileInputDir").value =
     t.file_dir || "";
 
-  
+
 
 
 
@@ -3484,6 +3571,7 @@ async function loadLotDetail() {
     );
 
     checkDueDate();
+    loadCompositeLots();
 
   } catch (err) {
 

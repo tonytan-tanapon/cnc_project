@@ -454,6 +454,37 @@ from models import PO
 from sqlalchemy import func
 from models import CustomerShipmentItem
 
+@router.get("/{lot_id}/composite-lots")
+def get_composite_lots(
+    lot_id: int,
+    db: Session = Depends(get_db)
+):
+    lot = db.get(ProductionLot, lot_id)
+
+    if not lot:
+        raise HTTPException(404, "Lot not found")
+
+    if not lot.po_id:
+        return []
+
+    rows = (
+        db.query(
+            ProductionLot.id.label("lot_id"),
+            ProductionLot.lot_no,
+            ProductionLot.po_id,
+            Part.part_no
+        )
+        .join(Part, Part.id == ProductionLot.part_id)
+        .filter(
+            ProductionLot.po_id == lot.po_id,
+            ProductionLot.id != lot.id,
+            ProductionLot.part_id != lot.part_id
+        )
+        .order_by(ProductionLot.lot_no)
+        .all()
+    )
+
+    return [dict(r._mapping) for r in rows]
 
 @router.get("/{lot_id}")
 def get_lot(lot_id: int, db: Session = Depends(get_db)):

@@ -476,7 +476,7 @@ def export_excel(
         leave_date = leave.start_at.date()
 
         if (
-            leave.leave_type in ("sick", "vacation")
+            leave.leave_type in ("sick", "vacation", "holiday")
             and pay_start <= leave_date <= pay_end
         ):
             
@@ -714,7 +714,7 @@ def export_payee(
         leave_date = leave.start_at.date()
 
         if (
-            leave.leave_type in ("sick", "vacation")
+            leave.leave_type in ("sick", "vacation","holiday")
             and pay_start <= leave_date <= pay_end
         ):
            
@@ -981,7 +981,7 @@ def export_payee(
         for leave in payroll["leave_rows"]:
             if (
                 leave.employee_id == emp["id"]
-                and leave.leave_type in ("sick", "vacation")
+                and leave.leave_type in ("sick", "vacation", "holiday")
                 and pay_start <= leave.start_at.date() <= pay_end
             ):
                 emp_leave_pay += 8 * rate
